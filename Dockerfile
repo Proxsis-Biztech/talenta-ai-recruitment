@@ -2,20 +2,22 @@
 
 # Stage 1: Build Frontend
 FROM node:20-alpine AS frontend-builder
+ENV NODE_ENV=development
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build Backend
 FROM node:20-alpine AS backend-builder
+ENV NODE_ENV=development
 WORKDIR /app/backend
 
 COPY backend/package*.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 COPY backend/ ./
 RUN npx prisma generate
