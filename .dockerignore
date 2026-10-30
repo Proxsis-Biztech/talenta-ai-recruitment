@@ -1,0 +1,11 @@
+node_modules
+*/node_modules
+.git
+.github
+*.log
+backend/uploads/*
+!backend/uploads/.gitkeep
+.serena
+.gemini
+frontend/dist
+backend/dist

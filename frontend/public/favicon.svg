@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="talentaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E3A8A" />
+      <stop offset="100%" stop-color="#2563EB" />
+    </linearGradient>
+    <linearGradient id="plusGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#60A5FA" />
+    </linearGradient>
+  </defs>
+
+  <!-- Squircle Base -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#talentaGrad)" />
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="#60A5FA" stroke-width="1.5" stroke-opacity="0.3" />
+
+  <!-- Bold Letter 'T' -->
+  <path d="M16 18 H38 V25 H30 V46 H22 V25 H16 Z" fill="#FFFFFF" />
+
+  <!-- Vibrant Plus '+' Sign -->
+  <path d="M43 27 H47 V33 H53 V37 H47 V43 H43 V37 H37 V33 H43 Z" fill="url(#plusGrad)" />
+</svg>

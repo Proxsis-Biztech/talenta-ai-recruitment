@@ -1,0 +1,75 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String   // Hashed password
+  role      String   @default("admin") // "superadmin" | "admin"
+  createdAt DateTime @default(now())
+}
+
+model Applicant {
+  id             String       @id @default(uuid())
+  fullName       String
+  placeOfBirth   String
+  dateOfBirth    DateTime
+  phone          String
+  email          String       @unique
+  address        String
+  gender         String       // "Pria" | "Wanita"
+  education      String       // "SMA" | "D1" | "D2" | "D3" | "D4" | "S1"
+  university     String?      // Nullable jika pendidikan == SMA
+  major          String?      // Nullable jika pendidikan == SMA
+  gpa            Float?       // Nullable jika pendidikan == SMA
+  cvFileName             String       // Nama file CV yang disimpan
+  cvMimeType             String       // Tipe MIME file untuk keamanan
+  localCvPath            String?      // Path lokal sementara sebelum ke cloud
+  syncStatus             String       @default("pending") // "pending" | "success" | "failed"
+  certificateFileName    String?      // Nama file Ijazah/Sertifikat (Max 5MB)
+  certificateMimeType    String?      // Tipe MIME file Ijazah/Sertifikat
+  experiences            Experience[] // Relasi One-to-Many
+  createdAt              DateTime     @default(now())
+  interviewResult        String?      // Menyimpan ringkasan/skor wawancara
+  interviewTranscript    String?      // Menyimpan transkrip lengkap
+  interviewStatus        String       @default("not_started") // "not_started" | "in_progress" | "completed" | "scored"
+  interviewScore         Int?         // Skor hasil penilaian AI setelah wawancara
+  interviewSkillMatrix   String?      // JSON skill matrix dari AI scoring
+  interviewPhaseScores   String?      // JSON: skor per-fase & per-pertanyaan dari AI
+  proctorFlags           String?      // JSON: log pelanggaran integritas selama interview
+  appliedPosition        String       @default("General")
+  screeningStatus        String       @default("pending") // "pending" | "success" | "failed"
+  screeningScore         Int?
+  screeningSummary       String?
+  jobId                  String?
+  job                    Job?         @relation(fields: [jobId], references: [id], onDelete: SetNull)
+}
+
+model Experience {
+  id            String    @id @default(uuid())
+  applicantId   String
+  applicant     Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  companyName   String
+  position      String
+  startDate     DateTime
+  endDate       DateTime? // Nullable jika isCurrent == true
+  isCurrent     Boolean   @default(false)
+}
+
+model Job {
+  id                   String      @id @default(uuid())
+  title                String      @unique
+  description          String      // Berisi jobdesk & requirements
+  status               String      @default("active") // "active" | "inactive"
+  interviewDuration    Int?        // Durasi wawancara dalam menit
+  interviewPassingScore Int?       // Skor kelulusan (0-100) untuk passing threshold
+  createdAt            DateTime    @default(now())
+  applicants           Applicant[]
+}

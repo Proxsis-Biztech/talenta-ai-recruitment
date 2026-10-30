@@ -1,0 +1,271 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&display=swap');
+
+/* Proctoring Anti-Cheat: Screen print block */
+@media print {
+  body {
+    display: none !important;
+  }
+}
+
+/* Talenta+ Assessment Platform Architectural Tokens */
+:root {
+  /* Surfaces */
+  --bg-base: #F8FAFC;
+  --bg-surface-1: #FFFFFF;
+  --bg-surface-2: #F1F5F9;
+  --bg-surface-hover: #EEF2FF;
+  
+  /* Borders */
+  --border-subtle: #E2E8F0;
+  --border-bold: #CBD5E1;
+  --border-focus: #1E3A8A;
+
+  /* Typography / Ink */
+  --ink-primary: #0F172A;
+  --ink-secondary: #64748B;
+  --ink-muted: #94A3B8;
+  --ink-inverse: #FFFFFF;
+
+  /* Talenta+ Official Color Palette */
+  --primary-navy: #1E3A8A;
+  --navy-dark: #172554;
+  --blue-accent: #2563EB;
+  --soft-blue: #EEF2FF;
+  --page-bg: #F8FAFC;
+  --exam-bg: #F1F5F9;
+
+  /* Accent mapped to Primary Navy */
+  --accent: #1E3A8A;
+  --accent-hover: #172554;
+  --accent-surface: #EEF2FF;
+  --accent-border: #C7D2FE;
+
+  /* Semantic State */
+  --state-success: #16A34A;
+  --state-success-bg: #DCFCE7;
+  --state-warning: #F59E0B;
+  --state-warning-bg: #FEF3C7;
+  --state-danger: #DC2626;
+  --state-danger-bg: #FEE2E2;
+  --state-info: #0EA5E9;
+  --state-info-bg: #E0F2FE;
+
+  /* Typography */
+  --font-sans: "Geist", Arial, Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: "Geist", Arial, Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Geist", Arial, Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", monospace, Courier New;
+
+  /* Shadows (Multi-layered Architectural & Soft) */
+  --shadow-subtle: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.02);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 14px -2px rgba(15, 23, 42, 0.04);
+  --shadow-raised: 0 4px 8px -1px rgba(15, 23, 42, 0.05), 0 12px 24px -4px rgba(15, 23, 42, 0.06);
+
+  /* Radius (Tactile & Naturally Rounded) */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+}
+
+/* Smooth scroll for all anchor links */
+html {
+  scroll-behavior: smooth;
+}
+
+@theme {
+  --color-primary-navy: #1E3A8A;
+  --color-navy-dark: #172554;
+  --color-blue-accent: #2563EB;
+  --color-soft-blue: #EEF2FF;
+  --color-page-bg: #F8FAFC;
+  --color-exam-bg: #F1F5F9;
+  --color-ink: #0F172A;
+  --color-accent-border: #C7D2FE;
+  --color-muted-slate: #64748B;
+  --color-border-slate: #E2E8F0;
+  --color-success-green: #16A34A;
+  --color-warning-amber: #F59E0B;
+  --color-error-red: #DC2626;
+  --color-info-cyan: #0EA5E9;
+
+  --font-sans: "Geist", Arial, Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: "Geist", Arial, Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Geist", Arial, Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", monospace, Courier New;
+}
+
+@layer base {
+  *, ::before, ::after {
+    font-family: var(--font-sans);
+  }
+
+  body {
+    background-color: #F8FAFC;
+    color: #0F172A;
+    font-family: var(--font-sans);
+    letter-spacing: -0.011em;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Subtle grain overlay — breaks digital flatness */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    pointer-events: none;
+    opacity: 0.02;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px 200px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    text-wrap: balance;
+  }
+
+  code, pre, kbd, samp, .font-mono, [data-mono="true"] {
+    font-family: var(--font-mono) !important;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-full hover:bg-slate-400;
+  }
+
+  /* Skip-to-content link */
+  .skip-to-content {
+    @apply absolute -top-10 left-4 z-[9999] bg-primary-navy text-white px-5 py-3 rounded-b-xl text-sm font-bold transition-all duration-300 focus:top-0;
+    box-shadow: 0 4px 20px rgba(30, 58, 138, 0.3);
+  }
+
+  /* Focus ring for accessibility */
+  :focus-visible {
+    outline: 2px solid #1E3A8A;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Remove default focus ring for mouse users */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+@layer utilities {
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out forwards;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out forwards;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .glass {
+    @apply backdrop-blur-xl bg-white/70 border border-white/20 shadow-lg;
+  }
+
+  .glass-dark {
+    @apply backdrop-blur-xl bg-slate-900/70 border border-slate-700/50 shadow-xl;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5;
+  }
+
+  .skeleton {
+    @apply bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 bg-[length:200%_100%] animate-pulse rounded-lg;
+  }
+
+  /* Tinted shadow for brand elements */
+  .shadow-brand {
+    box-shadow: 0 4px 14px -2px rgba(249, 115, 22, 0.15), 0 0 0 1px rgba(249, 115, 22, 0.05);
+  }
+
+  .shadow-brand-lg {
+    box-shadow: 0 8px 30px -4px rgba(249, 115, 22, 0.2), 0 0 0 1px rgba(249, 115, 22, 0.05);
+  }
+
+  /* Tinted shadow for dark surfaces */
+  .shadow-tint {
+    box-shadow: 0 4px 14px -2px rgba(25, 25, 112, 0.08), 0 1px 3px rgba(25, 25, 112, 0.04);
+  }
+
+  .shadow-tint-lg {
+    box-shadow: 0 10px 40px -8px rgba(25, 25, 112, 0.12);
+  }
+
+  /* Active press effect for buttons (scale only; transitions are managed by the btn classes) */
+  .btn-press {
+    @apply active:scale-[0.97];
+  }
+
+  /* Text with tabular numbers for data */  
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Tinted shadow for dark cards on light bg */
+  .shadow-tinted {
+    box-shadow: 0 4px 20px -4px rgba(25, 25, 112, 0.08), 0 1px 3px rgba(25, 25, 112, 0.04);
+  }
+  .shadow-tinted-lg {
+    box-shadow: 0 12px 40px -8px rgba(25, 25, 112, 0.14), 0 2px 6px rgba(25, 25, 112, 0.06);
+  }
+
+
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Sidebar Collapsed Floating Tooltip */
+.sidebar-tooltip {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  transform: translateY(-50%) translateX(-4px);
+  pointer-events: none;
+}
+.sidebar-item-group:hover .sidebar-tooltip {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateY(-50%) translateX(0) !important;
+}

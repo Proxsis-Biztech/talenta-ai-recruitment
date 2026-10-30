@@ -1,0 +1,26 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+/generated/prisma
+
+# Build output
+dist
+
+# Local SQLite Database
+*.db
+*.db-journal
+prisma/*.db
+prisma/dev.db
+
+# Uploads directory (user uploaded files)
+uploads/
+
+# Google Drive service account credentials & other secret JSON files
+kinesta-hr-*.json
+
+# Logs
+*.log
+
+# Package manager lock files
+bun.lock
