@@ -1,5 +1,16 @@
 [
   {
+    "id": "log-1793359081769-l90qp",
+    "timestamp": "2026-10-30T11:18:01.769Z",
+    "actor": "superadmin",
+    "action": "ADMIN_LOGIN",
+    "category": "AUTH",
+    "ip": "::1",
+    "target": "Admin Auth Gate",
+    "details": "Login berhasil sebagai role 'superadmin'",
+    "status": "SUCCESS"
+  },
+  {
     "id": "log-1793355560187-k5gdc",
     "timestamp": "2026-10-30T10:19:20.187Z",
     "actor": "superadmin",

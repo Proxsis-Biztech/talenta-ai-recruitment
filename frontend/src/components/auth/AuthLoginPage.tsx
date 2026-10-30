@@ -135,6 +135,7 @@ export default function AuthLoginPage() {
         // Fallback for offline/mock admin session
         if (password === 'cleaverzz25' || password === 'admin123') {
           const authRole = cleanId === 'superadmin' ? 'superadmin' : 'admin';
+          localStorage.setItem('adminToken', 'mock-superadmin-session-token');
           localStorage.setItem('adminRole', authRole);
           localStorage.setItem('adminUsername', identifier.trim());
           localStorage.setItem('authRole', authRole);
