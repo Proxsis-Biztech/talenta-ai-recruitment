@@ -92,29 +92,29 @@ export default function AsesorQueueTable() {
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold font-heading text-ink tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
               Antrean Live Interview Asesor
             </h1>
-            <p className="text-xs text-muted-slate mt-1">
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Daftar slot wawancara kompetensi yang ditugaskan kepada Anda hari ini.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative w-64">
+            <div className="relative w-72">
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Cari kandidat atau program..."
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-border-slate focus:border-primary-navy outline-none"
+                className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-primary-navy outline-none shadow-2xs"
               />
             </div>
           </div>
         </div>
 
         {/* Table Card */}
-        <div className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs space-y-4">
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-4">
           <Table>
             <TableHeader>
               <TableRow>

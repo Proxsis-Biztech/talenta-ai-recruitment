@@ -95,16 +95,16 @@ export default function AsesorProctoringReview() {
     <AsesorLayout activeTab="proctoring">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Badge variant="danger" format="soft" className="uppercase font-semibold text-[10px]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Badge variant="danger" format="soft" className="uppercase font-semibold text-xs">
               PROCTORING AUDIT
             </Badge>
-            <Badge variant="navy">{`Kandidat: Farhan Pratama (SE-402)`}</Badge>
+            <Badge variant="navy" className="text-xs">{`Kandidat: Farhan Pratama (SE-402)`}</Badge>
           </div>
-          <h1 className="text-2xl font-extrabold font-heading text-ink tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
             Review Temuan Integritas & Flag Proctoring AI
           </h1>
-          <p className="text-xs text-muted-slate mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Audit rekaman snapshot kejadian mencurigakan yang ditangkap otomatis oleh mesin OpenCV & Browser Integrity Guard.
           </p>
         </div>
@@ -112,7 +112,7 @@ export default function AsesorProctoringReview() {
         {/* ─── Top Split: Integrity Score Gauge + Diagnostic Summary ─── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Integrity Score Gauge (1 col) */}
-          <div className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs flex flex-col items-center justify-center text-center">
+          <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs flex flex-col items-center justify-center text-center">
             <span className="text-xs font-bold text-muted-slate uppercase tracking-wider mb-2">
               Skor Integritas Kandidat
             </span>

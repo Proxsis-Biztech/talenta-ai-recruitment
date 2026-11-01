@@ -88,10 +88,10 @@ export default function AsesorRekapProgram() {
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold font-heading text-ink tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
               Rekapitulasi Penilaian Program Asesmen
             </h1>
-            <p className="text-xs text-muted-slate mt-1">
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Matriks hasil pengujian seluruh kandidat per program asesmen terstandar.
             </p>
           </div>
@@ -100,7 +100,7 @@ export default function AsesorRekapProgram() {
             <Button
               variant="outline"
               onClick={handleExportDummy}
-              className="text-xs flex items-center gap-1.5"
+              className="text-xs sm:text-sm py-2 px-3.5 rounded-xl font-bold flex items-center gap-2 cursor-pointer shadow-2xs"
             >
               <Download className="w-4 h-4 text-primary-navy" />
               <span>Ekspor Rekap (CSV)</span>
@@ -109,14 +109,14 @@ export default function AsesorRekapProgram() {
         </div>
 
         {/* Filter Bar */}
-        <div className="bg-white rounded-2xl border border-border-slate p-4 shadow-xs flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2 flex-1 max-w-sm">
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cari kandidat, ID, atau PT..."
-              className="w-full px-3.5 py-2 text-xs rounded-xl border border-border-slate focus:border-primary-navy outline-none"
+              className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-primary-navy outline-none shadow-2xs"
             />
           </div>
 

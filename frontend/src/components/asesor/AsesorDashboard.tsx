@@ -43,17 +43,17 @@ export default function AsesorDashboard() {
     <AsesorLayout activeTab="dashboard">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8">
         {/* ─── Hero Assessor Header ─── */}
-        <div className="bg-white rounded-2xl border border-border-slate p-6 sm:p-8 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-xs font-semibold mb-3">
-              <Scale className="w-3.5 h-3.5 text-amber-600" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-xs sm:text-sm font-bold mb-3">
+              <Scale className="w-4 h-4 text-amber-600" />
               Dewan Asesor Independen
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold font-heading tracking-tight text-ink">
               Panel Penilaian: {activeAsesor.name || 'Dr. Ir. Dwi Hartanto'}
             </h1>
-            <p className="text-xs text-muted-slate mt-1 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-slate-400" />
+            <p className="text-xs sm:text-sm text-slate-600 mt-1.5 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-slate-400" />
               <span>Instansi Ditugaskan: <strong>{activeAsesor.companyName || 'PT Telkom Indonesia Tbk'}</strong></span>
             </p>
           </div>
@@ -62,7 +62,7 @@ export default function AsesorDashboard() {
             <Button
               variant="primary"
               onClick={() => navigate('/asesor/live-console/demo')}
-              className="text-xs flex items-center gap-2 shadow-sm"
+              className="text-xs sm:text-sm py-2.5 px-4 rounded-xl flex items-center gap-2 shadow-sm font-bold cursor-pointer"
             >
               <Video className="w-4 h-4" />
               <span>Buka Live Console Sesi 1</span>
@@ -75,21 +75,21 @@ export default function AsesorDashboard() {
           {/* Card 1: Jadwal Interview Hari Ini */}
           <div
             onClick={() => navigate('/asesor/interview-queue')}
-            className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs hover:border-primary-navy transition-all cursor-pointer flex flex-col justify-between"
+            className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs hover:border-primary-navy hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
           >
             <div>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-muted-slate uppercase tracking-wider">
+                <span className="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider">
                   Jadwal Hari Ini
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-accent flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-accent flex items-center justify-center group-hover:scale-105 transition-transform">
                   <Calendar className="w-5 h-5" />
                 </div>
               </div>
-              <p className="font-mono text-3xl font-extrabold text-ink">5 Sesi</p>
-              <p className="text-xs text-muted-slate mt-1">1 sesi aktif, 4 sesi mendatang</p>
+              <p className="font-mono text-3xl sm:text-4xl font-extrabold text-ink">5 Sesi</p>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1.5">1 sesi aktif, 4 sesi mendatang</p>
             </div>
-            <span className="text-xs font-semibold text-primary-navy mt-4 flex items-center gap-1">
+            <span className="text-xs sm:text-sm font-bold text-primary-navy mt-4 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
               Buka antrean interview →
             </span>
           </div>
@@ -97,21 +97,21 @@ export default function AsesorDashboard() {
           {/* Card 2: Antrean Penilaian Belum Selesai */}
           <div
             onClick={() => navigate('/asesor/scoring/demo')}
-            className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between"
+            className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs hover:border-amber-500 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
           >
             <div>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-muted-slate uppercase tracking-wider">
+                <span className="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider">
                   Penilaian Tertunda
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
                   <ClipboardCheck className="w-5 h-5" />
                 </div>
               </div>
-              <p className="font-mono text-3xl font-extrabold text-warning-amber">3 Berkas</p>
-              <p className="text-xs text-muted-slate mt-1">Rubrik perlu finalisasi skor akhir</p>
+              <p className="font-mono text-3xl sm:text-4xl font-extrabold text-warning-amber">3 Berkas</p>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1.5">Rubrik perlu finalisasi skor akhir</p>
             </div>
-            <span className="text-xs font-semibold text-amber-700 mt-4 flex items-center gap-1">
+            <span className="text-xs sm:text-sm font-bold text-amber-700 mt-4 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
               Selesaikan rubrik scoring →
             </span>
           </div>
@@ -119,39 +119,39 @@ export default function AsesorDashboard() {
           {/* Card 3: Flag Proctoring Perlu Review */}
           <div
             onClick={() => navigate('/asesor/proctoring')}
-            className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs hover:border-red-500 transition-all cursor-pointer flex flex-col justify-between"
+            className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs hover:border-red-500 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
           >
             <div>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-muted-slate uppercase tracking-wider">
+                <span className="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider">
                   Flag Proctoring AI
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center group-hover:scale-105 transition-transform">
                   <ShieldAlert className="w-5 h-5" />
                 </div>
               </div>
-              <p className="font-mono text-3xl font-extrabold text-error-red">7 Event</p>
-              <p className="text-xs text-muted-slate mt-1">Deteksi pindah tab & shortcut print</p>
+              <p className="font-mono text-3xl sm:text-4xl font-extrabold text-error-red">7 Event</p>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1.5">Deteksi pindah tab & shortcut print</p>
             </div>
-            <span className="text-xs font-semibold text-red-700 mt-4 flex items-center gap-1">
+            <span className="text-xs sm:text-sm font-bold text-red-700 mt-4 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
               Review bukti snapshot AI →
             </span>
           </div>
         </div>
 
         {/* ─── Upcoming Interview Slots Table ─── */}
-        <div className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="font-heading font-bold text-base text-ink">
+              <h2 className="font-heading font-extrabold text-lg sm:text-xl text-ink">
                 Jadwal Interview Sesi Hari Ini
               </h2>
-              <p className="text-xs text-muted-slate">Slot waktu dan kandidat yang telah siap diuji</p>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Slot waktu dan kandidat yang telah siap diuji</p>
             </div>
             <Button
               variant="outline"
               onClick={() => navigate('/asesor/interview-queue')}
-              className="text-xs"
+              className="text-xs sm:text-sm py-2 px-3.5 rounded-xl font-bold cursor-pointer"
             >
               Lihat Seluruh Slot
             </Button>

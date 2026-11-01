@@ -167,14 +167,14 @@ export default function AsesorScoringForm() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold font-heading text-slate-900">
+                <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-slate-900 tracking-tight">
                   Farhan Pratama
                 </h1>
-                <Badge variant="navy" className="text-xs">
+                <Badge variant="navy" className="text-xs sm:text-sm font-bold">
                   CIMB Niaga: The Complete Banker
                 </Badge>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5 font-mono">
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 font-mono">
                 KND-2026-0891 • In-Basket Simulation PT Anjak (OTP, CSI & OPEX)
               </p>
             </div>
@@ -258,13 +258,13 @@ export default function AsesorScoringForm() {
         </Card>
 
         {/* 7 Core Behavioral Competencies Form (BRD 4.2 & 4.3) */}
-        <form onSubmit={handleFinalize} className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
+        <form onSubmit={handleFinalize} className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-7">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
             <div>
-              <h2 className="font-heading font-bold text-base text-slate-900">
+              <h2 className="font-heading font-extrabold text-lg sm:text-xl text-slate-900">
                 Rubrik 7 Indikator Perilaku Baku (Skala 1 - 5)
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
                 Terapkan diskresi profesional asesor (*Human-in-the-Loop*) untuk menyesuaikan skor draf AI
               </p>
             </div>
