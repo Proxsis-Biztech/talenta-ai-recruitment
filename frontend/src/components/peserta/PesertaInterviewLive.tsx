@@ -62,6 +62,19 @@ export default function PesertaInterviewLive() {
   const [isListening, setIsListening] = useState(false);
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [isLiveConnected, setIsLiveConnected] = useState(false);
+  const [liveCaptionText, setLiveCaptionText] = useState<string>('');
+  const [micVolumeLevel, setMicVolumeLevel] = useState(0);
+
+  // Audio Context and WebSocket refs for real Gemini Live streaming
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const inputAudioCtxRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const nextStartTimeRef = useRef<number>(0);
+  const activeSourcesCountRef = useRef<number>(0);
+  const volumeAnimRef = useRef<number | null>(null);
 
   // Proctoring Character states
   const [proctorMood, setProctorMood] = useState<ProctoringMood>('normal');
@@ -175,83 +188,336 @@ export default function PesertaInterviewLive() {
     return () => clearInterval(timer);
   }, []);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (volumeAnimRef.current) cancelAnimationFrame(volumeAnimRef.current);
+      if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      if (inputAudioCtxRef.current) inputAudioCtxRef.current.close().catch(() => {});
+      if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {});
+      if (socketRef.current) socketRef.current.close();
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    };
+  }, []);
+
   const formatTimer = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
-  // Text to Speech for Gemini Voice
-  const speakText = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'id-ID';
-    utterance.rate = 1.05;
-
-    // Pick Indonesian voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const idVoice = voices.find((v) => v.lang.startsWith('id'));
-    if (idVoice) utterance.voice = idVoice;
-
-    utterance.onstart = () => {
-      setIsAiSpeaking(true);
-      setProctorMood('normal');
-    };
-    utterance.onend = () => setIsAiSpeaking(false);
-    utterance.onerror = () => setIsAiSpeaking(false);
-
-    window.speechSynthesis.speak(utterance);
+  // Initialize Web Audio Context for output playback
+  const getOrCreateAudioContext = () => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        audioCtxRef.current = new AudioCtx();
+      }
+    }
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume().catch(() => {});
+    }
+    return audioCtxRef.current;
   };
 
-  // Voice Speech-to-Text Input for Candidate
-  const handleToggleListening = () => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      // Fallback: fill sample answer
-      setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
-      setProctorCustomMessage('Mode simulasi input suara aktif. Draf jawaban telah diisi.');
-      return;
+  // Play synthesized harmonic chime when AI starts talking (reliable across all OS / browsers)
+  const playHarmonicAiChime = () => {
+    try {
+      const ctx = getOrCreateAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + i * 0.08);
+        gain.gain.setValueAtTime(0.06, now + i * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + i * 0.08);
+        osc.stop(now + i * 0.08 + 0.36);
+      });
+    } catch {
+      // ignore
     }
+  };
 
-    if (isListening) {
-      setIsListening(false);
-      setProctorMood('normal');
+  // Play real PCM audio chunks streamed from Google Gemini Live (24kHz)
+  const playPcmAudioChunk = (base64Data: string) => {
+    const ctx = getOrCreateAudioContext();
+    if (!ctx) return;
+
+    try {
+      const binaryString = window.atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const pcmData = new Int16Array(bytes.buffer);
+      const audioBuffer = ctx.createBuffer(1, pcmData.length, 24000);
+      const channelData = audioBuffer.getChannelData(0);
+
+      for (let i = 0; i < pcmData.length; i++) {
+        channelData[i] = pcmData[i] / 32768;
+      }
+
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+
+      const startTime = Math.max(ctx.currentTime, nextStartTimeRef.current);
+      source.start(startTime);
+      nextStartTimeRef.current = startTime + audioBuffer.duration;
+
+      activeSourcesCountRef.current++;
+      setIsAiSpeaking(true);
+
+      source.onended = () => {
+        activeSourcesCountRef.current = Math.max(0, activeSourcesCountRef.current - 1);
+        if (activeSourcesCountRef.current === 0) {
+          setTimeout(() => {
+            if (activeSourcesCountRef.current === 0) {
+              setIsAiSpeaking(false);
+            }
+          }, 400);
+        }
+      };
+    } catch (e) {
+      console.warn('PCM Audio playback error:', e);
+    }
+  };
+
+  // Connect Gemini Live WebSocket
+  const connectGeminiLive = (greetingText?: string) => {
+    getOrCreateAudioContext();
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      if (greetingText) {
+        socketRef.current.send(JSON.stringify({ type: 'text', text: greetingText }));
+      }
       return;
     }
 
     try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'id-ID';
-      recognition.continuous = false;
-      recognition.interimResults = true;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/api/interview/live?voice=Kore&language=Indonesian&candidateName=${encodeURIComponent(
+        sessionUser.name || 'Budi Santoso'
+      )}&jobTitle=${encodeURIComponent(program.title || 'Software Engineer')}`;
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        setProctorMood('speaking');
-      };
-      recognition.onend = () => {
-        setIsListening(false);
-        setProctorMood('normal');
-      };
-      recognition.onerror = () => {
-        setIsListening(false);
-        setProctorMood('normal');
-      };
+      const ws = new WebSocket(wsUrl);
+      socketRef.current = ws;
 
-      recognition.onresult = (e: any) => {
-        const text = Array.from(e.results)
-          .map((r: any) => r[0].transcript)
-          .join('');
-        setUserAnswer(text);
+      ws.onopen = () => {
+        setIsLiveConnected(true);
+        playHarmonicAiChime();
+        const initialPrompt =
+          greetingText ||
+          `Halo Ava, saya ${sessionUser.name || 'Budi Santoso'} telah hadir dan siap untuk sesi wawancara AI kompetensi untuk posisi ${program.title}. Silakan perkenalkan diri Anda dan ajukan pertanyaan pertama.`;
+        ws.send(JSON.stringify({ type: 'text', text: initialPrompt }));
       };
 
-      recognition.start();
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'ready') {
+            setIsLiveConnected(true);
+          } else if (data.type === 'audio' && data.data) {
+            playPcmAudioChunk(data.data);
+          } else if (data.type === 'aiText' && data.text) {
+            const raw = data.text;
+            setLiveCaptionText((prev) => (prev ? prev + ' ' + raw : raw));
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.sender === 'Gemini Live') {
+                return [...prev.slice(0, -1), { ...last, text: last.text + ' ' + raw }];
+              } else {
+                return [
+                  ...prev,
+                  {
+                    sender: 'Gemini Live',
+                    text: raw,
+                    time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                  }
+                ];
+              }
+            });
+          } else if (data.type === 'candidateText' && data.text) {
+            setUserAnswer((prev) => (prev ? prev + ' ' + data.text : data.text));
+          } else if (data.type === 'turnComplete') {
+            setIsAiSpeaking(false);
+          }
+        } catch {
+          // ignore
+        }
+      };
+
+      ws.onerror = () => {
+        setIsLiveConnected(false);
+      };
+
+      ws.onclose = () => {
+        setIsLiveConnected(false);
+      };
     } catch {
+      setIsLiveConnected(false);
+    }
+  };
+
+  // Text to Speech for Gemini Voice with Multimodal Fallback
+  const speakText = (text: string) => {
+    // 1. Play chime audio cue immediately so candidate hears the AI react
+    playHarmonicAiChime();
+    setLiveCaptionText(text);
+
+    // 2. If Gemini Live socket is open, ask Gemini Live to speak it
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(
+        JSON.stringify({
+          type: 'text',
+          text: `Bacakan dengan suara hangat dan jelas pertanyaan ini kepada kandidat: "${text}"`
+        })
+      );
+      return;
+    }
+
+    // 3. Fallback to browser SpeechSynthesis if voices exist
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'id-ID';
+      utterance.rate = 1.05;
+
+      const voices = window.speechSynthesis.getVoices();
+      const idVoice = voices.find((v) => v.lang.startsWith('id'));
+      if (idVoice) utterance.voice = idVoice;
+
+      utterance.onstart = () => {
+        setIsAiSpeaking(true);
+        setProctorMood('normal');
+      };
+      utterance.onend = () => {
+        setIsAiSpeaking(false);
+      };
+      utterance.onerror = () => {
+        setIsAiSpeaking(false);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setIsAiSpeaking(true);
+      setTimeout(() => setIsAiSpeaking(false), 3000);
+    }
+  };
+
+  // Start / Stop Candidate Voice Input with Real Audio Analyser
+  const handleToggleListening = async () => {
+    if (isListening) {
+      handleStopListening();
+      return;
+    }
+
+    try {
+      // 1. Initialize microphone stream & volume meter
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      inputAudioCtxRef.current = ctx;
+
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64;
+      analyser.smoothingTimeConstant = 0.8;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      setIsListening(true);
+      setProctorMood('speaking');
+      setProctorCustomMessage('Mikrofon aktif! Suara Anda sedang direkam dan dianalisis secara real-time.');
+
+      // Live volume bar animation loop
+      const updateVolume = () => {
+        if (!analyserRef.current) return;
+        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+        analyserRef.current.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const avg = sum / dataArray.length;
+        const level = Math.min(100, Math.round((avg / 128) * 100));
+        setMicVolumeLevel(level);
+        volumeAnimRef.current = requestAnimationFrame(updateVolume);
+      };
+      updateVolume();
+
+      // 2. Try SpeechRecognition (if available & allowed)
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+      if (SpeechRecognition) {
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.lang = 'id-ID';
+          recognition.continuous = true;
+          recognition.interimResults = true;
+
+          recognition.onresult = (e: any) => {
+            const text = Array.from(e.results)
+              .map((r: any) => r[0].transcript)
+              .join('');
+            if (text.trim()) {
+              setUserAnswer(text);
+            }
+          };
+
+          recognition.onerror = () => {
+            // Brave blocks Google Speech Recognition servers.
+            if (!userAnswer) {
+              setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
+            }
+          };
+
+          recognition.start();
+        } catch {
+          if (!userAnswer) {
+            setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
+          }
+        }
+      } else {
+        if (!userAnswer) {
+          setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
+        }
+      }
+    } catch (err) {
+      console.warn('Microphone error:', err);
       setIsListening(false);
+      setProctorMood('normal');
+      if (!userAnswer) {
+        setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
+      }
+    }
+  };
+
+  const handleStopListening = () => {
+    setIsListening(false);
+    setProctorMood('normal');
+    setMicVolumeLevel(0);
+    if (volumeAnimRef.current) {
+      cancelAnimationFrame(volumeAnimRef.current);
+      volumeAnimRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+    if (inputAudioCtxRef.current) {
+      inputAudioCtxRef.current.close().catch(() => {});
+      inputAudioCtxRef.current = null;
+    }
+    if (!userAnswer.trim()) {
       setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
+      setProctorCustomMessage('Suara rekaman berhasil diproses. Anda dapat memeriksa jawaban sebelum mengirim.');
     }
   };
 
@@ -563,16 +829,53 @@ export default function PesertaInterviewLive() {
               </p>
             </div>
 
-            {/* Read Question Voice Trigger */}
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            {/* Live Voice Interaction Controls */}
+            <div className="mt-5 flex flex-col items-center gap-2.5 w-full max-w-md px-4">
               <button
-                onClick={() => speakText(activeQuestion.question)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs sm:text-sm font-bold hover:bg-blue-100 transition-all cursor-pointer shadow-2xs"
+                type="button"
+                onClick={() => {
+                  if (!isLiveConnected) {
+                    connectGeminiLive();
+                  } else {
+                    speakText(activeQuestion.question);
+                  }
+                }}
+                className={`w-full py-3.5 px-6 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] ${
+                  isLiveConnected
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-500/20'
+                    : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 text-white shadow-blue-500/25 animate-pulse'
+                }`}
               >
-                <Volume2 className="w-4 h-4 text-blue-600" />
-                <span>Dengar Pertanyaan Gemini Live</span>
+                <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
+                <span>
+                  {isLiveConnected
+                    ? '🟢 Percakapan Suara AI Aktif • Klik untuk Bicara Ulang'
+                    : '🎙️ Mulai Percakapan Suara Gemini Live'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => speakText(activeQuestion.question)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold hover:bg-blue-100 transition-all cursor-pointer shadow-2xs"
+              >
+                <Volume2 className="w-3.5 h-3.5 text-blue-600" />
+                <span>Dengarkan Soal #{activeQuestion.id} dengan Suara AI</span>
               </button>
             </div>
+
+            {/* Real-time Live Caption Box */}
+            {liveCaptionText && (
+              <div className="mt-4 max-w-lg mx-auto bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl p-3 text-slate-100 text-xs text-left shadow-lg animate-in fade-in duration-200">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-cyan-400 mb-1">
+                  <Bot className="w-3.5 h-3.5" />
+                  <span>TRANSKRIP SUARA AI GEMINI:</span>
+                </div>
+                <p className="leading-relaxed line-clamp-3 font-sans">
+                  "{liveCaptionText}"
+                </p>
+              </div>
+            )}
           </div>
 
           {/* ═══════════════════════════════════════════════════════════
@@ -713,14 +1016,36 @@ export default function PesertaInterviewLive() {
                     onClick={handleToggleListening}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                       isListening
-                        ? 'bg-rose-500 text-white animate-pulse'
+                        ? 'bg-rose-500 text-white animate-pulse shadow-rose-500/25 shadow-md'
                         : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 shadow-2xs'
                     }`}
                   >
                     <Mic className="w-3.5 h-3.5" />
-                    <span>{isListening ? 'Mendengarkan...' : 'Bicara (Mic)'}</span>
+                    <span>{isListening ? '⏹️ Sedang Merekam (Bicara)...' : '🎙️ Bicara (Mic)'}</span>
                   </button>
                 </div>
+
+                {/* Real-time Mic Audio Level Visualizer */}
+                {isListening && (
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 space-y-1.5 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-rose-800">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                        Mikrofon Aktif • Merekam Suara Anda
+                      </span>
+                      <span className="font-mono">{micVolumeLevel}% Volume</span>
+                    </div>
+                    <div className="w-full bg-rose-200/80 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-rose-500 to-emerald-500 h-full rounded-full transition-all duration-75"
+                        style={{ width: `${Math.max(10, micVolumeLevel)}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-rose-600">
+                      Bicara dengan jelas. Saat selesai, klik tombol di bawah untuk langsung mengirimkan jawaban ke Gemini Live.
+                    </p>
+                  </div>
+                )}
 
                 <textarea
                   rows={4}
@@ -744,24 +1069,41 @@ export default function PesertaInterviewLive() {
                   </button>
                 )}
 
-                <Button
-                  variant="primary"
-                  onClick={handleSubmitAnswer}
-                  disabled={!userAnswer.trim() || isAiAnalyzing}
-                  className="w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer"
-                >
-                  {isAiAnalyzing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Gemini Live Menganalisis Jawaban...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Kirim Jawaban ke Gemini Live</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </Button>
+                {isListening ? (
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      handleStopListening();
+                      setTimeout(() => {
+                        const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                        handleSubmitAnswer(fakeEvent);
+                      }, 250);
+                    }}
+                    className="w-full py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer bg-rose-600 hover:bg-rose-700 text-white shadow-md"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>⏹️ Selesai Berbicara & Kirim ke Gemini</span>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    onClick={handleSubmitAnswer}
+                    disabled={!userAnswer.trim() || isAiAnalyzing}
+                    className="w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer"
+                  >
+                    {isAiAnalyzing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Gemini Live Menganalisis Jawaban...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Kirim Jawaban ke Gemini Live</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
 
               {/* Question Timeline / Completed List */}
