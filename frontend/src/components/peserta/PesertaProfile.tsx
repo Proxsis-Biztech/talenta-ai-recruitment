@@ -27,7 +27,8 @@ import {
   Sparkles,
   RefreshCw,
   SlidersHorizontal,
-  ChevronRight
+  ChevronRight,
+  Video
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
@@ -112,6 +113,10 @@ export default function PesertaProfile() {
   const program = useMemo(() => {
     return getProgramById(initialData.assessmentId) || getProgramById('SE-402')!;
   }, [initialData.assessmentId]);
+
+  const isCatCompleted = useMemo(() => {
+    return localStorage.getItem('talenta_cat_completed') === 'true';
+  }, []);
 
   // Save profile updates
   const handleSaveBiodata = (e: React.FormEvent) => {
@@ -239,15 +244,27 @@ export default function PesertaProfile() {
                 <Laptop className="w-3.5 h-3.5 text-blue-600" />
                 <span>Cek Perangkat</span>
               </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => navigate('/peserta/exam/SE-402')}
-                className="text-xs gap-1.5 cursor-pointer"
-              >
-                <span>Buka Lembar Ujian</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
+              {isCatCompleted ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate('/peserta/waiting-room')}
+                  className="text-xs gap-1.5 cursor-pointer bg-blue-600 hover:bg-blue-700"
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>CAT Selesai • Wawancara</span>
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate(`/peserta/exam/${program.id}`)}
+                  className="text-xs gap-1.5 cursor-pointer"
+                >
+                  <span>Buka Lembar Ujian</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+              )}
             </div>
           </div>
 
