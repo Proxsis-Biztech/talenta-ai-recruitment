@@ -85,11 +85,13 @@ export default function PesertaInterviewLive() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const speechRecognitionRef = useRef<any>(null);
+  const isListeningRef = useRef<boolean>(false);
 
   // Live real-time speech preview & UI simplicity state
   const [liveInterimText, setLiveInterimText] = useState('');
   const [handsFreeMode, setHandsFreeMode] = useState(true);
   const [showManualInput, setShowManualInput] = useState(false);
+  const [micErrorMsg, setMicErrorMsg] = useState<string | null>(null);
 
   // Proctoring Character states
   const [proctorMood, setProctorMood] = useState<ProctoringMood>('normal');
@@ -557,44 +559,56 @@ export default function PesertaInterviewLive() {
     });
   };
 
-  // Start Candidate Voice Input with MediaRecorder & Live Audio Waveform
+  // Start Candidate Voice Input with MediaRecorder, WebAudio, & Real-Time SpeechRecognition
   const handleStartListening = async () => {
     try {
       getOrCreateAudioContext();
       if (aiAudioElementRef.current) {
         aiAudioElementRef.current.pause();
       }
-      setIsAiSpeaking(false);
-
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            channelCount: 1,
-            echoCancellation: true,
-            noiseSuppression: true
-          }
-        });
-      } catch (micErr) {
-        console.warn('Physical microphone unavailable or denied, falling back to WebAudio stream:', micErr);
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        const fallbackCtx = new AudioCtx();
-        const dest = fallbackCtx.createMediaStreamDestination();
-        stream = dest.stream;
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
       }
-      mediaStreamRef.current = stream;
+      setIsAiSpeaking(false);
+      setMicErrorMsg(null);
 
+      // 1. Acquire genuine physical microphone stream
+      let stream = mediaStreamRef.current;
+      if (!stream || !stream.active || stream.getAudioTracks().length === 0 || !stream.getAudioTracks()[0].enabled) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          });
+        } catch {
+          // Standard audio fallback if constraints are rejected by driver
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+        mediaStreamRef.current = stream;
+      }
+
+      // 2. Initialize and resume input AudioContext
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-      inputAudioCtxRef.current = ctx;
+      let ctx = inputAudioCtxRef.current;
+      if (!ctx || ctx.state === 'closed') {
+        ctx = new AudioCtx();
+        inputAudioCtxRef.current = ctx;
+      }
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
 
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = 0.8;
+      analyser.smoothingTimeConstant = 0.5;
       source.connect(analyser);
       analyserRef.current = analyser;
 
+      // 3. Audio Recorder setup for backup
       audioChunksRef.current = [];
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
@@ -609,34 +623,37 @@ export default function PesertaInterviewLive() {
         }
       };
       mediaRecorderRef.current = recorder;
-      recorder.start(200);
+      recorder.start(100);
 
+      isListeningRef.current = true;
       setIsListening(true);
       setProctorMood('speaking');
-      setProctorCustomMessage('Mikrofon aktif! Ava sedang mendengarkan jawaban Anda secara langsung.');
+      setProctorCustomMessage('Mikrofon aktif! Ava sedang mendengarkan suara Anda secara langsung.');
 
-      // Live volume bar animation loop
+      // 4. Live volume meter animation (responsive logarithmic boost)
       const updateVolume = () => {
-        if (!analyserRef.current) return;
+        if (!analyserRef.current || !isListeningRef.current) return;
         const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
         analyserRef.current.getByteFrequencyData(dataArray);
         let sum = 0;
         for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
         const avg = sum / dataArray.length;
-        const level = Math.min(100, Math.round((avg / 128) * 100));
+        // Non-linear scale for natural speaking volume (shows 25% - 90% clearly)
+        const level = Math.min(100, Math.max(0, Math.round((avg / 35) * 100)));
         setMicVolumeLevel(level);
         volumeAnimRef.current = requestAnimationFrame(updateVolume);
       };
       updateVolume();
 
-      setLiveInterimText('');
-      // Browser SpeechRecognition live text preview
+      // 5. Browser Web Speech API for INSTANT Real-Time transcription on screen
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         try {
           if (speechRecognitionRef.current) {
             try {
+              speechRecognitionRef.current.onend = null;
+              speechRecognitionRef.current.onerror = null;
               speechRecognitionRef.current.abort();
             } catch {}
           }
@@ -644,25 +661,48 @@ export default function PesertaInterviewLive() {
           recognition.lang = 'id-ID';
           recognition.continuous = true;
           recognition.interimResults = true;
+          recognition.maxAlternatives = 1;
+
           recognition.onresult = (e: any) => {
-            const text = Array.from(e.results)
-              .map((r: any) => r[0].transcript)
-              .join('');
-            if (text.trim()) {
-              setUserAnswer(text);
-              setLiveInterimText(text);
+            let fullTranscript = '';
+            for (let i = 0; i < e.results.length; i++) {
+              fullTranscript += e.results[i][0].transcript;
+            }
+            const clean = fullTranscript.trim();
+            if (clean) {
+              setUserAnswer(clean);
+              setLiveInterimText(clean);
             }
           };
+
+          recognition.onerror = (e: any) => {
+            console.warn('SpeechRecognition warning:', e.error);
+          };
+
+          recognition.onend = () => {
+            if (isListeningRef.current) {
+              try {
+                recognition.start();
+              } catch {}
+            }
+          };
+
           recognition.start();
           speechRecognitionRef.current = recognition;
-        } catch {
-          // ignore
+        } catch (recErr) {
+          console.warn('SpeechRecognition start error:', recErr);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Microphone error:', err);
+      isListeningRef.current = false;
       setIsListening(false);
       setProctorMood('normal');
+      setMicErrorMsg(
+        err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+          ? 'Izin mikrofon belum aktif di browser Anda. Klik ikon gembok di sebelah URL browser dan pilih "Izinkan Mikrofon", lalu coba lagi.'
+          : 'Mikrofon tidak terdeteksi. Pastikan mikrofon laptop/headset Anda terpasang dan diizinkan.'
+      );
     }
   };
 
@@ -670,6 +710,26 @@ export default function PesertaInterviewLive() {
   const handleToggleListening = async () => {
     // 1. If interview hasn't started yet, clicking the button begins the interview
     if (!hasStartedInterview) {
+      setHasStartedInterview(true);
+      // Pre-warm microphone permission in this direct user click gesture
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        mediaStreamRef.current = stream;
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') {
+          await ctx.resume();
+        }
+        inputAudioCtxRef.current = ctx;
+      } catch (e) {
+        console.warn('Pre-warm mic error:', e);
+      }
       await startInitialGreeting();
       return;
     }
@@ -696,6 +756,7 @@ export default function PesertaInterviewLive() {
   };
 
   const handleStopListeningAndSubmit = async () => {
+    isListeningRef.current = false;
     setIsListening(false);
     setProctorMood('normal');
     setMicVolumeLevel(0);
@@ -705,36 +766,57 @@ export default function PesertaInterviewLive() {
     }
     if (speechRecognitionRef.current) {
       try {
+        speechRecognitionRef.current.onend = null;
         speechRecognitionRef.current.stop();
       } catch {}
       speechRecognitionRef.current = null;
     }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      mediaStreamRef.current = null;
-    }
-    if (inputAudioCtxRef.current) {
-      inputAudioCtxRef.current.close().catch(() => {});
-      inputAudioCtxRef.current = null;
-    }
-
-    setProctorCustomMessage('Menganalisis suara dengan OpenAI Whisper / Gemini Audio...');
-
-    // Wait for recorder ondataavailable
-    await new Promise((r) => setTimeout(r, 250));
 
     let transcribedText = (userAnswer || liveInterimText).trim();
 
-    // If candidate recorded audio chunks, transcribe via Whisper / Gemini STT
-    if (audioChunksRef.current.length > 0) {
-      const audioBlob = new Blob(audioChunksRef.current, {
-        type: mediaRecorderRef.current?.mimeType || 'audio/webm'
+    // Filter out common silent timestamp artifacts ("00:00", "0:00", "...", etc.)
+    if (
+      transcribedText === '00:00' ||
+      transcribedText === '0:00' ||
+      /^\d{1,2}:\d{2}$/.test(transcribedText) ||
+      transcribedText === '...' ||
+      transcribedText.length < 2
+    ) {
+      transcribedText = '';
+    }
+
+    // 🚀 ULTRA-FAST REAL-TIME PIPELINE:
+    // If client SpeechRecognition already transcribed the candidate's speech,
+    // SUBMIT IMMEDIATELY! Skip the slow 4-5 second audio upload and server STT entirely!
+    if (transcribedText) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch {}
+      }
+      await submitAnswerTurn(transcribedText);
+      return;
+    }
+
+    // Fallback: If client STT was empty, wait for recorder chunks and transcribe via server
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      setProctorCustomMessage('Menganalisis audio...');
+      const audioBlob = await new Promise<Blob | null>((resolve) => {
+        if (!mediaRecorderRef.current) return resolve(null);
+        mediaRecorderRef.current.onstop = () => {
+          const blob = new Blob(audioChunksRef.current, {
+            type: mediaRecorderRef.current?.mimeType || 'audio/webm'
+          });
+          resolve(blob);
+        };
+        try {
+          mediaRecorderRef.current.stop();
+        } catch {
+          resolve(null);
+        }
       });
 
-      if (audioBlob.size > 1200) {
+      if (audioBlob && audioBlob.size > 1500) {
         setIsTranscribing(true);
         try {
           const formData = new FormData();
@@ -748,8 +830,17 @@ export default function PesertaInterviewLive() {
           if (transRes.ok) {
             const transJson = await transRes.json();
             if (transJson.text && transJson.text.trim()) {
-              transcribedText = transJson.text.trim();
-              setUserAnswer(transcribedText);
+              const cleaned = transJson.text.trim();
+              if (
+                cleaned !== '00:00' &&
+                cleaned !== '0:00' &&
+                !/^\d{1,2}:\d{2}$/.test(cleaned) &&
+                cleaned !== '...' &&
+                cleaned.length >= 2
+              ) {
+                transcribedText = cleaned;
+                setUserAnswer(transcribedText);
+              }
             }
           }
         } catch (e) {
@@ -763,7 +854,7 @@ export default function PesertaInterviewLive() {
     if (!transcribedText) {
       setProctorCustomMessage('Suara Anda belum terdengar di mikrofon. Silakan klik tombol mic untuk berbicara.');
       speakTextWithNeuralVoice(
-        `Halo ${sessionUser.name || 'Kandidat'}, suara Anda belum terdengar di sistem. Silakan klik tombol bicara dan sampaikan kata-kata atau jawaban Anda ya.`
+        `Halo ${sessionUser.name || 'Kandidat'}, suara Anda belum terdengar di mikrofon. Silakan klik tombol mic di bawah dan sampaikan jawaban Anda ya.`
       );
       return;
     }
@@ -1009,36 +1100,36 @@ export default function PesertaInterviewLive() {
     : '4.8';
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col font-sans select-none overflow-hidden">
+    <div className="h-screen h-[100dvh] max-h-screen bg-slate-900 flex flex-col font-sans select-none overflow-hidden">
       {/* ─── Topbar Stage: Live Telemetry, Title, Exit ─── */}
-      <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-8 flex items-center justify-between shrink-0 shadow-xs z-20">
+      <header className="h-14 sm:h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-xs z-20">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/peserta')}
-            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            className="p-1.5 sm:p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             title="Kembali ke Dashboard"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-sm sm:text-base font-extrabold text-slate-900 font-heading">
+              <h1 className="text-xs sm:text-base font-extrabold text-slate-900 font-heading">
                 Gemini Live AI Multimodal Interview
               </h1>
               <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                 Gemini 2.5 Flash Live
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-mono truncate">
+            <p className="text-[11px] sm:text-xs text-slate-500 font-mono truncate">
               {sessionUser.name} • {program.companyName} ({program.id})
             </p>
           </div>
         </div>
 
         {/* Telemetry and Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Recording Badge */}
-          <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/80 px-3 py-1 rounded-full text-rose-700 text-xs font-mono font-bold shadow-2xs">
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-rose-50 border border-rose-200/80 px-2.5 sm:px-3 py-1 rounded-full text-rose-700 text-[11px] sm:text-xs font-mono font-bold shadow-2xs">
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
             <span>REC • {formatTimer(sessionSeconds)}</span>
           </div>
@@ -1053,7 +1144,7 @@ export default function PesertaInterviewLive() {
             variant="outline"
             size="sm"
             onClick={() => navigate('/peserta/device-check')}
-            className="hidden sm:flex text-xs gap-1.5 cursor-pointer"
+            className="hidden sm:flex text-xs gap-1.5 cursor-pointer py-1.5"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
             <span>Status Anti-Cheat</span>
@@ -1062,11 +1153,11 @@ export default function PesertaInterviewLive() {
       </header>
 
       {/* ─── Center Stage: Big Video Stage (Gemini Live) + Interactive Side Panel ─── */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden p-3 sm:p-6 gap-4 sm:gap-6 bg-slate-950">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden p-2.5 sm:p-3.5 gap-3 sm:gap-4 bg-slate-950">
         {/* ─── Left Stage: Google Gemini Live AI Interviewer Canvas ─── */}
-        <div className="flex-1 flex flex-col justify-between bg-white rounded-3xl border border-slate-200/90 overflow-hidden relative shadow-sm">
+        <div className="flex-1 min-h-0 flex flex-col justify-between bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 overflow-hidden relative shadow-sm">
           {/* Top Stage Header Badges */}
-          <div className="relative z-10 p-4 sm:p-6 flex items-center justify-between pointer-events-none">
+          <div className="relative z-10 p-3 sm:p-4 flex items-center justify-between pointer-events-none">
             <div className="bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-bold text-slate-800 flex items-center gap-2 border border-slate-200 shadow-2xs">
               <span
                 className={`w-2.5 h-2.5 rounded-full ${
@@ -1115,29 +1206,29 @@ export default function PesertaInterviewLive() {
           </div>
 
           {/* Center Stage: The Iconic Gemini Live Multimodal AI Orb & Waveforms */}
-          <div className="my-auto py-8 flex flex-col items-center justify-center text-center px-4 relative z-0">
+          <div className="my-auto py-2 sm:py-3 flex flex-col items-center justify-center text-center px-4 relative z-0">
             {/* Ambient Background Aura */}
-            <div className="absolute w-72 h-72 rounded-full bg-gradient-to-tr from-cyan-200/40 via-blue-200/30 to-violet-200/40 blur-3xl pointer-events-none" />
+            <div className="absolute w-56 h-56 rounded-full bg-gradient-to-tr from-cyan-200/40 via-blue-200/30 to-violet-200/40 blur-3xl pointer-events-none" />
 
             {/* Glowing Gemini Live Orb */}
             <div className="relative flex items-center justify-center">
               {/* Pulsing Aura Rings when Speaking or Listening */}
               {(isAiSpeaking || isListening) && (
                 <>
-                  <div className="absolute w-44 h-44 rounded-full border-2 border-blue-400/40 animate-ping" />
-                  <div className="absolute w-52 h-52 rounded-full border border-indigo-300/30 animate-pulse" />
+                  <div className="absolute w-32 h-32 rounded-full border-2 border-blue-400/40 animate-ping" />
+                  <div className="absolute w-40 h-40 rounded-full border border-indigo-300/30 animate-pulse" />
                 </>
               )}
 
               {/* Central Gemini Sphere */}
               <div
-                className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-gradient-to-tr from-[#1E40AF] via-[#6366F1] to-[#06B6D4] p-1 shadow-xl transition-transform duration-300 ${
+                className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-[#1E40AF] via-[#6366F1] to-[#06B6D4] p-1 shadow-lg transition-transform duration-300 ${
                   isAiSpeaking ? 'scale-105 shadow-blue-500/30' : 'hover:scale-102'
                 }`}
               >
                 <div className="w-full h-full rounded-full bg-gradient-to-br from-white/20 via-transparent to-black/20 flex flex-col items-center justify-center text-white relative overflow-hidden backdrop-blur-xs">
-                  <Sparkles className="w-10 h-10 sm:w-12 sm:h-12 text-white animate-pulse" />
-                  <span className="text-[10px] sm:text-xs font-mono font-bold tracking-widest uppercase mt-1 text-cyan-200">
+                  <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-white animate-pulse" />
+                  <span className="text-[9px] sm:text-[10px] font-mono font-bold tracking-widest uppercase mt-0.5 text-cyan-200">
                     GEMINI
                   </span>
                 </div>
@@ -1145,7 +1236,7 @@ export default function PesertaInterviewLive() {
             </div>
 
             {/* Audio Waveform Equalizer (Speaks / Listens) */}
-            <div className="mt-6 flex items-center gap-1.5 h-8">
+            <div className="mt-2.5 sm:mt-3 flex items-center gap-1 h-5 sm:h-6">
               {[40, 70, 95, 60, 85, 100, 75, 50, 80, 65, 90, 45].map((height, i) => (
                 <div
                   key={i}
@@ -1158,74 +1249,91 @@ export default function PesertaInterviewLive() {
                   }`}
                   style={{
                     height: isAiSpeaking
-                      ? `${Math.max(12, (height * (i % 2 === 0 ? 0.9 : 1.2)) % 32)}px`
+                      ? `${Math.max(10, (height * (i % 2 === 0 ? 0.9 : 1.2)) % 24)}px`
                       : isListening
-                      ? `${Math.max(8, (height * 0.4) % 24)}px`
-                      : '8px'
+                      ? `${Math.max(6, (height * 0.4) % 18)}px`
+                      : '6px'
                   }}
                 />
               ))}
             </div>
 
             {/* Assessor Persona Info */}
-            <div className="mt-4 space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-900 text-[11px] font-bold border border-blue-200">
-                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <div className="mt-1.5 space-y-0.5">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[10px] font-bold border border-blue-200">
+                <Sparkles className="w-3 h-3 text-blue-600" />
                 <span>LangChain BARS • OpenAI Whisper STT • Neural TTS</span>
               </div>
-              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 font-heading">
+              <h2 className="text-base sm:text-lg font-extrabold text-slate-900 font-heading">
                 Ava • Senior AI Interviewer &amp; Assessor
               </h2>
-              <p className="text-xs sm:text-sm text-slate-600 font-medium max-w-md">
+              <p className="text-[11px] sm:text-xs text-slate-600 font-medium max-w-md">
                 Interaksi Suara Dua Arah Aktif • Standar Rubrik Penilaian BARS {program.companyName}
               </p>
             </div>
 
             {/* Real-time Status Banner under Ava (No redundant buttons, controlled exclusively via bottom footer mic button) */}
-            <div className="mt-5 w-full max-w-lg px-4 space-y-2.5">
+            <div className="mt-3 w-full max-w-md px-3 space-y-2">
+              {micErrorMsg && (
+                <div className="p-3 rounded-xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-xs shadow-md space-y-1.5">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span className="font-semibold leading-relaxed text-[11px]">{micErrorMsg}</span>
+                  </div>
+                  <div className="flex justify-end pt-0.5">
+                    <button
+                      onClick={handleStartListening}
+                      className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] cursor-pointer shadow-xs"
+                    >
+                      Coba Akses Mic Lagi
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {!hasStartedInterview ? (
-                <div className="p-3.5 rounded-2xl bg-blue-50/90 border border-blue-200 text-blue-900 text-xs font-semibold flex items-center justify-center gap-2 shadow-2xs">
+                <div className="p-3 rounded-xl bg-blue-50/90 border border-blue-200 text-blue-900 text-xs font-semibold flex items-center justify-center gap-2 shadow-2xs">
                   <Sparkles className="w-4 h-4 text-blue-600 shrink-0 animate-pulse" />
                   <span>Gunakan tombol mikrofon di bagian bawah layar untuk memulai wawancara.</span>
                 </div>
               ) : isAiSpeaking ? (
-                <div className="p-3.5 rounded-2xl bg-blue-50/90 border border-blue-200 text-blue-900 flex items-center justify-center gap-2.5 shadow-2xs animate-pulse">
-                  <div className="w-3 h-3 rounded-full bg-blue-600 animate-ping" />
-                  <span className="font-extrabold text-xs sm:text-sm">🔊 Ava Sedang Berbicara...</span>
+                <div className="p-3 rounded-xl bg-blue-50/90 border border-blue-200 text-blue-900 flex items-center justify-center gap-2 shadow-2xs animate-pulse">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping" />
+                  <span className="font-extrabold text-xs">🔊 Ava Sedang Berbicara...</span>
                 </div>
               ) : isListening ? (
-                <div className="p-3.5 rounded-2xl bg-emerald-50/95 border-2 border-emerald-400 text-emerald-950 shadow-md space-y-2 animate-in fade-in duration-150">
+                <div className="p-3 rounded-xl bg-emerald-50/95 border-2 border-emerald-400 text-emerald-950 shadow-md space-y-1.5 animate-in fade-in duration-150">
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 font-extrabold text-xs sm:text-sm text-emerald-900">
-                      <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
+                    <span className="flex items-center gap-1.5 font-extrabold text-xs text-emerald-900">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
                       🎙️ MIKROFON AKTIF • AVA MENDENGARKAN
                     </span>
-                    <span className="text-xs font-mono font-bold bg-white px-2.5 py-0.5 rounded-full border border-emerald-300 text-emerald-800">
+                    <span className="text-[11px] font-mono font-bold bg-white px-2 py-0.5 rounded-full border border-emerald-300 text-emerald-800">
                       {micVolumeLevel}% Vol
                     </span>
                   </div>
                   {/* Real-time Candidate Speech Preview */}
-                  <div className="p-2.5 bg-white rounded-xl border border-emerald-200 text-xs text-left min-h-[38px] flex items-center">
+                  <div className="p-2 bg-white rounded-lg border border-emerald-200 text-[11px] text-left min-h-[32px] flex items-center">
                     {liveInterimText || userAnswer ? (
                       <span className="text-slate-900 font-semibold italic">"{liveInterimText || userAnswer}"</span>
                     ) : (
                       <span className="text-slate-400 italic">Bicara sekarang (sapa "Halo Ava", atau langsung sampaikan jawaban Anda)...</span>
                     )}
                   </div>
-                  <p className="text-[11px] text-emerald-700 text-center font-medium">
+                  <p className="text-[10px] text-emerald-700 text-center font-medium">
                     👇 Klik tombol mikrofon di bawah layar saat selesai berbicara untuk mengirim jawaban.
                   </p>
                 </div>
               ) : isAiAnalyzing || isTranscribing ? (
-                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-center gap-2.5 shadow-2xs">
-                  <div className="w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
-                  <span className="font-extrabold text-xs sm:text-sm">
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-center gap-2 shadow-2xs">
+                  <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="font-extrabold text-xs">
                     {isTranscribing ? 'Mentranskripsi Suara (Whisper)...' : 'LangChain Menganalisis Jawaban...'}
                   </span>
                 </div>
               ) : (
-                <div className="p-3 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2">
-                  <Mic className="w-4 h-4 text-blue-600" />
+                <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-semibold flex items-center justify-center gap-2">
+                  <Mic className="w-3.5 h-3.5 text-blue-600" />
                   <span>Mikrofon siap. Klik tombol mic di bawah untuk mulai berbicara.</span>
                 </div>
               )}
@@ -1235,9 +1343,9 @@ export default function PesertaInterviewLive() {
                 <button
                   type="button"
                   onClick={() => speakTextWithNeuralVoice(activeQuestion.question)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 text-[11px] font-bold border border-blue-200 transition-all cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-900 text-[11px] font-bold border border-blue-200 transition-all cursor-pointer shadow-2xs"
                 >
-                  <Volume2 className="w-3.5 h-3.5 text-blue-600" />
+                  <Volume2 className="w-3 h-3 text-blue-600" />
                   <span>Dengarkan Ulang Soal #{activeQuestion.id}</span>
                 </button>
               </div>
@@ -1245,12 +1353,12 @@ export default function PesertaInterviewLive() {
 
             {/* Real-time Live Caption Box */}
             {liveCaptionText && (
-              <div className="mt-4 max-w-lg mx-auto bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl p-3 text-slate-100 text-xs text-left shadow-lg animate-in fade-in duration-200">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-cyan-400 mb-1">
-                  <Bot className="w-3.5 h-3.5" />
+              <div className="mt-2.5 max-w-md mx-auto bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-2.5 text-slate-100 text-[11px] text-left shadow-lg animate-in fade-in duration-200">
+                <div className="flex items-center gap-1.5 text-[9px] font-bold text-cyan-400 mb-0.5">
+                  <Bot className="w-3 h-3" />
                   <span>TRANSKRIP SUARA AI GEMINI:</span>
                 </div>
-                <p className="leading-relaxed line-clamp-3 font-sans">
+                <p className="leading-relaxed line-clamp-2 font-sans">
                   "{liveCaptionText}"
                 </p>
               </div>
@@ -1260,7 +1368,7 @@ export default function PesertaInterviewLive() {
           {/* ═══════════════════════════════════════════════════════════
               BOTTOM-RIGHT: Candidate Self-View PIP + AI PROCTOR CHARACTER
           ═══════════════════════════════════════════════════════════ */}
-          <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-2 max-w-xs sm:max-w-sm">
+          <div className="absolute bottom-2.5 right-2.5 z-20 flex flex-col gap-1.5 max-w-[190px] sm:max-w-[220px]">
             {/* AI Proctoring Character Companion */}
             <ProctoringCharacter
               candidateName={sessionUser.name}
@@ -1576,7 +1684,7 @@ export default function PesertaInterviewLive() {
       </div>
 
       {/* ─── Bottom Floating Control Bar (Modern Light Toolbar) ─── */}
-      <footer className="h-20 bg-white border-t border-slate-200 px-4 sm:px-8 flex items-center justify-center shrink-0 shadow-lg z-20">
+      <footer className="h-16 sm:h-18 bg-white border-t border-slate-200 px-4 sm:px-8 flex items-center justify-center shrink-0 shadow-lg z-20">
         <div className="flex items-center gap-3 sm:gap-4">
           {/* Unified Primary Mic Button */}
           <button

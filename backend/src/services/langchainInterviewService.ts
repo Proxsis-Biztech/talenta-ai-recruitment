@@ -33,7 +33,17 @@ export function checkConversationalIntent(text: string): {
     .trim()
     .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, '');
 
-  if (!clean || clean.length < 2) {
+  if (
+    !clean ||
+    clean.length < 2 ||
+    clean === '00:00' ||
+    clean === '0:00' ||
+    clean === '...' ||
+    clean === 'audio' ||
+    clean === 'video' ||
+    /^\d{1,2}:\d{2}$/.test(clean) ||
+    /^\[.*\]$/.test(clean)
+  ) {
     return { isGreeting: false, isRepeat: false, isAudioCheck: false, isNoiseOrEmpty: true };
   }
 
@@ -327,7 +337,7 @@ Kembalikan HANYA format JSON valid berikut (tanpa blok markdown):
         apiKey,
         model: mName,
         temperature: 0.2,
-        maxOutputTokens: 2500
+        maxOutputTokens: 600
       });
       const chain = barsPrompt.pipe(model).pipe(new StringOutputParser());
       rawOutput = await chain.invoke({
