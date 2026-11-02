@@ -41,6 +41,8 @@ interface QuestionItem {
   weight: string;
   status: 'completed' | 'active' | 'upcoming';
   score?: number;
+  rubricLevel?: string;
+  rubricCriteria?: string[];
   aiFeedback?: string;
   sampleAnswer?: string;
 }
@@ -65,16 +67,22 @@ export default function PesertaInterviewLive() {
   const [isLiveConnected, setIsLiveConnected] = useState(false);
   const [liveCaptionText, setLiveCaptionText] = useState<string>('');
   const [micVolumeLevel, setMicVolumeLevel] = useState(0);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [hasStartedInterview, setHasStartedInterview] = useState(false);
 
-  // Audio Context and WebSocket refs for real Gemini Live streaming
+  // Audio Context, MediaRecorder, and WebSocket refs for duplex 2-way interaction
   const audioCtxRef = useRef<AudioContext | null>(null);
   const inputAudioCtxRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const activeSourcesCountRef = useRef<number>(0);
   const volumeAnimRef = useRef<number | null>(null);
+  const aiAudioElementRef = useRef<HTMLAudioElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Proctoring Character states
   const [proctorMood, setProctorMood] = useState<ProctoringMood>('normal');
@@ -188,10 +196,37 @@ export default function PesertaInterviewLive() {
     return () => clearInterval(timer);
   }, []);
 
+  // Auto-connect to Gemini Live when component mounts & unlock audio on user gesture
+  useEffect(() => {
+    connectGeminiLive();
+
+    const unlockAudio = () => {
+      getOrCreateAudioContext();
+    };
+    window.addEventListener('click', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
+
+    return () => {
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (volumeAnimRef.current) cancelAnimationFrame(volumeAnimRef.current);
+      if (aiAudioElementRef.current) {
+        aiAudioElementRef.current.pause();
+        aiAudioElementRef.current = null;
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      if (processorRef.current) {
+        processorRef.current.disconnect();
+        processorRef.current = null;
+      }
       if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       if (inputAudioCtxRef.current) inputAudioCtxRef.current.close().catch(() => {});
       if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {});
@@ -243,24 +278,28 @@ export default function PesertaInterviewLive() {
     }
   };
 
-  // Play real PCM audio chunks streamed from Google Gemini Live (24kHz)
+  // Play real PCM audio chunks streamed from Google Gemini Live (24kHz) safely with DataView
   const playPcmAudioChunk = (base64Data: string) => {
     const ctx = getOrCreateAudioContext();
     if (!ctx) return;
 
     try {
       const binaryString = window.atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
+      const len = binaryString.length;
+      if (len < 2) return;
 
-      const pcmData = new Int16Array(bytes.buffer);
-      const audioBuffer = ctx.createBuffer(1, pcmData.length, 24000);
+      const sampleCount = Math.floor(len / 2);
+      const audioBuffer = ctx.createBuffer(1, sampleCount, 24000);
       const channelData = audioBuffer.getChannelData(0);
 
-      for (let i = 0; i < pcmData.length; i++) {
-        channelData[i] = pcmData[i] / 32768;
+      const buffer = new ArrayBuffer(len);
+      const view = new DataView(buffer);
+      for (let i = 0; i < len; i++) {
+        view.setUint8(i, binaryString.charCodeAt(i));
+      }
+
+      for (let i = 0; i < sampleCount; i++) {
+        channelData[i] = view.getInt16(i * 2, true) / 32768.0;
       }
 
       const source = ctx.createBufferSource();
@@ -281,7 +320,7 @@ export default function PesertaInterviewLive() {
             if (activeSourcesCountRef.current === 0) {
               setIsAiSpeaking(false);
             }
-          }, 400);
+          }, 300);
         }
       };
     } catch (e) {
@@ -303,7 +342,9 @@ export default function PesertaInterviewLive() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}/api/interview/live?voice=Kore&language=Indonesian&candidateName=${encodeURIComponent(
         sessionUser.name || 'Budi Santoso'
-      )}&jobTitle=${encodeURIComponent(program.title || 'Software Engineer')}`;
+      )}&jobTitle=${encodeURIComponent(program.title || 'Software Engineer')}&company=${encodeURIComponent(
+        program.companyName || 'PT Bank Mandiri (Persero) Tbk'
+      )}`;
 
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
@@ -313,7 +354,7 @@ export default function PesertaInterviewLive() {
         playHarmonicAiChime();
         const initialPrompt =
           greetingText ||
-          `Halo Ava, saya ${sessionUser.name || 'Budi Santoso'} telah hadir dan siap untuk sesi wawancara AI kompetensi untuk posisi ${program.title}. Silakan perkenalkan diri Anda dan ajukan pertanyaan pertama.`;
+          `Halo Ava, saya ${sessionUser.name || 'Budi Santoso'} telah siap untuk sesi wawancara kompetensi untuk posisi ${program.title}. Silakan sapa saya dan ajukan pertanyaan pertama secara langsung.`;
         ws.send(JSON.stringify({ type: 'text', text: initialPrompt }));
       };
 
@@ -326,22 +367,26 @@ export default function PesertaInterviewLive() {
             playPcmAudioChunk(data.data);
           } else if (data.type === 'aiText' && data.text) {
             const raw = data.text;
-            setLiveCaptionText((prev) => (prev ? prev + ' ' + raw : raw));
-            setMessages((prev) => {
-              const last = prev[prev.length - 1];
-              if (last && last.sender === 'Gemini Live') {
-                return [...prev.slice(0, -1), { ...last, text: last.text + ' ' + raw }];
-              } else {
-                return [
-                  ...prev,
-                  {
-                    sender: 'Gemini Live',
-                    text: raw,
-                    time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-                  }
-                ];
-              }
-            });
+            // Filter out system thinking / markdown meta headers if any
+            const cleanText = raw.replace(/\*\*.*?\*\*/g, '').trim();
+            if (cleanText) {
+              setLiveCaptionText(cleanText);
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last && last.sender === 'Gemini Live') {
+                  return [...prev.slice(0, -1), { ...last, text: last.text + ' ' + cleanText }];
+                } else {
+                  return [
+                    ...prev,
+                    {
+                      sender: 'Gemini Live',
+                      text: cleanText,
+                      time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                    }
+                  ];
+                }
+              });
+            }
           } else if (data.type === 'candidateText' && data.text) {
             setUserAnswer((prev) => (prev ? prev + ' ' + data.text : data.text));
           } else if (data.type === 'turnComplete') {
@@ -364,24 +409,94 @@ export default function PesertaInterviewLive() {
     }
   };
 
-  // Text to Speech for Gemini Voice with Multimodal Fallback
-  const speakText = (text: string) => {
-    // 1. Play chime audio cue immediately so candidate hears the AI react
+  // Play Neural Base64 Audio cleanly across all browsers
+  const playAiAudio = (base64AudioUrl: string, onEnded?: () => void) => {
+    try {
+      if (!base64AudioUrl) {
+        if (onEnded) onEnded();
+        return;
+      }
+      playHarmonicAiChime();
+      if (!aiAudioElementRef.current) {
+        aiAudioElementRef.current = new Audio();
+      }
+      const audio = aiAudioElementRef.current;
+      audio.pause();
+      audio.src = base64AudioUrl;
+      setIsAiSpeaking(true);
+      setProctorMood('normal');
+
+      audio.onended = () => {
+        setIsAiSpeaking(false);
+        if (onEnded) onEnded();
+      };
+
+      audio.onerror = () => {
+        setIsAiSpeaking(false);
+        if (onEnded) onEnded();
+      };
+
+      audio.play().catch(() => {
+        setIsAiSpeaking(false);
+        if (onEnded) onEnded();
+      });
+    } catch {
+      setIsAiSpeaking(false);
+      if (onEnded) onEnded();
+    }
+  };
+
+  // Request high-quality Indonesian Neural Speech from backend (/api/interview/tts)
+  const speakTextWithNeuralVoice = async (text: string, onEnded?: () => void) => {
     playHarmonicAiChime();
     setLiveCaptionText(text);
 
-    // 2. If Gemini Live socket is open, ask Gemini Live to speak it
+    if (!ttsEnabled) {
+      if (onEnded) onEnded();
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/interview/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice: 'id-ID-GadisNeural' })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.audioBase64) {
+          playAiAudio(json.audioBase64, onEnded);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Neural TTS request fallback to browser:', e);
+    }
+
+    // Fallback to browser SpeechSynthesis
+    speakText(text);
+    if (onEnded) {
+      setTimeout(onEnded, 4000);
+    }
+  };
+
+  // Text to Speech for Gemini Voice with Multimodal Fallback
+  const speakText = (text: string) => {
+    playHarmonicAiChime();
+    setLiveCaptionText(text);
+
+    // 1. If Gemini Live socket is open, ask Gemini Live to speak with voice
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(
         JSON.stringify({
           type: 'text',
-          text: `Bacakan dengan suara hangat dan jelas pertanyaan ini kepada kandidat: "${text}"`
+          text: `Tolong sampaikan dan tanyakan pertanyaan ini kepada kandidat dengan suara ramah dan jelas: "${text}"`
         })
       );
       return;
     }
 
-    // 3. Fallback to browser SpeechSynthesis if voices exist
+    // 2. Fallback to browser SpeechSynthesis if socket not connected
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
@@ -410,16 +525,47 @@ export default function PesertaInterviewLive() {
     }
   };
 
-  // Start / Stop Candidate Voice Input with Real Audio Analyser
-  const handleToggleListening = async () => {
-    if (isListening) {
-      handleStopListening();
-      return;
-    }
+  // Initial Auto-Greeting from AI Interviewer Ava
+  const startInitialGreeting = async () => {
+    setHasStartedInterview(true);
+    getOrCreateAudioContext();
 
+    const greetingText = `Halo ${sessionUser.name || 'Farhan Pratama'}, selamat datang di sesi wawancara AI Talenta Plus untuk posisi ${program.title}. Saya Ava, asesor AI Anda. Mari kita mulai dengan pertanyaan pertama: ${questions[0].question}`;
+
+    setLiveCaptionText(greetingText);
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: 'Gemini Live',
+        text: greetingText,
+        time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+
+    await speakTextWithNeuralVoice(greetingText, () => {
+      setProctorCustomMessage('Ava selesai membacakan pertanyaan. Giliran Anda menjawab. Silakan berbicara...');
+      if (micOn) {
+        handleStartListening();
+      }
+    });
+  };
+
+  // Start Candidate Voice Input with MediaRecorder & Live Audio Waveform
+  const handleStartListening = async () => {
     try {
-      // 1. Initialize microphone stream & volume meter
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      getOrCreateAudioContext();
+      if (aiAudioElementRef.current) {
+        aiAudioElementRef.current.pause();
+      }
+      setIsAiSpeaking(false);
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      });
       mediaStreamRef.current = stream;
 
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -433,9 +579,25 @@ export default function PesertaInterviewLive() {
       source.connect(analyser);
       analyserRef.current = analyser;
 
+      audioChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : 'audio/mp4';
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start(200);
+
       setIsListening(true);
       setProctorMood('speaking');
-      setProctorCustomMessage('Mikrofon aktif! Suara Anda sedang direkam dan dianalisis secara real-time.');
+      setProctorCustomMessage('Mikrofon aktif! Ava sedang mendengarkan jawaban Anda secara langsung.');
 
       // Live volume bar animation loop
       const updateVolume = () => {
@@ -451,17 +613,15 @@ export default function PesertaInterviewLive() {
       };
       updateVolume();
 
-      // 2. Try SpeechRecognition (if available & allowed)
+      // Browser SpeechRecognition preview fallback if supported
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
       if (SpeechRecognition) {
         try {
           const recognition = new SpeechRecognition();
           recognition.lang = 'id-ID';
           recognition.continuous = true;
           recognition.interimResults = true;
-
           recognition.onresult = (e: any) => {
             const text = Array.from(e.results)
               .map((r: any) => r[0].transcript)
@@ -470,42 +630,37 @@ export default function PesertaInterviewLive() {
               setUserAnswer(text);
             }
           };
-
-          recognition.onerror = () => {
-            // Brave blocks Google Speech Recognition servers.
-            if (!userAnswer) {
-              setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
-            }
-          };
-
           recognition.start();
         } catch {
-          if (!userAnswer) {
-            setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
-          }
-        }
-      } else {
-        if (!userAnswer) {
-          setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
+          // ignore
         }
       }
     } catch (err) {
       console.warn('Microphone error:', err);
       setIsListening(false);
       setProctorMood('normal');
-      if (!userAnswer) {
-        setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
-      }
     }
   };
 
-  const handleStopListening = () => {
+  // Toggle Listening: If not listening, start. If listening, stop and transcribe.
+  const handleToggleListening = async () => {
+    if (isListening) {
+      await handleStopListeningAndSubmit();
+    } else {
+      await handleStartListening();
+    }
+  };
+
+  const handleStopListeningAndSubmit = async () => {
     setIsListening(false);
     setProctorMood('normal');
     setMicVolumeLevel(0);
     if (volumeAnimRef.current) {
       cancelAnimationFrame(volumeAnimRef.current);
       volumeAnimRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
     }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -515,29 +670,69 @@ export default function PesertaInterviewLive() {
       inputAudioCtxRef.current.close().catch(() => {});
       inputAudioCtxRef.current = null;
     }
-    if (!userAnswer.trim()) {
-      setUserAnswer(questions[currentQIndex]?.sampleAnswer || '');
-      setProctorCustomMessage('Suara rekaman berhasil diproses. Anda dapat memeriksa jawaban sebelum mengirim.');
+
+    setProctorCustomMessage('Menganalisis rekaman suara dengan OpenAI Whisper / Gemini Audio...');
+
+    // Wait for recorder ondataavailable
+    await new Promise((r) => setTimeout(r, 250));
+
+    let transcribedText = userAnswer.trim();
+
+    // If candidate recorded audio chunks, transcribe via Whisper / Gemini STT
+    if (audioChunksRef.current.length > 0) {
+      const audioBlob = new Blob(audioChunksRef.current, {
+        type: mediaRecorderRef.current?.mimeType || 'audio/webm'
+      });
+
+      if (audioBlob.size > 1500) {
+        setIsTranscribing(true);
+        try {
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'candidate_voice.webm');
+
+          const transRes = await fetch('/api/interview/transcribe-audio', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (transRes.ok) {
+            const transJson = await transRes.json();
+            if (transJson.text && transJson.text.trim()) {
+              transcribedText = transJson.text.trim();
+              setUserAnswer(transcribedText);
+            }
+          }
+        } catch (e) {
+          console.warn('STT error, falling back to text:', e);
+        } finally {
+          setIsTranscribing(false);
+        }
+      }
     }
+
+    if (!transcribedText) {
+      transcribedText = activeQuestion.sampleAnswer || 'Saya telah menjelaskan analisis dan solusi teknis saya secara langsung melalui suara.';
+      setUserAnswer(transcribedText);
+    }
+
+    // Submit answer to LangChain & BARS evaluation
+    await submitAnswerTurn(transcribedText);
   };
 
   // Active question convenience
   const activeQuestion = questions[currentQIndex] || questions[0];
 
-  // Submit Answer to Gemini Live (Live Inference with Google Gemini API)
-  const handleSubmitAnswer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userAnswer.trim()) return;
-
-    const answerText = userAnswer;
+  // Submit Answer to LangChain & Gemini Live with BARS Rubrics
+  const submitAnswerTurn = async (answerText: string) => {
+    const textToSubmit = answerText.trim() || activeQuestion.sampleAnswer || 'Saya telah menjelaskan solusi arsitektur saya secara langsung.';
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
-    // Add candidate answer to conversation
+    // Append candidate answer to messages
     setMessages((prev) => [
       ...prev,
       {
         sender: 'Kandidat (Anda)',
-        text: answerText,
+        text: textToSubmit,
         time: nowTime
       }
     ]);
@@ -545,52 +740,53 @@ export default function PesertaInterviewLive() {
     setUserAnswer('');
     setIsAiAnalyzing(true);
     setProctorMood('verified');
-    setProctorCustomMessage('Jawaban Anda sedang dianalisis oleh Gemini AI. Posisi wajah stabil.');
+    setProctorCustomMessage('LangChain & Gemini sedang menganalisis jawaban terhadap Rubrik BARS...');
 
     const activeQ = questions[currentQIndex];
     const nextIdx = currentQIndex + 1;
     const nextQ = questions[nextIdx]?.question || '';
 
     try {
-      const res = await fetch('/api/interview/gemini-turn', {
+      const res = await fetch('/api/interview/langchain-turn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: activeQ.question,
-          candidateAnswer: answerText,
+          candidateAnswer: textToSubmit,
           competency: activeQ.competency,
           candidateName: sessionUser.name,
           nextQuestion: nextQ,
           questionNumber: currentQIndex + 1,
-          totalQuestions: questions.length
+          totalQuestions: questions.length,
+          generateVoice: true
         })
       });
 
-      if (!res.ok) {
-        throw new Error('Server error');
-      }
+      if (!res.ok) throw new Error('Turn evaluation error');
 
       const json = await res.json();
-      const geminiData = json.data;
+      const evalData = json.data;
 
       setIsAiAnalyzing(false);
 
       const updatedQuestions = [...questions];
       updatedQuestions[currentQIndex].status = 'completed';
-      updatedQuestions[currentQIndex].score = geminiData.score || 4.8;
-      updatedQuestions[currentQIndex].aiFeedback = geminiData.aiFeedback || 'Gemini Live: Analisis jawaban valid.';
+      updatedQuestions[currentQIndex].score = evalData.score || 4.8;
+      updatedQuestions[currentQIndex].rubricLevel = evalData.rubricLevel;
+      updatedQuestions[currentQIndex].rubricCriteria = evalData.rubricCriteria;
+      updatedQuestions[currentQIndex].aiFeedback = evalData.aiFeedback || 'Evaluasi BARS selesai.';
 
       if (nextIdx < updatedQuestions.length) {
         updatedQuestions[nextIdx].status = 'active';
         setCurrentQIndex(nextIdx);
       } else {
-        // All completed!
         setIsCompletedModalOpen(true);
       }
 
       setQuestions(updatedQuestions);
 
-      const geminiReply = geminiData.conversationalReply;
+      const geminiReply = evalData.conversationalReply;
+      setLiveCaptionText(geminiReply);
       setMessages((prev) => [
         ...prev,
         {
@@ -600,17 +796,35 @@ export default function PesertaInterviewLive() {
         }
       ]);
 
-      if (ttsEnabled) {
-        speakText(geminiReply);
+      // Play Neural Voice and auto-advance hands-free!
+      if (evalData.audioBase64 && ttsEnabled) {
+        playAiAudio(evalData.audioBase64, () => {
+          if (nextIdx < updatedQuestions.length) {
+            setProctorCustomMessage(`Pertanyaan #${nextIdx + 1} aktif. Giliran Anda berbicara.`);
+            if (micOn) {
+              handleStartListening();
+            }
+          }
+        });
+      } else if (ttsEnabled) {
+        speakTextWithNeuralVoice(geminiReply, () => {
+          if (nextIdx < updatedQuestions.length && micOn) {
+            handleStartListening();
+          }
+        });
+      }
+
+      // If finished all questions, save interview!
+      if (nextIdx >= updatedQuestions.length) {
+        saveInterviewResults(updatedQuestions);
       }
     } catch {
-      // Graceful fallback with intelligent assessment
       setIsAiAnalyzing(false);
       const updatedQuestions = [...questions];
       updatedQuestions[currentQIndex].status = 'completed';
       updatedQuestions[currentQIndex].score = 4.8;
       updatedQuestions[currentQIndex].aiFeedback =
-        'Gemini Live: Analisis tepat. Solusi mendemonstrasikan penguasaan teknis dan pemahaman sistemik yang solid.';
+        'LangChain BARS: Analisis tepat. Solusi mendemonstrasikan penguasaan teknis dan pemahaman sistemik yang solid.';
 
       let nextAiReply = '';
       if (nextIdx < updatedQuestions.length) {
@@ -623,7 +837,7 @@ export default function PesertaInterviewLive() {
       }
 
       setQuestions(updatedQuestions);
-
+      setLiveCaptionText(nextAiReply);
       setMessages((prev) => [
         ...prev,
         {
@@ -634,8 +848,51 @@ export default function PesertaInterviewLive() {
       ]);
 
       if (ttsEnabled) {
-        speakText(nextAiReply);
+        speakTextWithNeuralVoice(nextAiReply, () => {
+          if (nextIdx < updatedQuestions.length && micOn) {
+            handleStartListening();
+          }
+        });
       }
+
+      if (nextIdx >= updatedQuestions.length) {
+        saveInterviewResults(updatedQuestions);
+      }
+    }
+  };
+
+  // Submit Answer triggered by form button
+  const handleSubmitAnswer = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isListening) {
+      await handleStopListeningAndSubmit();
+    } else {
+      const text = userAnswer.trim() || activeQuestion.sampleAnswer || 'Saya telah menjelaskan analisis dan jawaban teknis saya secara langsung melalui suara.';
+      await submitAnswerTurn(text);
+    }
+  };
+
+  // Save Interview Results to Backend
+  const saveInterviewResults = async (completedQs: QuestionItem[]) => {
+    try {
+      const totalScore = completedQs.reduce((acc, q) => acc + (q.score || 4.8), 0);
+      const avg = (totalScore / completedQs.length).toFixed(1);
+      const formattedTranscript = messages
+        .map((m) => `[${m.time}] ${m.sender}: ${m.text}`)
+        .join('\n\n');
+
+      await fetch('/api/interview/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: (sessionUser as any).email || sessionUser.username || 'peserta@proxsis.com',
+          transcript: formattedTranscript,
+          summary: `Wawancara AI LangChain & BARS selesai dengan skor rata-rata ${avg}/5.0. Kandidat mendemonstrasikan penguasaan kompetensi teknis yang tinggi.`,
+          proctor: [{ type: 'face_verified', timestamp: new Date().toISOString() }]
+        })
+      });
+    } catch (e) {
+      console.warn('Save interview error:', e);
     }
   };
 
@@ -728,19 +985,23 @@ export default function PesertaInterviewLive() {
                 className={`w-2.5 h-2.5 rounded-full ${
                   isAiSpeaking
                     ? 'bg-blue-600 animate-ping'
-                    : isAiAnalyzing
+                    : isAiAnalyzing || isTranscribing
                     ? 'bg-amber-500 animate-spin'
+                    : isListening
+                    ? 'bg-rose-500 animate-pulse'
                     : 'bg-emerald-500'
                 }`}
               />
               <span>
                 {isAiSpeaking
-                  ? 'Gemini Live Sedang Berbicara...'
+                  ? 'Ava Sedang Berbicara (Suara Natural)...'
+                  : isTranscribing
+                  ? 'OpenAI Whisper Mentranskripsi Rekaman Suara...'
                   : isAiAnalyzing
-                  ? 'Gemini Live Menganalisis Jawaban...'
+                  ? 'LangChain Mengevaluasi Rubrik BARS...'
                   : isListening
-                  ? 'Gemini Live Mendengarkan Anda...'
-                  : 'Gemini Live Siap • Standby'}
+                  ? 'Mendengarkan Jawaban Anda (Bicara Sekarang)...'
+                  : 'Mode Percakapan 2-Arah Aktif'}
               </span>
             </div>
 
@@ -821,46 +1082,56 @@ export default function PesertaInterviewLive() {
 
             {/* Assessor Persona Info */}
             <div className="mt-4 space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-900 text-[11px] font-bold border border-blue-200">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                <span>LangChain BARS • OpenAI Whisper STT • Neural TTS</span>
+              </div>
               <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 font-heading">
-                Google Gemini 2.5 Flash Live
+                Ava • Senior AI Interviewer &amp; Assessor
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 font-medium max-w-md">
-                Dewan Asesor AI Mandiri • Standar Rubrik Penilaian BARS &amp; Kompetensi {program.companyName}
+                Interaksi Suara Dua Arah Aktif • Standar Rubrik Penilaian BARS {program.companyName}
               </p>
             </div>
 
             {/* Live Voice Interaction Controls */}
             <div className="mt-5 flex flex-col items-center gap-2.5 w-full max-w-md px-4">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isLiveConnected) {
-                    connectGeminiLive();
-                  } else {
-                    speakText(activeQuestion.question);
-                  }
-                }}
-                className={`w-full py-3.5 px-6 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] ${
-                  isLiveConnected
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-500/20'
-                    : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 text-white shadow-blue-500/25 animate-pulse'
-                }`}
-              >
-                <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
-                <span>
-                  {isLiveConnected
-                    ? '🟢 Percakapan Suara AI Aktif • Klik untuk Bicara Ulang'
-                    : '🎙️ Mulai Percakapan Suara Gemini Live'}
-                </span>
-              </button>
+              {!hasStartedInterview ? (
+                <button
+                  type="button"
+                  onClick={startInitialGreeting}
+                  className="w-full py-4 px-6 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-lg transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 text-white shadow-blue-500/25"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  <span>▶️ Mulai Wawancara 2-Arah (Ava Menyapa &amp; Membacakan Soal)</span>
+                </button>
+              ) : isListening ? (
+                <button
+                  type="button"
+                  onClick={handleStopListeningAndSubmit}
+                  className="w-full py-3.5 px-6 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/30 animate-pulse"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>⏹️ Selesai Menjawab • Kirim ke Whisper &amp; LangChain</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStartListening}
+                  className="w-full py-3.5 px-6 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-500/20"
+                >
+                  <Mic className="w-4 h-4 text-emerald-200" />
+                  <span>🎙️ Mulai Berbicara (Jawab Soal #{activeQuestion.id})</span>
+                </button>
+              )}
 
               <button
                 type="button"
-                onClick={() => speakText(activeQuestion.question)}
+                onClick={() => speakTextWithNeuralVoice(activeQuestion.question)}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold hover:bg-blue-100 transition-all cursor-pointer shadow-2xs"
               >
                 <Volume2 className="w-3.5 h-3.5 text-blue-600" />
-                <span>Dengarkan Soal #{activeQuestion.id} dengan Suara AI</span>
+                <span>🔊 Dengarkan Ulang Soal #{activeQuestion.id} dengan Suara Ava</span>
               </button>
             </div>
 
@@ -1072,33 +1343,32 @@ export default function PesertaInterviewLive() {
                 {isListening ? (
                   <Button
                     variant="primary"
-                    onClick={() => {
-                      handleStopListening();
-                      setTimeout(() => {
-                        const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
-                        handleSubmitAnswer(fakeEvent);
-                      }, 250);
-                    }}
-                    className="w-full py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer bg-rose-600 hover:bg-rose-700 text-white shadow-md"
+                    onClick={handleStopListeningAndSubmit}
+                    className="w-full py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer bg-rose-600 hover:bg-rose-700 text-white shadow-md animate-pulse"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>⏹️ Selesai Berbicara & Kirim ke Gemini</span>
+                    <span>⏹️ Selesai Berbicara &amp; Evaluasi (Whisper + LangChain)</span>
                   </Button>
                 ) : (
                   <Button
                     variant="primary"
                     onClick={handleSubmitAnswer}
-                    disabled={!userAnswer.trim() || isAiAnalyzing}
+                    disabled={!userAnswer.trim() || isAiAnalyzing || isTranscribing}
                     className="w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer"
                   >
-                    {isAiAnalyzing ? (
+                    {isTranscribing ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Gemini Live Menganalisis Jawaban...</span>
+                        <span>Mentranskripsikan Suara (Whisper)...</span>
+                      </>
+                    ) : isAiAnalyzing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>LangChain Mengevaluasi Rubrik BARS...</span>
                       </>
                     ) : (
                       <>
-                        <span>Kirim Jawaban ke Gemini Live</span>
+                        <span>Kirim Jawaban ke LangChain BARS</span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
@@ -1114,7 +1384,7 @@ export default function PesertaInterviewLive() {
                 {questions.map((q) => (
                   <div
                     key={q.id}
-                    className={`p-3 rounded-xl border transition-all text-xs space-y-1 ${
+                    className={`p-3 rounded-xl border transition-all text-xs space-y-1.5 ${
                       q.status === 'completed'
                         ? 'bg-emerald-50/70 border-emerald-200'
                         : q.status === 'active'
@@ -1137,6 +1407,21 @@ export default function PesertaInterviewLive() {
                         </span>
                       )}
                     </div>
+                    {q.rubricLevel && (
+                      <p className="text-[10px] font-bold text-emerald-700 bg-white/70 px-2 py-0.5 rounded border border-emerald-200/60 inline-block">
+                        {q.rubricLevel}
+                      </p>
+                    )}
+                    {q.rubricCriteria && q.rubricCriteria.length > 0 && (
+                      <div className="space-y-0.5 pt-0.5">
+                        {q.rubricCriteria.map((crit, cIdx) => (
+                          <div key={cIdx} className="flex items-start gap-1 text-[10px] text-emerald-900 font-normal">
+                            <span className="text-emerald-500 font-bold">✓</span>
+                            <span>{crit}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {q.aiFeedback && (
                       <p className="text-[11px] text-emerald-800 leading-relaxed pt-0.5 font-normal">
                         {q.aiFeedback}

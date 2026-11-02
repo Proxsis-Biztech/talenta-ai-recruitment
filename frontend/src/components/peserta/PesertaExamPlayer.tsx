@@ -447,7 +447,7 @@ export default function PesertaExamPlayer() {
           </div>
 
           {/* Main Hero Card: Submission Confirmed */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-10 shadow-xs space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-10 shadow-xs space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
               <div className="flex items-start gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-xs">
@@ -806,7 +806,7 @@ export default function PesertaExamPlayer() {
             </div>
 
             {/* Main Question Card */}
-            <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
               {/* Question Statement */}
               <div className="space-y-4">
                 <p className={`font-medium text-slate-900 ${questionTextClass}`}>
@@ -1196,7 +1196,7 @@ export default function PesertaExamPlayer() {
 
       {/* ─── LIVE HELPDESK CHAT MODAL ─── */}
       {liveChatOpen && (
-        <div className="fixed bottom-6 right-6 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-slate-200 z-50 overflow-hidden flex flex-col text-xs">
+        <div className="fixed bottom-6 right-6 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden flex flex-col text-xs">
           <div className="p-4 bg-primary-navy text-white flex justify-between items-center">
             <div className="flex items-center gap-2.5">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -1330,7 +1330,7 @@ export default function PesertaExamPlayer() {
         size="md"
       >
         <div className="space-y-5 text-center p-2">
-          <div className="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
             <CheckCircle2 className="w-9 h-9" />
           </div>
 

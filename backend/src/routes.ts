@@ -5,8 +5,14 @@ import {
   updateApplicant, deleteApplicant, screenApplicantCV, saveInterview, 
   scoreInterview, checkEmail, getInterviewResultByEmail, getApplicantRanking,
   batchScreenApplicants, generateDecisionLetter, getAuditLogsHandler, testAiLatencyHandler,
-  evaluateInterviewTurn
+  evaluateInterviewTurn, transcribeAudioHandler, synthesizeSpeechHandler
 } from './controllers/ApplicantController';
+import multer from 'multer';
+
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }
+});
 import { login, getAdmins, createAdmin, updateAdmin, deleteAdmin } from './controllers/AdminController';
 import { getActiveJobs, getAdminJobs, createJob, updateJob, deleteJob } from './controllers/JobController';
 import { getBillingOverview, requestTopUpQuota, approveInvoice, verifyLhaPublic } from './controllers/BillingController';
@@ -55,6 +61,9 @@ router.get('/interview/result', getInterviewResultByEmail);
 router.get('/admin/applicants/ranking', authenticateToken, getApplicantRanking);
 router.post('/admin/applicants/:id/score-interview', authenticateToken, scoreInterview);
 router.post('/interview/gemini-turn', evaluateInterviewTurn);
+router.post('/interview/langchain-turn', evaluateInterviewTurn);
+router.post('/interview/transcribe-audio', audioUpload.single('audio'), transcribeAudioHandler);
+router.post('/interview/tts', synthesizeSpeechHandler);
 
 // Admin Management routes (superadmin only)
 router.get('/admin/users', authenticateToken, requireSuperadmin, getAdmins);

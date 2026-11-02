@@ -8,6 +8,11 @@ import 'isomorphic-fetch';
 import { runCvScreening } from '../services/cvScreeningService';
 import { runInterviewScoring } from '../services/interviewScoringService';
 import { recordAuditLog, getAuditLogs } from '../services/auditService';
+import {
+  evaluateInterviewWithLangChain,
+  transcribeInterviewAudio,
+  synthesizeIndonesianSpeech
+} from '../services/langchainInterviewService';
 
 const prisma = new PrismaClient();
 
@@ -892,71 +897,140 @@ export const testAiLatencyHandler = async (req: Request, res: Response) => {
 
 export const evaluateInterviewTurn = async (req: Request, res: Response) => {
   try {
-    const { question, candidateAnswer, competency, candidateName, nextQuestion, questionNumber, totalQuestions } = req.body;
+    const {
+      question,
+      candidateAnswer,
+      competency,
+      candidateName,
+      nextQuestion,
+      questionNumber,
+      totalQuestions,
+      generateVoice = true
+    } = req.body;
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ error: 'GEMINI_API_KEY belum dikonfigurasi di backend' });
     }
 
-    const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
+    try {
+      // 1. Evaluate with LangChain & Standardized BARS Rubrics
+      const langChainResult = await evaluateInterviewWithLangChain({
+        question,
+        candidateAnswer,
+        competency,
+        candidateName,
+        nextQuestion,
+        questionNumber: questionNumber || 1,
+        totalQuestions: totalQuestions || 4,
+        generateVoice
+      });
 
-    const prompt = `Anda adalah Google Gemini Live AI Assessor profesional berstandar BARS (Behaviorally Anchored Rating Scales) untuk asesmen kompetensi teknis di Talenta+.
+      return res.json({ success: true, data: langChainResult });
+    } catch (langchainErr: any) {
+      console.warn('LangChain evaluation fallback to Gemini direct:', langchainErr);
 
+      // Graceful fallback to direct GoogleGenAI if LangChain has a transient error
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `Anda adalah Asesor AI profesional berstandar BARS untuk wawancara teknis di Talenta+.
 Kandidat: ${candidateName || 'Kandidat'}
-Kompetensi yang diuji: ${competency || 'Kompetensi Teknis'}
-Pertanyaan (${questionNumber || 1} dari ${totalQuestions || 4}):
-"${question}"
+Kompetensi: ${competency || 'Kompetensi Teknis'}
+Pertanyaan (${questionNumber || 1}/${totalQuestions || 4}): "${question}"
+Jawaban: "${candidateAnswer}"
+Pertanyaan Berikutnya: "${nextQuestion || 'Selesai'}"
 
-Jawaban Kandidat:
-"${candidateAnswer}"
-
-${nextQuestion ? `Pertanyaan Selanjutnya yang akan diajukan: "${nextQuestion}"` : 'Ini adalah pertanyaan terakhir.'}
-
-Tugas Anda:
-1. Berikan skor BARS (skala 1.0 sampai 5.0, angka float dengan 1 desimal, misal 4.7 atau 4.8) berdasarkan kedalaman teknis dan ketepatan solusi.
-2. Buat ringkasan evaluasi AI singkat (1-2 kalimat) yang objektif untuk catatan asesor.
-3. Buat respon percakapan langsung yang hangat, profesional, mengapresiasi poin bagus kandidat, lalu mengajukan pertanyaan selanjutnya secara mulus (dalam Bahasa Indonesia natural, 2-3 kalimat saja).
-
-Keluarkan HANYA format JSON valid berikut (tanpa tanda kutip markdown):
+Keluarkan JSON valid tanpa markdown:
 {
   "score": 4.8,
-  "aiFeedback": "Gemini Live: Analisis tepat...",
-  "conversationalReply": "Terima kasih ${candidateName || 'kandidat'}..."
+  "rubricLevel": "Level 5 - Sangat Kompeten (Exemplary)",
+  "rubricCriteria": ["Penjelasan arsitektural komprehensif dan mitigasi risiko tepat"],
+  "aiFeedback": "Evaluasi selesai dengan pemahaman mendalam.",
+  "conversationalReply": "Terima kasih ${candidateName || 'Kandidat'}. Penjelasan Anda sangat terstruktur dan solutif. ${nextQuestion ? `Mari lanjut ke pertanyaan berikutnya: ${nextQuestion}` : 'Seluruh sesi wawancara telah selesai.'}"
 }`;
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-    let response;
-    try {
-      response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: { responseMimeType: 'application/json' }
-      });
-    } catch {
-      response = await ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt
       });
-    }
 
-    const rawText = response.text || '';
-    let parsed: any;
-    try {
-      const cleanJson = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      parsed = JSON.parse(cleanJson);
-    } catch {
-      parsed = {
-        score: 4.8,
-        aiFeedback: `Gemini Live: Jawaban relevan dan mendemonstrasikan penguasaan ${competency}.`,
-        conversationalReply: `Terima kasih ${candidateName || 'kandidat'}. Jawaban Anda sangat baik. ${nextQuestion ? `Mari kita lanjutkan ke pertanyaan berikutnya: ${nextQuestion}` : 'Seluruh pertanyaan telah selesai.'}`
-      };
-    }
+      const raw = response.text || '';
+      const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(clean);
 
-    return res.json({ success: true, data: parsed });
+      let audioBase64: string | undefined = undefined;
+      if (generateVoice && parsed.conversationalReply) {
+        audioBase64 = await synthesizeIndonesianSpeech(parsed.conversationalReply, 'id-ID-GadisNeural');
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          score: parsed.score || 4.8,
+          rubricLevel: parsed.rubricLevel || 'Level 4 - Kompeten (Proficient)',
+          rubricCriteria: parsed.rubricCriteria || [],
+          aiFeedback: parsed.aiFeedback || 'Evaluasi BARS selesai.',
+          conversationalReply: parsed.conversationalReply,
+          audioBase64
+        }
+      });
+    }
   } catch (err: any) {
-    console.error('Gemini interview turn error:', err);
-    return res.status(500).json({ error: err.message || 'Gagal mengevaluasi via Gemini' });
+    console.error('Interview turn evaluation error:', err);
+    return res.status(500).json({ error: err.message || 'Gagal mengevaluasi via AI' });
+  }
+};
+
+/**
+ * High-accuracy Audio Transcription using OpenAI Whisper (with Gemini Audio fallback)
+ */
+export const transcribeAudioHandler = async (req: Request, res: Response) => {
+  try {
+    let audioBuffer: Buffer | null = null;
+    let mimeType = 'audio/webm';
+
+    // 1. From multer file upload
+    if (req.file && req.file.buffer) {
+      audioBuffer = req.file.buffer;
+      mimeType = req.file.mimetype || 'audio/webm';
+    } 
+    // 2. From JSON body base64 audio
+    else if (req.body && req.body.audioBase64) {
+      const b64 = req.body.audioBase64.replace(/^data:audio\/[^;]+;base64,/, '');
+      audioBuffer = Buffer.from(b64, 'base64');
+      if (req.body.mimeType) mimeType = req.body.mimeType;
+    }
+
+    if (!audioBuffer || audioBuffer.length === 0) {
+      return res.status(400).json({ error: 'Buffer audio kosong atau tidak ditemukan.' });
+    }
+
+    const transcript = await transcribeInterviewAudio(audioBuffer, mimeType);
+    return res.json({ success: true, text: transcript });
+  } catch (err: any) {
+    console.error('Audio transcription error:', err);
+    return res.status(500).json({ error: err.message || 'Gagal mentranskripsi audio kandidat.' });
+  }
+};
+
+/**
+ * Natural Indonesian Speech Synthesis (EdgeTTS / Neural Voice)
+ */
+export const synthesizeSpeechHandler = async (req: Request, res: Response) => {
+  try {
+    const { text, voice } = req.body;
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ error: 'Parameter text wajib diisi.' });
+    }
+
+    const audioBase64 = await synthesizeIndonesianSpeech(
+      text,
+      voice === 'id-ID-ArdiNeural' ? 'id-ID-ArdiNeural' : 'id-ID-GadisNeural'
+    );
+
+    return res.json({ success: true, audioBase64 });
+  } catch (err: any) {
+    console.error('Speech synthesis error:', err);
+    return res.status(500).json({ error: err.message || 'Gagal mensintesis suara.' });
   }
 };

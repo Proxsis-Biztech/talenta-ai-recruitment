@@ -378,7 +378,7 @@ export default function PesertaDeviceCheck() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-7">
           {/* ─── Left Column (7 cols): Camera Live Preview ─── */}
           <div className="lg:col-span-7 space-y-4">
-            <div className="bg-slate-900 rounded-3xl overflow-hidden shadow-md border border-slate-800 relative aspect-video flex flex-col justify-between p-5">
+            <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-800 relative aspect-video flex flex-col justify-between p-5">
               {/* Real Video Element (displays live webcam stream if active) */}
               <video
                 ref={videoRef}
@@ -475,7 +475,7 @@ export default function PesertaDeviceCheck() {
             </div>
 
             {/* Audio Meter Visualizer */}
-            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-2.5">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-2.5">
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="flex items-center gap-2 font-bold text-ink">
                   <Volume2 className="w-4 h-4 text-blue-accent" />
@@ -497,7 +497,7 @@ export default function PesertaDeviceCheck() {
 
           {/* ─── Right Column (5 cols): Diagnostic Checklist & Consent ─── */}
           <div className="lg:col-span-5 space-y-4">
-            <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs space-y-5">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
               <h2 className="font-heading font-bold text-lg text-ink">
                 Hasil Pemeriksaan Perangkat
               </h2>

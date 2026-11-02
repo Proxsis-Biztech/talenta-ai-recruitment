@@ -381,7 +381,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
               {profileDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setProfileDropdownOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-50 py-3 animate-fadeIn divide-y divide-slate-100">
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 py-3 animate-fadeIn divide-y divide-slate-100">
                     {/* Header info */}
                     <div className="px-5 py-3.5">
                       <div className="flex items-center gap-3.5">

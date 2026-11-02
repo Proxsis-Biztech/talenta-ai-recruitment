@@ -67,14 +67,87 @@ export const registerGeminiLiveGateway = (server: HttpServer) => {
 
     const parsedUrl = new URL(req.url || '', 'http://localhost');
     const queryVoice = parsedUrl.searchParams.get('voice') || voices[0];
-    const queryLanguage = parsedUrl.searchParams.get('language') || 'English';
+    const queryLanguage = parsedUrl.searchParams.get('language') || 'Indonesian';
     const queryJobTitle = parsedUrl.searchParams.get('jobTitle') || '';
     const queryJobDescription = parsedUrl.searchParams.get('jobDescription') || '';
     const queryEmail = parsedUrl.searchParams.get('email') || '';
+    const queryCandidateName = parsedUrl.searchParams.get('candidateName') || '';
 
     let session: any = null;
     let transcript = '';
-    let candidateName = 'Kandidat';
+    let candidateName = queryCandidateName || 'Kandidat';
+    let isLiveReady = false;
+    const messageQueue: any[] = [];
+
+    const processMessage = (message: any) => {
+      try {
+        if (!session) return;
+
+        if (message.type === 'text' && typeof message.text === 'string') {
+          console.log('[GeminiLiveGateway] Sending text turn to Gemini:', message.text);
+          transcript += `Candidate: ${message.text}\n`;
+          session.sendClientContent({
+            turns: [
+              {
+                role: 'user',
+                parts: [{ text: message.text }]
+              }
+            ],
+            turnComplete: true
+          });
+        }
+
+        if (message.type === 'audio' && typeof message.data === 'string') {
+          session.sendRealtimeInput({
+            audio: {
+              data: message.data,
+              mimeType: message.mimeType || 'audio/pcm;rate=16000'
+            }
+          });
+        }
+
+        if (message.type === 'audioEnd') {
+          session.sendRealtimeInput({ audioStreamEnd: true });
+        }
+
+        if (message.type === 'pause') {
+          session.sendRealtimeInput({ audioStreamEnd: true });
+        }
+
+        if (message.type === 'resume') {
+          session.sendClientContent({
+            turns: [
+              {
+                role: 'user',
+                parts: [{ text: '(Wawancara dilanjutkan kembali setelah jeda singkat. Lanjutkan wawancara secara alami.)' }]
+              }
+            ],
+            turnComplete: true
+          });
+        }
+      } catch (err) {
+        console.error('[GeminiLiveGateway] Error processing message:', err);
+      }
+    };
+
+    // Attach message handler immediately so no client packets are lost during connection
+    socket.on('message', (raw) => {
+      try {
+        const message = JSON.parse(raw.toString());
+        if (!isLiveReady || !session) {
+          console.log('[GeminiLiveGateway] Queuing message until session ready:', message.type);
+          messageQueue.push(message);
+        } else {
+          processMessage(message);
+        }
+      } catch {
+        sendJson(socket, { type: 'error', message: 'Format pesan tidak valid' });
+      }
+    });
+
+    socket.on('close', () => {
+      session?.close();
+    });
 
     // Update interview status to in_progress and fetch candidate name
     if (queryEmail) {
@@ -117,44 +190,47 @@ export const registerGeminiLiveGateway = (server: HttpServer) => {
               }
             }
           },
-          systemInstruction: `Anda adalah satu-satunya pewawancara HR profesional bernama Ava dari Kinesta HR.
-Format Wawancara: Wawancara kerja eksklusif 1-on-1 (hanya ada 1 orang pewawancara yaitu Anda sendiri, dan hanya ada 1 orang kandidat yang diwawancarai yaitu ${candidateName}).
-- Selalu berbicara sebagai orang pertama tunggal "saya" (JANGAN PERNAH gunakan kata "kami" atau bertindak seolah-olah Anda adalah panel/tim).
-- Seluruh sesi wawancara ini dipimpin dan dilakukan oleh Anda seorang diri bersama ${candidateName}.
+          systemInstruction: `Anda adalah pewawancara AI profesional bernama Ava dari platform asesmen Talenta+.
+Format Wawancara: Wawancara interaktif tatap muka 1-on-1 bersama kandidat bernama ${candidateName}.
+- Berbicaralah dalam Bahasa Indonesia yang alami, santun, hangat, dan profesional.
+- Selalu berbicara sebagai orang pertama tunggal "saya", dan sapa kandidat dengan namanya (${candidateName}).
 ${screeningContext}${jobContext}
 
-Jalankan wawancara dalam 4 fase secara berurutan:
-1. Pengenalan & Profil (Perkenalan diri ${candidateName}, latar belakang pendidikan & karier)
-2. Kompetensi Teknis (Pendalaman skill teknis dan problem solving sesuai posisi yang dilamar)
-3. Soft Skill & Perilaku (Komunikasi, kerja tim, etos kerja, dan penanganan tantangan)
-4. Penutup (Apresiasi, kesempatan bertanya bagi kandidat, dan penutupan hangat)
+ALUR WAWANCARA:
+1. Perkenalan hangat dan tanyakan profil/latar belakang teknis ${candidateName}.
+2. Eksplorasi kompetensi teknis, arsitektur, dan pemecahan masalah sesuai posisi ${queryJobTitle || 'yang dilamar'}.
+3. Tanya studi kasus nyata saat menghadapi tantangan atau insiden teknis.
+4. Kesimpulan dan penutup sesi wawancara.
 
-ATURAN MUTLAK WAWANCARA:
-1. Format 1-on-1 Tunggal: Anda adalah satu-satunya pewawancara di sesi ini. Selalu berbicara menggunakan kata ganti "saya" dan sebut nama kandidat (${candidateName}).
-2. DILARANG MENJAWAB SENDIRI: Anda HANYA bertugas sebagai penanya dan penilai. DILARANG KERAS menjawab pertanyaan Anda sendiri atau membuat monolog. DILARANG KERAS berpura-pura menjadi kandidat.
-3. Satu Pertanyaan per Giliran: Ajukan tepat SATU pertanyaan yang jelas, lengkap, dan terstruktur dalam 1-3 kalimat dalam ${queryLanguage}. Setelah pertanyaan Anda selesai diajukan, SEGERA BERHENTI BERBICARA dan tunggu jawaban dari ${candidateName}. JANGAN berbicara lagi sebelum ${candidateName} merespons.
-4. Jangan Keluarkan Kata Terpotong: Jangan pernah mengeluarkan respons hanya 1 kata terpotong (seperti "komunikasi?", "terkait?", atau "produktif?").
-5. Respons yang Menghargai: Saat kandidat selesai menjawab, berikan apresiasi singkat yang relevan, lalu ajukan pertanyaan berikutnya.
-6. Penanganan Audio Kurang Jelas: Jika ucapan kandidat sempat tidak jelas atau terputus oleh suara sekitar, jangan menebak dengan satu kata. Tanyakan dengan ramah: "Maaf ${candidateName}, suara Anda sempat terputus. Bisa tolong diulangi kembali penjelasan Anda?"
-7. Token Fase: Saat Anda beralih ke fase baru, awali pesan Anda dengan token [FASE:2], [FASE:3], atau [FASE:4] persis di awal kalimat pertama fase tersebut.`,
+ATURAN PERCAKAPAN:
+1. JANGAN PERNAH mengeluarkan pemikiran internal seperti "**Reading the Question**", tanda markdown, atau instruksi sistem.
+2. Ajukan tepat SATU pertanyaan per giliran dalam 1-2 kalimat agar percakapan mengalir alami seperti manusia.
+3. Setelah bertanya, SEGERA BERHENTI BERBICARA dan dengarkan jawaban ${candidateName}.
+4. Ketika ${candidateName} selesai menjawab, berikan apresiasi singkat atau tanggapan positif 1 kalimat, lalu lanjutkan dengan pertanyaan berikutnya.
+5. Jika ucapan kandidat kurang terdengar jelas, katakan dengan ramah: "Maaf ${candidateName}, suara Anda sempat terputus. Boleh tolong diulangi kembali penjelasan Anda?"`,
           inputAudioTranscription: {},
           outputAudioTranscription: {}
         },
         callbacks: {
-          onopen: () => sendJson(socket, { type: 'ready' }),
+          onopen: () => {
+            console.log('[GeminiLiveGateway] Live session opened successfully for:', candidateName);
+          },
           onmessage: (message) => {
             const text = getTextParts(message);
             const inputText = message.serverContent?.inputTranscription?.text;
             const outputText = message.serverContent?.outputTranscription?.text;
 
             if (inputText) {
+              console.log('[GeminiLiveGateway] Input transcription:', inputText);
               transcript += `Candidate: ${inputText}\n`;
               sendJson(socket, { type: 'candidateText', text: inputText });
             }
             if (outputText) {
+              console.log('[GeminiLiveGateway] Output transcription:', outputText);
               transcript += `HR AI: ${outputText}\n`;
               sendJson(socket, { type: 'aiText', text: outputText });
-            } else if (text) {
+            } else if (text && !text.includes('**') && !text.toLowerCase().includes('interview process') && !text.toLowerCase().includes('initiating')) {
+              console.log('[GeminiLiveGateway] Model text:', text);
               sendJson(socket, { type: 'aiText', text });
             }
 
@@ -163,70 +239,29 @@ ATURAN MUTLAK WAWANCARA:
             }
 
             if (message.serverContent?.turnComplete) {
+              console.log('[GeminiLiveGateway] Turn complete');
               sendJson(socket, { type: 'turnComplete' });
             }
           },
-          onerror: (event) => sendJson(socket, { type: 'error', message: event.message || 'Gemini Live error' }),
-          onclose: () => sendJson(socket, { type: 'closed' })
+          onerror: (event) => {
+            console.error('[GeminiLiveGateway] Session error:', event);
+            sendJson(socket, { type: 'error', message: event.message || 'Gemini Live error' });
+          },
+          onclose: () => {
+            console.log('[GeminiLiveGateway] Session closed');
+            sendJson(socket, { type: 'closed' });
+          }
         }
       });
 
-      socket.on('message', (raw) => {
-        try {
-          const message = JSON.parse(raw.toString());
-
-          if (message.type === 'text' && typeof message.text === 'string') {
-            transcript += `Candidate: ${message.text}\n`;
-            session?.sendClientContent({
-              turns: [
-                {
-                  role: 'user',
-                  parts: [{ text: message.text }]
-                }
-              ],
-              turnComplete: true
-            });
-          }
-
-          if (message.type === 'audio' && typeof message.data === 'string') {
-            session?.sendRealtimeInput({
-              audio: {
-                data: message.data,
-                mimeType: message.mimeType || 'audio/webm'
-              }
-            });
-          }
-
-          if (message.type === 'audioEnd') {
-            session?.sendRealtimeInput({ audioStreamEnd: true });
-          }
-
-          // Pause — finalize candidate's audio turn so AI responds to what was said, then pauses
-          if (message.type === 'pause') {
-            session?.sendRealtimeInput({ audioStreamEnd: true });
-          }
-
-          // Resume from pause — prompt AI gently to acknowledge and continue
-          if (message.type === 'resume') {
-            session?.sendClientContent({
-              turns: [
-                {
-                  role: 'user',
-                  parts: [{ text: '(Wawancara dilanjutkan kembali setelah jeda singkat. Lanjutkan wawancara secara alami.)' }]
-                }
-              ],
-              turnComplete: true
-            });
-          }
-        } catch {
-          sendJson(socket, { type: 'error', message: 'Format pesan tidak valid' });
-        }
-      });
-
-      socket.on('close', () => {
-        session?.close();
-      });
+      isLiveReady = true;
+      sendJson(socket, { type: 'ready' });
+      console.log('[GeminiLiveGateway] Session ready, flushing queue of size:', messageQueue.length);
+      while (messageQueue.length > 0) {
+        processMessage(messageQueue.shift());
+      }
     } catch (error: any) {
+      console.error('[GeminiLiveGateway] Connect error:', error);
       sendJson(socket, { type: 'error', message: error.message || 'Gagal terhubung ke Gemini Live' });
       socket.close();
     }
