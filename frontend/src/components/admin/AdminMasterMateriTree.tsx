@@ -130,7 +130,7 @@ export interface MasterMateriItem {
 
 const STORAGE_KEY = 'talenta_master_materi_table_v2';
 
-const INITIAL_MATERI_LIST: MasterMateriItem[] = [
+export const INITIAL_MATERI_LIST: MasterMateriItem[] = [
   {
     id: 'mat-mandiri-1',
     code: 'BMRI-DATA-02',

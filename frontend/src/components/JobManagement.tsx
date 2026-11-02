@@ -3,7 +3,10 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 import { 
   Trash2, Briefcase, Plus, Edit2, AlertCircle, Clock, 
-  Target, Search, RefreshCw, Sparkles, Building2
+  Target, Search, RefreshCw, Sparkles, Building2,
+  BookOpen, Layers, CheckCircle2, Eye, HelpCircle, Check, 
+  X, Filter, SlidersHorizontal, ListOrdered, Award, ShieldCheck, 
+  ChevronRight, FileText
 } from 'lucide-react';
 import {
   Card,
@@ -18,7 +21,16 @@ import {
   TableCell,
   Modal
 } from './ui';
-import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
+import { 
+  DEFAULT_ASSESSMENT_PROGRAMS, 
+  findProgramByTitle, 
+  type AssessmentProgram, 
+  type QuestionItem 
+} from '../services/assessmentCatalog';
+import { 
+  INITIAL_MATERI_LIST, 
+  type MasterMateriItem 
+} from './admin/AdminMasterMateriTree';
 
 interface Job {
   id: string;
@@ -58,6 +70,83 @@ export default function JobManagement() {
   const [editLoading, setEditLoading] = useState(false);
 
   const [syncLoading, setSyncLoading] = useState(false);
+
+  // Details Modal State (Soal, Materi, Rubrik)
+  const [selectedJobDetail, setSelectedJobDetail] = useState<{
+    job: Job;
+    program: AssessmentProgram;
+    materials: MasterMateriItem[];
+  } | null>(null);
+  const [detailTab, setDetailTab] = useState<'soal' | 'materi' | 'rubrik'>('soal');
+  const [qSearch, setQSearch] = useState('');
+  const [qTypeFilter, setQTypeFilter] = useState('ALL');
+  const [qDiffFilter, setQDiffFilter] = useState('ALL');
+
+  const getMaterialsForJob = useCallback((job: Job): MasterMateriItem[] => {
+    const titleLower = job.title.toLowerCase();
+    const matched = INITIAL_MATERI_LIST.filter(m => {
+      if (titleLower.includes('telkom') && m.companyId === 'PT-TELKOM') return true;
+      if (titleLower.includes('mandiri') && m.companyId === 'PT-MANDIRI') return true;
+      if (titleLower.includes('cimb') && m.companyId === 'PT-CIMB') return true;
+      if (titleLower.includes('astra') && m.companyId === 'PT-ASTRA') return true;
+      if (titleLower.includes('pertamina') && m.companyId === 'PT-PERTAMINA') return true;
+      return false;
+    });
+
+    if (matched.length > 0) return matched;
+
+    // Resilient fallback custom module for dynamic/custom jobs
+    const company = job.title.includes('(') ? job.title.split('(')[1].replace(')', '').trim() : 'Enterprise Partner';
+    return [
+      {
+        id: `mat-${job.id}-1`,
+        code: `MOD-${job.id.substring(0, 5).toUpperCase()}`,
+        title: `Silabus Teknis & Uji Studi Kasus: ${job.title}`,
+        category: 'Kompetensi Inti & Terapan',
+        subcategory: 'Standar Operasional & Rekayasa Arsitektur Enterprise',
+        competency: 'System Resilience, Problem Solving & Business Alignment',
+        companyId: 'PT-DYNAMIC',
+        companyName: company,
+        assessmentType: 'Technical & Hard Competency',
+        assessmentLevel: 'Level 3: Senior / Lead Specialist',
+        type: 'Studi Kasus',
+        version: 'v2.5',
+        content: job.description + ' Pengujian mengukur ketepatan logika, optimasi resource komputasi, penanganan anomali data, dan kepatuhan prosedur operasional standar.',
+        rubric: `Standar penilaian skala BARS 1-5 dengan ambang kelulusan minimum ${job.interviewPassingScore || 75}%. Penilaian mengevaluasi pemahaman konsep, artikulasi trade-off teknis, dan kesiapan mitigasi risiko di lingkungan live.`,
+        behavioralIndicators: [
+          `Mampu merancang dan menganalisis solusi teknis untuk formasi ${job.title}`,
+          'Menjelaskan trade-off antara kecepatan implementasi, biaya operasional, dan keandalan sistem',
+          'Mematuhi tata kelola privasi data, audit trail integritas, dan regulasi kepatuhan industri'
+        ],
+        status: 'Aktif',
+        updatedAt: '2026-11-02'
+      }
+    ];
+  }, []);
+
+  const handleOpenDetailModal = (job: Job) => {
+    const program = findProgramByTitle(job.title, job.id);
+    const materials = getMaterialsForJob(job);
+    setSelectedJobDetail({ job, program, materials });
+    setDetailTab('soal');
+    setQSearch('');
+    setQTypeFilter('ALL');
+    setQDiffFilter('ALL');
+  };
+
+  const filteredQuestions = useMemo(() => {
+    if (!selectedJobDetail) return [];
+    return selectedJobDetail.program.questions.filter((q) => {
+      const matchSearch = 
+        !qSearch ||
+        q.text.toLowerCase().includes(qSearch.toLowerCase()) ||
+        q.competency.toLowerCase().includes(qSearch.toLowerCase()) ||
+        (q.explanation && q.explanation.toLowerCase().includes(qSearch.toLowerCase()));
+      const matchType = qTypeFilter === 'ALL' || q.type === qTypeFilter;
+      const matchDiff = qDiffFilter === 'ALL' || q.difficulty === qDiffFilter;
+      return matchSearch && matchType && matchDiff;
+    });
+  }, [selectedJobDetail, qSearch, qTypeFilter, qDiffFilter]);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -473,6 +562,27 @@ export default function JobManagement() {
                       <p className="text-xs text-slate-500 line-clamp-1 mt-0.5 font-sans">
                         {job.description}
                       </p>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDetailModal(job)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition-colors cursor-pointer"
+                        >
+                          <BookOpen className="w-3 h-3 text-blue-600" />
+                          40 Soal CAT
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleOpenDetailModal(job);
+                            setDetailTab('materi');
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 transition-colors cursor-pointer"
+                        >
+                          <Layers className="w-3 h-3 text-emerald-600" />
+                          Silabus & Rubrik BARS
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </TableCell>
@@ -506,6 +616,16 @@ export default function JobManagement() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="inline-flex items-center gap-1.5">
+                    <Button
+                      variant="primary"
+                      size="xs"
+                      onClick={() => handleOpenDetailModal(job)}
+                      leftIcon={<Eye className="w-3 h-3" />}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-xs"
+                      title="Lihat 40 soal ujian CAT dan silabus materi untuk formasi ini"
+                    >
+                      Lihat Soal & Materi
+                    </Button>
                     <Button
                       variant="secondary"
                       size="xs"
@@ -741,6 +861,496 @@ export default function JobManagement() {
               </Button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Detail Soal & Materi Program Asesmen Modal */}
+      {selectedJobDetail && (
+        <Modal
+          isOpen={!!selectedJobDetail}
+          onClose={() => setSelectedJobDetail(null)}
+          title={
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 leading-tight">
+                  {selectedJobDetail.job.title}
+                </h3>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs text-slate-500">
+                  <Badge variant="navy" format="solid" className="text-[11px]">
+                    {selectedJobDetail.program.companyName}
+                  </Badge>
+                  <span className="font-mono text-slate-500">ID: {selectedJobDetail.program.id}</span>
+                  <span>•</span>
+                  <span>{selectedJobDetail.program.gradeLevel}</span>
+                  <span>•</span>
+                  <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Ambang Lulus: {selectedJobDetail.job.interviewPassingScore || 75}%
+                  </span>
+                  <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    Durasi: {selectedJobDetail.job.interviewDuration || 90} Menit
+                  </span>
+                </div>
+              </div>
+            </div>
+          }
+          size="5xl"
+          footer={
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                Seluruh soal dan silabus telah tervalidasi standar industri dan terintegrasi ke engine CAT.
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setSelectedJobDetail(null)}
+              >
+                Tutup Jendela
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1 font-sans">
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <button
+                type="button"
+                onClick={() => setDetailTab('soal')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
+                  detailTab === 'soal'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Bank Soal CAT ({selectedJobDetail.program.questions.length} Soal)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetailTab('materi')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
+                  detailTab === 'materi'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Layers className="w-4 h-4" />
+                <span>Silabus & Materi Uji ({selectedJobDetail.materials.length} Modul)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetailTab('rubrik')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
+                  detailTab === 'rubrik'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Award className="w-4 h-4" />
+                <span>Standar Rubrik BARS (1-5) & Bobot</span>
+              </button>
+            </div>
+
+            {/* TAB 1: SOAL-SOAL CAT */}
+            {detailTab === 'soal' && (
+              <div className="space-y-4">
+                {/* Question Distribution Ribbon */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div className="bg-white p-2 rounded-lg border border-slate-100 text-center">
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Total Soal</span>
+                    <span className="text-lg font-mono font-bold text-slate-800">40</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-slate-100 text-center">
+                    <span className="block text-[10px] uppercase font-bold text-blue-600">Pilihan Ganda</span>
+                    <span className="text-lg font-mono font-bold text-blue-700">22</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-slate-100 text-center">
+                    <span className="block text-[10px] uppercase font-bold text-purple-600">Multi-Select</span>
+                    <span className="text-lg font-mono font-bold text-purple-700">8</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-slate-100 text-center">
+                    <span className="block text-[10px] uppercase font-bold text-amber-600">Matching</span>
+                    <span className="text-lg font-mono font-bold text-amber-700">4</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-slate-100 text-center">
+                    <span className="block text-[10px] uppercase font-bold text-teal-600">Isian Singkat</span>
+                    <span className="text-lg font-mono font-bold text-teal-700">3</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-slate-100 text-center">
+                    <span className="block text-[10px] uppercase font-bold text-rose-600">Studi Kasus</span>
+                    <span className="text-lg font-mono font-bold text-rose-700">3</span>
+                  </div>
+                </div>
+
+                {/* Filter & Search Bar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={qSearch}
+                      onChange={(e) => setQSearch(e.target.value)}
+                      placeholder="Cari teks soal, kompetensi, atau kata kunci..."
+                      className="w-full pl-9 pr-8 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                    {qSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setQSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={qTypeFilter}
+                      onChange={(e) => setQTypeFilter(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none cursor-pointer"
+                    >
+                      <option value="ALL">Semua Tipe Soal</option>
+                      <option value="single">Pilihan Ganda</option>
+                      <option value="multi">Multi-Select</option>
+                      <option value="matching">Matching (Menjodohkan)</option>
+                      <option value="short">Isian Singkat</option>
+                      <option value="essay">Esai / Studi Kasus</option>
+                    </select>
+
+                    <select
+                      value={qDiffFilter}
+                      onChange={(e) => setQDiffFilter(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none cursor-pointer"
+                    >
+                      <option value="ALL">Semua Tingkat Kesulitan</option>
+                      <option value="Mudah">Mudah</option>
+                      <option value="Sedang">Sedang</option>
+                      <option value="Sulit">Sulit</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Question List */}
+                <div className="space-y-3">
+                  {filteredQuestions.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs">
+                      Tidak ada soal yang sesuai dengan kata kunci atau filter yang dipilih.
+                    </div>
+                  ) : (
+                    filteredQuestions.map((q) => (
+                      <div
+                        key={q.id}
+                        className="p-4 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition-colors shadow-2xs space-y-3"
+                      >
+                        {/* Question Header */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="w-7 h-7 rounded-md bg-indigo-50 text-indigo-700 font-mono font-bold text-xs flex items-center justify-center border border-indigo-200">
+                              #{q.id.toString().padStart(2, '0')}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                              {q.type === 'single' ? 'Pilihan Ganda' : q.type === 'multi' ? 'Multi-Select' : q.type === 'short' ? 'Isian Singkat' : q.type === 'essay' ? 'Studi Kasus / Esai' : 'Matching'}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                              q.difficulty === 'Sulit' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                              q.difficulty === 'Sedang' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                              'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            }`}>
+                              {q.difficulty}
+                            </span>
+                          </div>
+                          <span className="text-xs text-slate-500 font-medium">
+                            Kompetensi: <strong className="text-slate-800">{q.competency}</strong>
+                          </span>
+                        </div>
+
+                        {/* Question Body */}
+                        <p className="text-xs font-medium text-slate-900 leading-relaxed">
+                          {q.text}
+                        </p>
+
+                        {/* Code Snippet if any */}
+                        {q.codeSnippet && (
+                          <pre className="p-3 bg-slate-900 text-emerald-400 rounded-lg text-[11px] font-mono overflow-x-auto leading-normal">
+                            <code>{q.codeSnippet}</code>
+                          </pre>
+                        )}
+
+                        {/* Options */}
+                        {q.options && q.options.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            {q.options.map((opt) => (
+                              <div
+                                key={opt.key}
+                                className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+                                  opt.isCorrect
+                                    ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950 font-medium ring-1 ring-emerald-300/50'
+                                    : 'bg-slate-50/70 border-slate-200 text-slate-700'
+                                }`}
+                              >
+                                <span
+                                  className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 font-bold text-[10px] ${
+                                    opt.isCorrect
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-slate-200 text-slate-600'
+                                  }`}
+                                >
+                                  {opt.key}
+                                </span>
+                                <span className="flex-1 leading-snug">{opt.label}</span>
+                                {opt.isCorrect && (
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded whitespace-nowrap flex items-center gap-0.5 shrink-0">
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                    KUNCI BENAR
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Matching Pairs if any */}
+                        {q.matchingPairs && q.matchingPairs.length > 0 && (
+                          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                            <span className="text-[11px] font-bold text-slate-700 block">
+                              Pasangan Pencocokan Baku:
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {q.matchingPairs.map((pair, idx) => (
+                                <div key={idx} className="bg-white p-2 rounded border border-slate-200 text-xs flex items-center justify-between gap-2">
+                                  <span className="font-semibold text-slate-800">{pair.left}</span>
+                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                                    {pair.correctRight || pair.rightOptions[0]}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Short Answer / Correct Answer */}
+                        {q.correctAnswer && (
+                          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>
+                              <strong>Kunci Jawaban Tepat:</strong> {q.correctAnswer}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Explanation / Rasional */}
+                        {q.explanation && (
+                          <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg text-xs text-blue-900 flex items-start gap-2">
+                            <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                            <div>
+                              <strong className="text-blue-800">Rasional & Pembahasan:</strong> {q.explanation}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: SILABUS & MATERI UJI */}
+            {detailTab === 'materi' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 flex items-center gap-3">
+                  <Layers className="w-5 h-5 text-indigo-600 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-indigo-950">
+                      Silabus & Modul Pembelajaran Baku
+                    </p>
+                    <p className="text-indigo-700 text-[11px] mt-0.5">
+                      Modul materi yang dijadikan bahan acuan penyusunan bank soal CAT dan wawancara live asesor untuk posisi ini.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {selectedJobDetail.materials.map((mat) => (
+                    <Card key={mat.id} elevation="flat" className="p-4.5 border border-slate-200 space-y-3">
+                      <div className="flex items-start justify-between gap-3 flex-wrap border-b border-slate-100 pb-3">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                              {mat.code}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700">
+                              {mat.type}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                              {mat.assessmentLevel}
+                            </span>
+                            <span className="text-xs text-slate-400 font-mono">v{mat.version}</span>
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-900 mt-1.5">
+                            {mat.title}
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Kategori: <strong className="text-slate-700">{mat.category}</strong> • Subkategori: {mat.subcategory || '-'}
+                          </p>
+                        </div>
+                        <Badge variant="success" format="soft" hasDot>
+                          {mat.status || 'Aktif'}
+                        </Badge>
+                      </div>
+
+                      <div>
+                        <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Ringkasan Silabus & Pokok Bahasan
+                        </h5>
+                        <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
+                          {mat.content}
+                        </p>
+                      </div>
+
+                      <div>
+                        <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Panduan Rubrik & Standar Kelulusan Asesor
+                        </h5>
+                        <p className="text-xs text-slate-600 leading-relaxed bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-blue-900">
+                          {mat.rubric}
+                        </p>
+                      </div>
+
+                      {mat.behavioralIndicators && mat.behavioralIndicators.length > 0 && (
+                        <div>
+                          <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                            Indikator Perilaku Baku (Behavioral Indicators)
+                          </h5>
+                          <div className="space-y-1.5">
+                            {mat.behavioralIndicators.map((ind, i) => (
+                              <div key={i} className="flex items-start gap-2 text-xs text-slate-700">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                                <span className="leading-tight">{ind}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: RUBRIK BARS & BOBOT */}
+            {detailTab === 'rubrik' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center gap-3">
+                  <Award className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-emerald-950">
+                      Standar Skala Penilaian BARS (1 - 5)
+                    </p>
+                    <p className="text-emerald-700 text-[11px] mt-0.5">
+                      Behaviorally Anchored Rating Scale yang diterapkan oleh AI Assessor Ava dan dewan asesor independen untuk evaluasi kompetensi.
+                    </p>
+                  </div>
+                </div>
+
+                {/* BARS Scale 1-5 Grid */}
+                <div className="space-y-2.5">
+                  <div className="p-3 rounded-lg border border-rose-200 bg-rose-50/50 flex items-start gap-3">
+                    <span className="w-7 h-7 rounded-full bg-rose-600 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                      1
+                    </span>
+                    <div className="text-xs">
+                      <strong className="text-rose-900 block text-sm">Skor 1 — Sangat Kurang / Tidak Efektif</strong>
+                      <p className="text-rose-800 mt-0.5 leading-relaxed">
+                        Kandidat gagal memahami konsep dasar sistem, tidak mampu mengidentifikasi akar masalah, atau memberikan usulan yang melanggar standar keselamatan/keamanan data fatal.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/50 flex items-start gap-3">
+                    <span className="w-7 h-7 rounded-full bg-amber-600 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                      2
+                    </span>
+                    <div className="text-xs">
+                      <strong className="text-amber-900 block text-sm">Skor 2 — Di Bawah Standar Minimum</strong>
+                      <p className="text-amber-800 mt-0.5 leading-relaxed">
+                        Mengetahui teori permukaan tetapi kesulitan menghubungkan trade-off praktis, alur mitigasi tidak terstruktur, dan membutuhkan supervisi intensif dari supervisor.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg border border-blue-200 bg-blue-50/50 flex items-start gap-3">
+                    <span className="w-7 h-7 rounded-full bg-blue-600 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                      3
+                    </span>
+                    <div className="text-xs">
+                      <strong className="text-blue-900 block text-sm">Skor 3 — Memenuhi Standar Kompetensi (Passing Baseline)</strong>
+                      <p className="text-blue-800 mt-0.5 leading-relaxed">
+                        Memenuhi seluruh parameter standar posisi, memberikan solusi teknis yang aman dan teruji, serta mematuhi SLA operasional dan tata kelola perusahaan tanpa pelanggaran.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg border border-indigo-200 bg-indigo-50/50 flex items-start gap-3">
+                    <span className="w-7 h-7 rounded-full bg-indigo-600 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                      4
+                    </span>
+                    <div className="text-xs">
+                      <strong className="text-indigo-900 block text-sm">Skor 4 — Melampaui Standar / Efektif</strong>
+                      <p className="text-indigo-800 mt-0.5 leading-relaxed">
+                        Mampu memetakan korelasi risiko multi-dimensi, menyusun rencana penanganan bertahap (immediate vs long-term), serta mengoptimalkan efisiensi komputasi/biaya secara terukur.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 flex items-start gap-3">
+                    <span className="w-7 h-7 rounded-full bg-emerald-600 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                      5
+                    </span>
+                    <div className="text-xs">
+                      <strong className="text-emerald-900 block text-sm">Skor 5 — Sangat Unggul / Role Model</strong>
+                      <p className="text-emerald-800 mt-0.5 leading-relaxed">
+                        Inovatif, memiliki visi arsitektur holistik, memimpin komunikasi krisis dengan persuasif, serta menghasilkan rekomendasi bernilai tambah strategis tinggi bagi korporasi.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Selection Pipeline Weighting */}
+                <Card elevation="flat" className="p-4 border border-slate-200 space-y-3">
+                  <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Bobot Tahapan Seleksi Terpadu (100%)
+                  </h5>
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-xs">
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">Tes CAT (40 Soal)</span>
+                      <span className="font-mono font-bold text-base text-primary-navy">35%</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">AI Proctoring</span>
+                      <span className="font-mono font-bold text-base text-purple-700">15%</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">Live Interview BARS</span>
+                      <span className="font-mono font-bold text-base text-indigo-700">30%</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">Review Berkas</span>
+                      <span className="font-mono font-bold text-base text-teal-700">10%</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">Keputusan Akhir</span>
+                      <span className="font-mono font-bold text-base text-emerald-700">10%</span>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
+          </div>
         </Modal>
       )}
     </div>
