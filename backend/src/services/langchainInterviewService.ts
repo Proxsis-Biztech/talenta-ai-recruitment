@@ -14,6 +14,53 @@ export interface BarsEvaluationResult {
   conversationalReply: string;
   nextQuestion?: string;
   audioBase64?: string;
+  isGreetingOrClarification?: boolean;
+  shouldAdvanceQuestion?: boolean;
+}
+
+/**
+ * Detect conversational intent: Greeting, Mic Check, or Repeat Request.
+ * Prevents advancing the question when candidate is merely saying "Halo" or checking mic.
+ */
+export function checkConversationalIntent(text: string): {
+  isGreeting: boolean;
+  isRepeat: boolean;
+  isAudioCheck: boolean;
+  isNoiseOrEmpty: boolean;
+} {
+  const clean = (text || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, '');
+
+  if (!clean || clean.length < 2) {
+    return { isGreeting: false, isRepeat: false, isAudioCheck: false, isNoiseOrEmpty: true };
+  }
+
+  const words = clean.split(/\s+/).filter(Boolean);
+
+  // 1. Repeat Question patterns
+  const repeatWords = ['ulang', 'ulangi', 'bacakan', 'kurang jelas', 'pertanyaannya apa', 'bisa diulang', 'tolong diulang'];
+  const isRepeat = repeatWords.some(rw => clean.includes(rw)) && words.length <= 12;
+
+  // 2. Audio & Mic Check patterns
+  const audioWords = [
+    'tes mic', 'cek mic', 'tes suara', 'cek suara', 'dengar suara', 'terdengar jelas',
+    'suara saya', 'bisa dengar', 'masuk tidak', 'kedengaran', 'tes tes', 'tes 1 2 3'
+  ];
+  const isAudioCheck = audioWords.some(aw => clean.includes(aw)) && words.length <= 12;
+
+  // 3. Common Indonesian Greeting patterns
+  const greetingPhrases = [
+    'halo', 'hai', 'selamat pagi', 'selamat siang', 'selamat sore', 'selamat malam',
+    'assalamualaikum', 'salam kenal', 'apa kabar', 'hi', 'halo ava', 'halo mba', 'halo mbak'
+  ];
+  const isGreetingWordPresent = greetingPhrases.some(gp => clean.startsWith(gp) || clean === gp || words.includes(gp));
+  const hasTechnicalTerms = ['arsitektur', 'microservice', 'kafka', 'database', 'deadlock', 'circuit breaker', 'outage', 'latensi', 'cache', 'locking', 'pattern'].some(t => clean.includes(t));
+  
+  const isGreeting = isGreetingWordPresent && (!hasTechnicalTerms || words.length <= 12);
+
+  return { isGreeting, isRepeat, isAudioCheck, isNoiseOrEmpty: false };
 }
 
 /**
@@ -159,6 +206,45 @@ export async function evaluateInterviewWithLangChain(params: {
     throw new Error('GEMINI_API_KEY belum dikonfigurasi.');
   }
 
+  // 1. Instant Fast-Path for Greetings, Mic Checks, Repeat Requests, or Silence
+  const intent = checkConversationalIntent(candidateAnswer);
+
+  if (intent.isGreeting || intent.isAudioCheck || intent.isRepeat || intent.isNoiseOrEmpty) {
+    let replyText = '';
+    let feedback = '';
+
+    if (intent.isGreeting) {
+      replyText = `Halo ${candidateName || 'Rekan'}! Halo juga, senang sekali bisa berbincang dengan Anda hari ini. Suara dan mikrofon Anda terdengar sangat jelas di sini. Jika Anda sudah siap, silakan sampaikan tanggapan Anda untuk pertanyaan nomor ${questionNumber}: ${question}`;
+      feedback = 'Sistem merespons sapaan kandidat secara interaktif. Pertanyaan tetap aktif.';
+    } else if (intent.isAudioCheck) {
+      replyText = `Halo ${candidateName || 'Rekan'}, suara Anda terdengar sangat jernih dan lancar di sistem kami! Silakan langsung menyampaikan jawaban Anda untuk pertanyaan ini: ${question}`;
+      feedback = 'Pemeriksaan mikrofon kandidat berhasil. Pertanyaan tetap aktif.';
+    } else if (intent.isRepeat) {
+      replyText = `Tentu ${candidateName || 'Rekan'}, saya bacakan ulang pertanyaannya ya: ${question}. Silakan dijawab ketika Anda sudah siap.`;
+      feedback = 'Asesor membacakan ulang pertanyaan atas permintaan kandidat.';
+    } else {
+      replyText = `Halo ${candidateName || 'Rekan'}, suara Anda belum terdengar jelas. Silakan berbicara langsung melalui mikrofon untuk menjawab: ${question}`;
+      feedback = 'Audio kandidat belum terdeteksi. Sesi tetap berada pada pertanyaan saat ini.';
+    }
+
+    let audioBase64: string | undefined = undefined;
+    if (generateVoice) {
+      audioBase64 = await synthesizeIndonesianSpeech(replyText, 'id-ID-GadisNeural');
+    }
+
+    return {
+      score: 0,
+      rubricLevel: 'Level 4 - Kompeten (Proficient)',
+      rubricCriteria: ['Komunikasi dua arah dan mikrofon aktif terverifikasi'],
+      aiFeedback: feedback,
+      conversationalReply: replyText,
+      nextQuestion: question,
+      audioBase64,
+      isGreetingOrClarification: true,
+      shouldAdvanceQuestion: false
+    };
+  }
+
   // Initialize LangChain LLM with multi-model fallback (gemini-flash-lite-latest -> gemini-3.5-flash-lite)
   const modelsToTry = [
     process.env.GEMINI_MODEL || 'gemini-flash-lite-latest',
@@ -167,7 +253,7 @@ export async function evaluateInterviewWithLangChain(params: {
     'gemini-3-flash-preview'
   ];
 
-  // Prompt Template with BARS Rubric Standards
+  // Prompt Template with BARS Rubric Standards & Intent Detection
   const barsPrompt = new PromptTemplate({
     template: `Anda adalah Ava, Pewawancara Asesor AI Profesional Senior di Talenta+ Enterprise.
 Anda mengevaluasi kandidat menggunakan rubrik BARS (Behaviorally Anchored Rating Scales) yang terstandarisasi.
@@ -184,20 +270,33 @@ Jawaban Kandidat:
 Pertanyaan Selanjutnya (Jika ada):
 "{nextQuestion}"
 
+=== KLASIFIKASI RESPON KANDIDAT ===
+1. Jika kandidat HANYA menyapa (contoh: "Halo", "Hai Ava", "Selamat pagi", perkenalan singkat) atau mengecek suara:
+   - "shouldAdvanceQuestion": false
+   - "score": 0
+   - "conversationalReply": Jawab salam kandidat dengan ramah, konfirmasi suara mereka jelas, lalu undang mereka menjawab pertanyaan: "{question}".
+
+2. Jika kandidat meminta soal diulang:
+   - "shouldAdvanceQuestion": false
+   - "score": 0
+   - "conversationalReply": "Tentu {candidateName}, saya bacakan ulang pertanyaannya: {question}."
+
+3. Jika kandidat memberikan penjelasan atau jawaban teknis:
+   - "shouldAdvanceQuestion": true
+   - Berikan skor BARS (skala 1.0 - 5.0).
+   - "conversationalReply": Berikan apresiasi spesifik pada poin teknis bagus dari kandidat, lalu sambungkan ke pertanyaan berikutnya: "{nextQuestion}".
+
 === STANDAR RUBRIK BARS (1.0 - 5.0) ===
 - Skor 4.8 - 5.0 (Level 5: Sangat Kompeten): Menjelaskan arsitektur/solusi komprehensif, mencakup edge-cases, trade-offs sistemik, konkurensi/idempotensi, serta mitigasi preventif nyata.
 - Skor 4.0 - 4.7 (Level 4: Kompeten): Solusi teknis benar, menyebutkan pola industri standar, memahami konsep operasional dengan baik.
 - Skor 3.0 - 3.9 (Level 3: Cukup): Menjawab secara konseptual umum namun minim detail implementasi atau arsitektur nyata.
 - Skor 1.0 - 2.9 (Level 1-2: Kurang): Tidak menjawab inti pertanyaan atau pendekatan keliru.
 
-=== ATURAN KOMUNIKASI DUA ARAH (PENTING) ===
-1. conversationalReply: Anda berbicara langsung kepada {candidateName} dalam Bahasa Indonesia yang hangat, bersahabat, profesional, dan natural (2-3 kalimat).
-2. DILARANG KERAS mengeluarkan teks pemikiran internal seperti "**Analyzing User Interaction**", "**Prioritizing Structure**", atau sejenisnya.
-3. Berikan apresiasi spesifik terhadap satu poin teknis bagus dari jawaban kandidat, lalu sambungkan secara mengalir ke pertanyaan berikutnya: "{nextQuestion}".
-4. Jika ini pertanyaan terakhir, sampaikan apresiasi hangat dan ucapan selamat karena sesi wawancara kompetensi telah selesai dengan sangat baik.
+DILARANG KERAS mengeluarkan teks pemikiran internal seperti "**Analyzing User Interaction**".
 
 Kembalikan HANYA format JSON valid berikut (tanpa blok markdown):
 {{
+  "shouldAdvanceQuestion": true,
   "score": 4.8,
   "rubricLevel": "Level 5 - Sangat Kompeten (Exemplary)",
   "rubricCriteria": [
@@ -282,6 +381,9 @@ Kembalikan HANYA format JSON valid berikut (tanpa blok markdown):
     };
   }
 
+  const shouldAdvance = parsed.shouldAdvanceQuestion !== undefined ? Boolean(parsed.shouldAdvanceQuestion) : true;
+  const isGreetingOrClarification = parsed.isGreetingOrClarification !== undefined ? Boolean(parsed.isGreetingOrClarification) : !shouldAdvance;
+
   // Generate Neural Indonesian Speech Audio for conversationalReply
   let audioBase64: string | undefined = undefined;
   if (generateVoice && parsed.conversationalReply) {
@@ -294,7 +396,9 @@ Kembalikan HANYA format JSON valid berikut (tanpa blok markdown):
     rubricCriteria: Array.isArray(parsed.rubricCriteria) ? parsed.rubricCriteria : [],
     aiFeedback: parsed.aiFeedback || 'Evaluasi BARS selesai.',
     conversationalReply: parsed.conversationalReply,
-    nextQuestion,
-    audioBase64
+    nextQuestion: shouldAdvance ? nextQuestion : question,
+    audioBase64,
+    shouldAdvanceQuestion: shouldAdvance,
+    isGreetingOrClarification
   };
 }

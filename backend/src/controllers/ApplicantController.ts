@@ -979,7 +979,9 @@ Keluarkan JSON valid tanpa markdown:
           rubricCriteria: parsed.rubricCriteria || [],
           aiFeedback: parsed.aiFeedback || 'Evaluasi BARS selesai.',
           conversationalReply: parsed.conversationalReply,
-          audioBase64
+          audioBase64,
+          shouldAdvanceQuestion: parsed.shouldAdvanceQuestion !== undefined ? Boolean(parsed.shouldAdvanceQuestion) : true,
+          isGreetingOrClarification: parsed.isGreetingOrClarification || false
         }
       });
     }
