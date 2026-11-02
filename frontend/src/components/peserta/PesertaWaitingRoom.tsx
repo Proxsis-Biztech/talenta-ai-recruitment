@@ -100,117 +100,126 @@ export default function PesertaWaitingRoom() {
         </div>
 
         {/* Queue & Countdown Card */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-7 sm:p-10 shadow-xs space-y-8 relative overflow-hidden">
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-8 lg:p-10 shadow-xs space-y-8 relative overflow-hidden">
           <div aria-hidden className="pointer-events-none absolute -top-24 right-10 w-64 h-64 rounded-full bg-blue-accent/10 blur-3xl" />
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8 border-b border-slate-100 pb-8 relative">
-            <div className="flex flex-col items-center md:items-start">
-              <span className="text-xs sm:text-sm text-muted-slate font-medium mb-1">
+          
+          {/* Top row: Countdown + Queue status */}
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-6 border-b border-slate-100 pb-6 relative">
+            <div className="flex flex-col items-center lg:items-start text-center lg:text-left">
+              <span className="text-xs sm:text-sm text-muted-slate font-medium mb-1.5">
                 Estimasi Waktu Menuju Giliran Anda:
               </span>
-              <div className="flex items-center gap-3">
-                <div className="font-mono text-3xl sm:text-4xl font-extrabold text-primary-navy bg-gradient-to-b from-soft-blue to-white px-7 py-3 rounded-2xl border border-accent-border shadow-2xs tabular-nums ring-1 ring-white/60">
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3">
+                <div className="font-mono text-3xl sm:text-4xl font-extrabold text-primary-navy bg-gradient-to-b from-soft-blue to-white px-6 py-2.5 rounded-2xl border border-accent-border shadow-2xs tabular-nums ring-1 ring-white/60">
                   {formatTime(countdown)}
                 </div>
                 {countdown > 0 && (
                   <button
                     onClick={() => { setCountdown(0); setIsReady(true); }}
-                    className="text-[11px] text-blue-accent hover:underline font-semibold cursor-pointer"
+                    className="text-xs text-blue-accent hover:underline font-semibold cursor-pointer py-1 px-2"
                   >
                     Lewati Tunggu (Uji Coba)
                   </button>
                 )}
               </div>
-            </div>              <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-600">
-                <div className="flex items-center gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
-                  <Users className="w-4 h-4 text-blue-accent" />
-                  <span>Posisi Antrean: <strong className="text-ink">#1 Peserta Berikutnya</strong></span>
-                </div>
-              <div className="flex items-center gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>Lead Assessor: <strong className="text-ink">Dr. Ir. Dwi Hartanto / Ava AI</strong></span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full lg:w-auto text-xs sm:text-sm text-slate-600">
+              <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
+                <Users className="w-4 h-4 text-blue-accent shrink-0" />
+                <span className="truncate">Posisi Antrean: <strong className="text-ink">#1 Peserta Berikutnya</strong></span>
+              </div>
+              <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="truncate">Lead Assessor: <strong className="text-ink">Dr. Ir. Dwi Hartanto / Ava AI</strong></span>
               </div>
             </div>
           </div>
 
           {/* Video Preview & Pre-flight Diagnostics */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
-            {/* Video Box (5 cols) */}
-            <div className="md:col-span-5 bg-slate-900 rounded-3xl overflow-hidden aspect-video relative flex items-center justify-center border border-slate-800 shadow-tinted-lg ring-1 ring-slate-900/10">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className={`w-full h-full object-cover ${mediaActive ? 'block' : 'hidden'}`}
-              />
-              {!mediaActive && (
-                savedPhoto ? (
-                  <img
-                    src={savedPhoto}
-                    alt="Foto Profil Terverifikasi"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="text-center p-4 space-y-2">
-                    <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-300 font-heading font-extrabold text-xl mx-auto">
-                      {activeUser.name.charAt(0)}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+            {/* Video Box (5 cols on desktop, full width on mobile/tablet) */}
+            <div className="lg:col-span-5 w-full min-w-0">
+              <div className="w-full bg-slate-900 rounded-3xl overflow-hidden aspect-video relative flex items-center justify-center border border-slate-800 shadow-tinted-lg ring-1 ring-slate-900/10">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${mediaActive ? 'block' : 'hidden'}`}
+                />
+                {!mediaActive && (
+                  savedPhoto ? (
+                    <img
+                      src={savedPhoto}
+                      alt="Foto Profil Terverifikasi"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-center p-4 space-y-2">
+                      <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-300 font-heading font-extrabold text-xl mx-auto">
+                        {activeUser.name.charAt(0)}
+                      </div>
+                      <p className="text-xs text-slate-400">Pratinjau Kamera Aktif Saat Memasuki Sesi</p>
                     </div>
-                    <p className="text-xs text-slate-400">Pratinjau Kamera Aktif Saat Memasuki Sesi</p>
-                  </div>
-                )
-              )}
+                  )
+                )}
 
-              <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg text-[11px] text-emerald-400 font-mono flex items-center gap-2 border border-emerald-500/30">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Kamera &amp; Mic Terhubung</span>
-              </div>
+                <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg text-[11px] text-emerald-400 font-mono flex items-center gap-2 border border-emerald-500/30">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Kamera &amp; Mic Terhubung</span>
+                </div>
 
-              <div className="absolute bottom-3 left-3 right-3 bg-black/60 backdrop-blur-xs px-3 py-1.5 rounded-lg text-[11px] text-slate-300 flex items-center justify-between">
-                <span>{activeUser.name}</span>
-                <span className="font-mono text-emerald-400">Audio 100% OK</span>
+                <div className="absolute bottom-3 left-3 right-3 bg-black/60 backdrop-blur-xs px-3 py-1.5 rounded-lg text-[11px] text-slate-300 flex items-center justify-between">
+                  <span className="truncate mr-2">{activeUser.name}</span>
+                  <span className="font-mono text-emerald-400 shrink-0">Audio 100% OK</span>
+                </div>
               </div>
             </div>
 
-            {/* Preparation Tips & Checklist Tabs (7 cols) */}
-            <div className="md:col-span-7 flex flex-col justify-between space-y-4">
+            {/* Preparation Tips & Checklist Tabs (7 cols on desktop, full width on mobile/tablet) */}
+            <div className="lg:col-span-7 w-full min-w-0 flex flex-col justify-between space-y-4">
               {/* Tab Selector */}
-              <div className="flex flex-wrap gap-1.5 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/80 text-xs">
+              <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/80 text-xs">
                 <button
                   onClick={() => setActiveTab('tips')}
-                  className={`px-4 py-2 rounded-xl font-semibold transition-all duration-200 cursor-pointer ${
+                  className={`py-2 px-2 sm:px-3 text-center rounded-xl font-semibold transition-all duration-200 cursor-pointer truncate ${
                     activeTab === 'tips'
                       ? 'bg-white text-primary-navy shadow-2xs font-bold'
                       : 'text-slate-500 hover:text-slate-900'
                   }`}
+                  title="Tips Wawancara AI"
                 >
-                  Tips Wawancara AI
+                  Tips Wawancara
                 </button>
                 <button
                   onClick={() => setActiveTab('rubrik')}
-                  className={`px-4 py-2 rounded-xl font-semibold transition-all duration-200 cursor-pointer ${
+                  className={`py-2 px-2 sm:px-3 text-center rounded-xl font-semibold transition-all duration-200 cursor-pointer truncate ${
                     activeTab === 'rubrik'
                       ? 'bg-white text-primary-navy shadow-2xs font-bold'
                       : 'text-slate-500 hover:text-slate-900'
                   }`}
+                  title="Kriteria Penilaian BARS"
                 >
-                  Kriteria Penilaian BARS
+                  Kriteria BARS
                 </button>
                 <button
                   onClick={() => setActiveTab('perangkat')}
-                  className={`px-4 py-2 rounded-xl font-semibold transition-all duration-200 cursor-pointer ${
+                  className={`py-2 px-2 sm:px-3 text-center rounded-xl font-semibold transition-all duration-200 cursor-pointer truncate ${
                     activeTab === 'perangkat'
                       ? 'bg-white text-primary-navy shadow-2xs font-bold'
                       : 'text-slate-500 hover:text-slate-900'
                   }`}
+                  title="Ceklist Kesiapan"
                 >
-                  Ceklist Kesiapan
+                  Cek Kesiapan
                 </button>
               </div>
 
               {/* Tab Content */}
-              <div className="text-xs text-slate-600 space-y-2.5 flex-1">
+              <div className="text-xs text-slate-600 space-y-2.5 flex-1 min-w-0">
                 {activeTab === 'tips' && (
-                  <div className="space-y-2.5 bg-slate-50/70 p-5 rounded-2xl border border-slate-200/70">
+                  <div className="space-y-2.5 bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/70">
                     <p className="font-bold text-ink">3 Tips Utama Menjawab Pertanyaan:</p>
                     <ul className="space-y-1.5 text-muted-slate list-disc pl-4 leading-relaxed">
                       <li><strong>Gunakan Metode STAR:</strong> Jelaskan <em>Situation</em>, <em>Task</em>, <em>Action</em> yang Anda ambil, dan <em>Result</em> yang terukur.</li>
@@ -221,22 +230,22 @@ export default function PesertaWaitingRoom() {
                 )}
 
                 {activeTab === 'rubrik' && (
-                  <div className="space-y-2.5 bg-slate-50/70 p-5 rounded-2xl border border-slate-200/70">
+                  <div className="space-y-2.5 bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/70">
                     <p className="font-bold text-ink">Dimensi Evaluasi BARS (1 - 5):</p>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="p-2 bg-white rounded-lg border border-slate-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                      <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                         <span className="font-bold text-primary-navy block">Kompetensi Teknis (35%)</span>
                         <span className="text-muted-slate">Kedalaman arsitektur &amp; penalaran sistem.</span>
                       </div>
-                      <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                         <span className="font-bold text-primary-navy block">Problem Solving (25%)</span>
                         <span className="text-muted-slate">Struktur solusi pada studi kasus industri.</span>
                       </div>
-                      <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                         <span className="font-bold text-primary-navy block">Artikulasi &amp; Komunikasi (20%)</span>
                         <span className="text-muted-slate">Kejelasan penyampaian argumen.</span>
                       </div>
-                      <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                         <span className="font-bold text-primary-navy block">Etika &amp; Integritas (20%)</span>
                         <span className="text-muted-slate">Kejujuran dan kepatuhan standar profesional.</span>
                       </div>
@@ -245,19 +254,19 @@ export default function PesertaWaitingRoom() {
                 )}
 
                 {activeTab === 'perangkat' && (
-                  <div className="space-y-2.5 bg-slate-50/70 p-5 rounded-2xl border border-slate-200/70">
+                  <div className="space-y-2.5 bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/70">
                     <p className="font-bold text-ink">Ceklist Sebelum Masuk Sesi:</p>
-                    <div className="space-y-1.5">
+                    <div className="space-y-2 text-xs">
                       <div className="flex items-center gap-2 text-emerald-800">
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span>Kamera menghadap wajah dengan pencahayaan terang</span>
                       </div>
                       <div className="flex items-center gap-2 text-emerald-800">
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span>Mikrofon tidak berdengung dan tidak berada di ruangan bising</span>
                       </div>
                       <div className="flex items-center gap-2 text-emerald-800">
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span>Koneksi internet minimal 5 Mbps stabil</span>
                       </div>
                     </div>
@@ -266,19 +275,19 @@ export default function PesertaWaitingRoom() {
               </div>
 
               {/* Action Button */}
-              <div className="pt-3 flex flex-col sm:flex-row items-center gap-4">
+              <div className="pt-3 flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
                 <Button
                   variant="primary"
                   onClick={() => navigate('/peserta/interview')}
-                  className="w-full py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs rounded-xl cursor-pointer"
+                  className="w-full py-3 sm:py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs rounded-xl cursor-pointer"
                 >
-                  <Video className="w-4 h-4" />
+                  <Video className="w-4 h-4 shrink-0" />
                   <span>{isReady || countdown === 0 ? 'Giliran Anda Tiba • Masuk Sesi Wawancara' : 'Masuk ke Ruang Sesi Sekarang'}</span>
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => navigate('/peserta/device-check')}
-                  className="w-full sm:w-auto py-3.5 px-4 text-xs font-semibold rounded-xl text-slate-700 cursor-pointer"
+                  className="w-full sm:w-auto py-3 sm:py-3.5 px-4 text-xs font-semibold rounded-xl text-slate-700 cursor-pointer whitespace-nowrap"
                 >
                   Uji Kamera/Mic Ulang
                 </Button>

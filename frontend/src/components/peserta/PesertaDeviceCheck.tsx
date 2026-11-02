@@ -377,7 +377,7 @@ export default function PesertaDeviceCheck() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* ─── Left Column (7 cols): Camera Live Preview ─── */}
-          <div className="lg:col-span-7 space-y-6">
+          <div className="lg:col-span-7 w-full min-w-0 space-y-6">
             <div className="bg-slate-900 rounded-3xl overflow-hidden shadow-tinted-lg border border-slate-800 relative aspect-video flex flex-col justify-between p-6 ring-1 ring-slate-900/10">
               <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-blue-accent/15 to-transparent" />
               {/* Real Video Element (displays live webcam stream if active) */}
@@ -497,7 +497,7 @@ export default function PesertaDeviceCheck() {
           </div>
 
           {/* ─── Right Column (5 cols): Diagnostic Checklist & Consent ─── */}
-          <div className="lg:col-span-5 space-y-6">
+          <div className="lg:col-span-5 w-full min-w-0 space-y-6">
             <div className="bg-white rounded-3xl border border-slate-200 p-7 sm:p-9 shadow-xs space-y-6">
               <h2 className="font-heading font-bold text-lg text-ink">
                 Hasil Pemeriksaan Perangkat

@@ -323,7 +323,7 @@ export default function PesertaDashboard() {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
             {stages.map((stg, idx) => {
               const isCompleted = stg.status === 'completed';
               const isActive = stg.status === 'active';

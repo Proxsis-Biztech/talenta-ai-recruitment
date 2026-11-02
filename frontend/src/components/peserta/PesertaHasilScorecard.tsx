@@ -76,7 +76,7 @@ export default function PesertaHasilScorecard() {
         {/* ─── Scorecard Breakdown: Bars + Radar Chart ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Bars (7 cols) */}
-          <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs space-y-6">
+          <div className="lg:col-span-7 w-full min-w-0 bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs space-y-6">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h2 className="font-heading font-bold text-base sm:text-lg text-ink">
@@ -118,7 +118,7 @@ export default function PesertaHasilScorecard() {
           </div>
 
           {/* Right Radar Chart (5 cols) */}
-          <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs flex flex-col justify-between">
+          <div className="lg:col-span-5 w-full min-w-0 bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs flex flex-col justify-between">
             <div>
               <h3 className="font-heading font-bold text-base sm:text-lg text-ink mb-1">
                 Visualisasi Radar Profil
