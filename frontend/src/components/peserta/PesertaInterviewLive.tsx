@@ -566,13 +566,22 @@ export default function PesertaInterviewLive() {
       }
       setIsAiSpeaking(false);
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true
-        }
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true
+          }
+        });
+      } catch (micErr) {
+        console.warn('Physical microphone unavailable or denied, falling back to WebAudio stream:', micErr);
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        const fallbackCtx = new AudioCtx();
+        const dest = fallbackCtx.createMediaStreamDestination();
+        stream = dest.stream;
+      }
       mediaStreamRef.current = stream;
 
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -659,6 +668,26 @@ export default function PesertaInterviewLive() {
 
   // Toggle Listening: If not listening, start. If listening, stop and transcribe.
   const handleToggleListening = async () => {
+    // 1. If interview hasn't started yet, clicking the button begins the interview
+    if (!hasStartedInterview) {
+      await startInitialGreeting();
+      return;
+    }
+
+    // 2. If AI is currently speaking and user clicks to speak, pause AI and listen
+    if (isAiSpeaking) {
+      if (aiAudioElementRef.current) {
+        aiAudioElementRef.current.pause();
+      }
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      setIsAiSpeaking(false);
+      await handleStartListening();
+      return;
+    }
+
+    // 3. Otherwise toggle recording (listen / stop & submit)
     if (isListening) {
       await handleStopListeningAndSubmit();
     } else {
