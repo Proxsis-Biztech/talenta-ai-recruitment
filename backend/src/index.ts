@@ -61,18 +61,8 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 app.use(compression());
 
-// Trust proxy so X-Forwarded-For is used correctly by rate limiter
-app.set('trust proxy', 1);
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Terlalu banyak permintaan, silakan coba lagi nanti.' }
-});
-
-app.use(limiter);
+// Trust proxy so X-Forwarded-For is used correctly behind Coolify / Traefik / Caddy
+app.set('trust proxy', true);
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../uploads');
@@ -80,16 +70,29 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Serve static frontend files
+// Serve static frontend files FIRST (WITHOUT rate limiting so UI never gets blocked)
 // NOTE: /uploads is NOT served statically — CV files are only accessible
 // via the authenticated download endpoint (/admin/applicants/cv/:fileName)
 const rootDir = process.cwd();
 app.use(express.static(path.join(rootDir, '../frontend/dist')));
 
-// Routes
-app.use('/api', apiRoutes);
+// Generous rate limiter specifically for API endpoints (prevents DoS without throttling active users/interviews)
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5000, // 5000 requests per 15 min per IP (accommodates high-frequency interview telemetry and office NATs)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Terlalu banyak permintaan ke API, silakan coba lagi beberapa saat.' },
+  skip: (req) => {
+    // Never rate limit health checks or non-API calls
+    return req.path === '/health' || !req.path.startsWith('/api');
+  }
+});
 
-// SPA fallback - serve index.html for non-API routes
+// API Routes with rate limiter applied ONLY to /api
+app.use('/api', apiLimiter, apiRoutes);
+
+// SPA fallback - serve index.html for non-API routes (WITHOUT rate limiting)
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (!req.path.startsWith('/api')) {
     res.sendFile(path.join(rootDir, '../frontend/dist/index.html'));

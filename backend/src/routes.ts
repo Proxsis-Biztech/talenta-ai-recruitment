@@ -50,7 +50,7 @@ router.delete('/admin/applicants/:id', authenticateToken, requireSuperadmin, del
 // Applicants authenticate by providing their registered email
 const interviewLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  max: 200, // Generous limit for candidate saves and retries
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Terlalu banyak permintaan simpan wawancara. Silakan coba lagi nanti.' }
