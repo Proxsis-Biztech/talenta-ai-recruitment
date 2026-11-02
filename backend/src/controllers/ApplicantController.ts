@@ -949,10 +949,18 @@ Keluarkan JSON valid tanpa markdown:
   "conversationalReply": "Terima kasih ${candidateName || 'Kandidat'}. Penjelasan Anda sangat terstruktur dan solutif. ${nextQuestion ? `Mari lanjut ke pertanyaan berikutnya: ${nextQuestion}` : 'Seluruh sesi wawancara telah selesai.'}"
 }`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
+      let response: any;
+      try {
+        response = await ai.models.generateContent({
+          model: 'gemini-flash-lite-latest',
+          contents: prompt
+        });
+      } catch {
+        response = await ai.models.generateContent({
+          model: 'gemini-3.5-flash-lite',
+          contents: prompt
+        });
+      }
 
       const raw = response.text || '';
       const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
