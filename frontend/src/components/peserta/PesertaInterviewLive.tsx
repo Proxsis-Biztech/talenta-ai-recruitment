@@ -1152,42 +1152,20 @@ export default function PesertaInterviewLive() {
               </p>
             </div>
 
-            {/* Live Voice Interaction Controls */}
-            <div className="mt-5 flex flex-col items-center gap-3 w-full max-w-lg px-4">
+            {/* Real-time Status Banner under Ava (No redundant buttons, controlled exclusively via bottom footer mic button) */}
+            <div className="mt-5 w-full max-w-lg px-4 space-y-2.5">
               {!hasStartedInterview ? (
-                <button
-                  type="button"
-                  onClick={startInitialGreeting}
-                  className="w-full py-4 px-6 rounded-2xl font-extrabold text-sm sm:text-base flex items-center justify-center gap-3 shadow-xl transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 text-white shadow-blue-500/25"
-                >
-                  <Play className="w-5 h-5 fill-white" />
-                  <span>▶️ Mulai Wawancara 2-Arah (Ava Menyapa &amp; Soal #1)</span>
-                </button>
+                <div className="p-3.5 rounded-2xl bg-blue-50/90 border border-blue-200 text-blue-900 text-xs font-semibold flex items-center justify-center gap-2 shadow-2xs">
+                  <Sparkles className="w-4 h-4 text-blue-600 shrink-0 animate-pulse" />
+                  <span>Gunakan tombol mikrofon di bagian bawah layar untuk memulai wawancara.</span>
+                </div>
               ) : isAiSpeaking ? (
-                /* Ava Sedang Berbicara */
-                <div className="w-full p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-900 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3.5 h-3.5 rounded-full bg-blue-600 animate-ping" />
-                    <div className="text-left">
-                      <span className="font-extrabold text-xs sm:text-sm block">🔊 Ava Sedang Berbicara...</span>
-                      <span className="text-[11px] text-blue-700">Dengarkan sapaan atau pertanyaan dari Ava</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (aiAudioElementRef.current) aiAudioElementRef.current.pause();
-                      setIsAiSpeaking(false);
-                      handleStartListening();
-                    }}
-                    className="px-3.5 py-1.5 rounded-xl bg-white border border-blue-300 text-blue-800 text-xs font-bold hover:bg-blue-100 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
-                  >
-                    Lewati &amp; Bicara 🎙️
-                  </button>
+                <div className="p-3.5 rounded-2xl bg-blue-50/90 border border-blue-200 text-blue-900 flex items-center justify-center gap-2.5 shadow-2xs animate-pulse">
+                  <div className="w-3 h-3 rounded-full bg-blue-600 animate-ping" />
+                  <span className="font-extrabold text-xs sm:text-sm">🔊 Ava Sedang Berbicara...</span>
                 </div>
               ) : isListening ? (
-                /* Mikrofon Aktif & Merekam */
-                <div className="w-full p-4 rounded-2xl bg-emerald-50/95 border-2 border-emerald-400 text-emerald-950 shadow-md space-y-3 animate-in fade-in duration-200">
+                <div className="p-3.5 rounded-2xl bg-emerald-50/95 border-2 border-emerald-400 text-emerald-950 shadow-md space-y-2 animate-in fade-in duration-150">
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-2 font-extrabold text-xs sm:text-sm text-emerald-900">
                       <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
@@ -1197,69 +1175,41 @@ export default function PesertaInterviewLive() {
                       {micVolumeLevel}% Vol
                     </span>
                   </div>
-
                   {/* Real-time Candidate Speech Preview */}
-                  <div className="p-3 bg-white rounded-xl border border-emerald-200 text-xs sm:text-sm min-h-[46px] flex items-center shadow-inner text-left">
+                  <div className="p-2.5 bg-white rounded-xl border border-emerald-200 text-xs text-left min-h-[38px] flex items-center">
                     {liveInterimText || userAnswer ? (
                       <span className="text-slate-900 font-semibold italic">"{liveInterimText || userAnswer}"</span>
                     ) : (
-                      <span className="text-slate-400 italic">Bicara saja sekarang (sapa "Halo Ava", atau langsung sampaikan jawaban Anda)...</span>
+                      <span className="text-slate-400 italic">Bicara sekarang (sapa "Halo Ava", atau langsung sampaikan jawaban Anda)...</span>
                     )}
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={handleStopListeningAndSubmit}
-                    className="w-full py-3.5 px-6 rounded-xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/25 active:scale-[0.98]"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>⏹️ Selesai Bicara • Kirim ke Ava</span>
-                  </button>
+                  <p className="text-[11px] text-emerald-700 text-center font-medium">
+                    👇 Klik tombol mikrofon di bawah layar saat selesai berbicara untuk mengirim jawaban.
+                  </p>
                 </div>
               ) : isAiAnalyzing || isTranscribing ? (
-                /* Ava Sedang Memproses / Transkripsi Whisper */
-                <div className="w-full p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-center gap-3 shadow-sm">
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-center gap-2.5 shadow-2xs">
                   <div className="w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
                   <span className="font-extrabold text-xs sm:text-sm">
                     {isTranscribing ? 'Mentranskripsi Suara (Whisper)...' : 'LangChain Menganalisis Jawaban...'}
                   </span>
                 </div>
               ) : (
-                /* Jeda / Siap Bicara */
-                <div className="w-full space-y-2">
-                  <button
-                    type="button"
-                    onClick={handleStartListening}
-                    className="w-full py-4 px-6 rounded-2xl font-extrabold text-sm sm:text-base flex items-center justify-center gap-3 shadow-lg transition-all cursor-pointer transform hover:scale-[1.01] active:scale-[0.99] bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-500/25"
-                  >
-                    <Mic className="w-5 h-5 text-emerald-100 animate-pulse" />
-                    <span>🎙️ Klik untuk Bicara (Jawab Soal #{activeQuestion.id})</span>
-                  </button>
+                <div className="p-3 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2">
+                  <Mic className="w-4 h-4 text-blue-600" />
+                  <span>Mikrofon siap. Klik tombol mic di bawah untuk mulai berbicara.</span>
                 </div>
               )}
 
-              {/* Secondary Controls Bar */}
-              <div className="flex items-center gap-2 pt-1 flex-wrap justify-center">
+              {/* Minimalist Question Replay Pill */}
+              <div className="flex items-center justify-center gap-2 pt-0.5">
                 <button
                   type="button"
                   onClick={() => speakTextWithNeuralVoice(activeQuestion.question)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold hover:bg-blue-100 transition-all cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 text-[11px] font-bold border border-blue-200 transition-all cursor-pointer shadow-2xs"
                 >
                   <Volume2 className="w-3.5 h-3.5 text-blue-600" />
-                  <span>🔊 Ulangi Soal #{activeQuestion.id}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setHandsFreeMode(!handsFreeMode)}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
-                    handsFreeMode
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                      : 'bg-slate-100 border-slate-200 text-slate-600'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Mode Otomatis (Hands-Free): {handsFreeMode ? 'ON' : 'OFF'}</span>
+                  <span>Dengarkan Ulang Soal #{activeQuestion.id}</span>
                 </button>
               </div>
             </div>
@@ -1599,17 +1549,41 @@ export default function PesertaInterviewLive() {
       {/* ─── Bottom Floating Control Bar (Modern Light Toolbar) ─── */}
       <footer className="h-20 bg-white border-t border-slate-200 px-4 sm:px-8 flex items-center justify-center shrink-0 shadow-lg z-20">
         <div className="flex items-center gap-3 sm:gap-4">
-          {/* Mic */}
+          {/* Unified Primary Mic Button */}
           <button
-            onClick={() => setMicOn(!micOn)}
-            className={`p-3.5 rounded-full transition-all cursor-pointer shadow-xs ${
-              micOn
-                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
-                : 'bg-rose-600 hover:bg-rose-700 text-white'
+            onClick={handleToggleListening}
+            className={`px-5 py-3 rounded-full transition-all cursor-pointer flex items-center gap-2.5 font-bold text-xs sm:text-sm shadow-md ${
+              isListening
+                ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/30 ring-4 ring-rose-200 animate-pulse'
+                : !hasStartedInterview
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98]'
             }`}
-            title={micOn ? 'Matikan Mikrofon' : 'Nyalakan Mikrofon'}
+            title={
+              !hasStartedInterview
+                ? 'Mulai Wawancara (Nyalakan Mikrofon)'
+                : isListening
+                ? 'Selesai Berbicara • Kirim ke Ava'
+                : 'Nyalakan Mikrofon & Mulai Bicara'
+            }
           >
-            {micOn ? <Mic className="w-5 h-5 text-slate-800" /> : <MicOff className="w-5 h-5" />}
+            {isListening ? (
+              <>
+                <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                <Mic className="w-5 h-5 text-white" />
+                <span>Selesai Bicara • Kirim ke Ava</span>
+              </>
+            ) : !hasStartedInterview ? (
+              <>
+                <Play className="w-4 h-4 fill-white" />
+                <span>Mulai Wawancara (Nyalakan Mic)</span>
+              </>
+            ) : (
+              <>
+                <Mic className="w-5 h-5 text-white" />
+                <span>Nyalakan Mic &amp; Bicara</span>
+              </>
+            )}
           </button>
 
           {/* Cam */}
