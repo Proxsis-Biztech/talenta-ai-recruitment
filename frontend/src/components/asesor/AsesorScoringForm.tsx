@@ -21,6 +21,15 @@ import {
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, Modal } from '../ui';
+import axios from 'axios';
+import {
+  getCandidateByCode,
+  calculateCompositeScore,
+  saveAssessorScore,
+  formatToday,
+  ASSESSOR_NAME,
+  ASSESSOR_TITLE
+} from '../../services/asesorScoreService';
 
 interface CompetencyItem {
   id: string;
@@ -85,6 +94,7 @@ const DEFAULT_7_COMPETENCIES: CompetencyItem[] = [
 export default function AsesorScoringForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const candidate = getCandidateByCode(id);
 
   // Mode: In-Basket Fact Sheet Simulation vs Interview
   const [assessmentType, setAssessmentType] = useState<'inbasket' | 'interview'>('inbasket');
@@ -92,40 +102,102 @@ export default function AsesorScoringForm() {
   // Competencies State
   const [competencies, setCompetencies] = useState<CompetencyItem[]>(DEFAULT_7_COMPETENCIES);
 
+  // Candidate written answers used as the AI Fact Sheet input
+  const [writtenAnswers, setWrittenAnswers] = useState({
+    problemIdentification:
+      'Penurunan OTP dari 99.2% menjadi 97.8% dan CSI dari 89 menjadi 83 adalah akar masalah utama. Keduanya menandakan degradasi layanan yang langsung dirasakan nasabah prioritas, sementara kenaikan beban listrik +14% dan keterlambatan vendor CRM memperparah kapasitas layanan pada peak hour.',
+    priorityMatrix:
+      'Priority 1 (Kritis): pemulihan OTP dan CSI dalam 24 jam pertama. Priority 2 (Penting): efisiensi OPEX listrik +14% dan renegosiasi SLA vendor ATM/CRM. Priority 3 (Sekunder): optimasi penjadwalan teller untuk peak hour 08.00-10.30.',
+    solutionStrategy:
+      'Intervensi darurat 24 jam: tim teknisi dikerahkan ke 4 titik transit dengan matriks eskalasi berjenjang. Jangka menengah: migrasi vendor CRM dengan SLA baru, kompensasi loyalitas bagi nasabah terdampak, dan transparansi update status antrean.',
+    costEfficiency:
+      'Fokus pada beban OPEX listrik (+14%) melalui renegosiasi penalti SLA vendor, efisiensi jadwal mesin ATM/CRM di luar jam sibuk, dan prioritas perbaikan pada unit dengan rasio antrean tertinggi agar anggaran tidak terbuang merata.'
+  });
+
   // AI Fact Sheet Engine State
   const [isMatchingLoading, setIsMatchingLoading] = useState(false);
-  const [factSheetMatched, setFactSheetMatched] = useState(true);
-  const [priorityAccuracy, setPriorityAccuracy] = useState<number>(88);
+  const [factSheetMatched, setFactSheetMatched] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [priorityAccuracy, setPriorityAccuracy] = useState<number>(0);
   const [behavioralEvidence, setBehavioralEvidence] = useState<string>(
-    'Kandidat Farhan Pratama menunjukkan penalaran analitis tajam dengan menempatkan isu penurunan OTP 1.4% sebagai krisis operasional utama yang harus dipulihkan dalam 24 jam. Kandidat mengenali 5 dari 5 fakta skenario PT Anjak, serta menghubungkan keterlambatan vendor CRM dengan lonjakan antrean teller. Asesor merekomendasikan kandidat untuk tahap penempatan akhir.'
+    'Belum ada analisis. Jalankan AI Fact Sheet Matching untuk menghasilkan draf justifikasi naratif bukti perilaku.'
   );
 
   // Recommendations & E-Sign
   const [recommendation, setRecommendation] = useState<'LANJUT' | 'DIPERTIMBANGKAN' | 'TIDAK'>('LANJUT');
   const [isSigned, setIsSigned] = useState<boolean>(true);
-  const [assessorName, setAssessorName] = useState<string>('Anggita, M.Psi., Psikolog');
-  const [assessorTitle, setAssessorTitle] = useState<string>('Lead Assessor (SIPP No. 042/SAI-HIMPSI/2026)');
+  const [assessorName, setAssessorName] = useState<string>(ASSESSOR_NAME);
+  const [assessorTitle, setAssessorTitle] = useState<string>(ASSESSOR_TITLE);
 
   // LHA Preview Modal
   const [lhaModalOpen, setLhaModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
 
   // Calculate Weighted Score (1 - 5 Scale)
   const weightedOverallScore = competencies
     .reduce((acc, curr) => acc + (curr.score * curr.weight) / 100, 0)
     .toFixed(2);
 
-  // Run AI Fact Sheet Matching Simulation
-  const handleTriggerAiMatch = () => {
+  // Run AI Fact Sheet Matching against the real Gemini engine
+  const handleTriggerAiMatch = async () => {
     setIsMatchingLoading(true);
-    setTimeout(() => {
-      setIsMatchingLoading(false);
+    setAiError('');
+    try {
+      const res = await axios.post('/api/admin/ai/fact-sheet-match', {
+        submission: {
+          candidateName: candidate.name,
+          programTitle: `${candidate.program} (${candidate.pt})`,
+          caseStudyTitle: 'In-Basket Simulation PT Anjak (OTP, CSI & OPEX)',
+          ...writtenAnswers
+        }
+      });
+      const result = res.data?.data;
+      if (!result) throw new Error('Respons AI tidak lengkap.');
+
+      if (typeof result.priorityAccuracyScore === 'number') {
+        setPriorityAccuracy(Math.round(result.priorityAccuracyScore));
+      }
+      if (result.behavioralEvidence) setBehavioralEvidence(result.behavioralEvidence);
+
+      if (Array.isArray(result.competencyScores) && result.competencyScores.length > 0) {
+        setCompetencies((prev) =>
+          prev.map((c) => {
+            const match = result.competencyScores.find(
+              (s: { competency?: string }) =>
+                (s.competency || '').toLowerCase().includes(c.name.toLowerCase()) ||
+                c.name.toLowerCase().includes((s.competency || '').toLowerCase())
+            );
+            if (!match || typeof match.score !== 'number') return c;
+            const clamped = Math.min(5, Math.max(1, match.score));
+            return {
+              ...c,
+              score: Math.round(clamped * 10) / 10,
+              notes: match.evidenceNotes || c.notes
+            };
+          })
+        );
+      }
+
+      if (typeof result.recommendation === 'string') {
+        const rec = result.recommendation.toLowerCase();
+        if (rec.includes('tidak')) setRecommendation('TIDAK');
+        else if (rec.includes('dipertimbang')) setRecommendation('DIPERTIMBANGKAN');
+        else if (rec.includes('lanjut')) setRecommendation('LANJUT');
+      }
+
       setFactSheetMatched(true);
-      setPriorityAccuracy(92);
-      setBehavioralEvidence(
-        'HASIL AI FACT SHEET MATCHING (DeepSeek/Gemini Engine):\n• Penurunan OTP (99.2% -> 97.8%): Teridentifikasi sebagai Priority 1 (Kritis) ✓\n• Penurunan CSI (89 -> 83): Teridentifikasi sebagai dampak langsung ke nasabah prioritas ✓\n• Beban Listrik (+14%): Diakomodasi dalam strategi efisiensi biaya vendor ✓\n• Skor Akurasi Prioritas: 92% | Draf rating komposit: 4.15 / 5.00'
-      );
-    }, 1200);
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err)
+        ? err.response?.data?.error || err.message
+        : err instanceof Error
+          ? err.message
+          : 'Gagal menjalankan AI Fact Sheet Matching';
+      setAiError(typeof msg === 'string' ? msg : 'Gagal menjalankan AI Fact Sheet Matching');
+      setFactSheetMatched(false);
+    } finally {
+      setIsMatchingLoading(false);
+    }
   };
 
   const handleUpdateScore = (compId: string, delta: number) => {
@@ -138,13 +210,78 @@ export default function AsesorScoringForm() {
     );
   };
 
+  const persistScore = () => {
+    const interviewScore = Math.round(Number(weightedOverallScore) * 20 * 10) / 10;
+    saveAssessorScore({
+      candidateCode: candidate.code,
+      candidateName: candidate.name,
+      program: candidate.program,
+      interviewScore,
+      compositeScore: calculateCompositeScore(candidate.catScore, interviewScore),
+      recommendation,
+      assessor: assessorName,
+      assessorTitle,
+      verifiedDate: formatToday(),
+      updatedAt: new Date().toISOString(),
+      competencies: competencies.map((c) => ({
+        name: c.name,
+        weight: c.weight,
+        score: c.score,
+        notes: c.notes
+      }))
+    });
+  };
+
+  const downloadLha = () => {
+    const lhaNo = `LHA/SAI-PTF/2026/10/${candidate.code.replace(/\D/g, '').slice(-4)}`;
+    const rows = competencies
+      .map(
+        (c) =>
+          `<tr><td>${c.name}</td><td style="text-align:center">${c.weight}%</td><td style="text-align:center">${c.score.toFixed(1)}</td><td>${c.notes.replace(/</g, '&lt;')}</td></tr>`
+      )
+      .join('');
+    const html = `<!doctype html><html lang="id"><head><meta charset="utf-8" /><title>LHA ${candidate.code}</title>
+<style>body{font-family:Georgia,serif;margin:40px;color:#111}h1{font-size:18px;margin:0}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}th,td{border:1px solid #ccc;padding:6px 8px;vertical-align:top}th{background:#f1f5f9;text-align:left}.meta{font-size:12px;color:#555}</style>
+</head><body>
+<h1>SOLUSI ASESMEN INDONESIA</h1>
+<p class="meta">Proxsis Talent Force • Assessment Center Enterprise<br/>NO: ${lhaNo} • STATUS: CERTIFIED FINAL</p>
+<hr/>
+<p><strong>Nama Kandidat:</strong> ${candidate.name}<br/>
+<strong>ID Kandidat:</strong> ${candidate.code}<br/>
+<strong>Program:</strong> ${candidate.program} (${candidate.pt})<br/>
+<strong>Skor CAT:</strong> ${candidate.catScore}/100<br/>
+<strong>Skor Wawancara:</strong> ${Math.round(Number(weightedOverallScore) * 20 * 10) / 10}/100<br/>
+<strong>Skor Komposit:</strong> ${calculateCompositeScore(candidate.catScore, Math.round(Number(weightedOverallScore) * 20 * 10) / 10)}</p>
+<h2 style="font-size:14px">Matriks 7 Indikator Perilaku Terstandar</h2>
+<table><thead><tr><th>KOMPETENSI</th><th>BOBOT</th><th>SKOR (1-5)</th><th>EVIDENCE CATATAN PERILAKU</th></tr></thead><tbody>${rows}</tbody></table>
+<p><strong>Rekomendasi Dewan Asesor:</strong> ${recommendation}<br/>
+<strong>Skor Komposit (1-5):</strong> ${weightedOverallScore}</p>
+<p class="meta">Akurasi Fact Sheet: ${priorityAccuracy}%<br/>Diverifikasi oleh: ${assessorName} — ${assessorTitle}<br/>Tanggal: ${formatToday()}</p>
+<p class="meta">Dokumen ini dihasilkan oleh Talenta+ Assessment Center Enterprise.</p>
+</body></html>`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `LHA-${candidate.code}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleFinalize = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    setSaveMessage('');
+    try {
+      persistScore();
+      setSaveMessage(`Penilaian ${candidate.name} (${candidate.code}) berhasil disimpan dan direkapitulasi.`);
       setLhaModalOpen(true);
-    }, 500);
+    } catch (err) {
+      console.error('Finalize scoring error:', err);
+      setSaveMessage('Gagal menyimpan penilaian. Silakan coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -163,19 +300,23 @@ export default function AsesorScoringForm() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 font-bold text-lg flex items-center justify-center font-heading shrink-0 border border-blue-100">
-              FP
+              {candidate.name
+                .split(' ')
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join('')}
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-slate-900 tracking-tight">
-                  Farhan Pratama
+                  {candidate.name}
                 </h1>
                 <Badge variant="navy" className="text-xs sm:text-sm font-bold">
-                  CIMB Niaga: The Complete Banker
+                  {candidate.pt}
                 </Badge>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-1 font-mono">
-                KND-2026-0891 • In-Basket Simulation PT Anjak (OTP, CSI & OPEX)
+                {candidate.code} • {candidate.program} (CAT {candidate.catScore}/100)
               </p>
             </div>
           </div>
@@ -187,7 +328,9 @@ export default function AsesorScoringForm() {
             </div>
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center min-w-[110px]">
               <span className="text-[10px] text-emerald-800 uppercase font-bold">Akurasi Fakta</span>
-              <p className="font-mono text-xl font-extrabold text-emerald-700">{priorityAccuracy}%</p>
+              <p className="font-mono text-xl font-extrabold text-emerald-700">
+                {factSheetMatched ? `${priorityAccuracy}%` : '—'}
+              </p>
             </div>
           </div>
         </div>
@@ -226,7 +369,58 @@ export default function AsesorScoringForm() {
               )}
             </Button>
           </CardHeader>
-          <CardContent className="p-5 space-y-3">
+          <CardContent className="p-5 space-y-4">
+            {/* Respon tertulis kandidat — input untuk AI Fact Sheet Matching */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700">
+                  Respon Tertulis Kandidat (In-Basket PT Anjak)
+                </span>
+                <Badge variant="outline" className="text-[10px] font-mono">
+                  4 Aspek Jawaban
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {(
+                  [
+                    ['problemIdentification', 'Identifikasi Masalah'],
+                    ['priorityMatrix', 'Matriks Prioritas'],
+                    ['solutionStrategy', 'Strategi Solusi'],
+                    ['costEfficiency', 'Efisiensi Biaya']
+                  ] as const
+                ).map(([key, label]) => (
+                  <div key={key} className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-500">
+                      {label}
+                    </label>
+                    <textarea
+                      value={writtenAnswers[key]}
+                      onChange={(e) =>
+                        setWrittenAnswers((prev) => ({ ...prev, [key]: e.target.value }))
+                      }
+                      rows={4}
+                      className="w-full text-xs text-slate-700 bg-white border border-blue-100 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-y"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {aiError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
+                {aiError}
+              </div>
+            )}
+
+            {!factSheetMatched && !aiError && (
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800">
+                AI Fact Sheet Matching belum dijalankan untuk kandidat ini. Klik tombol di kanan
+                atas untuk menganalisis respon tertulis.
+              </div>
+            )}
+
+            {factSheetMatched && (
+              <>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div className="p-3 bg-white rounded-xl border border-blue-100 shadow-2xs">
                 <span className="text-slate-500 block mb-1">Fakta 1: Penurunan OTP (97.8%)</span>
@@ -254,6 +448,8 @@ export default function AsesorScoringForm() {
               </span>
               <p className="text-slate-600 whitespace-pre-line">{behavioralEvidence}</p>
             </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -404,24 +600,42 @@ export default function AsesorScoringForm() {
           </div>
 
           {/* Submit Action Buttons */}
+          {saveMessage && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
+              {saveMessage}
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
             <Button
               variant="outline"
               type="button"
               onClick={() => navigate('/asesor/interview-queue')}
             >
-              Simpan Draft Saja
+              Kembali ke Antrian
             </Button>
 
-            <Button
-              variant="primary"
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
-            >
-              <FileText className="w-4 h-4 mr-1.5" />
-              <span>Finalisasi Penilaian & Terbitkan LHA</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  persistScore();
+                  setSaveMessage(`Draft penilaian ${candidate.name} (${candidate.code}) tersimpan.`);
+                }}
+              >
+                Simpan Draft Saja
+              </Button>
+
+              <Button
+                variant="primary"
+                type="submit"
+                disabled={isSubmitting}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
+              >
+                <FileText className="w-4 h-4 mr-1.5" />
+                <span>Finalisasi Penilaian & Terbitkan LHA</span>
+              </Button>
+            </div>
           </div>
         </form>
 
@@ -442,7 +656,9 @@ export default function AsesorScoringForm() {
               </div>
               <div className="text-right">
                 <span className="text-xs font-mono font-bold text-blue-700 block text-base">LHA RESMI</span>
-                <span className="text-[11px] text-slate-500 font-mono">NO: LHA/SAI-PTF/2026/10/0891</span>
+                <span className="text-[11px] text-slate-500 font-mono">
+                  NO: LHA/SAI-PTF/2026/10/{candidate.code.replace(/\D/g, '').slice(-4)}
+                </span>
                 <span className="text-[10px] text-emerald-700 font-mono block mt-1">STATUS: CERTIFIED FINAL</span>
               </div>
             </div>
@@ -451,13 +667,13 @@ export default function AsesorScoringForm() {
             <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
               <div>
                 <span className="text-slate-400 block font-semibold">Nama Kandidat:</span>
-                <span className="font-bold text-slate-900 text-sm">Farhan Pratama</span>
-                <span className="text-slate-500 block">ID: KND-2026-0891</span>
+                <span className="font-bold text-slate-900 text-sm">{candidate.name}</span>
+                <span className="text-slate-500 block">ID: {candidate.code}</span>
               </div>
               <div className="text-right">
                 <span className="text-slate-400 block font-semibold">Program Asesmen:</span>
-                <span className="font-bold text-slate-900">The Complete Banker (CIMB Niaga)</span>
-                <span className="text-slate-500 block">Simulasi In-Basket Kasus PT Anjak</span>
+                <span className="font-bold text-slate-900">{candidate.program}</span>
+                <span className="text-slate-500 block">{candidate.pt}</span>
               </div>
             </div>
 
@@ -525,7 +741,7 @@ export default function AsesorScoringForm() {
               <Button
                 variant="primary"
                 onClick={() => {
-                  alert('Mengunduh LHA Resmi format PDF ber-QR Code...');
+                  downloadLha();
                   setLhaModalOpen(false);
                   navigate('/asesor/rekap');
                 }}

@@ -150,7 +150,7 @@ export default function AsesorQueueTable() {
                       <Button
                         variant="outline"
                         size="xs"
-                        onClick={() => navigate('/asesor/scoring/demo')}
+                        onClick={() => navigate(`/asesor/scoring/${s.code}`)}
                       >
                         Lihat Skor
                       </Button>
@@ -158,7 +158,7 @@ export default function AsesorQueueTable() {
                       <Button
                         variant="primary"
                         size="xs"
-                        onClick={() => navigate('/asesor/live-console/demo')}
+                        onClick={() => navigate(`/asesor/live-console/${s.code}`)}
                         leftIcon={<Video className="w-3.5 h-3.5" />}
                       >
                         Buka Console

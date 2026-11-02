@@ -16,6 +16,7 @@ import {
   FileText
 } from 'lucide-react';
 import { Button, Badge, Card } from '../ui';
+import { getCandidateByCode } from '../../services/asesorScoreService';
 
 interface RubricItem {
   id: string;
@@ -29,6 +30,7 @@ interface RubricItem {
 export default function AsesorLiveConsole() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const candidate = getCandidateByCode(id);
 
   const [isRecording, setIsRecording] = useState(true);
   const [elapsed, setElapsed] = useState(380); // ~6 mins
@@ -126,7 +128,7 @@ export default function AsesorLiveConsole() {
   const currentRubric = rubrics.find((r) => r.id === activeCompetency) || rubrics[0];
 
   const handleEndSession = () => {
-    navigate('/asesor/scoring/demo');
+    navigate(`/asesor/scoring/${candidate.code}`);
   };
 
   return (
@@ -186,11 +188,17 @@ export default function AsesorLiveConsole() {
           {/* Video Placeholder */}
           <div className="relative flex-1 flex flex-col items-center justify-center p-8 bg-slate-900">
             <div className="w-28 h-28 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-300 font-heading font-extrabold text-3xl shadow-inner">
-              FP
+              {candidate.name
+                .split(' ')
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join('')}
             </div>
             <div className="mt-4 text-center">
-              <p className="font-heading font-bold text-base text-white">Farhan Pratama</p>
-              <p className="text-xs text-slate-400 font-mono">Skor CAT Teknis: 88/100 (Peringkat #3)</p>
+              <p className="font-heading font-bold text-base text-white">{candidate.name}</p>
+              <p className="text-xs text-slate-400 font-mono">
+                Skor CAT Teknis: {candidate.catScore}/100 • {candidate.code}
+              </p>
             </div>
 
             {/* OpenCV Live Overlay Box */}

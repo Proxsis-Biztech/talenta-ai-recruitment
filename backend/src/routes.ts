@@ -81,7 +81,16 @@ router.post('/admin/billing/topup', authenticateToken, requestTopUpQuota);
 router.put('/admin/billing/invoices/:invoiceId/approve', authenticateToken, requireSuperadmin, approveInvoice);
 
 // In-Basket AI Fact Sheet Matching (BRD BR-FS-04, BR-IB-03)
-router.post('/admin/ai/fact-sheet-match', authenticateToken, async (req, res) => {
+// Called from the Asesor scoring console, which has no backend session identity yet,
+// so it is protected by a dedicated rate limiter (same posture as /interview/gemini-turn).
+const factSheetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Terlalu banyak permintaan AI Fact Sheet Matching. Silakan coba lagi nanti.' }
+});
+router.post('/admin/ai/fact-sheet-match', factSheetLimiter, async (req, res) => {
   try {
     const { submission, factSheet } = req.body;
     if (!submission) {

@@ -16,28 +16,28 @@ import {
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Card, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
-import { getAllPesertaUsers, getActiveSessionUser } from '../../services/userRegistryService';
+import { getActiveSessionUser } from '../../services/userRegistryService';
+import { CANDIDATE_DIRECTORY } from '../../services/asesorScoreService';
 
 export default function AsesorDashboard() {
   const navigate = useNavigate();
 
   const activeAsesor = useMemo(() => getActiveSessionUser(), []);
-  const registeredCandidates = useMemo(() => getAllPesertaUsers(), []);
 
   const todaySlots = useMemo(() => {
-    return registeredCandidates.slice(0, 5).map((c, idx) => ({
+    return CANDIDATE_DIRECTORY.slice(0, 5).map((c, idx) => ({
       id: `SLOT-${idx + 1}`,
       candidate: c.name,
-      code: c.id,
-      program: `${c.assessmentTitle}`,
-      company: c.companyName,
+      code: c.code,
+      program: c.program,
+      company: c.pt,
       time: idx === 0 ? '14:00 - 14:45 WIB' : idx === 1 ? '15:00 - 15:45 WIB' : '16:00 - 16:45 WIB',
       status: idx === 0 ? 'Sedang Berlangsung' : idx === 1 ? 'Di Ruang Tunggu' : 'Terjadwal',
       statusVariant: (idx === 0 ? 'teal' : idx === 1 ? 'navy' : 'neutral') as any,
-      catScore: `${c.catScore || 85}/100`,
+      catScore: `${c.catScore}/100`,
       action: idx === 0 ? 'Masuk Live Console' : idx === 1 ? 'Siapkan Rubrik' : 'Lihat Dossier'
     }));
-  }, [registeredCandidates]);
+  }, []);
 
   return (
     <AsesorLayout activeTab="dashboard">
@@ -82,7 +82,7 @@ export default function AsesorDashboard() {
 
               <Button
                 variant="primary"
-                onClick={() => navigate('/asesor/live-console/demo')}
+                onClick={() => navigate(`/asesor/live-console/${todaySlots[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
                 className="py-2.5 px-5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 <Video className="w-4 h-4 text-blue-100" />
@@ -131,7 +131,7 @@ export default function AsesorDashboard() {
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => navigate('/asesor/live-console/demo')}
+                onClick={() => navigate(`/asesor/live-console/${todaySlots[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
                 className="w-full py-2 rounded-xl text-primary-navy font-bold flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 border-slate-200 cursor-pointer"
               >
                 <span>Buka Lembar Penilaian BARS</span>
@@ -160,7 +160,7 @@ export default function AsesorDashboard() {
                 onClick={() => navigate('/asesor/interview-queue')}
                 className="text-xs py-1.5 px-3 rounded-lg font-semibold cursor-pointer"
               >
-                Lihat Semua Antrean ({registeredCandidates.length})
+                Lihat Semua Antrean ({todaySlots.length})
               </Button>
             </div>
 
@@ -192,7 +192,7 @@ export default function AsesorDashboard() {
                       <Button
                         variant="primary"
                         size="xs"
-                        onClick={() => navigate('/asesor/live-console/demo')}
+                        onClick={() => navigate(`/asesor/live-console/${slot.code}`)}
                         className="text-xs py-1 px-3"
                       >
                         {slot.action}
@@ -223,7 +223,7 @@ export default function AsesorDashboard() {
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => navigate('/asesor/scoring/demo')}
+                onClick={() => navigate(`/asesor/scoring/${todaySlots[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
                 className="w-full text-xs py-2 rounded-lg font-semibold text-amber-800 bg-amber-50/60 hover:bg-amber-100/70 border-amber-200 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>Selesaikan Penilaian</span>

@@ -111,15 +111,18 @@ export async function bootstrapDatabaseSeed() {
       }
     }
 
-    // 2. Ensure Assessment Jobs exist
-    const jobCount = await prisma.job.count();
+    // 2. Ensure Assessment Jobs exist (seed only the missing ones, keep catalog order stable)
+    console.log('ℹ️ Syncing assessment jobs into database...');
+    const existingJobs = await prisma.job.findMany();
+    const jobsByTitle = new Map(existingJobs.map((j) => [j.title, j]));
     let jobsList: any[] = [];
+    let newlySeededJobs = 0;
 
-    if (jobCount === 0) {
-      console.log('ℹ️ Seeding default assessment jobs into database...');
-      for (const item of DEFAULT_PROGRAMS_DATA) {
+    for (const item of DEFAULT_PROGRAMS_DATA) {
+      let job = jobsByTitle.get(item.title);
+      if (!job) {
         try {
-          const j = await prisma.job.create({
+          job = await prisma.job.create({
             data: {
               title: item.title,
               description: item.description,
@@ -128,19 +131,21 @@ export async function bootstrapDatabaseSeed() {
               interviewPassingScore: item.interviewPassingScore
             }
           });
-          jobsList.push(j);
+          newlySeededJobs += 1;
         } catch (e) {
           // ignore duplicate title if any
         }
       }
-      console.log(`✅ Seeded ${jobsList.length} assessment jobs.`);
-    } else {
-      jobsList = await prisma.job.findMany();
+      if (job) jobsList.push(job);
     }
+    if (newlySeededJobs > 0) console.log(`✅ Seeded ${newlySeededJobs} missing assessment jobs.`);
+    if (jobsList.length === 0) jobsList = await prisma.job.findMany();
 
     // 3. Ensure Sample Applicants exist so Admin & Asesor views have real data
-    const applicantCount = await prisma.applicant.count();
-    if (applicantCount === 0 && jobsList.length > 0) {
+    if (jobsList.length > 0) {
+      const existingEmails = new Set(
+        (await prisma.applicant.findMany({ select: { email: true } })).map((a) => a.email)
+      );
       console.log('ℹ️ Seeding realistic candidates into database...');
       const sampleApplicants = [
         {
@@ -280,16 +285,22 @@ export async function bootstrapDatabaseSeed() {
         }
       ];
 
+      let seededApplicants = 0;
       for (const app of sampleApplicants) {
+        if (existingEmails.has(app.email)) continue;
         try {
           await prisma.applicant.create({
             data: app
           });
+          existingEmails.add(app.email);
+          seededApplicants += 1;
         } catch (e) {
           // ignore duplicate email
         }
       }
-      console.log(`✅ Seeded ${sampleApplicants.length} realistic applicants.`);
+      if (seededApplicants > 0) {
+        console.log(`✅ Seeded ${seededApplicants} missing realistic applicants.`);
+      }
     }
   } catch (err) {
     console.warn('Bootstrap seed error:', err);

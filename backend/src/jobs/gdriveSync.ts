@@ -6,10 +6,32 @@ import { google } from 'googleapis';
 
 const prisma = new PrismaClient();
 
+let driveCredentialsWarned = false;
+
+const resolveDriveConfig = () => {
+  const credentialsPath = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
+  const folderId = process.env.GDRIVE_FOLDER_ID;
+
+  if (!credentialsPath || !folderId) return null;
+  if (/your-service-account-key|isi-dengan/i.test(credentialsPath + folderId)) return null;
+  if (!fs.existsSync(path.resolve(credentialsPath))) return null;
+
+  return { credentialsPath, folderId };
+};
+
 export const startGdriveSyncJob = () => {
   // Run every 2 minutes
   cron.schedule('*/2 * * * *', async () => {
     try {
+      const driveConfig = resolveDriveConfig();
+      if (!driveConfig) {
+        if (!driveCredentialsWarned) {
+          driveCredentialsWarned = true;
+          console.warn('[Cron] GDrive sync disabled: GDRIVE_SERVICE_ACCOUNT_JSON / GDRIVE_FOLDER_ID belum dikonfigurasi dengan benar di .env.');
+        }
+        return;
+      }
+
       const pendingApplicants = await prisma.applicant.findMany({
         where: { syncStatus: 'pending' },
         take: 10 // Process 10 files per batch
@@ -21,13 +43,7 @@ export const startGdriveSyncJob = () => {
 
       console.log(`[Cron] Found ${pendingApplicants.length} pending applicants to sync.`);
 
-      const credentialsPath = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
-      const folderId = process.env.GDRIVE_FOLDER_ID;
-
-      if (!credentialsPath || !folderId) {
-        console.warn("[Cron] GDRIVE_SERVICE_ACCOUNT_JSON or GDRIVE_FOLDER_ID is missing in .env. Skipping sync.");
-        return;
-      }
+      const { credentialsPath, folderId } = driveConfig;
 
       const auth = new google.auth.GoogleAuth({
         keyFile: credentialsPath,

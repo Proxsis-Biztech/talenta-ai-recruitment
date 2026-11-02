@@ -13,62 +13,37 @@ import {
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
+import {
+  CANDIDATE_DIRECTORY,
+  loadAssessorScores,
+  calculateCompositeScore,
+  formatToday
+} from '../../services/asesorScoreService';
 
 export default function AsesorRekapProgram() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [filterRec, setFilterRec] = useState<string>('all');
 
-  const candidates = [
-    {
-      id: 'KND-0891',
-      name: 'Farhan Pratama',
-      pt: 'PT Telkom Indonesia',
-      program: 'Software Engineer Specialist Batch IV',
-      catScore: 88,
-      interviewScore: 86.2,
-      compositeScore: 87.8,
-      recommendation: 'LANJUT',
-      assessor: 'Dr. Ir. Dwi Hartanto',
-      verifiedDate: '28 Okt 2026'
-    },
-    {
-      id: 'KND-0892',
-      name: 'Amanda Nurul',
-      pt: 'PT Telkom Indonesia',
-      program: 'Software Engineer Specialist Batch IV',
-      catScore: 79,
-      interviewScore: 74.0,
-      compositeScore: 76.0,
-      recommendation: 'DIPERTIMBANGKAN',
-      assessor: 'Dr. Ir. Dwi Hartanto',
-      verifiedDate: '28 Okt 2026'
-    },
-    {
-      id: 'KND-0893',
-      name: 'Budi Santoso',
-      pt: 'Astra International',
-      program: 'Software Engineer Specialist Batch IV',
-      catScore: 92,
-      interviewScore: 90.5,
-      compositeScore: 91.1,
-      recommendation: 'LANJUT',
-      assessor: 'Dr. Ir. Dwi Hartanto',
-      verifiedDate: '27 Okt 2026'
-    },
-    {
-      id: 'KND-0894',
-      name: 'Viosa Rayhan',
-      pt: 'PT Proxsis Digital',
-      program: 'Fullstack Developer Batch I',
-      catScore: 64,
-      interviewScore: 58.0,
-      compositeScore: 60.4,
-      recommendation: 'TIDAK',
-      assessor: 'Dr. Ir. Dwi Hartanto',
-      verifiedDate: '26 Okt 2026'
-    }
-  ];
+  const savedScores = loadAssessorScores();
+
+  const candidates = CANDIDATE_DIRECTORY.map((c) => {
+    const saved = savedScores[c.code];
+    const interviewScore = saved ? saved.interviewScore : c.defaultInterviewScore;
+    return {
+      id: c.code,
+      name: c.name,
+      pt: c.pt,
+      program: c.program,
+      catScore: c.catScore,
+      interviewScore,
+      compositeScore: saved ? saved.compositeScore : calculateCompositeScore(c.catScore, interviewScore),
+      recommendation: saved ? saved.recommendation : c.defaultRecommendation,
+      assessor: saved ? saved.assessor : 'Dr. Ir. Dwi Hartanto',
+      verifiedDate: saved ? saved.verifiedDate : c.defaultVerifiedDate,
+      isSaved: Boolean(saved)
+    };
+  });
 
   const filtered = candidates.filter((c) => {
     const matchSearch =
@@ -79,8 +54,44 @@ export default function AsesorRekapProgram() {
     return matchSearch && matchRec;
   });
 
-  const handleExportDummy = () => {
-    alert('Ekspor Matriks Rekap Nilai Asesor (CSV / Excel) berhasil diunduh.');
+  const handleExportCsv = () => {
+    const header = [
+      'ID KANDIDAT',
+      'NAMA',
+      'PT MITRA',
+      'PROGRAM',
+      'SKOR CAT (40%)',
+      'SKOR INTERVIEW (60%)',
+      'SKOR KOMPOSIT',
+      'REKOMENDASI',
+      'ASESOR',
+      'TGL VERIFIKASI'
+    ];
+    const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const rows = filtered.map((c) =>
+      [
+        c.id,
+        c.name,
+        c.pt,
+        c.program,
+        c.catScore,
+        c.interviewScore,
+        c.compositeScore,
+        c.recommendation,
+        c.assessor,
+        c.verifiedDate
+      ]
+        .map(escape)
+        .join(',')
+    );
+    const csv = [header.map(escape).join(','), ...rows].join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rekap-penilaian-asesor-${formatToday().replace(/\s/g, '-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -99,7 +110,7 @@ export default function AsesorRekapProgram() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              onClick={handleExportDummy}
+              onClick={handleExportCsv}
               className="text-xs sm:text-sm py-2 px-3.5 rounded-xl font-bold flex items-center gap-2 cursor-pointer shadow-2xs"
             >
               <Download className="w-4 h-4 text-primary-navy" />
@@ -158,10 +169,16 @@ export default function AsesorRekapProgram() {
                 <TableCell>
                   <div>
                     <p className="font-bold text-ink">{c.name}</p>
-                    <p className="font-mono text-[11px] text-muted-slate">{c.id}</p>
+                    <p className="font-mono text-[11px] text-muted-slate">
+                      {c.id}
+                      {c.isSaved ? ' • dinilai asesor' : ''}
+                    </p>
                   </div>
                 </TableCell>
-                <TableCell className="text-slate-600 font-sans">{c.pt}</TableCell>
+                <TableCell className="text-slate-600 font-sans">
+                  {c.pt}
+                  <span className="block text-[11px] text-muted-slate">{c.program}</span>
+                </TableCell>
                 <TableCell className="font-mono font-bold text-slate-700">{c.catScore}</TableCell>
                 <TableCell className="font-mono font-bold text-slate-700">{c.interviewScore}</TableCell>
                 <TableCell className="font-mono text-base font-extrabold text-primary-navy">
@@ -185,7 +202,7 @@ export default function AsesorRekapProgram() {
                   <Button
                     variant="outline"
                     size="xs"
-                    onClick={() => navigate('/asesor/scoring/demo')}
+                    onClick={() => navigate(`/asesor/scoring/${c.id}`)}
                   >
                     Detail
                   </Button>

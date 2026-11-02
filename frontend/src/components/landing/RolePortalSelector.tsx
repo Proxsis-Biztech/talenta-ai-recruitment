@@ -130,6 +130,12 @@ export default function RolePortalSelector() {
 
         <div className="flex items-center gap-3">
           <button
+            onClick={() => navigate('/apply')}
+            className="hidden sm:block px-4 py-2 text-sm font-semibold text-primary-navy hover:bg-soft-blue rounded-lg transition-colors cursor-pointer"
+          >
+            Lamar Lowongan
+          </button>
+          <button
             onClick={() => navigate('/login')}
             className="px-4 py-2 text-sm font-semibold text-primary-navy hover:bg-soft-blue rounded-lg transition-colors cursor-pointer"
           >
@@ -446,6 +452,12 @@ export default function RolePortalSelector() {
             </button>
             <button onClick={() => navigate('/register')} className="text-muted-slate hover:text-primary-navy transition-colors cursor-pointer">
               Pendaftaran
+            </button>
+            <button onClick={() => navigate('/apply')} className="text-muted-slate hover:text-primary-navy transition-colors cursor-pointer">
+              Lamar Lowongan
+            </button>
+            <button onClick={() => navigate('/interview/live')} className="text-muted-slate hover:text-primary-navy transition-colors cursor-pointer">
+              Wawancara AI
             </button>
             <span className="text-muted-slate/70">Kebijakan Privasi</span>
             <span className="text-muted-slate/70">Ketentuan Layanan</span>

@@ -34,6 +34,10 @@ const AsesorRekapProgram = lazy(() => import('./components/asesor/AsesorRekapPro
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const AdminLogin = lazy(() => import('./components/AdminLogin'));
 
+// Public Recruitment Funnel (Lamaran & Wawancara AI Publik)
+const ApplicantForm = lazy(() => import('./components/ApplicantForm'));
+const InterviewLive = lazy(() => import('./components/InterviewLive'));
+
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
     super(props);
@@ -109,15 +113,20 @@ function App() {
             <Route path="/asesor/interview-queue" element={<AsesorQueueTable />} />
             <Route path="/asesor/live-console/:id" element={<AsesorLiveConsole />} />
             <Route path="/asesor/proctoring" element={<AsesorProctoringReview />} />
-            <Route path="/asesor/scoring" element={<Navigate to="/asesor/scoring/demo" replace />} />
+            <Route path="/asesor/live-console" element={<Navigate to="/asesor/live-console/KND-0891" replace />} />
+            <Route path="/asesor/scoring" element={<Navigate to="/asesor/scoring/KND-0891" replace />} />
             <Route path="/asesor/scoring/:id" element={<AsesorScoringForm />} />
-            <Route path="/asesor/penilaian" element={<Navigate to="/asesor/scoring/demo" replace />} />
+            <Route path="/asesor/penilaian" element={<Navigate to="/asesor/scoring/KND-0891" replace />} />
             <Route path="/asesor/rekap" element={<AsesorRekapProgram />} />
 
             {/* Route Group C: ADMIN (/admin) */}
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/login" element={<AdminLogin />} />
+
+            {/* Public Recruitment Funnel */}
+            <Route path="/apply" element={<ApplicantForm />} />
+            <Route path="/interview/live" element={<InterviewLive />} />
 
             {/* Fallback */}
             <Route path="*" element={<Error404Page />} />

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Badge, Modal, Button } from '../ui';
 import { getActiveSessionUser, clearActiveSession } from '../../services/userRegistryService';
+import { CANDIDATE_DIRECTORY } from '../../services/asesorScoreService';
 
 interface AsesorLayoutProps {
   children: React.ReactNode;
@@ -72,9 +73,9 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
       items: [
         { id: 'dashboard', label: 'Dashboard', path: '/asesor', icon: LayoutDashboard },
         { id: 'queue', label: 'Antrean Interview', path: '/asesor/interview-queue', icon: Users, badge: '5 Slot' },
-        { id: 'console', label: 'Live Console', path: '/asesor/live-console/demo', icon: Video, badge: 'Scoring' },
+        { id: 'console', label: 'Live Console', path: `/asesor/live-console/${CANDIDATE_DIRECTORY[0].code}`, icon: Video, badge: 'Scoring' },
         { id: 'proctoring', label: 'Review Proctoring', path: '/asesor/proctoring', icon: ShieldAlert, badge: '7 Flag' },
-        { id: 'scoring', label: 'Penilaian & LHA', path: '/asesor/scoring/demo', icon: ClipboardCheck, badge: 'E-Sign' },
+        { id: 'scoring', label: 'Penilaian & LHA', path: `/asesor/scoring/${CANDIDATE_DIRECTORY[0].code}`, icon: ClipboardCheck, badge: 'E-Sign' },
         { id: 'rekap', label: 'Rekap Program', path: '/asesor/rekap', icon: FileSpreadsheet },
       ]
     },

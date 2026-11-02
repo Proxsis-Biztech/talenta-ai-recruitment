@@ -9,9 +9,16 @@ import {
   Building,
   ArrowRight,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '../ui';
+import { getAllPrograms } from '../../services/assessmentCatalog';
+import {
+  createPesertaUser,
+  getPesertaByUsername,
+  setActiveSessionUser
+} from '../../services/userRegistryService';
 
 export default function AuthRegisterPage() {
   const navigate = useNavigate();
@@ -25,15 +32,70 @@ export default function AuthRegisterPage() {
     agreeConsent: false
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setIsLoading(true);
-    setTimeout(() => {
+
+    try {
+      const programCode = formData.programCode.trim().toUpperCase();
+      const program = getAllPrograms().find((p) => p.id === programCode);
+
+      if (!program) {
+        setIsLoading(false);
+        setError(
+          `Kode program "${programCode}" tidak ditemukan. Periksa kembali kode pada undangan asesmen Anda.`
+        );
+        return;
+      }
+
+      if (formData.password.length < 8) {
+        setIsLoading(false);
+        setError('Kata sandi minimal 8 karakter.');
+        return;
+      }
+
+      const email = formData.email.trim().toLowerCase();
+      if (getPesertaByUsername(email)) {
+        setIsLoading(false);
+        setError('Email ini sudah terdaftar. Silakan masuk menggunakan akun Anda.');
+        return;
+      }
+
+      const newUser = createPesertaUser({
+        name: formData.fullName.trim(),
+        username: email,
+        password: formData.password,
+        phone: formData.phone.trim(),
+        companyId: program.companyId,
+        assessmentId: program.id,
+        gradeLevel: program.gradeLevel
+      });
+
+      setActiveSessionUser({
+        id: newUser.id,
+        name: newUser.name,
+        username: newUser.username,
+        role: 'peserta',
+        companyId: newUser.companyId,
+        companyName: newUser.companyName,
+        assessmentId: newUser.assessmentId,
+        assessmentTitle: newUser.assessmentTitle,
+        gradeLevel: newUser.gradeLevel
+      });
+
+      localStorage.setItem('authRole', 'peserta');
+      localStorage.setItem('programCode', program.id);
+
       setIsLoading(false);
-      // Route straight to participant dashboard with onboarding
       navigate('/peserta');
-    }, 600);
+    } catch (err) {
+      console.error('Registration error:', err);
+      setIsLoading(false);
+      setError('Pendaftaran gagal disimpan. Silakan coba lagi.');
+    }
   };
 
   return (
@@ -73,6 +135,12 @@ export default function AuthRegisterPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-xl">
         <div className="bg-white py-8 px-6 shadow-sm border border-border-slate sm:rounded-2xl sm:px-10">
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-bold text-ink uppercase tracking-wider mb-1">
                 Kode Program Asesmen (Wajib)

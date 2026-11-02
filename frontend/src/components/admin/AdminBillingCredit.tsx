@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import axios from 'axios';
 import {
   CreditCard,
   PlusCircle,
@@ -9,7 +10,7 @@ import {
   Building2,
   TrendingDown,
   Clock,
-  ArrowUpRight,
+  RefreshCw,
   ShieldCheck,
   Receipt,
   QrCode,
@@ -223,6 +224,58 @@ export default function AdminBillingCredit() {
   const [paymentMethod, setPaymentMethod] = useState<string>('Bank Transfer BCA Virtual Account');
   const [selectedInvoicePreview, setSelectedInvoicePreview] = useState<BillingInvoice | null>(null);
   const [statementModalOpen, setStatementModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('adminToken')}` });
+
+  const loadOverview = useCallback(async (tenantId: string) => {
+    setIsSyncing(true);
+    try {
+      const res = await axios.get('/api/admin/billing/overview', {
+        params: { tenantId },
+        headers: authHeaders()
+      });
+      const data = res.data?.data;
+      if (!data) return;
+      if (Array.isArray(data.invoices)) setInvoices(data.invoices);
+      if (Array.isArray(data.transactions)) setTransactions(data.transactions);
+      if (data.activeTenant) {
+        const at = data.activeTenant;
+        setTenants((prev) =>
+          prev.map((t) =>
+            t.id === at.id
+              ? {
+                  ...t,
+                  availableQuota: at.availableQuota ?? t.availableQuota,
+                  creditBalance: at.creditBalance ?? t.creditBalance,
+                  usedQuota: at.usedQuota ?? t.usedQuota,
+                  ratePerCandidate: at.ratePerCandidate ?? t.ratePerCandidate
+                }
+              : t
+          )
+        );
+      }
+      if (Array.isArray(data.allTenants)) {
+        setTenants((prev) =>
+          prev.map((t) => {
+            const summary = data.allTenants.find((s: { id: string; availableQuota?: number }) => s.id === t.id);
+            return summary?.availableQuota !== undefined
+              ? { ...t, availableQuota: summary.availableQuota }
+              : t;
+          })
+        );
+      }
+    } catch (err) {
+      console.error('Gagal memuat data billing:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOverview(selectedTenantId);
+  }, [selectedTenantId, loadOverview]);
 
   const activeTenant = tenants.find((t) => t.id === selectedTenantId) || tenants[0];
 
@@ -230,61 +283,56 @@ export default function AdminBillingCredit() {
   const ppn11 = Math.round(subtotal * 0.11);
   const totalPayable = subtotal + ppn11;
 
-  const handleCreateTopUp = (e: React.FormEvent) => {
+  const handleCreateTopUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const newInv: BillingInvoice = {
-      id: `inv-${Date.now()}`,
-      invoiceNumber: `INV/PTF-SAI/2026/10/${randomSuffix}`,
-      tenantId: activeTenant.id,
-      tenantName: activeTenant.name,
-      date: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      requestedQuota: Number(quotaInput),
-      subtotal,
-      ppn11,
-      totalAmount: totalPayable,
-      paymentMethod,
-      bankAccount: 'BCA VA: 8271-9002-3841-' + randomSuffix.toString().slice(0, 3),
-      status: 'PENDING_APPROVAL'
-    };
-
-    setInvoices([newInv, ...invoices]);
-    setTopUpModalOpen(false);
-    setSelectedInvoicePreview(newInv);
+    setActionFeedback(null);
+    try {
+      const res = await axios.post(
+        '/api/admin/billing/topup',
+        {
+          tenantId: activeTenant.id,
+          requestedQuota: Number(quotaInput),
+          paymentMethod
+        },
+        { headers: authHeaders() }
+      );
+      const newInv: BillingInvoice | undefined = res.data?.data;
+      setTopUpModalOpen(false);
+      setSelectedInvoicePreview(newInv || null);
+      setActionFeedback({
+        type: 'ok',
+        text: res.data?.message || 'Pengajuan invoice top-up berhasil diterbitkan.'
+      });
+      await loadOverview(activeTenant.id);
+    } catch (err: any) {
+      setActionFeedback({
+        type: 'err',
+        text: err.response?.data?.error || 'Gagal membuat pengajuan top-up kuota.'
+      });
+    }
   };
 
-  const handleApproveInvoice = (invId: string) => {
-    setInvoices((prev) =>
-      prev.map((inv) => (inv.id === invId ? { ...inv, status: 'PAID_APPROVED' } : inv))
-    );
-    const targetInv = invoices.find((i) => i.id === invId);
-    if (targetInv) {
-      setTenants((prev) =>
-        prev.map((t) =>
-          t.id === targetInv.tenantId
-            ? {
-                ...t,
-                availableQuota: t.availableQuota + targetInv.requestedQuota,
-                creditBalance: t.creditBalance + targetInv.subtotal
-              }
-            : t
-        )
+  const handleApproveInvoice = async (invId: string) => {
+    setActionFeedback(null);
+    try {
+      const res = await axios.put(
+        `/api/admin/billing/invoices/${invId}/approve`,
+        {},
+        { headers: authHeaders() }
       );
-      setTransactions((prev) => [
-        {
-          id: `trx-${Date.now()}`,
-          tenantId: targetInv.tenantId,
-          batchName: 'Top-up Kuota Prabayar',
-          programTitle: `Persetujuan Invoice #${targetInv.invoiceNumber}`,
-          candidateCount: targetInv.requestedQuota,
-          deductedAmount: -targetInv.subtotal,
-          timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
-          type: 'TOP_UP',
-          description: `Penambahan ${targetInv.requestedQuota} kuota via ${targetInv.paymentMethod}`
-        },
-        ...prev
-      ]);
+      setActionFeedback({
+        type: 'ok',
+        text: res.data?.message || 'Invoice berhasil disetujui dan saldo kredit telah bertambah.'
+      });
+      setSelectedInvoicePreview((prev) =>
+        prev && prev.id === invId ? { ...prev, status: 'PAID_APPROVED' } : prev
+      );
+      await loadOverview(selectedTenantId);
+    } catch (err: any) {
+      setActionFeedback({
+        type: 'err',
+        text: err.response?.data?.error || 'Gagal menyetujui invoice.'
+      });
     }
   };
 
@@ -331,6 +379,40 @@ export default function AdminBillingCredit() {
           </Button>
         </div>
       </div>
+
+      {isSyncing && (
+        <div
+          className="p-3 rounded-xl text-xs flex items-center gap-2.5 border bg-blue-50 border-blue-200 text-blue-800"
+          role="status"
+        >
+          <RefreshCw className="w-4 h-4 shrink-0 animate-spin" />
+          <span className="font-medium">Menyinkronkan ringkasan billing &amp; kuota terbaru…</span>
+        </div>
+      )}
+
+      {actionFeedback && (
+        <div
+          className={`p-3.5 rounded-xl text-xs flex items-center gap-2.5 border ${
+            actionFeedback.type === 'ok'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}
+          role="status"
+        >
+          {actionFeedback.type === 'ok' ? (
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 shrink-0" />
+          )}
+          <span className="font-medium">{actionFeedback.text}</span>
+          <button
+            onClick={() => setActionFeedback(null)}
+            className="ml-auto text-[11px] underline opacity-70 hover:opacity-100 cursor-pointer"
+          >
+            Tutup
+          </button>
+        </div>
+      )}
 
       {/* Tenant Switcher Ribbon */}
       <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">

@@ -61,8 +61,9 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 app.use(compression());
 
-// Trust proxy so X-Forwarded-For is used correctly behind Coolify / Traefik / Caddy
-app.set('trust proxy', true);
+// Trust proxy so X-Forwarded-For is used correctly behind Coolify / Traefik / Caddy.
+// Use a hop count (not `true`) so express-rate-limit can trust the client IP safely.
+app.set('trust proxy', 1);
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../uploads');

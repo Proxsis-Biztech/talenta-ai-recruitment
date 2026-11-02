@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { Button, Badge } from '../ui';
 import { authenticateUser, setActiveSessionUser } from '../../services/userRegistryService';
-import { getProgramById } from '../../services/assessmentCatalog';
+import { getAllPrograms } from '../../services/assessmentCatalog';
 
 export default function AuthLoginPage() {
   const navigate = useNavigate();
@@ -72,20 +72,26 @@ export default function AuthLoginPage() {
         return;
       }
 
-      const prog = getProgramById(programCode.trim());
-      if (prog) {
-        setActiveSessionUser({
-          id: `KND-${Math.floor(1000 + Math.random() * 9000)}`,
-          name: 'Kandidat Ujian CAT',
-          username: 'token.peserta@talenta.id',
-          role: 'peserta',
-          companyId: prog.companyId,
-          companyName: prog.companyName,
-          assessmentId: prog.id,
-          assessmentTitle: prog.title,
-          gradeLevel: prog.gradeLevel
-        });
+      const prog = getAllPrograms().find((p) => p.id === programCode.trim().toUpperCase());
+      if (!prog) {
+        setIsLoading(false);
+        setError(
+          `Kode program "${programCode.trim().toUpperCase()}" tidak valid atau sudah kedaluwarsa. Silakan hubungi panitia seleksi.`
+        );
+        return;
       }
+
+      setActiveSessionUser({
+        id: `KND-${Math.floor(1000 + Math.random() * 9000)}`,
+        name: 'Kandidat Ujian CAT',
+        username: 'token.peserta@talenta.id',
+        role: 'peserta',
+        companyId: prog.companyId,
+        companyName: prog.companyName,
+        assessmentId: prog.id,
+        assessmentTitle: prog.title,
+        gradeLevel: prog.gradeLevel
+      });
 
       setTimeout(() => {
         setIsLoading(false);
