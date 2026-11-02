@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import { bootstrapDatabaseSeed } from '../services/bootstrapSeedService';
 
 const prisma = new PrismaClient();
 
@@ -15,6 +16,11 @@ const jobSchema = z.object({
 // Public: Get all active jobs
 export const getActiveJobs = async (req: Request, res: Response) => {
   try {
+    const count = await prisma.job.count();
+    if (count === 0) {
+      await bootstrapDatabaseSeed();
+    }
+
     const jobs = await prisma.job.findMany({
       where: { status: "active" },
       orderBy: { createdAt: 'desc' }
@@ -29,8 +35,13 @@ export const getActiveJobs = async (req: Request, res: Response) => {
 // Admin: Get all jobs
 export const getAdminJobs = async (req: Request, res: Response) => {
   try {
+    const count = await prisma.job.count();
+    if (count === 0) {
+      await bootstrapDatabaseSeed();
+    }
+
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    const limit = parseInt(req.query.limit as string) || 50;
     const search = req.query.search as string || "";
     
     const skip = (page - 1) * limit;

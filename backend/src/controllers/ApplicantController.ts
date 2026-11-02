@@ -13,6 +13,7 @@ import {
   transcribeInterviewAudio,
   synthesizeIndonesianSpeech
 } from '../services/langchainInterviewService';
+import { bootstrapDatabaseSeed } from '../services/bootstrapSeedService';
 
 const prisma = new PrismaClient();
 
@@ -147,6 +148,11 @@ export const submitApplication = async (req: Request, res: Response) => {
 
 export const getApplicants = async (req: Request, res: Response) => {
   try {
+    const count = await prisma.applicant.count();
+    if (count === 0) {
+      await bootstrapDatabaseSeed();
+    }
+
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const search = req.query.search as string || "";

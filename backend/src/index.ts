@@ -10,8 +10,12 @@ import { createServer } from 'http';
 import apiRoutes from './routes';
 import { startGdriveSyncJob } from './jobs/gdriveSync';
 import { registerGeminiLiveGateway } from './geminiLiveGateway';
+import { bootstrapDatabaseSeed } from './services/bootstrapSeedService';
 
 dotenv.config();
+
+// Auto-bootstrap master superadmin & default assessment programs
+bootstrapDatabaseSeed();
 
 // Start background jobs
 startGdriveSyncJob();
