@@ -1,5 +1,16 @@
 [
   {
+    "id": "log-1793602159763-cvunp",
+    "timestamp": "2026-11-02T06:49:19.763Z",
+    "actor": "superadmin",
+    "action": "ADMIN_LOGIN",
+    "category": "AUTH",
+    "ip": "::1",
+    "target": "Admin Auth Gate",
+    "details": "Login berhasil sebagai role 'superadmin'",
+    "status": "SUCCESS"
+  },
+  {
     "id": "log-1793359081769-l90qp",
     "timestamp": "2026-10-30T11:18:01.769Z",
     "actor": "superadmin",
