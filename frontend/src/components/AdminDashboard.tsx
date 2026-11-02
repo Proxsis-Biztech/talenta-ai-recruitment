@@ -26,6 +26,7 @@ import { AdminMasterMateriTree } from './admin/AdminMasterMateriTree';
 import { AdminBankSoalEditor } from './admin/AdminBankSoalEditor';
 import { AdminCompanyMatrix } from './admin/AdminCompanyMatrix';
 import AdminBillingCredit from './admin/AdminBillingCredit';
+import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
 import Swal from 'sweetalert2';
 import { SuperadminLayout, type AdminMenuKey } from './SuperadminLayout';
 import {
@@ -112,11 +113,11 @@ const getCompanyForApplicant = (app: Applicant): string => {
     return app.experiences[0].companyName;
   }
   const companies = [
-    'GoTo Gojek Tokopedia Tbk',
-    'Astra International Tbk',
     'PT Telkom Indonesia Tbk',
-    'Pertamina Hulu Energi',
     'Bank Mandiri Tbk',
+    'Bank CIMB Niaga Tbk',
+    'Astra International Tbk',
+    'Pertamina Hulu Energi',
   ];
   const charSum = app.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return companies[charSum % companies.length];
@@ -1310,25 +1311,26 @@ ${app.interviewResult ? `
                   onChange={(e) => { setPtFilter(e.target.value); setPage(1); }}
                   className="h-10 text-xs font-medium text-slate-700 bg-white border border-border-slate rounded-lg px-3 pr-7 focus:outline-none focus:border-primary-navy cursor-pointer"
                 >
-                  <option value="">Semua PT</option>
-                  <option value="GoTo">GoTo Gojek Tokopedia Tbk</option>
-                  <option value="Astra">Astra International Tbk</option>
+                  <option value="">Semua Perusahaan (PT)</option>
                   <option value="Telkom">PT Telkom Indonesia Tbk</option>
-                  <option value="Pertamina">Pertamina Hulu Energi</option>
                   <option value="Mandiri">Bank Mandiri Tbk</option>
+                  <option value="CIMB">Bank CIMB Niaga Tbk</option>
+                  <option value="Astra">Astra International Tbk</option>
+                  <option value="Pertamina">Pertamina Hulu Energi</option>
                 </select>
 
                 {/* Program Filter */}
                 <select
                   value={programFilter}
                   onChange={(e) => { setProgramFilter(e.target.value); setPage(1); }}
-                  className="h-10 text-xs font-medium text-slate-700 bg-white border border-border-slate rounded-lg px-3 pr-7 focus:outline-none focus:border-primary-navy cursor-pointer"
+                  className="h-10 text-xs font-medium text-slate-700 bg-white border border-border-slate rounded-lg px-3 pr-7 focus:outline-none focus:border-primary-navy cursor-pointer max-w-xs truncate"
                 >
-                  <option value="">Semua Program</option>
-                  <option value="Software Engineer">Asesmen Software Engineer Batch I</option>
-                  <option value="Manajemen Madya">Asesmen Manajemen Madya Batch II</option>
-                  <option value="Data Analyst">Asesmen Data Analyst</option>
-                  <option value="Product Manager">Asesmen Product Manager</option>
+                  <option value="">Semua Program Asesmen</option>
+                  {DEFAULT_ASSESSMENT_PROGRAMS.map((prog) => (
+                    <option key={prog.id} value={prog.title}>
+                      {prog.title} ({prog.companyName})
+                    </option>
+                  ))}
                 </select>
 
                 {/* Status Filter */}

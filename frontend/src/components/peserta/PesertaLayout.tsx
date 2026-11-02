@@ -25,7 +25,9 @@ import {
   User,
   Info,
   MapPin,
-  Compass
+  Compass,
+  Video,
+  Laptop
 } from 'lucide-react';
 import { Badge, Modal, Button } from '../ui';
 import { getActiveSessionUser, clearActiveSession } from '../../services/userRegistryService';
@@ -80,16 +82,19 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
 
   const navGroups = [
     {
-      group: 'NAVIGASI UTAMA',
+      group: 'TAHAPAN ASESMEN',
       items: [
         { id: 'dashboard', label: 'Dashboard Peserta', path: '/peserta', icon: LayoutDashboard },
-        { id: 'asesmen', label: 'Asesmen Saya', path: '/peserta/asesmen', icon: FileCheck2, badge: '1 Aktif' },
-        { id: 'profile', label: 'Profil Saya', path: '/peserta/profile', icon: User },
+        { id: 'asesmen', label: 'Daftar Asesmen & CAT', path: '/peserta/asesmen', icon: FileCheck2, badge: '1 Aktif' },
+        { id: 'waiting-room', label: 'Ruang Wawancara', path: '/peserta/waiting-room', icon: Video, badge: isCatCompleted ? 'Siap' : undefined },
+        { id: 'hasil', label: 'Hasil Nilai & LHA', path: '/peserta/hasil', icon: CheckCircle2 },
+        { id: 'profile', label: 'Profil & Dokumen', path: '/peserta/profile', icon: User },
       ]
     },
     {
-      group: 'BANTUAN & PANDUAN',
+      group: 'PERSIAPAN & BANTUAN',
       items: [
+        { id: 'device-check', label: 'Cek Kamera & Mic', path: '/peserta/device-check', icon: Laptop },
         { id: 'help', label: 'Panduan & Alur Asesmen', action: () => setHelpModalOpen(true), icon: HelpCircle },
         { id: 'terms', label: 'Pakta Integritas & UU PDP', action: () => setTermsModalOpen(true), icon: ShieldCheck },
       ]

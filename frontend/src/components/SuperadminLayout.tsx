@@ -79,30 +79,48 @@ export interface SuperadminLayoutProps {
 
 export const NAV_GROUPS: NavGroup[] = [
   {
-    id: 'menu-utama',
-    label: 'MENU UTAMA',
+    id: 'ringkasan',
+    label: 'UTAMA & ANALITIKA',
     items: [
-      { key: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard },
-      { key: 'peserta', label: 'Peserta', icon: Users, badge: '1.248' },
-      { key: 'jobs', label: 'Program Asesmen', icon: BookOpen },
-      { key: 'materi', label: 'Master Materi', icon: FileText },
-      { key: 'bank-soal', label: 'Bank Soal', icon: CheckSquare },
-      { key: 'perusahaan', label: 'PT & Perusahaan', icon: Building2 },
-      { key: 'billing', label: 'Billing & Kuota', icon: CreditCard, badge: 'Rp' },
-      { key: 'ranking', label: 'Hasil Asesmen', icon: BarChart3 },
-      { key: 'pipeline', label: 'Live Interview', icon: Video, badge: 'Live' },
-      { key: 'proctoring', label: 'Proctoring', icon: ShieldAlert, badge: 'AI' },
-      { key: 'users', label: 'Pengguna & Role', icon: UserCheck, superadminOnly: true },
-      { key: 'ai-config', label: 'Pengaturan', icon: Sliders, superadminOnly: true },
-      { key: 'audit-logs', label: 'Audit Log', icon: Clock, superadminOnly: true },
+      { key: 'dashboard', label: 'Ringkasan Eksekutif', icon: LayoutDashboard },
+      { key: 'analytics', label: 'Analitika & Metrik', icon: Activity },
     ],
   },
   {
-    id: 'lainnya',
-    label: 'LAINNYA',
+    id: 'asesmen-soal',
+    label: 'MANAJEMEN ASESMEN & SOAL',
     items: [
-      { key: 'help', label: 'Pusat Bantuan', icon: HelpCircle },
-      { key: 'analytics', label: 'Analitika Eksekutif', icon: Activity },
+      { key: 'jobs', label: 'Program Asesmen', icon: BookOpen, badge: '11' },
+      { key: 'materi', label: 'Master Materi & Silabus', icon: FileText },
+      { key: 'bank-soal', label: 'Bank Soal CAT', icon: CheckSquare, badge: '40' },
+    ],
+  },
+  {
+    id: 'pelaksanaan',
+    label: 'PELAKSANAAN & EVALUASI',
+    items: [
+      { key: 'peserta', label: 'Peserta & Kandidat', icon: Users, badge: '1.248' },
+      { key: 'pipeline', label: 'Live Interview Asesor', icon: Video, badge: 'Live' },
+      { key: 'proctoring', label: 'Monitoring Proctoring', icon: ShieldAlert, badge: 'AI' },
+      { key: 'ranking', label: 'Hasil & Peringkat (LHA)', icon: BarChart3 },
+    ],
+  },
+  {
+    id: 'enterprise',
+    label: 'ENTERPRISE & KUOTA',
+    items: [
+      { key: 'perusahaan', label: 'PT & Klien Enterprise', icon: Building2, badge: '5 PT' },
+      { key: 'billing', label: 'Billing & Kuota Kredit', icon: CreditCard, badge: 'Rp' },
+    ],
+  },
+  {
+    id: 'sistem',
+    label: 'SISTEM & KEAMANAN',
+    items: [
+      { key: 'users', label: 'Pengguna & Hak Akses', icon: UserCheck, superadminOnly: true },
+      { key: 'ai-config', label: 'Konfigurasi Sistem & AI', icon: Sliders, superadminOnly: true },
+      { key: 'audit-logs', label: 'Log Audit & Keamanan', icon: Clock, superadminOnly: true },
+      { key: 'help', label: 'Pusat Bantuan & Panduan', icon: HelpCircle },
     ],
   },
 ];
@@ -256,78 +274,102 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
         )}
 
         {/* Navigation Items */}
-        <nav className={`flex-1 ${isCollapsed ? 'overflow-visible py-3 px-2 space-y-4' : 'overflow-y-auto py-3 px-3 space-y-4'}`}>
+        <nav className={`flex-1 ${isCollapsed ? 'overflow-visible py-3 px-2 space-y-3' : 'overflow-y-auto py-3 px-3 space-y-4'}`}>
           {NAV_GROUPS.filter((group) => !group.superadminOnly || userRole === 'superadmin').map(
-            (group) => (
-              <div key={group.id} className="space-y-1">
+            (group, groupIndex) => (
+              <div
+                key={group.id}
+                className={`${
+                  groupIndex > 0 && !isCollapsed
+                    ? 'pt-2.5 mt-2.5 border-t border-slate-100'
+                    : ''
+                }`}
+              >
+                {/* Collapsed Divider */}
+                {isCollapsed && groupIndex > 0 && (
+                  <div className="w-6 h-px bg-slate-200/80 mx-auto my-2" />
+                )}
+
+                {/* Group Header (Expanded) */}
                 {!isCollapsed && (
-                  <div className="px-3 pt-2 pb-1 text-[11px] font-bold tracking-wider text-muted-slate flex items-center justify-between">
+                  <div className="px-3 pt-1 pb-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center justify-between">
                     <span>{group.label}</span>
+                    <span className="text-[9px] text-slate-400 font-normal">
+                      {group.items.filter((i) => !i.superadminOnly || userRole === 'superadmin').length}
+                    </span>
                   </div>
                 )}
+
                 <div className="space-y-0.5">
-                  {group.items.filter((item) => !item.superadminOnly || userRole === 'superadmin').map((item) => {
-                    const isActive = activeMenu === item.key;
-                    return isCollapsed ? (
-                      <div key={item.key} className="relative group sidebar-item-group flex justify-center py-0.5">
-                        {isActive && (
-                          <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-primary-navy rounded-r-md" />
-                        )}
+                  {group.items
+                    .filter((item) => !item.superadminOnly || userRole === 'superadmin')
+                    .map((item) => {
+                      const isActive = activeMenu === item.key;
+                      return isCollapsed ? (
+                        <div key={item.key} className="relative group sidebar-item-group flex justify-center py-0.5">
+                          {isActive && (
+                            <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-primary-navy rounded-r-md" />
+                          )}
+                          <button
+                            onClick={() => {
+                              setActiveMenu(item.key);
+                              if (window.innerWidth < 1024) setMobileDrawerOpen(false);
+                            }}
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-soft-blue text-primary-navy font-semibold shadow-xs'
+                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                            }`}
+                            aria-label={item.label}
+                          >
+                            <item.icon className={`w-5 h-5 ${isActive ? 'text-primary-navy' : 'text-slate-500'}`} />
+                          </button>
+
+                          {/* Floating Tooltip */}
+                          <div className="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 flex flex-col gap-0.5">
+                            <span className="text-[9.5px] uppercase tracking-wider text-slate-400 font-semibold">
+                              {group.label}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span>{item.label}</span>
+                              {item.badge && (
+                                <span className="text-[10px] px-1.5 py-0.2 bg-blue-accent text-white rounded font-mono">
+                                  {item.badge}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
                         <button
+                          key={item.key}
                           onClick={() => {
                             setActiveMenu(item.key);
                             if (window.innerWidth < 1024) setMobileDrawerOpen(false);
                           }}
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm font-medium group text-left cursor-pointer ${
                             isActive
-                              ? 'bg-soft-blue text-primary-navy font-semibold shadow-xs'
-                              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                              ? 'bg-soft-blue text-primary-navy font-bold shadow-2xs border-l-2 border-primary-navy pl-2.5'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                           }`}
-                          aria-label={item.label}
                         >
-                          <item.icon className={`w-5 h-5 ${isActive ? 'text-primary-navy' : 'text-slate-500'}`} />
-                        </button>
-
-                        {/* Floating Tooltip */}
-                        <div className="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 flex items-center gap-2">
-                          <span>{item.label}</span>
+                          <item.icon
+                            className={`w-4.5 h-4.5 shrink-0 transition-colors ${
+                              isActive ? 'text-primary-navy' : 'text-slate-400 group-hover:text-slate-700'
+                            }`}
+                          />
+                          <span className="truncate flex-1">{item.label}</span>
                           {item.badge && (
-                            <span className="text-[10px] px-1.5 py-0.2 bg-blue-accent text-white rounded font-mono">
+                            <Badge
+                              variant={isActive ? 'navy' : 'neutral'}
+                              className="text-[10px] px-1.5 py-0 font-medium"
+                            >
                               {item.badge}
-                            </span>
+                            </Badge>
                           )}
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        key={item.key}
-                        onClick={() => {
-                          setActiveMenu(item.key);
-                          if (window.innerWidth < 1024) setMobileDrawerOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium group text-left cursor-pointer ${
-                          isActive
-                            ? 'bg-soft-blue text-primary-navy font-semibold shadow-2xs'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                        }`}
-                      >
-                        <item.icon
-                          className={`w-4.5 h-4.5 shrink-0 transition-colors ${
-                            isActive ? 'text-primary-navy' : 'text-slate-400 group-hover:text-slate-700'
-                          }`}
-                        />
-                        <span className="truncate flex-1">{item.label}</span>
-                        {item.badge && (
-                          <Badge
-                            variant={isActive ? 'navy' : 'neutral'}
-                            className="text-[10px] px-1.5 py-0 font-medium"
-                          >
-                            {item.badge}
-                          </Badge>
-                        )}
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
             )
