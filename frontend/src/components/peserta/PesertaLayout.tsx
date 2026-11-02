@@ -226,8 +226,9 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
             </div>
           </div>
         ) : (
-          <div className="mx-4 mt-4 mb-2 p-4 rounded-2xl bg-slate-50/80 border border-slate-200/60">
-            <div className="flex items-center gap-3">
+          <div className="mx-4 mt-4 mb-2 p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-soft-blue/60 border border-slate-200/60 relative overflow-hidden">
+            <div aria-hidden className="pointer-events-none absolute -right-6 -top-6 w-24 h-24 rounded-full bg-blue-accent/10 blur-xl" />
+            <div className="relative flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary-navy to-blue-accent text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
                 {userInitials}
               </div>
@@ -241,26 +242,27 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
               </div>
             </div>
 
-            {/* Assessment Progress Stepper Pill */}
-            <div className="mt-3.5 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs">
+            <div className="mt-3.5 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs relative">
               <span className="text-slate-500 font-medium">Status Anda:</span>
-              <span className="font-semibold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded-full border border-accent-border">
+              <span className="font-semibold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded-full border border-accent-border shadow-2xs">
                 {isCatCompleted ? 'Menuju Wawancara' : 'Tahap Ujian CAT'}
               </span>
             </div>
-            <div className="w-full bg-slate-200/80 rounded-full h-1.5 mt-2 overflow-hidden">
+            <div className="w-full bg-slate-200/80 rounded-full h-1.5 mt-2 overflow-hidden relative">
               <div
-                className="bg-primary-navy h-full rounded-full transition-all duration-300"
+                className="bg-gradient-to-r from-primary-navy to-blue-accent h-full rounded-full transition-all duration-500 relative"
                 style={{ width: isCatCompleted ? '75%' : '40%' }}
-              />
+              >
+                <span className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full shadow-sm" />
+              </div>
             </div>
           </div>
         )}
 
         {/* Scrollable Nav Item Groups */}
-        <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-5">
+        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-7">
           {navGroups.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-1.5">
+            <div key={gIdx} className="space-y-2">
               {!isCollapsed && (
                 <div className="px-3 pt-1 text-xs font-bold tracking-wider text-slate-400 uppercase">
                   {group.group}
@@ -282,16 +284,26 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                       }
                       setMobileDrawerOpen(false);
                     }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all cursor-pointer relative group ${
+                    className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs sm:text-sm font-medium transition-all cursor-pointer relative group ${
                       isActive
-                        ? 'bg-blue-50 text-primary-navy font-bold shadow-2xs border border-blue-200/70'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+                        ? 'bg-gradient-to-r from-soft-blue/90 to-blue-50/40 text-primary-navy font-bold border border-accent-border shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 border border-transparent hover:translate-x-0.5'
                     } ${isCollapsed ? 'justify-center px-0' : ''}`}
                     title={isCollapsed ? item.label : undefined}
                   >
+                    {/* Active indicator rail */}
+                    <span
+                      aria-hidden
+                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-gradient-to-b from-blue-accent to-primary-navy transition-opacity duration-200 ${
+                        isActive && !isCollapsed ? 'opacity-100' : 'opacity-0'
+                      }`}
+                    />
+
                     <Icon
-                      className={`w-4.5 h-4.5 shrink-0 transition-colors ${
-                        isActive ? 'text-blue-accent' : 'text-slate-400 group-hover:text-slate-600'
+                      className={`w-4.5 h-4.5 shrink-0 transition-all ${
+                        isActive
+                          ? 'text-blue-accent scale-110'
+                          : 'text-slate-400 group-hover:text-slate-600 group-hover:scale-105'
                       }`}
                     />
 
@@ -326,7 +338,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
         </div>
 
         {/* Bottom Support Footer */}
-        <div className="p-3.5 border-t border-slate-100 shrink-0 space-y-2.5">
+        <div className="p-4 border-t border-slate-100 shrink-0 space-y-3">
           {!isCollapsed && (
             <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200/70 text-xs text-emerald-950 space-y-1.5">
               <div className="flex items-center gap-1.5 font-bold text-emerald-900">
@@ -356,10 +368,26 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           MAIN WRAPPER & TOPBAR (OFFSET)
       ═══════════════════════════════════════════════════════════ */}
       <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${
+        className={`relative flex-1 flex flex-col min-w-0 transition-all duration-200 ${
           isCollapsed ? 'lg:ml-20' : 'lg:ml-72'
         }`}
       >
+        {/* ─── Ambient Background Layer (soft brand glow, breaks digital flatness) ─── */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[420px] overflow-hidden -z-10">
+          <div className="absolute -top-32 right-[8%] w-[560px] h-[380px] rounded-full bg-blue-accent/10 blur-[110px] animate-fade-in" />
+          <div className="absolute -top-40 left-[14%] w-[420px] h-[320px] rounded-full bg-primary-navy/8 blur-[100px]" />
+          <div className="absolute top-24 right-[38%] w-[300px] h-[240px] rounded-full bg-emerald-400/8 blur-[90px] animate-fade-in" />
+          <div
+            className="absolute inset-0 opacity-[0.35]"
+            style={{
+              backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(30,58,138,0.07) 1px, transparent 0)',
+              backgroundSize: '26px 26px',
+              maskImage: 'linear-gradient(to bottom, black, transparent 75%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, black, transparent 75%)',
+            }}
+          />
+        </div>
+
         {/* ─── Topbar ─── */}
         <header className="h-20 bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
           {/* Left Topbar Content */}
@@ -385,8 +413,10 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
             )}
 
             {/* Warm Breadcrumb Info */}
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 truncate">
-              <span className="font-medium text-slate-500">Portal Peserta</span>
+            <div className="flex items-center gap-2.5 text-xs sm:text-sm text-slate-500 truncate">
+              <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100/80 border border-slate-200/70 text-slate-500 text-[11px] font-bold tracking-wide">
+                Portal Peserta
+              </span>
               <span className="text-slate-300">/</span>
               <span className="font-bold text-slate-900 truncate">{getActiveTitle()}</span>
             </div>

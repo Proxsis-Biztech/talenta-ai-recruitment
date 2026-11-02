@@ -429,7 +429,7 @@ export default function PesertaExamPlayer() {
   if (isExamLocked && !submitSuccessModalOpen) {
     return (
       <PesertaLayout activeTab="exam">
-        <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 space-y-7 antialiased">
+        <div className="max-w-5xl mx-auto px-4 sm:px-8 py-10 sm:py-14 space-y-10 antialiased">
           {/* Top Breadcrumb & Status Pill */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <button
@@ -775,10 +775,10 @@ export default function PesertaExamPlayer() {
       {/* ─── Main Content Container (Question Area + Navigator Sidebar) ─── */}
       <div className="flex-1 flex overflow-hidden" style={{ minHeight: 'calc(100vh - 7rem)' }}>
         {/* ◄ SISI KIRI: LEMBAR PERTANYAAN (Scrollable, Spacious, Comfortable) ► */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-10 flex flex-col items-center">
-          <div className="w-full max-w-3xl space-y-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12 flex flex-col items-center">
+          <div className="w-full max-w-3xl space-y-7">
             {/* Top Question Metadata Card */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/80 shadow-xs">
               <div className="flex items-center gap-2.5">
                 <span className="font-mono text-sm font-extrabold text-white bg-primary-navy px-3 py-1 rounded-xl shadow-xs">
                   SOAL #{currentQ.id}
@@ -806,7 +806,7 @@ export default function PesertaExamPlayer() {
             </div>
 
             {/* Main Question Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-10 shadow-xs space-y-7">
               {/* Question Statement */}
               <div className="space-y-4">
                 <p className={`font-medium text-slate-900 ${questionTextClass}`}>

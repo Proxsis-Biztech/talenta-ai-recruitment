@@ -63,12 +63,14 @@ export default function PesertaDashboard() {
 
   return (
     <PesertaLayout activeTab="dashboard">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8 antialiased">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-10 sm:py-14 space-y-10 sm:space-y-12 antialiased">
         {/* ─── Hero Header: Asymmetric 8 / 4 Split (Friendly, Clear Next Step) ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch">
           {/* Sisi Kiri (8 kolom): Salam Personal, Status Tahapan & Aksi Utama */}
-          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col justify-between relative overflow-hidden">
-            <div className="space-y-4">
+          <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-7 sm:p-10 shadow-xs flex flex-col justify-between relative overflow-hidden card-hover">
+            <div aria-hidden className="pointer-events-none absolute -top-28 -right-20 w-80 h-80 rounded-full bg-blue-accent/10 blur-3xl" />
+            <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-16 w-64 h-64 rounded-full bg-emerald-400/10 blur-3xl" />
+            <div className="space-y-5 relative">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-soft-blue text-primary-navy text-xs font-semibold border border-accent-border">
                 <Sparkles className="w-3.5 h-3.5 text-blue-accent" />
                 <span>
@@ -79,10 +81,10 @@ export default function PesertaDashboard() {
               </div>
 
               <div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
+                <h1 className="text-3xl sm:text-4xl font-extrabold font-heading text-ink tracking-tight leading-tight">
                   Selamat Datang, {activeUser.name}!
                 </h1>
-                <p className="text-sm sm:text-base text-muted-slate mt-2 leading-relaxed">
+                <p className="text-sm sm:text-base text-muted-slate mt-3.5 leading-relaxed max-w-2xl">
                   {isCatCompleted
                     ? `Selamat, Anda telah menuntaskan lembar CAT untuk ${activeProgram.title}. Seluruh jawaban Anda telah tersimpan dengan aman. Langkah berikutnya adalah sesi Wawancara Tatap Muka bersama Asesor.`
                     : `Sesi evaluasi kompetensi untuk posisi ${activeProgram.title} di ${activeProgram.companyName} telah dibuka. Ikuti tahapan asesmen dengan tenang, seluruh progres Anda tercatat otomatis.`}
@@ -90,7 +92,7 @@ export default function PesertaDashboard() {
               </div>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-slate-100 flex flex-wrap items-center gap-3.5">
+            <div className="mt-9 pt-7 border-t border-slate-100 flex flex-wrap items-center gap-4 relative">
               {isCatCompleted ? (
                 <>
                   <Button
@@ -136,8 +138,9 @@ export default function PesertaDashboard() {
           </div>
 
           {/* Sisi Kanan (4 kolom): Docket Status Peserta & Bantuan Cepat */}
-          <div className="lg:col-span-4 bg-exam-bg rounded-2xl border border-slate-200 p-6 flex flex-col justify-between shadow-2xs">
-            <div className="space-y-4">
+          <div className="lg:col-span-4 bg-exam-bg rounded-3xl border border-slate-200 p-7 sm:p-8 flex flex-col justify-between shadow-2xs relative overflow-hidden">
+            <div aria-hidden className="pointer-events-none absolute -top-16 -right-14 w-44 h-44 rounded-full bg-primary-navy/10 blur-2xl" />
+            <div className="space-y-5 relative">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-primary-navy uppercase tracking-wider bg-white px-2.5 py-1 rounded-md border border-slate-200">
                   REF: {activeProgram.id}
@@ -149,15 +152,15 @@ export default function PesertaDashboard() {
               </div>
 
               <div className="space-y-2 text-xs text-muted-slate">
-                <div className="flex justify-between py-1.5 border-b border-slate-200/60">
+                <div className="flex justify-between py-2.5 border-b border-slate-200/60">
                   <span>Instansi Penguji</span>
                   <span className="font-semibold text-ink text-right">{activeProgram.companyName}</span>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-200/60">
+                <div className="flex justify-between py-2.5 border-b border-slate-200/60">
                   <span>Nomor Peserta</span>
                   <span className="font-mono font-bold text-ink">{activeUser.id}</span>
                 </div>
-                <div className="flex justify-between py-1.5">
+                <div className="flex justify-between py-2.5">
                   <span>Batas Waktu CAT</span>
                   <span className="font-mono font-semibold text-ink">Hari ini, 23:59 WIB</span>
                 </div>
@@ -174,9 +177,9 @@ export default function PesertaDashboard() {
         </div>
 
         {/* ─── 8 / 4 Split: Active Assessment & Upcoming Interview ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch">
           {/* Active Assessment Card (8 cols) */}
-          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col justify-between">
+          <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-7 sm:p-10 shadow-xs flex flex-col justify-between card-hover">
             <div>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                 <span className="text-xs font-mono font-bold uppercase tracking-wider text-primary-navy bg-soft-blue px-3 py-1 rounded-lg border border-accent-border">
@@ -197,27 +200,27 @@ export default function PesertaDashboard() {
               </p>
 
               {/* 4 Metric Chips */}
-              <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-exam-bg rounded-xl border border-slate-200">
+              <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
                   <span className="text-xs text-muted-slate block font-medium">Durasi Ujian</span>
                   <p className="font-mono text-base font-bold text-ink mt-0.5">{activeProgram.durationMinutes} Menit</p>
                 </div>
-                <div className="p-3.5 bg-exam-bg rounded-xl border border-slate-200">
+                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
                   <span className="text-xs text-muted-slate block font-medium">Beban Soal</span>
                   <p className="font-mono text-base font-bold text-primary-navy mt-0.5">{activeProgram.totalQuestions} Butir (CAT)</p>
                 </div>
-                <div className="p-3.5 bg-exam-bg rounded-xl border border-slate-200">
+                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
                   <span className="text-xs text-muted-slate block font-medium">Passing Grade</span>
                   <p className="font-mono text-base font-bold text-emerald-600 mt-0.5">{activeProgram.passingScore} / 100</p>
                 </div>
-                <div className="p-3.5 bg-exam-bg rounded-xl border border-slate-200">
+                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
                   <span className="text-xs text-muted-slate block font-medium">Tingkat / Grade</span>
                   <p className="font-mono text-xs sm:text-sm font-bold text-amber-600 mt-1 line-clamp-1">{activeProgram.difficultyLabel} ({activeProgram.gradeLevel.split(' ')[0]})</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 pt-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="mt-10 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2.5 text-xs text-muted-slate">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>Pengawasan otomatis kamera web aktif untuk menjamin objektivitas &amp; kejujuran</span>
@@ -254,7 +257,7 @@ export default function PesertaDashboard() {
           </div>
 
           {/* Upcoming Interview Card (4 cols) */}
-          <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between shadow-xs">
+          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-7 sm:p-8 flex flex-col justify-between shadow-xs card-hover">
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-mono font-bold uppercase tracking-wider text-blue-accent bg-soft-blue px-3 py-1 rounded-md border border-accent-border">
@@ -270,8 +273,8 @@ export default function PesertaDashboard() {
                 Tahap 4: Pendalaman Kompetensi Teknis &amp; Pemecahan Kasus Nyata
               </p>
 
-              <div className="mt-5 space-y-3">
-                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-exam-bg border border-slate-200">
+              <div className="mt-6 space-y-4">
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-exam-bg border border-slate-200 transition-colors hover:border-accent-border">
                   <Calendar className="w-4 h-4 text-primary-navy shrink-0" />
                   <div className="text-xs">
                     <p className="font-bold text-ink">Kamis, 29 Oktober 2026</p>
@@ -279,7 +282,7 @@ export default function PesertaDashboard() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-exam-bg border border-slate-200">
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-exam-bg border border-slate-200 transition-colors hover:border-accent-border">
                   <div className="w-8 h-8 rounded-full bg-soft-blue text-primary-navy font-bold text-xs flex items-center justify-center shrink-0 border border-accent-border">
                     DH
                   </div>
@@ -305,7 +308,7 @@ export default function PesertaDashboard() {
         </div>
 
         {/* ─── Visual Pipeline Tahapan Asesmen (Clean, Friendly Stepper) ─── */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
+        <div className="bg-white rounded-3xl border border-slate-200 p-7 sm:p-10 shadow-xs space-y-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="font-heading font-bold text-lg text-ink">
@@ -320,16 +323,16 @@ export default function PesertaDashboard() {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
             {stages.map((stg, idx) => {
               const isCompleted = stg.status === 'completed';
               const isActive = stg.status === 'active';
               return (
                 <div
                   key={idx}
-                  className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                  className={`p-5 rounded-2xl border transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between ${
                     isActive
-                      ? 'border-blue-accent bg-soft-blue shadow-2xs'
+                      ? 'border-blue-accent/70 bg-soft-blue shadow-2xs ring-1 ring-blue-accent/20'
                       : isCompleted
                       ? 'border-emerald-200 bg-emerald-50/50'
                       : 'border-slate-200 bg-slate-50/60'
@@ -360,7 +363,7 @@ export default function PesertaDashboard() {
                       {stg.title}
                     </p>
                   </div>
-                  <div className="mt-3 pt-2 border-t border-slate-200/50">
+                  <div className="mt-4 pt-2.5 border-t border-slate-200/50">
                     <p className="text-[11px] text-muted-slate font-medium">{stg.desc}</p>
                     <p className="text-[10px] text-slate-400 font-mono mt-0.5">{stg.date}</p>
                   </div>
@@ -371,15 +374,15 @@ export default function PesertaDashboard() {
         </div>
 
         {/* ─── Tips Pengerjaan Ujian Nyaman & Lancar (Reassuring Guidance) ─── */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
-          <div className="flex items-center gap-2 mb-4 text-ink">
+        <div className="bg-white rounded-3xl border border-slate-200 p-7 sm:p-10 shadow-xs">
+          <div className="flex items-center gap-2.5 mb-6 text-ink">
             <Lightbulb className="w-4 h-4 text-amber-500" />
             <h3 className="font-heading font-bold text-base">
               Tips Menjalani Asesmen dengan Nyaman &amp; Tenang
             </h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-600">
-            <div className="p-4 rounded-xl bg-exam-bg border border-slate-200 space-y-1.5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs text-slate-600">
+            <div className="p-5 rounded-2xl bg-exam-bg border border-slate-200 space-y-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
               <div className="flex items-center gap-2 font-bold text-ink text-xs">
                 <Smile className="w-3.5 h-3.5 text-blue-accent" />
                 <span>Pencahayaan &amp; Posisi Nyaman</span>
@@ -388,7 +391,7 @@ export default function PesertaDashboard() {
                 Duduk tegak menghadap layar di ruangan dengan pencahayaan cukup agar kamera web dapat mengenali kehadiran Anda tanpa silau.
               </p>
             </div>
-            <div className="p-4 rounded-xl bg-exam-bg border border-slate-200 space-y-1.5">
+            <div className="p-5 rounded-2xl bg-exam-bg border border-slate-200 space-y-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
               <div className="flex items-center gap-2 font-bold text-ink text-xs">
                 <Wifi className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Koneksi Internet Stabil</span>
@@ -397,7 +400,7 @@ export default function PesertaDashboard() {
                 Gunakan jaringan internet minimal 5 Mbps. Jika sinyal sempat terputus, sistem akan mencoba menghubungkan kembali secara otomatis.
               </p>
             </div>
-            <div className="p-4 rounded-xl bg-exam-bg border border-slate-200 space-y-1.5">
+            <div className="p-5 rounded-2xl bg-exam-bg border border-slate-200 space-y-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
               <div className="flex items-center gap-2 font-bold text-ink text-xs">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Penyimpanan Respon Otomatis</span>

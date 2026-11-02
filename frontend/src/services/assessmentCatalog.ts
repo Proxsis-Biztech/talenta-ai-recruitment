@@ -389,6 +389,22 @@ export function saveAllPrograms(programs: AssessmentProgram[]): void {
   }
 }
 
+/**
+ * Insert or update a single program into the persisted catalog.
+ * Used by admin job editing so question edits flow through to every
+ * consumer (peserta exam player, dashboard, waiting room, etc.).
+ */
+export function upsertProgram(program: AssessmentProgram): void {
+  const all = getAllPrograms();
+  const idx = all.findIndex((p) => p.id === program.id);
+  if (idx >= 0) {
+    all[idx] = program;
+  } else {
+    all.push(program);
+  }
+  saveAllPrograms(all);
+}
+
 export function getProgramsByCompany(companyId: string): AssessmentProgram[] {
   const all = getAllPrograms();
   return all.filter((p) => p.companyId === companyId);

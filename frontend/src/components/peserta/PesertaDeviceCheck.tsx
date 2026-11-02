@@ -324,14 +324,14 @@ export default function PesertaDeviceCheck() {
 
   return (
     <PesertaLayout activeTab="device-check">
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-7 antialiased font-sans">
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-10 sm:py-14 space-y-10 antialiased font-sans">
         {/* Hidden canvas for snapshot capture */}
         <canvas ref={canvasRef} className="hidden" />
 
         {/* ─── Page Header with Program & Candidate Details ─── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-3">
               <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-3 py-1 rounded-lg border border-accent-border">
                 TAHAP PERSIAPAN • {activeProgram.id}
               </span>
@@ -340,7 +340,7 @@ export default function PesertaDeviceCheck() {
             <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
               Uji Kesiapan Perangkat & Registrasi Wajah
             </h1>
-            <p className="text-sm text-muted-slate mt-1.5 leading-relaxed flex items-center gap-2">
+            <p className="text-sm text-muted-slate mt-2.5 leading-relaxed flex items-center gap-2">
               <Building2 className="w-4 h-4 text-slate-400" />
               <span>
                 Kandidat: <strong className="text-ink font-semibold">{activeUser.name}</strong> ({activeUser.id}) • Instansi: <strong className="text-primary-navy font-semibold">{activeProgram.companyName}</strong>
@@ -375,10 +375,11 @@ export default function PesertaDeviceCheck() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-7">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* ─── Left Column (7 cols): Camera Live Preview ─── */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-800 relative aspect-video flex flex-col justify-between p-5">
+          <div className="lg:col-span-7 space-y-6">
+            <div className="bg-slate-900 rounded-3xl overflow-hidden shadow-tinted-lg border border-slate-800 relative aspect-video flex flex-col justify-between p-6 ring-1 ring-slate-900/10">
+              <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-blue-accent/15 to-transparent" />
               {/* Real Video Element (displays live webcam stream if active) */}
               <video
                 ref={videoRef}
@@ -475,7 +476,7 @@ export default function PesertaDeviceCheck() {
             </div>
 
             {/* Audio Meter Visualizer */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-2.5">
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-3">
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="flex items-center gap-2 font-bold text-ink">
                   <Volume2 className="w-4 h-4 text-blue-accent" />
@@ -496,15 +497,15 @@ export default function PesertaDeviceCheck() {
           </div>
 
           {/* ─── Right Column (5 cols): Diagnostic Checklist & Consent ─── */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
+          <div className="lg:col-span-5 space-y-6">
+            <div className="bg-white rounded-3xl border border-slate-200 p-7 sm:p-9 shadow-xs space-y-6">
               <h2 className="font-heading font-bold text-lg text-ink">
                 Hasil Pemeriksaan Perangkat
               </h2>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {/* 1. Camera Check */}
-                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-200 hover:bg-white hover:border-accent-border hover:shadow-2xs">
                   <div className="flex items-center gap-3">
                     <Camera className="w-5 h-5 text-primary-navy" />
                     <div>
@@ -518,7 +519,7 @@ export default function PesertaDeviceCheck() {
                 </div>
 
                 {/* 2. Mic Check */}
-                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-200 hover:bg-white hover:border-accent-border hover:shadow-2xs">
                   <div className="flex items-center gap-3">
                     <Mic className="w-5 h-5 text-primary-navy" />
                     <div>
@@ -530,7 +531,7 @@ export default function PesertaDeviceCheck() {
                 </div>
 
                 {/* 3. Speaker / Audio Test Button */}
-                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-200 hover:bg-white hover:border-accent-border hover:shadow-2xs">
                   <div className="flex items-center gap-3">
                     <Volume2 className="w-5 h-5 text-primary-navy" />
                     <div>
@@ -552,7 +553,7 @@ export default function PesertaDeviceCheck() {
                 </div>
 
                 {/* 4. Internet Connection & Ping */}
-                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-200 hover:bg-white hover:border-accent-border hover:shadow-2xs">
                   <div className="flex items-center gap-3">
                     <Wifi className="w-5 h-5 text-primary-navy" />
                     <div>
@@ -572,7 +573,7 @@ export default function PesertaDeviceCheck() {
                 </div>
 
                 {/* 5. Screen Resolution & Browser */}
-                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-200 hover:bg-white hover:border-accent-border hover:shadow-2xs">
                   <div className="flex items-center gap-3">
                     <Monitor className="w-5 h-5 text-primary-navy" />
                     <div>
@@ -586,7 +587,7 @@ export default function PesertaDeviceCheck() {
                 </div>
 
                 {/* 6. Face Registration (Photo Snapshot) */}
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Camera className="w-4 h-4 text-blue-accent" />
@@ -637,8 +638,8 @@ export default function PesertaDeviceCheck() {
               </div>
 
               {/* Proctoring Consent Box */}
-              <div className="mt-4 pt-4 border-t border-slate-100">
-                <div className="p-4 bg-blue-50/70 border border-blue-200/80 rounded-2xl space-y-2">
+              <div className="mt-2 pt-5 border-t border-slate-100">
+                <div className="p-5 bg-blue-50/70 border border-blue-200/80 rounded-2xl space-y-2.5">
                   <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-primary-navy">
                     <ShieldCheck className="w-4 h-4 text-blue-accent" />
                     <span>Persetujuan Biometrik & Perlindungan Data</span>
