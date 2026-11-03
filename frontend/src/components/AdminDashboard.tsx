@@ -1103,19 +1103,12 @@ ${app.interviewResult ? `
                         preserveAspectRatio="none"
                         className="w-full h-full overflow-visible"
                       >
-                        <defs>
-                          <linearGradient id="talentaWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#2563EB" stopOpacity="0.22" />
-                            <stop offset="60%" stopColor="#2563EB" stopOpacity="0.08" />
-                            <stop offset="100%" stopColor="#2563EB" stopOpacity="0.00" />
-                          </linearGradient>
-                        </defs>
 
                         {/* Spline Area Fill */}
                         <path
                           className="chart-area"
                           d={trendAreaPath}
-                          fill="url(#talentaWaveGradient)"
+                          fill="#2563EB" fillOpacity="0.10"
                         />
 
                         {/* Spline Stroke Line */}

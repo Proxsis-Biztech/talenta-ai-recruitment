@@ -634,3 +634,17 @@ html {
 #superadmin-root main table td {
   color: #344054;
 }
+
+/* Solid admin surfaces — no gradients */
+#superadmin-root {
+  background: #f7f8fa !important;
+}
+
+#superadmin-root::before,
+#superadmin-root::after {
+  display: none !important;
+}
+
+#superadmin-root aside {
+  background: #ffffff !important;
+}

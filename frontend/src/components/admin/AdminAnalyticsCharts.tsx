@@ -161,12 +161,6 @@ export function AdminAnalyticsCharts({ applicants }: AdminAnalyticsChartsProps) 
         </div>
         <p className="text-[11px] text-slate-400 mb-2">6 bulan terakhir</p>
         <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-36" role="img" aria-label="Tren pendaftaran enam bulan terakhir">
-          <defs>
-            <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#2563EB" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="#2563EB" stopOpacity="0" />
-            </linearGradient>
-          </defs>
           {[0.25, 0.5, 0.75].map((ratio) => (
             <line
               key={ratio}
@@ -178,7 +172,7 @@ export function AdminAnalyticsCharts({ applicants }: AdminAnalyticsChartsProps) 
               strokeWidth="1"
             />
           ))}
-          <path className="chart-area" d={areaPath} fill="url(#trendFill)" />
+          <path className="chart-area" d={areaPath} fill="#2563EB" fillOpacity="0.10" />
           <path className="chart-line" d={linePath} fill="none" stroke="#2563EB" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
           {points.map((point) => (
             <g key={point.key}>
