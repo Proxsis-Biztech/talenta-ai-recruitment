@@ -3,6 +3,14 @@ interface RadarAxis {
   value: number;
 }
 
+// Convert a hex color to an rgba string with the given alpha
+function hexToRgba(hex: string, alpha: number): string | null {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const int = parseInt(m[1], 16);
+  return `rgba(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}, ${alpha})`;
+}
+
 export default function RadarChart({
   axes,
   size = 280,
@@ -51,15 +59,8 @@ export default function RadarChart({
         aria-label="Grafik radar penilaian kompetensi"
         className="overflow-visible"
       >
-        <defs>
-          <radialGradient id="radarGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.08" />
-            <stop offset="100%" stopColor="#14b8a6" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-
-        {/* Ambient background circle */}
-        <circle cx={center} cy={center} r={radius} fill="url(#radarGlow)" />
+        {/* Ambient background circle — solid tint derived from the chart's own brand color (no gradient) */}
+        <circle cx={center} cy={center} r={radius} fill={hexToRgba(strokeColor, 0.08) ?? 'rgba(100, 116, 139, 0.06)'} />
 
         {/* Concentric grid rings */}
         {[0.25, 0.5, 0.75, 1].map((f) => (
@@ -137,7 +138,7 @@ export default function RadarChart({
                 dominantBaseline="middle"
                 fontSize="9"
                 fontWeight={800}
-                fill={val >= 75 ? '#0d9488' : val >= 60 ? '#f59e0b' : '#ef4444'}
+                fill={val >= 75 ? strokeColor : val >= 60 ? '#f59e0b' : '#ef4444'}
               >
                 {val}%
               </text>

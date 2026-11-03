@@ -68,8 +68,6 @@ export default function PesertaDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch">
           {/* Sisi Kiri (8 kolom): Salam Personal, Status Tahapan & Aksi Utama */}
           <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-7 sm:p-10 shadow-xs flex flex-col justify-between relative overflow-hidden card-hover">
-            <div aria-hidden className="pointer-events-none absolute -top-28 -right-20 w-80 h-80 rounded-full bg-blue-accent/10 blur-3xl" />
-            <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-16 w-64 h-64 rounded-full bg-emerald-400/10 blur-3xl" />
             <div className="space-y-5 relative">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-soft-blue text-primary-navy text-xs font-semibold border border-accent-border">
                 <Sparkles className="w-3.5 h-3.5 text-blue-accent" />
@@ -139,7 +137,6 @@ export default function PesertaDashboard() {
 
           {/* Sisi Kanan (4 kolom): Docket Status Peserta & Bantuan Cepat */}
           <div className="lg:col-span-4 bg-exam-bg rounded-3xl border border-slate-200 p-7 sm:p-8 flex flex-col justify-between shadow-2xs relative overflow-hidden">
-            <div aria-hidden className="pointer-events-none absolute -top-16 -right-14 w-44 h-44 rounded-full bg-primary-navy/10 blur-2xl" />
             <div className="space-y-5 relative">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-primary-navy uppercase tracking-wider bg-white px-2.5 py-1 rounded-md border border-slate-200">

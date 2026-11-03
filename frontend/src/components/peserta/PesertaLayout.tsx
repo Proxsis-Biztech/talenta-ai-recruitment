@@ -227,7 +227,6 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           </div>
         ) : (
           <div className="mx-4 mt-4 mb-2 p-4 rounded-2xl bg-slate-50 border border-slate-200/60 relative overflow-hidden">
-            <div aria-hidden className="pointer-events-none absolute -right-6 -top-6 w-24 h-24 rounded-full bg-blue-accent/10 blur-xl" />
             <div className="relative flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
                 {userInitials}

@@ -24,12 +24,12 @@ import {
   ArrowRight,
   Waves,
   Brain,
-  Bot,
   Zap,
   ArrowLeft,
   RotateCcw,
   Award,
-  Keyboard
+  Keyboard,
+  Home
 } from 'lucide-react';
 import { Button, Badge, Modal } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
@@ -50,6 +50,9 @@ interface QuestionItem {
   sampleAnswer?: string;
 }
 
+// Normalisasi teks transkrip agar bisa dibandingkan tanpa duplikasi
+const normalizeTranscript = (text: string) => text.toLowerCase().replace(/\s+/g, ' ').trim();
+
 export default function PesertaInterviewLive() {
   const navigate = useNavigate();
   const sessionUser = useMemo(() => getActiveSessionUser(), []);
@@ -68,7 +71,6 @@ export default function PesertaInterviewLive() {
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [isLiveConnected, setIsLiveConnected] = useState(false);
-  const [liveCaptionText, setLiveCaptionText] = useState<string>('');
   const [micVolumeLevel, setMicVolumeLevel] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [hasStartedInterview, setHasStartedInterview] = useState(false);
@@ -96,9 +98,12 @@ export default function PesertaInterviewLive() {
   const audioChunksRef = useRef<Blob[]>([]);
   const speechRecognitionRef = useRef<any>(null);
   const isListeningRef = useRef<boolean>(false);
+  const liveTurnHandledRef = useRef(0);
 
   // Live real-time speech preview & UI simplicity state
   const [liveInterimText, setLiveInterimText] = useState('');
+  // Hitungan giliran real-time: memicu evaluasi otomatis saat peserta selesai bicara
+  const [liveTurnSeq, setLiveTurnSeq] = useState(0);
   const [handsFreeMode, setHandsFreeMode] = useState(true);
   const [showManualInput, setShowManualInput] = useState(false);
   const [micErrorMsg, setMicErrorMsg] = useState<string | null>(null);
@@ -106,6 +111,7 @@ export default function PesertaInterviewLive() {
   // Proctoring Character states
   const [proctorMood, setProctorMood] = useState<ProctoringMood>('normal');
   const [proctorCustomMessage, setProctorCustomMessage] = useState<string | undefined>(undefined);
+  const [showProctor, setShowProctor] = useState(false);
 
   // Time elapsed
   const [sessionSeconds, setSessionSeconds] = useState(0);
@@ -439,7 +445,6 @@ export default function PesertaInterviewLive() {
             // Filter out system thinking / markdown meta headers if any
             const cleanText = raw.replace(/\*\*.*?\*\*/g, '').trim();
             if (cleanText) {
-              setLiveCaptionText(cleanText);
               setMessages((prev) => {
                 const last = prev[prev.length - 1];
                 if (last && last.sender === 'Gemini Live') {
@@ -457,9 +462,26 @@ export default function PesertaInterviewLive() {
               });
             }
           } else if (data.type === 'candidateText' && data.text) {
-            setUserAnswer((prev) => (prev ? prev + ' ' + data.text : data.text));
+            setUserAnswer((prev) => (prev ? `${prev} ${data.text}` : data.text));
+            // Catat suara peserta ke panel transkrip (gabungkan dengan segmen kandidat sebelumnya)
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.sender === 'Kandidat (Anda)') {
+                return [...prev.slice(0, -1), { ...last, text: `${last.text} ${data.text}` }];
+              }
+              return [
+                ...prev,
+                {
+                  sender: 'Kandidat (Anda)',
+                  text: data.text,
+                  time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                }
+              ];
+            });
           } else if (data.type === 'turnComplete') {
             setIsAiSpeaking(false);
+            // Tandai giliran peserta selesai — dipakai untuk pengiriman jawaban otomatis
+            setLiveTurnSeq((seq) => seq + 1);
             if (
               hasStartedInterviewRef.current &&
               handsFreeModeRef.current &&
@@ -528,7 +550,6 @@ export default function PesertaInterviewLive() {
   // Request high-quality Indonesian Neural Speech from backend (/api/interview/tts)
   const speakTextWithNeuralVoice = async (text: string, onEnded?: () => void) => {
     playHarmonicAiChime();
-    setLiveCaptionText(text);
 
     if (!ttsEnabled) {
       if (onEnded) onEnded();
@@ -562,7 +583,6 @@ export default function PesertaInterviewLive() {
   // Text to Speech for Gemini Voice with Multimodal Fallback
   const speakText = (text: string) => {
     playHarmonicAiChime();
-    setLiveCaptionText(text);
 
     // 1. If Gemini Live socket is open, ask Gemini Live to speak with voice
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
@@ -611,7 +631,6 @@ export default function PesertaInterviewLive() {
 
     const greetingText = `Halo ${sessionUser.name || 'Farhan Pratama'}, saya Ava. Mari mulai wawancara untuk posisi ${program.title}. ${questions[0].question}`;
 
-    setLiveCaptionText(greetingText);
     setMessages((prev) => [
       ...prev,
       {
@@ -1018,15 +1037,23 @@ export default function PesertaInterviewLive() {
     const textToSubmit = answerText.trim() || activeQuestion.sampleAnswer || 'Saya telah menjelaskan solusi arsitektur saya secara langsung.';
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
-    // Append candidate answer to messages
-    setMessages((prev) => [
-      ...prev,
-      {
-        sender: 'Kandidat (Anda)',
-        text: textToSubmit,
-        time: nowTime
+    // Append candidate answer to messages (lewati jika suara yang sama sudah tercatat dari transkripsi live)
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.sender === 'Kandidat (Anda)') {
+        const spoken = normalizeTranscript(last.text);
+        const submitted = normalizeTranscript(textToSubmit);
+        if (spoken.includes(submitted) || submitted.includes(spoken)) return prev;
       }
-    ]);
+      return [
+        ...prev,
+        {
+          sender: 'Kandidat (Anda)',
+          text: textToSubmit,
+          time: nowTime
+        }
+      ];
+    });
 
     setUserAnswer('');
     setLiveInterimText('');
@@ -1064,15 +1091,17 @@ export default function PesertaInterviewLive() {
       // Check if candidate merely greeted, checked audio, or asked to repeat
       if (!evalData.shouldAdvanceQuestion) {
         const reply = evalData.conversationalReply;
-        setLiveCaptionText(reply);
-        setMessages((prev) => [
-          ...prev,
-          {
-            sender: 'Gemini Live',
-            text: reply,
-            time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-          }
-        ]);
+        // Mode real-time: balasan Ava sudah tercatat dari stream Gemini Live, jangan duplikasi di transkrip
+        if (!options?.silent) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              sender: 'Gemini Live',
+              text: reply,
+              time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+            }
+          ]);
+        }
 
         if (!options?.silent && evalData.audioBase64 && ttsEnabled) {
           playAiAudio(evalData.audioBase64, () => {
@@ -1111,15 +1140,17 @@ export default function PesertaInterviewLive() {
       setQuestions(updatedQuestions);
 
       const geminiReply = evalData.conversationalReply;
-      setLiveCaptionText(geminiReply);
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: 'Gemini Live',
-          text: geminiReply,
-          time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
+      // Mode real-time: balasan Ava sudah tercatat dari stream Gemini Live, jangan duplikasi di transkrip
+      if (!options?.silent) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: 'Gemini Live',
+            text: geminiReply,
+            time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
+      }
 
       // Play Neural Voice and auto-advance hands-free!
       if (!options?.silent && evalData.audioBase64 && ttsEnabled) {
@@ -1162,15 +1193,16 @@ export default function PesertaInterviewLive() {
       }
 
       setQuestions(updatedQuestions);
-      setLiveCaptionText(nextAiReply);
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: 'Gemini Live',
-          text: nextAiReply,
-          time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
+      if (!options?.silent) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: 'Gemini Live',
+            text: nextAiReply,
+            time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
+      }
 
       if (ttsEnabled) {
         speakTextWithNeuralVoice(nextAiReply, () => {
@@ -1185,6 +1217,18 @@ export default function PesertaInterviewLive() {
       }
     }
   };
+
+  // Mode real-time: begitu server menandai giliran peserta selesai (turnComplete),
+  // jawaban langsung dikirim untuk evaluasi BARS — tanpa tombol manual "Kirim ke Ava".
+  useEffect(() => {
+    if (liveTurnSeq === 0 || liveTurnSeq === liveTurnHandledRef.current) return;
+    liveTurnHandledRef.current = liveTurnSeq;
+    if (!hasStartedInterviewRef.current) return;
+    const spoken = (liveInterimText || userAnswer).trim();
+    if (spoken.length < 2) return;
+    void submitAnswerTurn(spoken, { silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveTurnSeq]);
 
   // Submit Answer triggered by form button
   const handleSubmitAnswer = async (e?: React.FormEvent) => {
@@ -1246,191 +1290,242 @@ export default function PesertaInterviewLive() {
       ).toFixed(1)
     : '0.0';
 
+  // Caption status di bawah video (bukan transkrip — transkrip ada di panel kanan)
+  const stageCaption = isAiSpeaking
+    ? 'Ava sedang berbicara — dengarkan pertanyaan dengan saksama.'
+    : isTranscribing
+    ? 'Ava sedang mentranskripsi suara Anda…'
+    : isAiAnalyzing
+    ? 'Ava sedang mengevaluasi jawaban Anda…'
+    : isListening
+    ? isLiveConnected
+      ? 'Mic aktif — silakan jawab, Ava mendengarkan secara real-time.'
+      : 'Mic aktif — sampaikan jawaban Anda, lalu tekan tombol Mic untuk mengirim.'
+    : hasStartedInterview
+    ? 'Mic siap — tekan tombol Mic bila ingin berbicara lagi.'
+    : 'Tekan tombol Mic untuk memulai wawancara.';
+
   return (
-    <div className="h-screen h-[100dvh] max-h-screen bg-slate-900 flex flex-col font-sans select-none overflow-hidden">
-      {/* ─── Topbar Stage: Live Telemetry, Title, Exit ─── */}
-      <header className="h-14 sm:h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-xs z-20">
-        <div className="flex items-center gap-3">
+    <div className="h-screen h-[100dvh] max-h-screen bg-[#F1F5F9] flex font-sans select-none overflow-hidden">
+      {/* ─── Left Icon Rail (shell ruang meeting) ─── */}
+      <aside className="hidden xl:flex w-[68px] shrink-0 flex-col items-center justify-between bg-white border-r border-slate-200 py-4">
+        <div className="flex flex-col items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-primary-navy text-white flex items-center justify-center font-extrabold font-heading text-sm shadow-xs">
+            T
+          </div>
+          <div className="h-px w-8 bg-slate-200 my-1" />
           <button
             onClick={() => navigate('/peserta')}
-            className="p-1.5 sm:p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-            title="Kembali ke Dashboard"
+            title="Dashboard Peserta"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-primary-navy hover:bg-soft-blue transition-colors cursor-pointer"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <Home className="w-5 h-5" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xs sm:text-base font-extrabold text-slate-900 font-heading">
-                Gemini Live AI Multimodal Interview
-              </h1>
-              <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                Gemini 2.5 Flash Live
-              </span>
-            </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 font-mono truncate">
-              {sessionUser.name} • {program.companyName} ({program.id})
-            </p>
-          </div>
-        </div>
-
-        {/* Telemetry and Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Recording Badge */}
-          <div className="flex items-center gap-1.5 sm:gap-2 bg-rose-50 border border-rose-200/80 px-2.5 sm:px-3 py-1 rounded-full text-rose-700 text-[11px] sm:text-xs font-mono font-bold shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-            <span>REC • {formatTimer(sessionSeconds)}</span>
-          </div>
-
-          {/* Stream Quality */}
-          <div className="hidden md:flex items-center gap-2 bg-emerald-50 border border-emerald-200/80 px-3 py-1 rounded-full text-emerald-800 text-xs font-semibold shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>HD 1080p • 60 FPS • 18ms</span>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/peserta/device-check')}
-            className="hidden sm:flex text-xs gap-1.5 cursor-pointer py-1.5"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-            <span>Status Anti-Cheat</span>
-          </Button>
-        </div>
-      </header>
-
-      {/* ─── Center Stage: Big Video Stage (Gemini Live) + Interactive Side Panel ─── */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden p-2.5 sm:p-3.5 gap-3 sm:gap-4 bg-slate-950">
-        {/* ─── Left Stage: Google Gemini Live AI Interviewer Canvas ─── */}
-        <div className="flex-1 min-h-0 flex flex-col justify-between bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 overflow-hidden relative shadow-sm">
-          {/* Top Stage Header Badges */}
-          <div className="relative z-10 p-3 sm:p-4 flex items-center justify-between pointer-events-none">
-            <div className="bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-bold text-slate-800 flex items-center gap-2 border border-slate-200 shadow-2xs">
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${
-                  isAiSpeaking
-                    ? 'bg-blue-600 animate-ping'
-                    : isAiAnalyzing || isTranscribing
-                    ? 'bg-amber-500 animate-spin'
-                    : isListening
-                    ? 'bg-rose-500 animate-pulse'
-                    : 'bg-emerald-500'
-                }`}
-              />
-              <span>
-                {isAiSpeaking
-                  ? 'Ava Sedang Berbicara (Suara Natural)...'
-                  : isTranscribing
-                  ? 'OpenAI Whisper Mentranskripsi Rekaman Suara...'
-                  : isAiAnalyzing
-                  ? 'LangChain Mengevaluasi Rubrik BARS...'
-                  : isListening
-                  ? 'Mendengarkan Jawaban Anda (Bicara Sekarang)...'
-                  : 'Mode Percakapan 2-Arah Aktif'}
-              </span>
-            </div>
-
-            {/* Auto Voice TTS Toggle */}
-            <button
-              onClick={() => {
-                setTtsEnabled(!ttsEnabled);
-                if (isAiSpeaking) window.speechSynthesis?.cancel();
-              }}
-              className="pointer-events-auto bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-semibold text-slate-700 hover:text-primary-navy border border-slate-200 flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+          <div className="relative">
+            <div
+              title="Ruang Wawancara (aktif)"
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-soft-blue text-primary-navy border border-accent-border"
             >
-              {ttsEnabled ? (
-                <>
-                  <Volume2 className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Suara AI Aktif</span>
-                </>
-              ) : (
-                <>
-                  <VolumeX className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Suara AI Senyap</span>
-                </>
-              )}
-            </button>
+              <Video className="w-5 h-5" />
+            </div>
+            <span className="absolute -right-[9px] top-1.5 bottom-1.5 w-[3px] rounded-full bg-primary-navy" />
           </div>
+          <button
+            onClick={() => setChatOpen(true)}
+            title="Transkrip Sesi"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-primary-navy hover:bg-soft-blue transition-colors cursor-pointer"
+          >
+            <MessageSquare className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => navigate('/peserta/device-check')}
+            title="Cek Kamera & Mikrofon"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-primary-navy hover:bg-soft-blue transition-colors cursor-pointer"
+          >
+            <ShieldCheck className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="w-9 h-9 rounded-full bg-soft-blue border border-accent-border text-[11px] font-extrabold text-primary-navy flex items-center justify-center">
+          {sessionUser.name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
+        </div>
+      </aside>
 
-          {/* Center Stage: The Iconic Gemini Live Multimodal AI Orb & Waveforms */}
-          <div className="my-auto py-2 sm:py-3 flex flex-col items-center justify-center text-center px-4 relative z-0">
-            {/* Ambient Background Aura */}
-            <div className="absolute w-56 h-56 rounded-full bg-blue-100/30 blur-3xl pointer-events-none" />
-
-            {/* Glowing Gemini Live Orb */}
-            <div className="relative flex items-center justify-center">
-              {/* Pulsing Aura Rings when Speaking or Listening */}
-              {(isAiSpeaking || isListening) && (
-                <>
-                  <div className="absolute w-32 h-32 rounded-full border-2 border-blue-400/40 animate-ping" />
-                  <div className="absolute w-40 h-40 rounded-full border border-indigo-300/30 animate-pulse" />
-                </>
-              )}
-
-              {/* Central Gemini Sphere */}
-              <div
-                className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-primary-navy p-1 shadow-lg transition-transform duration-300 ${
-                  isAiSpeaking ? 'scale-105 shadow-blue-500/30' : 'hover:scale-102'
-                }`}
-              >
-                <div className="w-full h-full rounded-full bg-white/10 flex flex-col items-center justify-center text-white relative overflow-hidden backdrop-blur-xs">
-                  <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-white animate-pulse" />
-                  <span className="text-[9px] sm:text-[10px] font-mono font-bold tracking-widest uppercase mt-0.5 text-cyan-200">
-                    GEMINI
-                  </span>
-                </div>
+      {/* ─── Main Column ─── */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <header className="h-14 sm:h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between gap-3 shrink-0 z-20">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <button
+              onClick={() => navigate('/peserta')}
+              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              title="Kembali ke Dashboard"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-xs sm:text-[15px] font-extrabold text-slate-900 font-heading truncate">
+                  Wawancara Kompetensi • Live AI
+                </h1>
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-soft-blue text-primary-navy border border-accent-border">
+                  Gemini Live
+                </span>
               </div>
-            </div>
-
-            {/* Audio Waveform Equalizer (Speaks / Listens) */}
-            <div className="mt-2.5 sm:mt-3 flex items-center gap-1 h-5 sm:h-6">
-              {[40, 70, 95, 60, 85, 100, 75, 50, 80, 65, 90, 45].map((height, i) => (
-                <div
-                  key={i}
-                  className={`w-1 rounded-full transition-all duration-150 ${
-                    isAiSpeaking
-                      ? 'bg-blue-600 animate-pulse'
-                      : isListening
-                      ? 'bg-emerald-500'
-                      : 'bg-slate-200'
-                  }`}
-                  style={{
-                    height: isAiSpeaking
-                      ? `${Math.max(10, (height * (i % 2 === 0 ? 0.9 : 1.2)) % 24)}px`
-                      : isListening
-                      ? `${Math.max(6, (height * 0.4) % 18)}px`
-                      : '6px'
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* Assessor Persona Info */}
-            <div className="mt-1.5 space-y-0.5">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[10px] font-bold border border-blue-200">
-                <Sparkles className="w-3 h-3 text-blue-600" />
-                <span>LangChain BARS • OpenAI Whisper STT • Neural TTS</span>
-              </div>
-              <h2 className="text-base sm:text-lg font-extrabold text-slate-900 font-heading">
-                Ava • Senior AI Interviewer &amp; Assessor
-              </h2>
-              <p className="text-[11px] sm:text-xs text-slate-600 font-medium max-w-md">
-                Interaksi Suara Dua Arah Aktif • Standar Rubrik Penilaian BARS {program.companyName}
+              <p className="text-[11px] text-slate-500 font-mono truncate">
+                {sessionUser.name} • {program.companyName} ({program.id})
               </p>
             </div>
+          </div>
 
-            {/* Real-time Status Banner under Ava (No redundant buttons, controlled exclusively via bottom footer mic button) */}
-            <div className="mt-3 w-full max-w-md px-3 space-y-2">
-              {micErrorMsg && (
-                <div className="p-3 rounded-xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-xs shadow-md space-y-1.5">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <span className="font-semibold leading-relaxed text-[11px]">{micErrorMsg}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200/80 px-2.5 sm:px-3 py-1 rounded-full text-rose-700 text-[11px] sm:text-xs font-mono font-bold">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              <span>REC • {formatTimer(sessionSeconds)}</span>
+            </div>
+
+            <div className="hidden md:flex items-center gap-2 bg-emerald-50 border border-emerald-200/80 px-3 py-1 rounded-full text-emerald-800 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>HD 1080p • 60 FPS</span>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/peserta/device-check')}
+              className="hidden sm:flex text-xs gap-1.5 cursor-pointer py-1.5"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-primary-navy" />
+              <span>Status Anti-Cheat</span>
+            </Button>
+          </div>
+        </header>
+
+        {/* ─── Content: Stage + Controls + Side Panel ─── */}
+        <div className="flex-1 min-h-0 flex flex-col xl:flex-row overflow-hidden p-2.5 sm:p-4 gap-3 sm:gap-4 bg-[#F1F5F9]">
+          {/* Stage Column */}
+          <div className="flex-1 min-h-0 flex flex-col gap-2.5 sm:gap-3">
+            {/* Big Video Stage */}
+            <div className="relative flex-1 min-h-0 bg-slate-900 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm border border-slate-800/40">
+              {/* Candidate Camera Feed (main stage) */}
+              {camOn ? (
+                <>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                  {!videoRef.current?.srcObject && savedFacePhoto && (
+                    <img
+                      src={savedFacePhoto}
+                      alt="Wajah peserta"
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  )}
+                  {/* OpenCV scan overlay */}
+                  <div className="absolute left-0 right-0 h-px bg-cyan-300/50 shadow-[0_0_14px_#22d3ee] animate-pulse pointer-events-none top-1/2 -translate-y-1/2" />
+                  <div className="absolute inset-3 border border-emerald-300/25 rounded-xl pointer-events-none" />
+                  <span className="absolute left-6 top-6 text-[9px] font-mono font-bold text-emerald-200/90 bg-black/35 px-1.5 py-0.5 rounded">
+                    OpenCV AI • 30 FPS
+                  </span>
+                </>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 text-slate-400">
+                  <div className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl font-extrabold text-slate-200">
+                    {sessionUser.name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
                   </div>
-                  <div className="flex justify-end pt-0.5">
+                  <span className="text-xs font-semibold">Kamera Nonaktif</span>
+                </div>
+              )}
+
+              {/* Candidate name tag */}
+              <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+                <span className="px-3 py-1 rounded-lg bg-black/45 backdrop-blur-md text-white text-[11px] font-bold border border-white/10">
+                  Anda
+                </span>
+                {!micOn && (
+                  <span className="px-2 py-1 rounded-lg bg-rose-600 text-white text-[10px] font-bold flex items-center gap-1">
+                    <MicOff className="w-3 h-3" />
+                    Mute
+                  </span>
+                )}
+              </div>
+
+              {/* Participant Tiles */}
+              <div className="absolute top-3 right-3 z-20 flex flex-col gap-2 w-[86px] sm:w-[112px]">
+                {/* Ava */}
+                <div
+                  className={`relative rounded-xl overflow-hidden border-2 bg-primary-navy aspect-[4/3] flex flex-col items-center justify-center gap-1 ${
+                    isAiSpeaking ? 'border-emerald-400' : 'border-white/20'
+                  }`}
+                >
+                  <Sparkles className="w-5 h-5 text-white" />
+                  <div className="flex items-end gap-[2px] h-4">
+                    {[6, 10, 14, 8, 12].map((h, i) => (
+                      <span
+                        key={i}
+                        className={`w-[2px] rounded-full ${
+                          isAiSpeaking ? 'bg-emerald-300' : isListening ? 'bg-white/70' : 'bg-white/30'
+                        }`}
+                        style={{ height: `${isAiSpeaking ? h : 3}px` }}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[9px] font-bold text-white/90 tracking-wider">AVA</span>
+                  <span
+                    className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                      isAiSpeaking || isListening ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-400'
+                    }`}
+                  />
+                </div>
+
+                {/* Sentinel AI Proctor */}
+                <button
+                  onClick={() => setShowProctor((v) => !v)}
+                  title="Buka Sentinel AI Proctor"
+                  className={`relative rounded-xl overflow-hidden border-2 bg-slate-900 aspect-[4/3] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${
+                    showProctor ? 'border-cyan-400' : 'border-white/20 hover:border-cyan-300/60'
+                  }`}
+                >
+                  <ShieldCheck className="w-5 h-5 text-cyan-300" />
+                  <span className="text-[9px] font-bold text-cyan-100 tracking-wider">SENTINEL</span>
+                  <span
+                    className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                      proctorMood === 'warning' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Sentinel panel (toggle from tile) */}
+              {showProctor && (
+                <div className="absolute left-3 top-14 z-30 w-[290px] max-w-[calc(100%-1.5rem)] max-h-[calc(100%-5rem)] overflow-y-auto">
+                  <ProctoringCharacter
+                    candidateName={sessionUser.name}
+                    mood={proctorMood}
+                    customMessage={proctorCustomMessage}
+                    isListening={isListening}
+                    isAiAnalyzing={isAiAnalyzing}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowProctor(false)}
+                    className="mt-1.5 px-2.5 py-1 rounded-lg bg-black/60 hover:bg-black/75 text-white text-[10px] font-bold cursor-pointer"
+                  >
+                    Tutup Sentinel
+                  </button>
+                </div>
+              )}
+
+              {/* Mic error */}
+              {micErrorMsg && (
+                <div className="absolute bottom-16 left-3 right-3 sm:right-auto sm:max-w-sm z-30 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-[11px] shadow-lg flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1.5">
+                    <span className="font-semibold leading-relaxed block">{micErrorMsg}</span>
                     <button
                       onClick={handleStartListening}
-                      className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] cursor-pointer shadow-xs"
+                      className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] cursor-pointer"
                     >
                       Coba Akses Mic Lagi
                     </button>
@@ -1438,156 +1533,179 @@ export default function PesertaInterviewLive() {
                 </div>
               )}
 
-              {!hasStartedInterview ? (
-                <div className="p-3 rounded-xl bg-blue-50/90 border border-blue-200 text-blue-900 text-xs font-semibold flex items-center justify-center gap-2 shadow-2xs">
-                  <Sparkles className="w-4 h-4 text-blue-600 shrink-0 animate-pulse" />
-                  <span>Gunakan tombol mikrofon di bagian bawah layar untuk memulai wawancara.</span>
+              {/* Status caption */}
+              <div className="absolute bottom-3 left-3 right-3 sm:right-auto z-20">
+                <div className="inline-flex items-center gap-2 max-w-full px-3.5 py-2 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 text-white text-[11px] sm:text-xs font-semibold">
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      isAiSpeaking
+                        ? 'bg-emerald-400 animate-pulse'
+                        : isAiAnalyzing || isTranscribing
+                        ? 'bg-amber-400 animate-pulse'
+                        : isListening
+                        ? 'bg-emerald-400'
+                        : 'bg-slate-300'
+                    }`}
+                  />
+                  <span className="truncate">{stageCaption}</span>
                 </div>
-              ) : isAiSpeaking ? (
-                <div className="p-3 rounded-xl bg-blue-50/90 border border-blue-200 text-blue-900 flex items-center justify-center gap-2 shadow-2xs animate-pulse">
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping" />
-                  <span className="font-extrabold text-xs">🔊 Ava Sedang Berbicara...</span>
-                </div>
-              ) : isListening ? (
-                <div className="p-3 rounded-xl bg-emerald-50/95 border-2 border-emerald-400 text-emerald-950 shadow-md space-y-1.5 animate-in fade-in duration-150">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 font-extrabold text-xs text-emerald-900">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                      🎙️ MIKROFON AKTIF • AVA MENDENGARKAN
-                    </span>
-                    <span className="text-[11px] font-mono font-bold bg-white px-2 py-0.5 rounded-full border border-emerald-300 text-emerald-800">
-                      {micVolumeLevel}% Vol
-                    </span>
-                  </div>
-                  {/* Real-time Candidate Speech Preview */}
-                  <div className="p-2 bg-white rounded-lg border border-emerald-200 text-[11px] text-left min-h-[32px] flex items-center">
-                    {liveInterimText || userAnswer ? (
-                      <span className="text-slate-900 font-semibold italic">"{liveInterimText || userAnswer}"</span>
-                    ) : (
-                      <span className="text-slate-400 italic">Bicara sekarang (sapa "Halo Ava", atau langsung sampaikan jawaban Anda)...</span>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-emerald-700 text-center font-medium">
-                    👇 Klik tombol mikrofon di bawah layar saat selesai berbicara untuk mengirim jawaban.
-                  </p>
-                </div>
-              ) : isAiAnalyzing || isTranscribing ? (
-                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-center gap-2 shadow-2xs">
-                  <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
-                  <span className="font-extrabold text-xs">
-                    {isTranscribing ? 'Mentranskripsi Suara (Whisper)...' : 'LangChain Menganalisis Jawaban...'}
-                  </span>
-                </div>
-              ) : (
-                <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-semibold flex items-center justify-center gap-2">
-                  <Mic className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Mikrofon siap. Klik tombol mic di bawah untuk mulai berbicara.</span>
-                </div>
-              )}
-
-              {/* Minimalist Question Replay Pill */}
-              <div className="flex items-center justify-center gap-2 pt-0.5">
-                <button
-                  type="button"
-                  onClick={() => speakTextWithNeuralVoice(activeQuestion.question)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-900 text-[11px] font-bold border border-blue-200 transition-all cursor-pointer shadow-2xs"
-                >
-                  <Volume2 className="w-3 h-3 text-blue-600" />
-                  <span>Dengarkan Ulang Soal #{activeQuestion.id}</span>
-                </button>
               </div>
             </div>
 
-            {/* Real-time Live Caption Box */}
-            {liveCaptionText && (
-              <div className="mt-2.5 max-w-md mx-auto bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-2.5 text-slate-100 text-[11px] text-left shadow-lg animate-in fade-in duration-200">
-                <div className="flex items-center gap-1.5 text-[9px] font-bold text-cyan-400 mb-0.5">
-                  <Bot className="w-3 h-3" />
-                  <span>TRANSKRIP SUARA AI GEMINI:</span>
-                </div>
-                <p className="leading-relaxed line-clamp-2 font-sans">
-                  "{liveCaptionText}"
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* ═══════════════════════════════════════════════════════════
-              BOTTOM-RIGHT: Candidate Self-View PIP + AI PROCTOR CHARACTER
-          ═══════════════════════════════════════════════════════════ */}
-          <div className="absolute bottom-2.5 right-2.5 z-20 flex flex-col gap-1.5 max-w-[190px] sm:max-w-[220px]">
-            {/* AI Proctoring Character Companion */}
-            <ProctoringCharacter
-              candidateName={sessionUser.name}
-              mood={proctorMood}
-              customMessage={proctorCustomMessage}
-              isListening={isListening}
-              isAiAnalyzing={isAiAnalyzing}
-            />
-
-            {/* Self-View PIP (Video Peserta dengan Laser Scan OpenCV) */}
-            <div className="w-full aspect-video bg-white rounded-2xl border-2 border-slate-200 shadow-xl overflow-hidden flex flex-col justify-between p-2 relative">
-              <div className="flex items-center justify-between text-[10px] text-slate-700 z-10">
-                <span className="bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 text-slate-800 border border-slate-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  Wajah Terverifikasi
-                </span>
-                {!micOn && (
-                  <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
-                    <MicOff className="w-3 h-3" />
-                    Mute
-                  </span>
-                )}
-              </div>
-
-              {/* Video Canvas or Fallback Snapshot */}
-              <div className="flex items-center justify-center my-auto w-full h-full relative overflow-hidden rounded-xl bg-slate-900">
-                {camOn ? (
-                  <>
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover rounded-xl"
+            {/* Control Bar */}
+            <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 px-2.5 sm:px-4 py-2 flex items-center gap-2 shrink-0 shadow-xs">
+              {/* Mic level */}
+              <div className="hidden lg:flex flex-col gap-1 w-28 shrink-0">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Volume</span>
+                <div className="flex items-center gap-2">
+                  <Mic className="w-3.5 h-3.5 text-primary-navy shrink-0" />
+                  <div className="h-1.5 flex-1 rounded-full bg-slate-200 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary-navy transition-all duration-150"
+                      style={{ width: `${Math.min(100, Math.max(4, micVolumeLevel))}%` }}
                     />
-                    {/* Fallback if no real camera attached */}
-                    {!videoRef.current?.srcObject && savedFacePhoto && (
-                      <img
-                        src={savedFacePhoto}
-                        alt="Candidate face"
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
-                    )}
+                  </div>
+                </div>
+              </div>
 
-                    {/* OpenCV Laser Scanning Line Animation */}
-                    <div className="absolute left-0 right-0 h-1 bg-cyan-400/40 shadow-[0_0_12px_#06b6d4] animate-pulse pointer-events-none top-1/2 -translate-y-1/2" />
-
-                    {/* OpenCV Reticle */}
-                    <div className="absolute inset-2 border border-emerald-400/60 rounded-lg pointer-events-none flex items-end justify-start p-1">
-                      <span className="text-[9px] font-mono text-emerald-800 bg-white/90 px-1 rounded font-bold">
-                        OpenCV AI • 30 FPS
-                      </span>
+              <div className="flex items-center gap-1 sm:gap-2 mx-auto overflow-x-auto max-w-full">
+                {/* Mic */}
+                {isListening ? (
+                  isLiveConnected ? (
+                    <div className="flex flex-col items-center gap-0.5 shrink-0">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center">
+                        <Mic className="w-5 h-5" />
+                      </div>
+                      <span className="text-[9px] font-semibold text-emerald-700">Aktif</span>
                     </div>
-                  </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-0.5 shrink-0">
+                      <button
+                        onClick={handleToggleListening}
+                        className="w-11 h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-sm cursor-pointer animate-pulse"
+                        title="Selesai Berbicara • Kirim ke Ava"
+                      >
+                        <Mic className="w-5 h-5" />
+                      </button>
+                      <span className="text-[9px] font-semibold text-rose-600">Kirim</span>
+                    </div>
+                  )
                 ) : (
-                  <div className="flex flex-col items-center justify-center p-2 text-slate-400">
-                    <VideoOff className="w-6 h-6 mb-1" />
-                    <span className="text-[10px] font-semibold">Kamera Nonaktif</span>
+                  <div className="flex flex-col items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={handleToggleListening}
+                      className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm cursor-pointer transition-colors ${
+                        !hasStartedInterview
+                          ? 'bg-primary-navy hover:bg-blue-800 text-white'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      }`}
+                      title={!hasStartedInterview ? 'Mulai Wawancara (Nyalakan Mikrofon)' : 'Nyalakan Mikrofon & Mulai Bicara'}
+                    >
+                      {!hasStartedInterview ? <Play className="w-5 h-5 fill-white" /> : <Mic className="w-5 h-5" />}
+                    </button>
+                    <span className="text-[9px] font-semibold text-slate-500">
+                      {!hasStartedInterview ? 'Mulai' : 'Bicara'}
+                    </span>
                   </div>
                 )}
+
+                {/* Camera */}
+                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => setCamOn(!camOn)}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors cursor-pointer border ${
+                      camOn
+                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                        : 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600'
+                    }`}
+                    title={camOn ? 'Matikan Kamera' : 'Nyalakan Kamera'}
+                  >
+                    {camOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+                  </button>
+                  <span className="text-[9px] font-semibold text-slate-500">Kamera</span>
+                </div>
+
+                {/* Screen share */}
+                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => setIsSharing(!isSharing)}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors cursor-pointer border ${
+                      isSharing
+                        ? 'bg-primary-navy text-white border-primary-navy'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                    }`}
+                    title="Bagikan Layar"
+                  >
+                    <Share2 className="w-5 h-5" />
+                  </button>
+                  <span className="text-[9px] font-semibold text-slate-500">Layar</span>
+                </div>
+
+                {/* Transcript */}
+                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => setChatOpen(!chatOpen)}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors cursor-pointer border ${
+                      chatOpen
+                        ? 'bg-primary-navy text-white border-primary-navy'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                    }`}
+                    title="Buka Transkrip Sesi"
+                  >
+                    <MessageSquare className="w-5 h-5" />
+                  </button>
+                  <span className="text-[9px] font-semibold text-slate-500">Transkrip</span>
+                </div>
+
+                {/* Ava voice */}
+                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => {
+                      setTtsEnabled(!ttsEnabled);
+                      if (isAiSpeaking) window.speechSynthesis?.cancel();
+                    }}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors cursor-pointer border ${
+                      ttsEnabled
+                        ? 'bg-slate-100 hover:bg-slate-200 text-primary-navy border-slate-200'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-400 border-slate-200'
+                    }`}
+                    title={ttsEnabled ? 'Suara Ava Aktif' : 'Suara Ava Senyap'}
+                  >
+                    {ttsEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                  </button>
+                  <span className="text-[9px] font-semibold text-slate-500">Suara AI</span>
+                </div>
+
+                {/* Replay question */}
+                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => speakTextWithNeuralVoice(activeQuestion.question)}
+                    className="w-11 h-11 rounded-xl flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+                    title="Dengarkan Ulang Soal"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                  </button>
+                  <span className="text-[9px] font-semibold text-slate-500">Ulangi</span>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-700 pt-1 z-10">
-                <span className="truncate">{sessionUser.name}</span>
-                <span className="text-slate-400 font-mono">{program.id}</span>
-              </div>
+              {/* Leave */}
+              <button
+                onClick={() => {
+                  void saveInterviewResults(questions);
+                  navigate('/peserta/hasil');
+                }}
+                className="shrink-0 flex items-center gap-2 px-3 sm:px-4 h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] sm:text-xs font-bold shadow-sm transition-colors cursor-pointer"
+                title="Akhiri Sesi Wawancara"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Akhiri</span>
+              </button>
             </div>
           </div>
-        </div>
 
         {/* ─── Right Side Panel: Interactive Live Questions & Transcript ─── */}
-        <div className="w-full lg:w-96 bg-white rounded-3xl border border-slate-200/90 flex flex-col overflow-hidden shadow-sm">
+        <div className="w-full xl:w-[364px] shrink-0 bg-white rounded-2xl sm:rounded-3xl border border-slate-200 flex flex-col overflow-hidden shadow-xs max-h-[46vh] xl:max-h-none">
           {/* Tabs: Pertanyaan vs Chat Transkrip */}
           <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex gap-1.5">
             <button
@@ -1610,7 +1728,7 @@ export default function PesertaInterviewLive() {
               }`}
             >
               <MessageSquare className="w-4 h-4 text-blue-600" />
-              <span>Transkrip AI ({messages.length})</span>
+              <span>Transkrip Sesi ({messages.length})</span>
             </button>
           </div>
 
@@ -1618,24 +1736,33 @@ export default function PesertaInterviewLive() {
             /* Pertanyaan & Interactive Answer Form */
             <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
               {/* Active Question Highlight Card */}
-              <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200/90 space-y-2.5 shadow-2xs">
-                <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-blue-800 font-mono">
-                  <span>
+              <div className="p-4 rounded-2xl bg-primary-navy text-white space-y-2.5 shadow-sm">
+                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                  <span className="text-blue-100 font-mono">
                     Soal #{activeQuestion.id} dari {questions.length}
                   </span>
-                  <span className="bg-blue-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
+                  <span className="bg-white/15 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
                     Live Gemini
                   </span>
                 </div>
 
-                <p className="text-slate-900 text-xs sm:text-sm font-bold leading-relaxed">
+                <p className="text-white text-xs sm:text-sm font-bold leading-relaxed">
                   "{activeQuestion.question}"
                 </p>
 
-                <div className="pt-2 text-[11px] text-slate-600 flex items-center justify-between border-t border-blue-100">
-                  <span className="font-semibold text-blue-900">{activeQuestion.competency}</span>
-                  <span className="font-mono text-slate-500">Bobot: {activeQuestion.weight}</span>
+                <div className="pt-2 text-[11px] flex items-center justify-between gap-2 border-t border-white/15">
+                  <span className="font-semibold text-blue-100">{activeQuestion.competency}</span>
+                  <span className="font-mono text-blue-200 shrink-0">Bobot: {activeQuestion.weight}</span>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => speakTextWithNeuralVoice(activeQuestion.question)}
+                  className="w-full mt-0.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>Dengarkan Ulang Soal #{activeQuestion.id}</span>
+                </button>
               </div>
 
               {/* Standar Rubrik BARS untuk Pertanyaan Aktif */}
@@ -1667,7 +1794,7 @@ export default function PesertaInterviewLive() {
                     onClick={() => {
                       setUserAnswer(activeQuestion.sampleAnswer || '');
                       setLiveInterimText(activeQuestion.sampleAnswer || '');
-                      setProctorCustomMessage('Argumen terstandarisasi telah disisipkan. Silakan klik "Selesai Bicara • Kirim ke Ava".');
+                      setProctorCustomMessage('Contoh argumen disisipkan. Jawaban akan dinilai otomatis setelah giliran Anda selesai.');
                     }}
                     className="w-full text-center py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-1.5 shadow-2xs"
                   >
@@ -1770,44 +1897,74 @@ export default function PesertaInterviewLive() {
             /* Live Transcript / Dialogue Panel */
             <div className="flex-1 flex flex-col justify-between overflow-hidden">
               <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
-                {messages.map((m, idx) => (
-                  <div
-                    key={idx}
-                    className={`space-y-1 ${
-                      m.sender === 'Gemini Live'
-                        ? 'text-left'
-                        : m.sender === 'Kandidat (Anda)'
-                        ? 'text-left'
-                        : 'text-center'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
-                      <span
-                        className={`font-bold ${
-                          m.sender === 'Gemini Live'
-                            ? 'text-blue-600'
-                            : m.sender === 'Kandidat (Anda)'
-                            ? 'text-emerald-700'
-                            : 'text-slate-500'
+                {messages.map((m, idx) => {
+                  const isAva = m.sender === 'Gemini Live';
+                  const isCandidate = m.sender === 'Kandidat (Anda)';
+                  const initials = isAva
+                    ? 'AI'
+                    : m.sender
+                        .split(' ')
+                        .map((w) => w[0])
+                        .slice(0, 2)
+                        .join('');
+                  const bubble = isAva
+                    ? 'bg-slate-50 text-slate-800 border border-slate-200 rounded-tl-md'
+                    : isCandidate
+                    ? 'bg-primary-navy text-white border border-primary-navy rounded-tr-md'
+                    : 'bg-slate-50 text-slate-500 border border-dashed border-slate-200 text-[11px]';
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-start gap-2 ${isCandidate ? 'flex-row-reverse' : ''}`}
+                    >
+                      <div
+                        className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-extrabold border ${
+                          isAva
+                            ? 'bg-soft-blue text-primary-navy border-accent-border'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}
                       >
-                        {m.sender}
-                      </span>
-                      <span className="font-mono">{m.time}</span>
+                        {initials}
+                      </div>
+                      <div className={`min-w-0 max-w-[80%] space-y-1 ${isCandidate ? 'text-right' : ''}`}>
+                        <div
+                          className={`flex items-center gap-2 text-[10px] text-slate-400 ${
+                            isCandidate ? 'justify-end' : ''
+                          }`}
+                        >
+                          <span className={`font-bold ${isAva ? 'text-primary-navy' : 'text-slate-600'}`}>
+                            {isAva ? 'Ava' : m.sender}
+                          </span>
+                          <span className="font-mono">{m.time}</span>
+                        </div>
+                        <div className={`p-3 rounded-2xl text-xs sm:text-[13px] leading-relaxed text-left ${bubble}`}>
+                          {m.text}
+                        </div>
+                      </div>
                     </div>
-                    <div
-                      className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
-                        m.sender === 'Gemini Live'
-                          ? 'bg-blue-50/80 text-slate-900 border border-blue-200/80'
-                          : m.sender === 'Kandidat (Anda)'
-                          ? 'bg-slate-100 text-slate-800 border border-slate-200'
-                          : 'bg-slate-50 text-slate-500 border border-dashed border-slate-200 text-center text-[11px]'
-                      }`}
-                    >
-                      {m.text}
+                  );
+                })}
+
+                {/* Live candidate speech (belum terkirim) — hanya tampil di panel transkrip */}
+                {isListening && (liveInterimText || userAnswer) && (
+                  <div className="flex items-start gap-2 flex-row-reverse">
+                    <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
+                      {sessionUser.name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
+                    </div>
+                    <div className="min-w-0 max-w-[80%] space-y-1 text-right">
+                      <div className="flex items-center justify-end gap-2 text-[10px] text-slate-400">
+                        <span className="font-bold text-slate-600">Kandidat (Anda)</span>
+                        <span className="font-mono flex items-center gap-1 text-emerald-600">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          live
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-2xl text-xs sm:text-[13px] leading-relaxed bg-primary-navy/90 text-white border border-primary-navy text-left italic">
+                        {liveInterimText || userAnswer}
+                      </div>
                     </div>
                   </div>
-                ))}
+                )}
               </div>
 
               <form onSubmit={handleSendChatMessage} className="p-3 border-t border-slate-200 flex gap-2">
@@ -1830,97 +1987,7 @@ export default function PesertaInterviewLive() {
         </div>
       </div>
 
-      {/* ─── Bottom Floating Control Bar (Modern Light Toolbar) ─── */}
-      <footer className="h-16 sm:h-18 bg-white border-t border-slate-200 px-4 sm:px-8 flex items-center justify-center shrink-0 shadow-lg z-20">
-        <div className="flex items-center gap-3 sm:gap-4">
-          {/* Unified Primary Mic Button */}
-          <button
-            onClick={handleToggleListening}
-            className={`px-5 py-3 rounded-full transition-all cursor-pointer flex items-center gap-2.5 font-bold text-xs sm:text-sm shadow-md ${
-              isListening
-                ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/30 ring-4 ring-rose-200 animate-pulse'
-                : !hasStartedInterview
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98]'
-            }`}
-            title={
-              !hasStartedInterview
-                ? 'Mulai Wawancara (Nyalakan Mikrofon)'
-                : isListening
-                ? 'Selesai Berbicara • Kirim ke Ava'
-                : 'Nyalakan Mikrofon & Mulai Bicara'
-            }
-          >
-            {isListening ? (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-                <Mic className="w-5 h-5 text-white" />
-                <span>Selesai Bicara • Kirim ke Ava</span>
-              </>
-            ) : !hasStartedInterview ? (
-              <>
-                <Play className="w-4 h-4 fill-white" />
-                <span>Mulai Wawancara (Nyalakan Mic)</span>
-              </>
-            ) : (
-              <>
-                <Mic className="w-5 h-5 text-white" />
-                <span>Nyalakan Mic &amp; Bicara</span>
-              </>
-            )}
-          </button>
-
-          {/* Cam */}
-          <button
-            onClick={() => setCamOn(!camOn)}
-            className={`p-3.5 rounded-full transition-all cursor-pointer shadow-xs ${
-              camOn
-                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
-                : 'bg-rose-600 hover:bg-rose-700 text-white'
-            }`}
-            title={camOn ? 'Matikan Kamera' : 'Nyalakan Kamera'}
-          >
-            {camOn ? <Video className="w-5 h-5 text-slate-800" /> : <VideoOff className="w-5 h-5" />}
-          </button>
-
-          {/* Screen Share */}
-          <button
-            onClick={() => setIsSharing(!isSharing)}
-            className={`p-3.5 rounded-full transition-all cursor-pointer shadow-xs ${
-              isSharing
-                ? 'bg-blue-600 text-white shadow-blue-500/20'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
-            }`}
-            title="Bagikan Layar"
-          >
-            <Share2 className="w-5 h-5" />
-          </button>
-
-          {/* Chat / Transcript Toggle */}
-          <button
-            onClick={() => setChatOpen(!chatOpen)}
-            className={`p-3.5 rounded-full transition-all cursor-pointer shadow-xs ${
-              chatOpen
-                ? 'bg-primary-navy text-white shadow-primary-navy/20'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
-            }`}
-            title="Buka Transkrip / Chat"
-          >
-            <MessageSquare className="w-5 h-5" />
-          </button>
-
-          <div className="w-px h-8 bg-slate-200 mx-1 sm:mx-2" />
-
-          {/* Leave / Finish Session Button */}
-          <button
-            onClick={() => { void saveInterviewResults(questions); navigate('/peserta/hasil'); }}
-            className="px-5 sm:px-6 py-3 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm hover:shadow-md transition-all"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Akhiri Sesi Wawancara</span>
-          </button>
-        </div>
-      </footer>
+    </div>
 
       {/* ─── Completion Modal ─── */}
       <Modal

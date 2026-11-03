@@ -147,7 +147,7 @@ export default function PesertaHasilScorecard() {
               </p>
             </div>
 
-            <div className="bg-white/15 border border-white/20 p-6 rounded-3xl backdrop-blur-md flex flex-col items-center justify-center shrink-0 min-w-[170px] shadow-sm print:bg-slate-100 print:border-slate-300">
+            <div className="bg-white/15 border border-white/20 p-5 sm:p-6 rounded-3xl backdrop-blur-md flex flex-col items-center justify-center shrink-0 w-full md:w-auto md:min-w-[170px] shadow-sm print:bg-slate-100 print:border-slate-300">
               <span className="text-xs uppercase tracking-wider text-blue-200 print:text-slate-600 font-bold">
                 Skor CAT Otomatis
               </span>
@@ -166,8 +166,8 @@ export default function PesertaHasilScorecard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-7 w-full min-w-0 bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="min-w-0">
                 <h2 className="font-heading font-bold text-base sm:text-lg text-ink">
                   Rincian Skor Per Kompetensi
                 </h2>
@@ -175,7 +175,7 @@ export default function PesertaHasilScorecard() {
                   Dihitung server dari {result.autoGradedCount ?? 0} butir objektif. Jawaban esai dinilai asesor.
                 </p>
               </div>
-              <span className="text-xs font-mono font-bold text-primary-navy bg-soft-blue px-3 py-1 rounded-lg border border-accent-border">
+              <span className="shrink-0 text-xs font-mono font-bold text-primary-navy bg-soft-blue px-3 py-1 rounded-lg border border-accent-border">
                 Server-Scored
               </span>
             </div>
@@ -186,9 +186,9 @@ export default function PesertaHasilScorecard() {
               <div className="space-y-4">
                 {competencies.map((competency, idx) => (
                   <div key={`${competency.name}-${idx}`} className="space-y-2">
-                    <div className="flex items-center justify-between text-xs sm:text-sm">
-                      <span className="font-semibold text-ink">{competency.name}</span>
-                      <div className="flex items-center gap-2.5">
+                    <div className="flex flex-col gap-1 text-xs sm:flex-row sm:items-center sm:justify-between sm:text-sm">
+                      <span className="font-semibold text-ink break-words">{competency.name}</span>
+                      <div className="flex items-center gap-2.5 shrink-0">
                         <span className="text-muted-slate text-xs">Bobot: {competency.weight}</span>
                         <span className="font-mono font-bold text-primary-navy">
                           {Number(competency.score).toFixed(1)} / {competency.max}
@@ -211,9 +211,11 @@ export default function PesertaHasilScorecard() {
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 Integritas Pengawasan: <strong className="text-emerald-700">{integrityScore} / 100</strong>
               </span>
-              <span className="flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-slate-400" />
-                Dikumpulkan: <strong className="text-ink">{result.submittedAt ? new Date(result.submittedAt).toLocaleString('id-ID') : '-'}</strong>
+              <span className="flex items-center gap-1.5 min-w-0">
+                <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="break-words">
+                  Dikumpulkan: <strong className="text-ink">{result.submittedAt ? new Date(result.submittedAt).toLocaleString('id-ID') : '-'}</strong>
+                </span>
               </span>
             </div>
           </div>
@@ -295,11 +297,11 @@ export default function PesertaHasilScorecard() {
             <span>Kembali ke Dashboard Peserta</span>
           </button>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <Button
               variant="outline"
               onClick={() => navigate('/peserta/asesmen')}
-              className="text-xs sm:text-sm py-2.5 px-4 rounded-xl cursor-pointer"
+              className="w-full sm:w-auto justify-center text-xs sm:text-sm py-2.5 px-4 rounded-xl cursor-pointer"
             >
               Lihat Program Lain
             </Button>
@@ -307,7 +309,7 @@ export default function PesertaHasilScorecard() {
               variant="primary"
               onClick={handleDownloadPDF}
               disabled={downloading}
-              className="text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 font-bold shadow-sm cursor-pointer"
+              className="w-full sm:w-auto justify-center text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 font-bold shadow-sm cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>{downloading ? 'Membuka dialog cetak...' : 'Cetak / Simpan PDF'}</span>
