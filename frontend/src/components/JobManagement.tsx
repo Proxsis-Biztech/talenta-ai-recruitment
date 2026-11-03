@@ -596,9 +596,9 @@ export default function JobManagement() {
       </div>
 
       {/* Control & Filter Ledger Bar */}
-      <Card elevation="flat" className="p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-        <div className="flex flex-1 items-center gap-3">
-          <div className="relative flex-1 max-w-md">
+      <Card elevation="flat" className="p-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-3">
+          <div className="relative flex-1 max-w-none sm:max-w-md">
             <Input
               placeholder="Cari judul lowongan atau keahlian..."
               value={searchQuery}
@@ -607,7 +607,7 @@ export default function JobManagement() {
             />
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-sans">
+          <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-sans">
             <button
               onClick={() => setStatusFilter('ALL')}
               className={`px-3 py-1.5 rounded-md transition-colors font-medium cursor-pointer ${
@@ -641,7 +641,7 @@ export default function JobManagement() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
