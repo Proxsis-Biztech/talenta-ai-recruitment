@@ -79,6 +79,14 @@ export default function PesertaInterviewLive() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const pcmCtxRef = useRef<AudioContext | null>(null);
+  const pcmSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const isStreamingPcmRef = useRef(false);
+  const isAiSpeakingRef = useRef(false);
+  const hasStartedInterviewRef = useRef(false);
+  const micOnRef = useRef(true);
+  const handsFreeModeRef = useRef(true);
+  const isLiveConnectedRef = useRef(false);
   const socketRef = useRef<WebSocket | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const activeSourcesCountRef = useRef<number>(0);
@@ -248,6 +256,26 @@ export default function PesertaInterviewLive() {
     };
   }, []);
 
+  useEffect(() => {
+    isAiSpeakingRef.current = isAiSpeaking;
+  }, [isAiSpeaking]);
+
+  useEffect(() => {
+    hasStartedInterviewRef.current = hasStartedInterview;
+  }, [hasStartedInterview]);
+
+  useEffect(() => {
+    micOnRef.current = micOn;
+  }, [micOn]);
+
+  useEffect(() => {
+    handsFreeModeRef.current = handsFreeMode;
+  }, [handsFreeMode]);
+
+  useEffect(() => {
+    isLiveConnectedRef.current = isLiveConnected;
+  }, [isLiveConnected]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -259,6 +287,7 @@ export default function PesertaInterviewLive() {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
+      stopPcmStreaming();
       if (processorRef.current) {
         processorRef.current.disconnect();
         processorRef.current = null;
@@ -388,10 +417,6 @@ export default function PesertaInterviewLive() {
       ws.onopen = () => {
         setIsLiveConnected(true);
         playHarmonicAiChime();
-        const initialPrompt =
-          greetingText ||
-          `Halo Ava, saya ${sessionUser.name || 'Budi Santoso'} telah siap untuk sesi wawancara kompetensi untuk posisi ${program.title}. Silakan sapa saya dan ajukan pertanyaan pertama secara langsung.`;
-        ws.send(JSON.stringify({ type: 'text', text: initialPrompt }));
       };
 
       ws.onmessage = (event) => {
@@ -427,6 +452,16 @@ export default function PesertaInterviewLive() {
             setUserAnswer((prev) => (prev ? prev + ' ' + data.text : data.text));
           } else if (data.type === 'turnComplete') {
             setIsAiSpeaking(false);
+            if (
+              hasStartedInterviewRef.current &&
+              handsFreeModeRef.current &&
+              micOnRef.current &&
+              !isListeningRef.current
+            ) {
+              setTimeout(() => {
+                if (!isListeningRef.current) void handleStartListening();
+              }, 700);
+            }
           }
         } catch {
           // ignore
@@ -578,6 +613,12 @@ export default function PesertaInterviewLive() {
       }
     ]);
 
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: 'text', text: greetingText }));
+      setProctorCustomMessage('Ava sedang menyapa. Mikrofon akan aktif setelah Ava selesai berbicara.');
+      return;
+    }
+
     await speakTextWithNeuralVoice(greetingText, () => {
       setProctorCustomMessage('Ava selesai membacakan pertanyaan. Giliran Anda menjawab. Silakan berbicara...');
       if (micOn) {
@@ -586,8 +627,76 @@ export default function PesertaInterviewLive() {
     });
   };
 
+  // Stream raw PCM16 audio to Gemini Live so the AI hears the candidate in real time
+  const startPcmStreaming = (stream: MediaStream) => {
+    if (isStreamingPcmRef.current) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      let ctx: AudioContext;
+      try {
+        ctx = new AudioCtx({ sampleRate: 16000 });
+      } catch {
+        ctx = new AudioCtx();
+      }
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(2048, 1, 1);
+      processor.onaudioprocess = (event) => {
+        if (!isStreamingPcmRef.current || isAiSpeakingRef.current) return;
+        const socket = socketRef.current;
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        const input = event.inputBuffer.getChannelData(0);
+        const ratio = ctx.sampleRate / 16000;
+        const length = ratio === 1 ? input.length : Math.max(1, Math.floor(input.length / ratio));
+        const pcm = new Int16Array(length);
+        for (let i = 0; i < length; i += 1) {
+          const sample = input[Math.floor(i * ratio)] || 0;
+          pcm[i] = Math.max(-1, Math.min(1, sample)) * 0x7fff;
+        }
+        const bytes = new Uint8Array(pcm.buffer);
+        let binary = '';
+        const chunk = 0x2000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+        }
+        socket.send(JSON.stringify({
+          type: 'audio',
+          data: btoa(binary),
+          mimeType: 'audio/pcm;rate=16000'
+        }));
+      };
+      source.connect(processor);
+      processor.connect(ctx.destination);
+      pcmCtxRef.current = ctx;
+      pcmSourceRef.current = source;
+      processorRef.current = processor;
+      isStreamingPcmRef.current = true;
+    } catch (error) {
+      console.warn('PCM streaming error:', error);
+    }
+  };
+
+  const stopPcmStreaming = () => {
+    isStreamingPcmRef.current = false;
+    try {
+      processorRef.current?.disconnect();
+    } catch {}
+    processorRef.current = null;
+    try {
+      pcmSourceRef.current?.disconnect();
+    } catch {}
+    pcmSourceRef.current = null;
+    if (pcmCtxRef.current) {
+      pcmCtxRef.current.close().catch(() => {});
+      pcmCtxRef.current = null;
+    }
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: 'audioEnd' }));
+    }
+  };
+
   // Start Candidate Voice Input with MediaRecorder, WebAudio, & Real-Time SpeechRecognition
   const handleStartListening = async () => {
+    if (isListeningRef.current) return;
     try {
       getOrCreateAudioContext();
       if (aiAudioElementRef.current) {
@@ -616,6 +725,8 @@ export default function PesertaInterviewLive() {
         }
         mediaStreamRef.current = stream;
       }
+
+      startPcmStreaming(stream);
 
       // 2. Initialize and resume input AudioContext
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -783,6 +894,7 @@ export default function PesertaInterviewLive() {
   };
 
   const handleStopListeningAndSubmit = async () => {
+    stopPcmStreaming();
     isListeningRef.current = false;
     setIsListening(false);
     setProctorMood('normal');
@@ -821,7 +933,7 @@ export default function PesertaInterviewLive() {
           mediaRecorderRef.current.stop();
         } catch {}
       }
-      await submitAnswerTurn(transcribedText);
+      await submitAnswerTurn(transcribedText, { silent: isLiveConnectedRef.current });
       return;
     }
 
@@ -894,7 +1006,7 @@ export default function PesertaInterviewLive() {
   const activeQuestion = questions[currentQIndex] || questions[0];
 
   // Submit Answer to LangChain & Gemini Live with BARS Rubrics
-  const submitAnswerTurn = async (answerText: string) => {
+  const submitAnswerTurn = async (answerText: string, options?: { silent?: boolean }) => {
     const textToSubmit = answerText.trim() || activeQuestion.sampleAnswer || 'Saya telah menjelaskan solusi arsitektur saya secara langsung.';
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
@@ -954,14 +1066,14 @@ export default function PesertaInterviewLive() {
           }
         ]);
 
-        if (evalData.audioBase64 && ttsEnabled) {
+        if (!options?.silent && evalData.audioBase64 && ttsEnabled) {
           playAiAudio(evalData.audioBase64, () => {
             setProctorCustomMessage(`Ava selesai menyapa. Silakan jawab pertanyaan #${currentQIndex + 1}.`);
             if (handsFreeMode && micOn) {
               handleStartListening();
             }
           });
-        } else if (ttsEnabled) {
+        } else if (!options?.silent && ttsEnabled) {
           speakTextWithNeuralVoice(reply, () => {
             if (handsFreeMode && micOn) {
               handleStartListening();
@@ -1002,7 +1114,7 @@ export default function PesertaInterviewLive() {
       ]);
 
       // Play Neural Voice and auto-advance hands-free!
-      if (evalData.audioBase64 && ttsEnabled) {
+      if (!options?.silent && evalData.audioBase64 && ttsEnabled) {
         playAiAudio(evalData.audioBase64, () => {
           if (nextIdx < updatedQuestions.length) {
             setProctorCustomMessage(`Pertanyaan #${nextIdx + 1} aktif. Giliran Anda berbicara.`);
@@ -1011,7 +1123,7 @@ export default function PesertaInterviewLive() {
             }
           }
         });
-      } else if (ttsEnabled) {
+      } else if (!options?.silent && ttsEnabled) {
         speakTextWithNeuralVoice(geminiReply, () => {
           if (nextIdx < updatedQuestions.length && handsFreeMode && micOn) {
             handleStartListening();
@@ -1073,7 +1185,7 @@ export default function PesertaInterviewLive() {
       await handleStopListeningAndSubmit();
     } else {
       const text = userAnswer.trim() || activeQuestion.sampleAnswer || 'Saya telah menjelaskan analisis dan jawaban teknis saya secara langsung melalui suara.';
-      await submitAnswerTurn(text);
+      await submitAnswerTurn(text, { silent: isLiveConnectedRef.current });
     }
   };
 
