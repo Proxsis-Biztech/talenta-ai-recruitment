@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -26,6 +27,7 @@ import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById } from '../../services/assessmentCatalog';
+import { getPortalToken } from '../../services/portalAuthService';
 
 export default function PesertaDashboard() {
   const navigate = useNavigate();
@@ -39,26 +41,64 @@ export default function PesertaDashboard() {
     return getProgramById(activeUser.assessmentId || 'SE-402') || getProgramById('SE-402')!;
   }, [activeUser.assessmentId]);
 
-  const isCatCompleted = useMemo(() => {
-    return localStorage.getItem('talenta_cat_completed') === 'true';
+  const [dashboard, setDashboard] = useState<any>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadDashboard = async () => {
+      const token = getPortalToken();
+      if (!token) return;
+      try {
+        const response = await axios.get('/api/portal/dashboard', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!cancelled) setDashboard(response.data);
+      } catch {
+        if (!cancelled) setDashboard(null);
+      }
+    };
+    void loadDashboard();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const isCatCompleted = ['submitted', 'graded'].includes(dashboard?.exam?.status || '');
+  const faceVerified = Boolean(dashboard?.user?.faceVerifiedAt);
+  const interview = dashboard?.interview || {};
+  const lha = dashboard?.lha;
+
+  const formatDate = (value?: string | null) =>
+    value
+      ? new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '-';
+
   const stages = [
-    { title: 'Pendaftaran & Berkas', status: 'completed', date: '20 Okt 2026', desc: 'Terverifikasi' },
-    { title: 'Verifikasi Device Check', status: 'completed', date: '24 Okt 2026', desc: 'Siap & Memenuhi Syarat' },
+    { title: 'Pendaftaran & Berkas', status: 'completed', date: formatDate(dashboard?.user?.createdAt), desc: 'Terverifikasi' },
+    {
+      title: 'Verifikasi Device Check',
+      status: faceVerified ? 'completed' : 'active',
+      date: faceVerified ? formatDate(dashboard?.user?.faceVerifiedAt) : 'Belum dilakukan',
+      desc: faceVerified ? 'Wajah terverifikasi' : 'Perlu verifikasi perangkat'
+    },
     {
       title: 'Tes Kemampuan Teknis (CAT)',
       status: isCatCompleted ? 'completed' : 'active',
-      date: isCatCompleted ? 'Selesai Hari Ini' : 'Hari Ini',
-      desc: isCatCompleted ? '40 Soal Telah Dikumpulkan' : '40 Soal • Siap Dimulai'
+      date: isCatCompleted ? formatDate(dashboard?.exam?.submittedAt) : 'Siap dimulai',
+      desc: isCatCompleted ? `Skor ${dashboard?.exam?.score ?? 0} / 100` : '40 Soal • Siap Dimulai'
     },
     {
       title: 'Live Interview & Rubrik Asesor',
-      status: isCatCompleted ? 'active' : 'upcoming',
-      date: isCatCompleted ? 'Siap Sekarang' : '29 Okt 2026',
-      desc: isCatCompleted ? 'Menunggu di Waiting Room' : 'Setelah CAT Selesai'
+      status: interview.status === 'completed' ? 'completed' : isCatCompleted ? 'active' : 'upcoming',
+      date: interview.scheduledAt ? formatDate(interview.scheduledAt) : 'Belum dijadwalkan',
+      desc: interview.assessorName || 'Menunggu asesor'
     },
-    { title: 'Pengumuman & Rekap Hasil', status: 'upcoming', date: '02 Nov 2026', desc: 'Hasil Akhir LHA' }
+    {
+      title: 'Pengumuman & Rekap Hasil',
+      status: lha?.signed ? 'completed' : 'upcoming',
+      date: lha?.signedAt ? formatDate(lha.signedAt) : 'Menunggu LHA',
+      desc: lha?.signed ? 'LHA telah terbit' : 'Setelah penilaian asesor'
+    }
   ];
 
   return (
@@ -158,8 +198,10 @@ export default function PesertaDashboard() {
                   <span className="font-mono font-bold text-ink">{activeUser.id}</span>
                 </div>
                 <div className="flex justify-between py-2.5">
-                  <span>Batas Waktu CAT</span>
-                  <span className="font-mono font-semibold text-ink">Hari ini, 23:59 WIB</span>
+                  <span>Jadwal Wawancara</span>
+                  <span className="font-mono font-semibold text-ink text-right">
+                    {interview.scheduledAt ? new Date(interview.scheduledAt).toLocaleString('id-ID') : 'Belum dijadwalkan'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -271,11 +313,13 @@ export default function PesertaDashboard() {
               </p>
 
               <div className="mt-6 space-y-4">
-                <div className="flex items-center gap-3 p-4 rounded-2xl bg-exam-bg border border-slate-200 transition-colors hover:border-accent-border">
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-exam-bg border border-slate-200">
                   <Calendar className="w-4 h-4 text-primary-navy shrink-0" />
                   <div className="text-xs">
-                    <p className="font-bold text-ink">Kamis, 29 Oktober 2026</p>
-                    <p className="text-muted-slate text-[11px]">14:00 - 14:45 WIB (45 Menit)</p>
+                    <p className="font-bold text-ink">
+                      {interview.scheduledAt ? new Date(interview.scheduledAt).toLocaleString('id-ID') : 'Belum dijadwalkan'}
+                    </p>
+                    <p className="text-muted-slate text-[11px]">{dashboard?.program?.durationMinutes || 45} Menit</p>
                   </div>
                 </div>
 
@@ -284,8 +328,8 @@ export default function PesertaDashboard() {
                     DH
                   </div>
                   <div className="text-xs">
-                    <p className="font-bold text-ink">Dr. Ir. Dwi Hartanto, M.Kom</p>
-                    <p className="text-muted-slate text-[11px]">Lead Assessor • Arsitektur Cloud</p>
+                    <p className="font-bold text-ink">{interview.assessorName || 'Tim Asesor Talenta+'}</p>
+                    <p className="text-muted-slate text-[11px]">Asesor Sesi Wawancara</p>
                   </div>
                 </div>
               </div>

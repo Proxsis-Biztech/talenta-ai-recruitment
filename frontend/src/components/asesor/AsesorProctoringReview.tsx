@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
   ShieldAlert,
@@ -14,6 +15,9 @@ import {
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge } from '../ui';
+import { getPortalToken } from '../../services/portalAuthService';
+
+const CANDIDATE_CODE = 'KND-0891';
 
 interface ProctoringEvent {
   id: string;
@@ -69,23 +73,68 @@ export default function AsesorProctoringReview() {
     }
   ]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const token = getPortalToken();
+      if (!token) return;
+      try {
+        const response = await axios.get(`/api/asesor/proctoring/${CANDIDATE_CODE}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (cancelled) return;
+        const reviews = response.data.data || [];
+        setEvents((prev) => prev.map((event) => {
+          const review = reviews.find((item: any) => item.eventId === event.id);
+          return review ? { ...event, status: review.status, assessorNotes: review.notes || event.assessorNotes } : event;
+        }));
+      } catch {
+        // Keep local defaults when the review endpoint is unavailable.
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const validCount = events.filter((event) => event.status === 'valid').length;
+    setIntegrityScore(Math.max(0, 100 - validCount * 6));
+  }, [events]);
+
+  const persistReview = async (id: string, status: 'pending' | 'valid' | 'false_positive', notes: string) => {
+    if (status === 'pending') return;
+    const token = getPortalToken();
+    if (!token) return;
+    try {
+      await axios.put(`/api/asesor/proctoring/${CANDIDATE_CODE}/${id}`, { status, notes }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch {
+      // Keep the local state; the next change will retry persistence.
+    }
+  };
+
   const handleStatusChange = (id: string, newStatus: 'valid' | 'false_positive') => {
     const current = events.find((event) => event.id === id);
     if (!current || current.status === newStatus) return;
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, status: newStatus } : e))
     );
-    if (newStatus === 'valid') {
-      setIntegrityScore((s) => Math.max(0, s - 6));
-    } else if (current.status === 'valid') {
-      setIntegrityScore((s) => Math.min(100, s + 6));
-    }
+    void persistReview(id, newStatus, current.assessorNotes);
   };
 
   const handleNotesChange = (id: string, notes: string) => {
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, assessorNotes: notes } : e))
     );
+  };
+
+  const handleNotesSave = (id: string, notes: string) => {
+    const current = events.find((event) => event.id === id);
+    if (!current || current.status === 'pending') return;
+    void persistReview(id, current.status, notes);
   };
 
   const filtered = events.filter((e) => {
@@ -269,6 +318,7 @@ export default function AsesorProctoringReview() {
                     type="text"
                     value={evt.assessorNotes}
                     onChange={(e) => handleNotesChange(evt.id, e.target.value)}
+                    onBlur={() => handleNotesSave(evt.id, evt.assessorNotes)}
                     placeholder="Tulis catatan pertimbangan asesor untuk insiden ini..."
                     className="w-full px-3 py-1.5 rounded-lg border border-border-slate focus:border-primary-navy text-xs outline-none"
                   />

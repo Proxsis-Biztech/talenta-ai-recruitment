@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
   Camera,
   Mic,
@@ -27,6 +28,7 @@ import {
 import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
+import { getPortalToken, savePortalSession } from '../../services/portalAuthService';
 import { getProgramById, DEFAULT_ASSESSMENT_PROGRAMS } from '../../services/assessmentCatalog';
 
 export default function PesertaDeviceCheck() {
@@ -53,7 +55,7 @@ export default function PesertaDeviceCheck() {
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   // Diagnostics states
-  const [pingMs, setPingMs] = useState<number>(14);
+  const [pingMs, setPingMs] = useState<number | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
   const [speakerTested, setSpeakerTested] = useState(false);
   const [speakerPlaying, setSpeakerPlaying] = useState(false);
@@ -215,6 +217,16 @@ export default function PesertaDeviceCheck() {
         setCapturedPhotoUrl(photoUrl);
         setInitialFaceRegistered(true);
         localStorage.setItem('candidate_face_photo', photoUrl);
+        const token = getPortalToken();
+        if (token) {
+          void axios.post('/api/portal/device-check', { faceCaptured: true }, {
+            headers: { Authorization: `Bearer ${token}` }
+          }).then((response) => {
+            if (response.data?.user) {
+              savePortalSession({ token, user: response.data.user });
+            }
+          }).catch(() => undefined);
+        }
       } catch (err) {
         console.warn('Face capture error:', err);
         setFaceError('Gagal mengambil foto wajah. Silakan coba lagi.');
@@ -270,11 +282,11 @@ export default function PesertaDeviceCheck() {
     setTestingConnection(true);
     const start = performance.now();
     try {
-      await fetch(window.location.origin, { method: 'HEAD', cache: 'no-store' });
+      await fetch('/api/health', { method: 'GET', cache: 'no-store' });
       const elapsed = Math.round(performance.now() - start);
-      setPingMs(Math.max(8, elapsed));
+      setPingMs(elapsed);
     } catch {
-      setPingMs(16);
+      setPingMs(null);
     } finally {
       setTestingConnection(false);
     }
@@ -418,8 +430,8 @@ export default function PesertaDeviceCheck() {
               {cameraStatus === 'active' && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="relative w-64 h-64 border-2 border-emerald-400/80 rounded-2xl animate-pulse">
-                    <span className="absolute -top-3.5 left-4 bg-emerald-500 text-white font-mono text-xs px-2 py-0.5 rounded font-bold shadow-xs">
-                      Wajah Terdeteksi (98.8%)
+                    <span className="absolute -top-3.5 left-4 bg-emerald-600 text-white font-mono text-xs px-2 py-0.5 rounded font-bold shadow-xs">
+                      {initialFaceRegistered ? 'Snapshot Wajah Tersimpan' : 'Menunggu Registrasi Wajah'}
                     </span>
                     <div className="absolute -top-1 -left-1 w-3.5 h-3.5 border-t-2 border-l-2 border-emerald-400" />
                     <div className="absolute -top-1 -right-1 w-3.5 h-3.5 border-t-2 border-r-2 border-emerald-400" />
@@ -531,7 +543,9 @@ export default function PesertaDeviceCheck() {
                     <Wifi className="w-5 h-5 text-primary-navy" />
                     <div>
                       <p className="text-xs sm:text-sm font-bold text-ink">Koneksi Internet</p>
-                      <p className="text-xs text-muted-slate">Latensi {pingMs} ms • Koneksi Stabil</p>
+                      <p className="text-xs text-muted-slate">
+                        Latensi {pingMs !== null ? `${pingMs} ms` : 'gagal'} • {pingMs !== null ? 'Koneksi stabil' : 'Periksa koneksi'}
+                      </p>
                     </div>
                   </div>
                   <button

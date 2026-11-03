@@ -13,6 +13,18 @@ export interface PortalUser {
   assessmentTitle?: string | null;
   gradeLevel?: string | null;
   specialization?: string | null;
+  nik?: string | null;
+  education?: string | null;
+  university?: string | null;
+  city?: string | null;
+  portfolioUrl?: string | null;
+  bio?: string | null;
+  candidateCode?: string | null;
+  assessorName?: string | null;
+  interviewScheduledAt?: string | null;
+  interviewStatus?: string | null;
+  interviewScore?: number | null;
+  faceVerifiedAt?: string | null;
   status?: string;
 }
 

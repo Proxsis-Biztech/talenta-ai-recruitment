@@ -40,6 +40,7 @@ export default function PesertaHasilScorecard() {
   const navigate = useNavigate();
   const [downloading, setDownloading] = useState(false);
   const [result, setResult] = useState<ExamResult | null>(null);
+  const [lha, setLha] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -65,6 +66,14 @@ export default function PesertaHasilScorecard() {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (!cancelled) setResult(response.data);
+        try {
+          const dashboardResponse = await axios.get('/api/portal/dashboard', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (!cancelled) setLha(dashboardResponse.data?.lha || null);
+        } catch {
+          if (!cancelled) setLha(null);
+        }
       } catch (err) {
         if (cancelled) return;
         setError(
@@ -283,9 +292,21 @@ export default function PesertaHasilScorecard() {
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/70 text-sm text-slate-600 leading-relaxed">
-            Belum ada catatan asesor untuk sesi ini. Anda dapat melanjutkan ke ruang wawancara atau memantau status penilaian dari dashboard peserta.
-          </div>
+          {lha ? (
+            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/70 text-sm text-slate-600 leading-relaxed space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-bold text-ink">Rekomendasi: {lha.recommendation}</span>
+                <span className="font-mono text-xs text-primary-navy">Skor komposit {lha.compositeScore}</span>
+                <span className="font-mono text-xs text-slate-500">No. {lha.lhaNumber}</span>
+              </div>
+              <p>{lha.notes || 'Asesor tidak menambahkan catatan tertulis.'}</p>
+              <p className="font-mono text-[11px] text-slate-400 break-all">Hash SHA-256: {lha.lhaHash}</p>
+            </div>
+          ) : (
+            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/70 text-sm text-slate-600 leading-relaxed">
+              Belum ada catatan asesor untuk sesi ini. Anda dapat melanjutkan ke ruang wawancara atau memantau status penilaian dari dashboard peserta.
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 print:hidden">

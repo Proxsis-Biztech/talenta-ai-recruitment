@@ -23,6 +23,18 @@ const userSelect = {
   assessmentTitle: true,
   gradeLevel: true,
   specialization: true,
+  nik: true,
+  education: true,
+  university: true,
+  city: true,
+  portfolioUrl: true,
+  bio: true,
+  candidateCode: true,
+  assessorName: true,
+  interviewScheduledAt: true,
+  interviewStatus: true,
+  interviewScore: true,
+  faceVerifiedAt: true,
   status: true,
   createdAt: true
 } as const;
@@ -209,6 +221,11 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       data.name = name;
     }
     if (req.body.phone !== undefined) data.phone = String(req.body.phone).trim() || null;
+    for (const field of ['nik', 'education', 'university', 'city', 'portfolioUrl', 'bio']) {
+      if (req.body[field] !== undefined) {
+        data[field] = req.body[field] === null ? null : String(req.body[field]);
+      }
+    }
     const user = await prisma.portalUser.update({
       where: { id: req.portalUser.id },
       data,
@@ -241,6 +258,124 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     }
     console.error('Change portal password error:', error);
     return res.status(500).json({ error: 'Gagal memperbarui kata sandi.' });
+  }
+};
+
+export const completeDeviceCheck = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    if (!req.body.faceCaptured) {
+      return res.status(400).json({ error: 'Snapshot wajah belum diterima.' });
+    }
+    const user = await prisma.portalUser.update({
+      where: { id: req.portalUser.id },
+      data: { faceVerifiedAt: new Date() },
+      select: userSelect
+    });
+    return res.json({ user });
+  } catch (error) {
+    console.error('Complete device check error:', error);
+    return res.status(500).json({ error: 'Gagal menyimpan verifikasi perangkat.' });
+  }
+};
+
+export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    const user = await prisma.portalUser.findUnique({ where: { id: req.portalUser.id }, select: userSelect });
+    if (!user) return res.status(404).json({ error: 'Akun tidak ditemukan.' });
+
+    const programCode = user.assessmentId || '';
+    const job = programCode ? await prisma.job.findFirst({ where: { code: programCode } }) : null;
+    const attempt = programCode
+      ? await prisma.examAttempt.findUnique({
+          where: { userId_programCode: { userId: user.id, programCode } }
+        })
+      : null;
+
+    if (
+      attempt &&
+      ['submitted', 'graded'].includes(attempt.status) &&
+      !user.interviewScheduledAt
+    ) {
+      const scheduledAt = new Date(new Date(attempt.submittedAt || Date.now()).getTime() + 5 * 60 * 1000);
+      await prisma.portalUser.update({
+        where: { id: user.id },
+        data: { interviewScheduledAt: scheduledAt, interviewStatus: 'scheduled' }
+      });
+      user.interviewScheduledAt = scheduledAt;
+      user.interviewStatus = 'scheduled';
+    }
+
+    const lha = user.candidateCode
+      ? await prisma.assessorScore.findFirst({
+          where: { candidateCode: user.candidateCode, status: 'signed' },
+          orderBy: { signedAt: 'desc' }
+        })
+      : null;
+
+    let queuePosition = 0;
+    if (user.interviewScheduledAt && programCode) {
+      queuePosition =
+        (await prisma.portalUser.count({
+          where: {
+            assessmentId: programCode,
+            interviewScheduledAt: { lte: user.interviewScheduledAt },
+            interviewStatus: 'not_started'
+          }
+        })) || 1;
+    }
+
+    const assessor = user.assessorName
+      ? null
+      : await prisma.portalUser.findFirst({
+          where: { role: 'asesor', status: 'Aktif' },
+          select: { name: true }
+        });
+
+    return res.json({
+      user,
+      program: job
+        ? {
+            code: job.code,
+            title: job.title,
+            durationMinutes: job.interviewDuration || 30,
+            passingScore: job.interviewPassingScore || 70
+          }
+        : null,
+      exam: attempt
+        ? {
+            status: attempt.status,
+            score: attempt.score,
+            integrityScore: attempt.integrityScore,
+            submittedAt: attempt.submittedAt,
+            violationCount: JSON.parse(attempt.violations || '[]').length
+          }
+        : { status: 'not_started', score: null, integrityScore: null, submittedAt: null, violationCount: 0 },
+      interview: {
+        status: user.interviewStatus,
+        scheduledAt: user.interviewScheduledAt,
+        assessorName: user.assessorName || assessor?.name || 'Tim Asesor Talenta+',
+        score: user.interviewScore,
+        queuePosition
+      },
+      lha: lha
+        ? {
+            signed: true,
+            recommendation: lha.recommendation,
+            compositeScore: lha.compositeScore,
+            interviewScore: lha.interviewScore,
+            notes: lha.notes,
+            lhaHash: lha.lhaHash,
+            lhaNumber: lha.lhaNumber,
+            signedAt: lha.signedAt,
+            competencies: JSON.parse(lha.competencies || '[]')
+          }
+        : null
+    });
+  } catch (error) {
+    console.error('Get portal dashboard error:', error);
+    return res.status(500).json({ error: 'Gagal memuat dashboard peserta.' });
   }
 };
 
@@ -321,7 +456,7 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
     }
 
     const data: Record<string, unknown> = {};
-    for (const field of ['name', 'username', 'phone', 'companyId', 'companyName', 'assessmentId', 'assessmentTitle', 'gradeLevel', 'specialization', 'status']) {
+    for (const field of ['name', 'username', 'phone', 'companyId', 'companyName', 'assessmentId', 'assessmentTitle', 'gradeLevel', 'specialization', 'status', 'nik', 'education', 'university', 'city', 'portfolioUrl', 'bio']) {
       if (req.body[field] !== undefined) data[field] = req.body[field] === null ? null : String(req.body[field]);
     }
     if (req.body.role && ['peserta', 'asesor'].includes(req.body.role)) data.role = req.body.role;

@@ -115,7 +115,7 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
 
           <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-1">
             <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500 block font-sans">
-              4. Lulus Nilai Komposit
+              4. Sudah Dinilai
             </span>
             <div className="text-xl font-bold font-mono text-slate-900">{scoredCount}</div>
             <span className="text-[11px] text-slate-500 font-sans">
@@ -125,7 +125,7 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
 
           <div className="p-3.5 rounded-lg border border-emerald-200 bg-emerald-50/60 space-y-1">
             <span className="text-[10px] uppercase font-semibold tracking-wider text-emerald-800 block font-sans">
-              5. Rekomendasi Kerja
+              5. Direkomendasikan
             </span>
             <div className="text-xl font-bold font-mono text-emerald-900">{strongHireCount}</div>
             <span className="text-[11px] text-emerald-700 font-sans font-semibold">

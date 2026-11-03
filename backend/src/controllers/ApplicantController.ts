@@ -192,10 +192,55 @@ export const getApplicants = async (req: Request, res: Response) => {
       prisma.applicant.count({ where: whereClause })
     ]);
 
-    const enrichedApplicants = applicants.map(app => ({
-      ...app,
-      compositeEvaluation: computeCompositeEvaluation(app.screeningScore, app.interviewScore, app.proctorFlags)
-    }));
+    const emails = applicants.map((app) => app.email).filter(Boolean);
+    const portalUsers = emails.length
+      ? await prisma.portalUser.findMany({
+          where: { email: { in: emails } },
+          select: {
+            email: true,
+            candidateCode: true,
+            interviewStatus: true,
+            interviewScore: true,
+            examAttempts: {
+              select: {
+                programCode: true,
+                status: true,
+                score: true,
+                integrityScore: true,
+                violations: true,
+                submittedAt: true
+              }
+            }
+          }
+        })
+      : [];
+    const portalByEmail = new Map(portalUsers.map((user) => [user.email, user]));
+
+    const enrichedApplicants = applicants.map(app => {
+      const portal = portalByEmail.get(app.email);
+      const attempt = portal?.examAttempts?.sort((a, b) => {
+        const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+        const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+        return bTime - aTime;
+      })[0];
+      let mergedFlags = app.proctorFlags;
+      if (attempt?.violations) {
+        try {
+          const existing = JSON.parse(app.proctorFlags || '[]');
+          const examFlags = JSON.parse(attempt.violations || '[]');
+          mergedFlags = JSON.stringify([...existing, ...examFlags]);
+        } catch {
+          mergedFlags = attempt.violations;
+        }
+      }
+      return {
+        ...app,
+        proctorFlags: mergedFlags,
+        candidateCode: portal?.candidateCode || null,
+        examAttempt: attempt || null,
+        compositeEvaluation: computeCompositeEvaluation(app.screeningScore, app.interviewScore, mergedFlags)
+      };
+    });
 
     res.json({
       data: enrichedApplicants,
@@ -380,7 +425,7 @@ export const screenApplicantCV = async (req: Request, res: Response) => {
 
 export const saveInterview = async (req: Request, res: Response) => {
   try {
-    const { email, transcript, summary, proctor } = req.body;
+    const { email, transcript, summary, proctor, score } = req.body;
 
     if (!email || !transcript) {
       return res.status(400).json({ error: 'Email dan transcript wajib diisi' });
@@ -407,6 +452,14 @@ export const saveInterview = async (req: Request, res: Response) => {
         interviewResult: summary || applicant.interviewResult, // Keep existing if no new summary
         interviewStatus: 'completed',
         proctorFlags: proctor ? JSON.stringify(proctor) : applicant.proctorFlags
+      }
+    });
+
+    await prisma.portalUser.updateMany({
+      where: { email },
+      data: {
+        interviewStatus: 'completed',
+        interviewScore: Number.isFinite(Number(score)) ? Number(score) : undefined
       }
     });
 

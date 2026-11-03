@@ -89,6 +89,18 @@ model PortalUser {
   assessmentTitle String?
   gradeLevel      String?
   specialization  String?
+  nik             String?
+  education       String?
+  university      String?
+  city            String?
+  portfolioUrl    String?
+  bio             String?
+  candidateCode   String?         @unique
+  assessorName    String?
+  interviewScheduledAt DateTime?
+  interviewStatus String          @default("not_started")
+  interviewScore  Float?
+  faceVerifiedAt  DateTime?
   status          String          @default("Aktif") // "Aktif" | "Nonaktif"
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -175,6 +187,18 @@ model MasterRecord {
   updatedAt DateTime @updatedAt
 
   @@unique([scope, key])
+}
+
+model ProctoringReview {
+  id            String   @id @default(uuid())
+  candidateCode String
+  eventId       String
+  status        String   // "valid" | "false_positive"
+  notes         String?
+  reviewedBy    String
+  updatedAt     DateTime @updatedAt
+
+  @@unique([candidateCode, eventId])
 }
 
 model BillingTenant {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import axios from 'axios';
 import {
   Video,
   Mic,
@@ -16,7 +17,8 @@ import {
   FileText
 } from 'lucide-react';
 import { Button, Badge, Card } from '../ui';
-import { getCandidateByCode } from '../../services/asesorScoreService';
+import { getCandidateByCode, calculateCompositeScore } from '../../services/asesorScoreService';
+import { getPortalToken } from '../../services/portalAuthService';
 
 interface RubricItem {
   id: string;
@@ -36,6 +38,7 @@ export default function AsesorLiveConsole() {
   const [elapsed, setElapsed] = useState(380); // ~6 mins
   const [activeCompetency, setActiveCompetency] = useState<string>('c1');
   const [flagModalOpen, setFlagModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Rubric state
   const [rubrics, setRubrics] = useState<RubricItem[]>([
@@ -127,8 +130,33 @@ export default function AsesorLiveConsole() {
 
   const currentRubric = rubrics.find((r) => r.id === activeCompetency) || rubrics[0];
 
-  const handleEndSession = () => {
-    navigate(`/asesor/scoring/${candidate.code}`);
+  const handleEndSession = async () => {
+    setSaving(true);
+    try {
+      const token = getPortalToken();
+      if (!token) throw new Error('Sesi asesor tidak ditemukan.');
+      const interviewScore = Math.round(totalWeightedScore * 10) / 10;
+      await axios.post('/api/asesor/scores', {
+        candidateCode: candidate.code,
+        candidateName: candidate.name,
+        programTitle: candidate.program,
+        competencies: rubrics.map((rubric) => ({
+          name: rubric.name,
+          weight: rubric.weight,
+          score: rubric.score,
+          notes: rubric.notes
+        })),
+        interviewScore,
+        compositeScore: calculateCompositeScore(candidate.catScore, interviewScore),
+        recommendation: 'DIPERTIMBANGKAN',
+        status: 'draft'
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      navigate(`/asesor/scoring/${candidate.code}`);
+    } catch (error) {
+      window.alert(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal menyimpan catatan sesi.' : 'Gagal menyimpan catatan sesi.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -173,6 +201,7 @@ export default function AsesorLiveConsole() {
           {/* Akhiri Sesi Button */}
           <button
             onClick={handleEndSession}
+            disabled={saving}
             className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
           >
             <LogOut className="w-3.5 h-3.5" />
@@ -330,9 +359,10 @@ export default function AsesorLiveConsole() {
             <Button
               variant="primary"
               onClick={handleEndSession}
+              disabled={saving}
               className="text-xs flex items-center gap-1.5"
             >
-              <span>Lanjut ke Formulir Rekomendasi</span>
+              <span>{saving ? 'Menyimpan...' : 'Lanjut ke Formulir Rekomendasi'}</span>
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>

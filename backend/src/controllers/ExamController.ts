@@ -280,6 +280,14 @@ export const submitExam = async (req: AuthRequest, res: Response) => {
       }
     });
 
+    await prisma.portalUser.update({
+      where: { id: req.portalUser.id },
+      data: {
+        interviewScheduledAt: new Date(Date.now() + 5 * 60 * 1000),
+        interviewStatus: 'scheduled'
+      }
+    });
+
     return res.json({
       score: attempt.score,
       integrityScore: attempt.integrityScore,

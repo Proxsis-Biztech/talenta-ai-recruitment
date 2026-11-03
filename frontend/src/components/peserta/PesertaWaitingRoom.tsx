@@ -28,7 +28,10 @@ import { getPortalToken } from '../../services/portalAuthService';
 
 export default function PesertaWaitingRoom() {
   const navigate = useNavigate();
-  const [countdown, setCountdown] = useState(180); // 3 minutes
+  const [countdown, setCountdown] = useState(0);
+  const [scheduledAt, setScheduledAt] = useState<string | null>(null);
+  const [queuePosition, setQueuePosition] = useState<number | null>(null);
+  const [assessorName, setAssessorName] = useState('Tim Asesor Talenta+');
   const [isReady, setIsReady] = useState(false);
   const [activeTab, setActiveTab] = useState<'tips' | 'rubrik' | 'perangkat'>('tips');
   const [catEligible, setCatEligible] = useState(false);
@@ -51,6 +54,19 @@ export default function PesertaWaitingRoom() {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (!cancelled) setCatEligible(['submitted', 'graded'].includes(response.data.status));
+        try {
+          const dashboardResponse = await axios.get('/api/portal/dashboard', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (!cancelled) {
+            const interview = dashboardResponse.data?.interview;
+            setScheduledAt(interview?.scheduledAt || null);
+            setQueuePosition(interview?.queuePosition || null);
+            setAssessorName(interview?.assessorName || 'Tim Asesor Talenta+');
+          }
+        } catch {
+          if (!cancelled) setScheduledAt(null);
+        }
       } catch {
         if (!cancelled) setCatEligible(false);
       } finally {
@@ -62,6 +78,22 @@ export default function PesertaWaitingRoom() {
       cancelled = true;
     };
   }, [activeProgram.id]);
+
+  useEffect(() => {
+    if (!scheduledAt) {
+      setCountdown(0);
+      setIsReady(false);
+      return;
+    }
+    const update = () => {
+      const diff = Math.max(0, Math.floor((new Date(scheduledAt).getTime() - Date.now()) / 1000));
+      setCountdown(diff);
+      setIsReady(diff === 0);
+    };
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [scheduledAt]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [mediaActive, setMediaActive] = useState(false);
@@ -140,7 +172,7 @@ export default function PesertaWaitingRoom() {
               </span>
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3">
                 <div className="font-mono text-3xl sm:text-4xl font-extrabold text-primary-navy bg-soft-blue px-6 py-2.5 rounded-2xl border border-accent-border shadow-2xs tabular-nums ring-1 ring-white/60">
-                  {formatTime(countdown)}
+                  {scheduledAt ? formatTime(countdown) : '--:--'}
                 </div>
                 {countdown > 0 && (
                   <button
@@ -156,11 +188,11 @@ export default function PesertaWaitingRoom() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full lg:w-auto text-xs sm:text-sm text-slate-600">
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <Users className="w-4 h-4 text-blue-accent shrink-0" />
-                <span className="truncate">Posisi Antrean: <strong className="text-ink">#1 Peserta Berikutnya</strong></span>
+                <span className="truncate">Posisi Antrean: <strong className="text-ink">{queuePosition ? `#${queuePosition} Peserta Berikutnya` : 'Belum dijadwalkan'}</strong></span>
               </div>
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="truncate">Lead Assessor: <strong className="text-ink">Dr. Ir. Dwi Hartanto / Ava AI</strong></span>
+                <span className="truncate">Lead Assessor: <strong className="text-ink">{assessorName}</strong></span>
               </div>
             </div>
           </div>
@@ -313,12 +345,12 @@ export default function PesertaWaitingRoom() {
                   )}
                   <Button
                     variant="primary"
-                    disabled={!catEligible}
+                    disabled={!catEligible || !scheduledAt}
                     onClick={() => navigate('/peserta/interview')}
                     className="w-full py-3 sm:py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs rounded-xl cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Video className="w-4 h-4 shrink-0" />
-                    <span>{!catEligible ? 'Selesaikan CAT Terlebih Dahulu' : isReady || countdown === 0 ? 'Giliran Anda Tiba • Masuk Sesi Wawancara' : 'Masuk ke Ruang Sesi Sekarang'}</span>
+                    <span>{!catEligible ? 'Selesaikan CAT Terlebih Dahulu' : !scheduledAt ? 'Menunggu Jadwal dari Admin' : isReady ? 'Giliran Anda Tiba • Masuk Sesi Wawancara' : 'Masuk ke Ruang Sesi Sekarang'}</span>
                   </Button>
                 </div>
                 <Button

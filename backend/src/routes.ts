@@ -15,7 +15,7 @@ const audioUpload = multer({
 });
 import { login, me as getCurrentAdmin, getAdmins, createAdmin, updateAdmin, deleteAdmin } from './controllers/AdminController';
 import {
-  loginPortal, registerPeserta, tokenLogin, me as getPortalMe, updateProfile, changePassword,
+  loginPortal, registerPeserta, tokenLogin, me as getPortalMe, updateProfile, changePassword, completeDeviceCheck, getPortalDashboard,
   listPortalUsers, createPortalUser, updatePortalUser, deletePortalUser
 } from './controllers/PortalAuthController';
 import { createInterviewSessionToken } from './controllers/ApplicantController';
@@ -23,6 +23,8 @@ import { getActiveJobs, getAdminJobs, createJob, updateJob, deleteJob } from './
 import { getBillingOverview, requestTopUpQuota, approveInvoice, verifyLhaPublic } from './controllers/BillingController';
 import { startExam, saveAnswers, submitExam, getExamResult } from './controllers/ExamController';
 import { upsertAssessorScore, listAssessorScores, getAssessorScore, getSignedLha } from './controllers/AssessorScoreController';
+import { getProctoringReviews, upsertProctoringReview } from './controllers/ProctoringController';
+import { getInterviewQuestions } from './controllers/InterviewController';
 import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
 import { uploadExcel, downloadPortalUserTemplate, importPortalUsers } from './controllers/BulkImportController';
@@ -56,6 +58,10 @@ router.post('/portal/auth/token-login', authLimiter, tokenLogin);
 router.get('/portal/auth/me', authenticatePortal, getPortalMe);
 router.put('/portal/profile', authenticatePortal, updateProfile);
 router.put('/portal/password', authenticatePortal, changePassword);
+router.post('/portal/device-check', authenticatePortal, completeDeviceCheck);
+router.get('/portal/dashboard', authenticatePortal, getPortalDashboard);
+
+router.get('/interview/questions', authenticatePortal, requirePortalRole('peserta'), getInterviewQuestions);
 
 // CAT exam attempts (server-side answer storage + scoring)
 router.post('/exam/:programCode/start', authenticatePortal, requirePortalRole('peserta'), startExam);
@@ -120,6 +126,9 @@ router.get('/admin/portal-users', authenticateToken, requireSuperadmin, listPort
 router.post('/admin/portal-users', authenticateToken, requireSuperadmin, createPortalUser);
 router.put('/admin/portal-users/:id', authenticateToken, requireSuperadmin, updatePortalUser);
 router.delete('/admin/portal-users/:id', authenticateToken, requireSuperadmin, deletePortalUser);
+
+router.get('/asesor/proctoring/:candidateCode', authenticatePortal, requirePortalRole('asesor'), getProctoringReviews);
+router.put('/asesor/proctoring/:candidateCode/:eventId', authenticatePortal, requirePortalRole('asesor'), upsertProctoringReview);
 
 // Assessor scoring, e-sign, and LHA
 router.post('/asesor/scores', authenticatePortal, requirePortalRole('asesor'), upsertAssessorScore);

@@ -89,6 +89,8 @@ export default function PesertaInterviewLive() {
   const micOnRef = useRef(true);
   const handsFreeModeRef = useRef(true);
   const isLiveConnectedRef = useRef(false);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const activeSourcesCountRef = useRef<number>(0);
@@ -245,6 +247,38 @@ export default function PesertaInterviewLive() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadQuestions = async () => {
+      const token = getPortalToken();
+      if (!token) return;
+      try {
+        const response = await axios.get('/api/interview/questions', {
+          params: { programCode: program.id },
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (cancelled) return;
+        const items = response.data?.data;
+        if (Array.isArray(items) && items.length > 0) {
+          setQuestions(items.map((item: any, index: number) => ({
+            id: item.id || index + 1,
+            question: item.question,
+            competency: item.competency,
+            weight: item.weight || '25%',
+            status: index === 0 ? 'active' : 'upcoming',
+            sampleAnswer: item.sampleAnswer || ''
+          })));
+        }
+      } catch {
+        // Keep built-in fallback questions.
+      }
+    };
+    void loadQuestions();
+    return () => {
+      cancelled = true;
+    };
+  }, [program.id]);
 
   // Auto-connect to Gemini Live when component mounts & unlock audio on user gesture
   useEffect(() => {
@@ -1257,6 +1291,7 @@ export default function PesertaInterviewLive() {
           email: (sessionUser as any).email || sessionUser.username || 'peserta@proxsis.com',
           transcript: formattedTranscript,
           summary: `Wawancara AI LangChain & BARS selesai dengan skor rata-rata ${avg}/5.0. Kandidat mendemonstrasikan penguasaan kompetensi teknis yang tinggi.`,
+          score: Number(avg) * 20,
           proctor: [{ type: 'face_verified', timestamp: new Date().toISOString() }]
         })
       });
@@ -1278,8 +1313,45 @@ export default function PesertaInterviewLive() {
         time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
       }
     ]);
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: 'text', text: chatInput.trim() }));
+    }
     setChatInput('');
   };
+
+  const handleToggleMute = () => {
+    const next = !micOn;
+    setMicOn(next);
+    mediaStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = next;
+    });
+  };
+
+  const handleToggleScreenShare = async () => {
+    if (isSharing) {
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
+      setIsSharing(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      screenStreamRef.current = stream;
+      stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        setIsSharing(false);
+        screenStreamRef.current = null;
+      });
+      setIsSharing(true);
+    } catch {
+      setIsSharing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (screenVideoRef.current && screenStreamRef.current) {
+      screenVideoRef.current.srcObject = screenStreamRef.current;
+    }
+  }, [isSharing]);
 
   // Average BARS score
   const completedQuestions = questions.filter((q) => q.status === 'completed' && q.score);
@@ -1382,9 +1454,9 @@ export default function PesertaInterviewLive() {
               <span>REC • {formatTimer(sessionSeconds)}</span>
             </div>
 
-            <div className="hidden md:flex items-center gap-2 bg-emerald-50 border border-emerald-200/80 px-3 py-1 rounded-full text-emerald-800 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>HD 1080p • 60 FPS</span>
+            <div className={`hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${isLiveConnected ? 'bg-emerald-50 border-emerald-200/80 text-emerald-800' : 'bg-amber-50 border-amber-200/80 text-amber-800'}`}>
+              <span className={`w-2 h-2 rounded-full ${isLiveConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              <span>{isLiveConnected ? 'Terhubung ke Ava' : 'Menghubungkan...'}</span>
             </div>
 
             <Button
@@ -1436,6 +1508,16 @@ export default function PesertaInterviewLive() {
                   </div>
                   <span className="text-xs font-semibold">Kamera Nonaktif</span>
                 </div>
+              )}
+
+              {isSharing && (
+                <video
+                  ref={screenVideoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="absolute inset-0 w-full h-full object-contain bg-black z-10"
+                />
               )}
 
               {/* Candidate name tag */}
@@ -1625,10 +1707,22 @@ export default function PesertaInterviewLive() {
                   <span className="text-[9px] font-semibold text-slate-500">Kamera</span>
                 </div>
 
+                {/* Mute */}
+                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={handleToggleMute}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors cursor-pointer border ${micOn ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600'}`}
+                    title={micOn ? 'Matikan Mikrofon' : 'Nyalakan Mikrofon'}
+                  >
+                    {micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+                  </button>
+                  <span className="text-[9px] font-semibold text-slate-500">Mute</span>
+                </div>
+
                 {/* Screen share */}
                 <div className="flex flex-col items-center gap-0.5 shrink-0">
                   <button
-                    onClick={() => setIsSharing(!isSharing)}
+                    onClick={handleToggleScreenShare}
                     className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors cursor-pointer border ${
                       isSharing
                         ? 'bg-primary-navy text-white border-primary-navy'

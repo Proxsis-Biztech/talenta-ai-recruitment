@@ -209,6 +209,7 @@ export async function bootstrapDatabaseSeed() {
         password: 'peserta123',
         name: 'Farhan Pratama',
         role: 'peserta',
+        candidateCode: 'KND-0891',
         phone: '0812-8822-1920',
         companyId: 'PT-TELKOM',
         companyName: 'PT Telkom Indonesia Tbk',
@@ -221,6 +222,7 @@ export async function bootstrapDatabaseSeed() {
         password: 'peserta123',
         name: 'Amanda Nurul Aulia',
         role: 'peserta',
+        candidateCode: 'KND-0892',
         phone: '0813-7721-4455',
         companyId: 'PT-MANDIRI',
         companyName: 'PT Bank Mandiri (Persero) Tbk',
@@ -243,6 +245,11 @@ export async function bootstrapDatabaseSeed() {
       if (!existing) {
         await prisma.portalUser.create({
           data: { ...account, password: await bcrypt.hash(account.password, 10) }
+        });
+      } else if (account.candidateCode && !existing.candidateCode) {
+        await prisma.portalUser.update({
+          where: { id: existing.id },
+          data: { candidateCode: account.candidateCode }
         });
       }
     }
