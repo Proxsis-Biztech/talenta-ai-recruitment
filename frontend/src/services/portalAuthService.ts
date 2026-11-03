@@ -25,13 +25,19 @@ export interface PortalUser {
   interviewStatus?: string | null;
   interviewScore?: number | null;
   faceVerifiedAt?: string | null;
+  mustChangePassword?: boolean;
+  profileCompleted?: boolean;
   status?: string;
 }
 
 export interface PortalSession {
   token: string;
   user: PortalUser;
+  requiresOnboarding?: boolean;
 }
+
+export const needsOnboarding = (user: PortalUser | null | undefined): boolean =>
+  Boolean(user && (user.profileCompleted === false || user.mustChangePassword === true));
 
 const PORTAL_TOKEN_KEY = 'portalToken';
 const PORTAL_USER_KEY = 'portalUser';
@@ -110,7 +116,11 @@ const authHeaders = () => {
 
 export const loginPortal = async (identifier: string, password: string): Promise<PortalSession> => {
   const response = await axios.post('/api/portal/auth/login', { identifier, password });
-  return { token: response.data.token, user: response.data.user };
+  return {
+    token: response.data.token,
+    user: response.data.user,
+    requiresOnboarding: response.data.requiresOnboarding ?? needsOnboarding(response.data.user)
+  };
 };
 
 export const registerPeserta = async (payload: {
@@ -124,7 +134,11 @@ export const registerPeserta = async (payload: {
   gradeLevel?: string;
 }): Promise<PortalSession> => {
   const response = await axios.post('/api/portal/auth/register', payload);
-  return { token: response.data.token, user: response.data.user };
+  return {
+    token: response.data.token,
+    user: response.data.user,
+    requiresOnboarding: needsOnboarding(response.data.user)
+  };
 };
 
 export const tokenLogin = async (payload: {
@@ -136,7 +150,11 @@ export const tokenLogin = async (payload: {
   gradeLevel?: string;
 }): Promise<PortalSession> => {
   const response = await axios.post('/api/portal/auth/token-login', payload);
-  return { token: response.data.token, user: response.data.user };
+  return {
+    token: response.data.token,
+    user: response.data.user,
+    requiresOnboarding: needsOnboarding(response.data.user)
+  };
 };
 
 export const fetchPortalMe = async (): Promise<PortalUser | null> => {

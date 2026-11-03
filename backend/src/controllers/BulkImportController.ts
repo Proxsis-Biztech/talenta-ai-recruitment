@@ -195,6 +195,8 @@ export const importPortalUsers = async (req: AuthRequest, res: Response) => {
             password: await bcrypt.hash(data.password, 10),
             phone: data.phone || null,
             role: 'peserta',
+            mustChangePassword: true,
+            profileCompleted: false,
             companyName: data.companyName || companyFromTitle || null,
             assessmentId: job.code,
             assessmentTitle: job.title,

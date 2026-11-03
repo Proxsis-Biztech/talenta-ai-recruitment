@@ -35,6 +35,8 @@ const userSelect = {
   interviewStatus: true,
   interviewScore: true,
   faceVerifiedAt: true,
+  mustChangePassword: true,
+  profileCompleted: true,
   status: true,
   createdAt: true
 } as const;
@@ -81,7 +83,11 @@ export const loginPortal = async (req: AuthRequest, res: Response) => {
 
     const token = signPortalToken(user);
     const safeUser = await prisma.portalUser.findUnique({ where: { id: user.id }, select: userSelect });
-    return res.json({ token, user: safeUser });
+    return res.json({
+      token,
+      user: safeUser,
+      requiresOnboarding: Boolean(safeUser && (!safeUser.profileCompleted || safeUser.mustChangePassword))
+    });
   } catch (error) {
     console.error('Portal login error:', error);
     return res.status(500).json({ error: 'Terjadi kesalahan pada server.' });
@@ -116,6 +122,7 @@ export const registerPeserta = async (req: AuthRequest, res: Response) => {
         password: await bcrypt.hash(password, 10),
         phone,
         role: 'peserta',
+        profileCompleted: false,
         companyId: req.body.companyId ? String(req.body.companyId) : null,
         companyName: req.body.companyName ? String(req.body.companyName) : null,
         gradeLevel: req.body.gradeLevel ? String(req.body.gradeLevel) : null,
@@ -171,6 +178,7 @@ export const tokenLogin = async (req: AuthRequest, res: Response) => {
           email: generatedEmail,
           password: await bcrypt.hash(`token-${Date.now()}-${Math.random()}`, 10),
           role: 'peserta',
+          profileCompleted: false,
           companyId: req.body.companyId ? String(req.body.companyId) : null,
           companyName: req.body.companyName ? String(req.body.companyName) : null,
           gradeLevel: req.body.gradeLevel ? String(req.body.gradeLevel) : null,
@@ -208,7 +216,10 @@ export const me = async (req: AuthRequest, res: Response) => {
     where: { id: req.portalUser.id },
     select: userSelect
   });
-  return res.json({ user });
+  return res.json({
+    user,
+    requiresOnboarding: Boolean(user && (!user.profileCompleted || user.mustChangePassword))
+  });
 };
 
 export const updateProfile = async (req: AuthRequest, res: Response) => {
@@ -258,6 +269,60 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     }
     console.error('Change portal password error:', error);
     return res.status(500).json({ error: 'Gagal memperbarui kata sandi.' });
+  }
+};
+
+export const completeOnboarding = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = passwordSchema.parse(req.body.newPassword);
+    const user = await prisma.portalUser.findUnique({ where: { id: req.portalUser.id } });
+    if (!user) return res.status(404).json({ error: 'Akun tidak ditemukan.' });
+    if (user.mustChangePassword || currentPassword) {
+      if (!currentPassword || !(await bcrypt.compare(currentPassword, user.password))) {
+        return res.status(400).json({ error: 'Kata sandi saat ini tidak sesuai.' });
+      }
+    }
+    if (await bcrypt.compare(newPassword, user.password)) {
+      return res.status(400).json({ error: 'Kata sandi baru harus berbeda dari kata sandi saat ini.' });
+    }
+
+    const requiredFields = {
+      name: String(req.body.name || '').trim(),
+      phone: String(req.body.phone || '').trim(),
+      nik: String(req.body.nik || '').trim(),
+      education: String(req.body.education || '').trim(),
+      university: String(req.body.university || '').trim(),
+      city: String(req.body.city || '').trim()
+    };
+    const missing = Object.entries(requiredFields)
+      .filter(([, value]) => !value)
+      .map(([key]) => key);
+    if (missing.length > 0) {
+      return res.status(400).json({ error: `Lengkapi data berikut: ${missing.join(', ')}.` });
+    }
+
+    const updated = await prisma.portalUser.update({
+      where: { id: user.id },
+      data: {
+        ...requiredFields,
+        portfolioUrl: req.body.portfolioUrl ? String(req.body.portfolioUrl).trim() : null,
+        bio: req.body.bio ? String(req.body.bio).trim() : null,
+        password: await bcrypt.hash(newPassword, 10),
+        mustChangePassword: false,
+        profileCompleted: true
+      },
+      select: userSelect
+    });
+
+    return res.json({ user: updated, requiresOnboarding: false });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.issues[0]?.message || 'Kata sandi baru tidak valid.' });
+    }
+    console.error('Complete onboarding error:', error);
+    return res.status(500).json({ error: 'Gagal menyelesaikan onboarding.' });
   }
 };
 
@@ -426,6 +491,8 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
         name: String(req.body.name || '').trim(),
         username: req.body.username ? String(req.body.username).trim() : null,
         role,
+        profileCompleted: role !== 'peserta',
+        mustChangePassword: role === 'peserta',
         phone: req.body.phone ? String(req.body.phone) : null,
         companyId: req.body.companyId ? String(req.body.companyId) : null,
         companyName: req.body.companyName ? String(req.body.companyName) : null,

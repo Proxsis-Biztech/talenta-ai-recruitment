@@ -15,7 +15,7 @@ const audioUpload = multer({
 });
 import { login, me as getCurrentAdmin, getAdmins, createAdmin, updateAdmin, deleteAdmin } from './controllers/AdminController';
 import {
-  loginPortal, registerPeserta, tokenLogin, me as getPortalMe, updateProfile, changePassword, completeDeviceCheck, getPortalDashboard,
+  loginPortal, registerPeserta, tokenLogin, me as getPortalMe, updateProfile, changePassword, completeOnboarding, completeDeviceCheck, getPortalDashboard,
   listPortalUsers, createPortalUser, updatePortalUser, deletePortalUser
 } from './controllers/PortalAuthController';
 import { createInterviewSessionToken } from './controllers/ApplicantController';
@@ -58,6 +58,7 @@ router.post('/portal/auth/token-login', authLimiter, tokenLogin);
 router.get('/portal/auth/me', authenticatePortal, getPortalMe);
 router.put('/portal/profile', authenticatePortal, updateProfile);
 router.put('/portal/password', authenticatePortal, changePassword);
+router.post('/portal/onboarding', authenticatePortal, completeOnboarding);
 router.post('/portal/device-check', authenticatePortal, completeDeviceCheck);
 router.get('/portal/dashboard', authenticatePortal, getPortalDashboard);
 
