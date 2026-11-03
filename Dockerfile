@@ -29,7 +29,6 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=5000
-ENV DATABASE_URL="file:/app/backend/prisma/dev.db?_journal_mode=WAL"
 
 # Install openssl for Prisma binary compatibility
 RUN apk add --no-cache openssl

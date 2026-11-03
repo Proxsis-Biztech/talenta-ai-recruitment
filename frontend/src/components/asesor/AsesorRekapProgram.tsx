@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
   FileSpreadsheet,
@@ -15,32 +16,56 @@ import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
 import {
   CANDIDATE_DIRECTORY,
-  loadAssessorScores,
   calculateCompositeScore,
   formatToday
 } from '../../services/asesorScoreService';
+import { getPortalToken } from '../../services/portalAuthService';
 
 export default function AsesorRekapProgram() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [filterRec, setFilterRec] = useState<string>('all');
 
-  const savedScores = loadAssessorScores();
+  const [savedScores, setSavedScores] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadScores = async () => {
+      const token = getPortalToken();
+      if (!token) return;
+      try {
+        const response = await axios.get('/api/asesor/scores', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (cancelled) return;
+        const map: Record<string, any> = {};
+        for (const score of response.data.data || []) {
+          map[score.candidateCode] = score;
+        }
+        setSavedScores(map);
+      } catch {
+        if (!cancelled) setSavedScores({});
+      }
+    };
+    void loadScores();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const candidates = CANDIDATE_DIRECTORY.map((c) => {
     const saved = savedScores[c.code];
-    const interviewScore = saved ? saved.interviewScore : c.defaultInterviewScore;
     return {
       id: c.code,
       name: c.name,
       pt: c.pt,
       program: c.program,
       catScore: c.catScore,
-      interviewScore,
-      compositeScore: saved ? saved.compositeScore : calculateCompositeScore(c.catScore, interviewScore),
-      recommendation: saved ? saved.recommendation : c.defaultRecommendation,
-      assessor: saved ? saved.assessor : 'Dr. Ir. Dwi Hartanto',
-      verifiedDate: saved ? saved.verifiedDate : c.defaultVerifiedDate,
+      interviewScore: saved ? saved.interviewScore : null,
+      compositeScore: saved ? saved.compositeScore : null,
+      recommendation: saved ? saved.recommendation : null,
+      assessor: saved ? saved.assessor?.name || 'Asesor' : null,
+      verifiedDate: saved?.signedAt ? new Date(saved.signedAt).toLocaleDateString('id-ID') : null,
       isSaved: Boolean(saved)
     };
   });
@@ -171,7 +196,7 @@ export default function AsesorRekapProgram() {
                     <p className="font-bold text-ink">{c.name}</p>
                     <p className="font-mono text-[11px] text-muted-slate">
                       {c.id}
-                      {c.isSaved ? ' • dinilai asesor' : ''}
+                      {c.isSaved ? ' • dinilai asesor' : ' • belum dinilai'}
                     </p>
                   </div>
                 </TableCell>
@@ -180,24 +205,28 @@ export default function AsesorRekapProgram() {
                   <span className="block text-[11px] text-muted-slate">{c.program}</span>
                 </TableCell>
                 <TableCell className="font-mono font-bold text-slate-700">{c.catScore}</TableCell>
-                <TableCell className="font-mono font-bold text-slate-700">{c.interviewScore}</TableCell>
+                <TableCell className="font-mono font-bold text-slate-700">{c.interviewScore ?? '—'}</TableCell>
                 <TableCell className="font-mono text-base font-extrabold text-primary-navy">
-                  {c.compositeScore}
+                  {c.compositeScore ?? '—'}
                 </TableCell>
                 <TableCell>
-                  <Badge
-                    variant={
-                      c.recommendation === 'LANJUT' ? 'success' :
-                      c.recommendation === 'DIPERTIMBANGKAN' ? 'warning' : 'danger'
-                    }
-                    format="soft"
-                    hasDot
-                  >
-                    {c.recommendation === 'LANJUT' ? 'Lulus (Lanjut)' :
-                     c.recommendation === 'DIPERTIMBANGKAN' ? 'Dipertimbangkan' : 'Tidak Lulus'}
-                  </Badge>
+                  {c.recommendation ? (
+                    <Badge
+                      variant={
+                        c.recommendation === 'LANJUT' ? 'success' :
+                        c.recommendation === 'DIPERTIMBANGKAN' ? 'warning' : 'danger'
+                      }
+                      format="soft"
+                      hasDot
+                    >
+                      {c.recommendation === 'LANJUT' ? 'Lulus (Lanjut)' :
+                       c.recommendation === 'DIPERTIMBANGKAN' ? 'Dipertimbangkan' : 'Tidak Lulus'}
+                    </Badge>
+                  ) : (
+                    <span className="text-xs text-slate-400">Belum dinilai</span>
+                  )}
                 </TableCell>
-                <TableCell className="font-mono text-xs text-slate-500">{c.verifiedDate}</TableCell>
+                <TableCell className="font-mono text-xs text-slate-500">{c.verifiedDate ?? '—'}</TableCell>
                 <TableCell className="text-right">
                   <Button
                     variant="outline"

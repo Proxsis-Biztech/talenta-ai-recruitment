@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
   Mic,
   MicOff,
@@ -33,6 +34,7 @@ import {
 import { Button, Badge, Modal } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById } from '../../services/assessmentCatalog';
+import { getPortalToken } from '../../services/portalAuthService';
 import { ProctoringCharacter, type ProctoringMood } from './ProctoringCharacter';
 
 interface QuestionItem {
@@ -173,6 +175,31 @@ export default function PesertaInterviewLive() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Initialize camera stream
+  useEffect(() => {
+    let cancelled = false;
+    const checkCatEligibility = async () => {
+      const token = getPortalToken();
+      if (!token) {
+        navigate('/peserta/waiting-room');
+        return;
+      }
+      try {
+        const response = await axios.get(`/api/exam/${program.id}/result`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!cancelled && !['submitted', 'graded'].includes(response.data.status)) {
+          navigate('/peserta/waiting-room');
+        }
+      } catch {
+        if (!cancelled) navigate('/peserta/waiting-room');
+      }
+    };
+    void checkCatEligibility();
+    return () => {
+      cancelled = true;
+    };
+  }, [program.id, navigate]);
+
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (camOn && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -353,7 +380,7 @@ export default function PesertaInterviewLive() {
         sessionUser.name || 'Budi Santoso'
       )}&jobTitle=${encodeURIComponent(program.title || 'Software Engineer')}&company=${encodeURIComponent(
         program.companyName || 'PT Bank Mandiri (Persero) Tbk'
-      )}`;
+      )}&token=${encodeURIComponent(getPortalToken() || '')}`;
 
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
@@ -949,7 +976,7 @@ export default function PesertaInterviewLive() {
       // Valid technical answer => evaluate BARS & advance!
       const updatedQuestions = [...questions];
       updatedQuestions[currentQIndex].status = 'completed';
-      updatedQuestions[currentQIndex].score = evalData.score || 4.8;
+      updatedQuestions[currentQIndex].score = Number(evalData.score) || 0;
       updatedQuestions[currentQIndex].rubricLevel = evalData.rubricLevel;
       updatedQuestions[currentQIndex].rubricCriteria = evalData.rubricCriteria;
       updatedQuestions[currentQIndex].aiFeedback = evalData.aiFeedback || 'Evaluasi BARS selesai.';
@@ -1000,15 +1027,15 @@ export default function PesertaInterviewLive() {
       setIsAiAnalyzing(false);
       const updatedQuestions = [...questions];
       updatedQuestions[currentQIndex].status = 'completed';
-      updatedQuestions[currentQIndex].score = 4.8;
+      updatedQuestions[currentQIndex].score = 0;
       updatedQuestions[currentQIndex].aiFeedback =
-        'LangChain BARS: Analisis tepat. Solusi mendemonstrasikan penguasaan teknis dan pemahaman sistemik yang solid.';
+        'Penilaian AI tidak tersedia. Jawaban Anda tetap tersimpan dan akan diverifikasi asesor.';
 
       let nextAiReply = '';
       if (nextIdx < updatedQuestions.length) {
         updatedQuestions[nextIdx].status = 'active';
         setCurrentQIndex(nextIdx);
-        nextAiReply = `Terima kasih ${sessionUser.name}. Jawaban Anda sangat berbobot (Skor BARS 4.8/5). Sekarang mari kita lanjut ke soal #${nextIdx + 1}: ${updatedQuestions[nextIdx].question}`;
+        nextAiReply = `Terima kasih ${sessionUser.name}. Jawaban Anda telah diterima dan akan diverifikasi asesor. Sekarang mari kita lanjut ke soal #${nextIdx + 1}: ${updatedQuestions[nextIdx].question}`;
       } else {
         nextAiReply = `Luar biasa, ${sessionUser.name}. Seluruh 4 butir pertanyaan wawancara kompetensi telah selesai dijawab dengan sangat memuaskan.`;
         setIsCompletedModalOpen(true);
@@ -1053,7 +1080,7 @@ export default function PesertaInterviewLive() {
   // Save Interview Results to Backend
   const saveInterviewResults = async (completedQs: QuestionItem[]) => {
     try {
-      const totalScore = completedQs.reduce((acc, q) => acc + (q.score || 4.8), 0);
+      const totalScore = completedQs.reduce((acc, q) => acc + (q.score || 0), 0);
       const avg = (totalScore / completedQs.length).toFixed(1);
       const formattedTranscript = messages
         .map((m) => `[${m.time}] ${m.sender}: ${m.text}`)
@@ -1097,7 +1124,7 @@ export default function PesertaInterviewLive() {
         completedQuestions.reduce((acc, q) => acc + (q.score || 0), 0) /
         completedQuestions.length
       ).toFixed(1)
-    : '4.8';
+    : '0.0';
 
   return (
     <div className="h-screen h-[100dvh] max-h-screen bg-slate-900 flex flex-col font-sans select-none overflow-hidden">
@@ -1766,7 +1793,7 @@ export default function PesertaInterviewLive() {
 
           {/* Leave / Finish Session Button */}
           <button
-            onClick={() => navigate('/peserta/hasil')}
+            onClick={() => { void saveInterviewResults(questions); navigate('/peserta/hasil'); }}
             className="px-5 sm:px-6 py-3 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm hover:shadow-md transition-all"
           >
             <LogOut className="w-4 h-4" />
@@ -1804,7 +1831,7 @@ export default function PesertaInterviewLive() {
             <div className="h-8 w-px bg-emerald-200" />
             <div>
               <p className="text-[10px] uppercase font-bold text-emerald-700">Status Rekomendasi</p>
-              <p className="font-bold text-xs text-emerald-800">LULUS (Direkomendasikan)</p>
+              <p className="font-bold text-xs text-blue-800">MENUNGGU VERIFIKASI ASESOR</p>
             </div>
           </div>
 

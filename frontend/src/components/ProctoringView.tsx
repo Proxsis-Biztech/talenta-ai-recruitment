@@ -199,9 +199,9 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
       </div>
 
       {/* Control Bar */}
-      <Card elevation="flat" className="p-4 border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-        <div className="flex flex-1 items-center gap-3">
-          <div className="relative flex-1 max-w-md">
+      <Card elevation="flat" className="p-4 border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-3">
+          <div className="relative flex-1 max-w-none sm:max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input 
               type="text"
@@ -211,7 +211,7 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
               className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-navy transition-colors font-sans"
             />
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-sans">
+          <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-sans">
             <button
               onClick={() => setFilterRisk('ALL')}
               className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${filterRisk === 'ALL' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}

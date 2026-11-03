@@ -19,8 +19,10 @@ import {
   Check
 } from 'lucide-react';
 import { Button, Badge } from '../ui';
-import { authenticateUser, setActiveSessionUser } from '../../services/userRegistryService';
-import { getAllPrograms } from '../../services/assessmentCatalog';
+import { setActiveSessionUser } from '../../services/userRegistryService';
+import { clearPortalSession, loginPortal, savePortalSession, tokenLogin } from '../../services/portalAuthService';
+
+const SHOW_DEMO_ACCESS = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
 
 export default function AuthLoginPage() {
   const navigate = useNavigate();
@@ -52,7 +54,7 @@ export default function AuthLoginPage() {
         setIdentifier('farhan@kandidat.id');
         setPassword('peserta123');
       } else if (type === 'peserta-mandiri') {
-        setIdentifier('budi.mandiri@kandidat.id');
+        setIdentifier('amanda@kandidat.id');
         setPassword('peserta123');
       }
     }
@@ -64,124 +66,71 @@ export default function AuthLoginPage() {
     setError('');
     setSuccessRole(null);
 
-    // Mode A: Token / Program Code Access (for Candidates)
-    if (loginMode === 'code') {
-      if (!programCode.trim()) {
-        setIsLoading(false);
-        setError('Silakan masukkan kode asesmen program Anda.');
-        return;
-      }
-
-      const prog = getAllPrograms().find((p) => p.id === programCode.trim().toUpperCase());
-      if (!prog) {
-        setIsLoading(false);
-        setError(
-          `Kode program "${programCode.trim().toUpperCase()}" tidak valid atau sudah kedaluwarsa. Silakan hubungi panitia seleksi.`
-        );
-        return;
-      }
-
-      setActiveSessionUser({
-        id: `KND-${Math.floor(1000 + Math.random() * 9000)}`,
-        name: 'Kandidat Ujian CAT',
-        username: 'token.peserta@talenta.id',
-        role: 'peserta',
-        companyId: prog.companyId,
-        companyName: prog.companyName,
-        assessmentId: prog.id,
-        assessmentTitle: prog.title,
-        gradeLevel: prog.gradeLevel
-      });
-
-      setTimeout(() => {
-        setIsLoading(false);
+    try {
+      if (loginMode === 'code') {
+        if (!programCode.trim()) {
+          throw new Error('Silakan masukkan kode asesmen program Anda.');
+        }
+        clearPortalSession();
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminRole');
+        localStorage.removeItem('adminUsername');
+        const session = await tokenLogin({ programCode: programCode.trim().toUpperCase() });
+        savePortalSession(session);
         setSuccessRole('peserta');
-        localStorage.setItem('authRole', 'peserta');
-        localStorage.setItem('programCode', programCode.trim());
-        setTimeout(() => {
-          navigate('/peserta/device-check');
-        }, 400);
-      }, 400);
-      return;
-    }
+        setTimeout(() => navigate('/peserta/device-check'), 300);
+        return;
+      }
 
-    // Mode B: Username / Password Validation
-    const cleanId = identifier.trim().toLowerCase();
+      const cleanId = identifier.trim().toLowerCase();
+      const isAdminAccount =
+        cleanId === 'superadmin' ||
+        cleanId === 'admin' ||
+        cleanId.includes('admin@') ||
+        cleanId.startsWith('admin');
 
-    // 1. Check if user is trying to login as admin / superadmin
-    const isAdminAccount =
-      cleanId === 'superadmin' ||
-      cleanId === 'admin' ||
-      cleanId.includes('admin@') ||
-      cleanId.startsWith('admin');
-
-    // Attempt real backend authentication first if admin credentials
-    if (isAdminAccount) {
-      try {
+      if (isAdminAccount) {
+        clearPortalSession();
         const res = await axios.post('/api/admin/login', {
           username: identifier.trim(),
           password
         });
         localStorage.setItem('adminToken', res.data.token);
-        localStorage.setItem('adminRole', res.data.role || 'superadmin');
+        localStorage.setItem('adminRole', res.data.role || 'admin');
         localStorage.setItem('adminUsername', res.data.username);
-        localStorage.setItem('authRole', res.data.role || 'superadmin');
+        localStorage.setItem('authRole', res.data.role || 'admin');
         setActiveSessionUser({
           id: 'ADM-01',
           name: res.data.username,
           username: res.data.username,
-          role: res.data.role || 'superadmin'
+          role: res.data.role || 'admin'
         });
         setSuccessRole('admin');
-        setTimeout(() => {
-          navigate('/admin/dashboard');
-        }, 500);
-        return;
-      } catch (err: any) {
-        // Fallback for offline/mock admin session
-        if (password === 'cleaverzz25' || password === 'admin123') {
-          const authRole = cleanId === 'superadmin' ? 'superadmin' : 'admin';
-          localStorage.setItem('adminToken', 'mock-superadmin-session-token');
-          localStorage.setItem('adminRole', authRole);
-          localStorage.setItem('adminUsername', identifier.trim());
-          localStorage.setItem('authRole', authRole);
-          setActiveSessionUser({
-            id: 'ADM-01',
-            name: identifier.trim(),
-            username: identifier.trim(),
-            role: authRole
-          });
-          setSuccessRole('admin');
-          setTimeout(() => {
-            navigate('/admin/dashboard');
-          }, 500);
-          return;
-        }
-        setIsLoading(false);
-        setError('Kredensial admin tidak valid. Silakan periksa kembali kata sandi.');
+        setTimeout(() => navigate('/admin/dashboard'), 300);
         return;
       }
-    }
 
-    // 2. Validate against Central User Registry (Peserta & Asesor)
-    const authResult = authenticateUser(identifier, password);
-    if (!authResult.success || !authResult.user) {
+      clearPortalSession();
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminRole');
+      localStorage.removeItem('adminUsername');
+      const session = await loginPortal(identifier.trim(), password);
+      savePortalSession(session);
+      setSuccessRole(session.user.role === 'asesor' ? 'asesor' : 'peserta');
+      setTimeout(() => navigate(session.user.role === 'asesor' ? '/asesor' : '/peserta'), 300);
+    } catch (err) {
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.error ||
+          (err.code === 'ERR_NETWORK'
+            ? 'Tidak dapat terhubung ke server. Pastikan backend berjalan dan alamat API benar.'
+            : 'Kredensial tidak valid. Periksa kembali username/email dan kata sandi Anda.')
+        : err instanceof Error
+          ? err.message
+          : 'Gagal masuk. Silakan coba lagi.';
+      setError(message);
+    } finally {
       setIsLoading(false);
-      setError(authResult.error || 'Kredensial akun tidak terdaftar atau kata sandi salah.');
-      return;
     }
-
-    const { role } = authResult;
-    setTimeout(() => {
-      setIsLoading(false);
-      if (role === 'asesor') {
-        setSuccessRole('asesor');
-        setTimeout(() => navigate('/asesor'), 400);
-      } else {
-        setSuccessRole('peserta');
-        setTimeout(() => navigate('/peserta'), 400);
-      }
-    }, 400);
   };
 
   return (
@@ -377,7 +326,7 @@ export default function AuthLoginPage() {
               </div>
             </form>
 
-            {/* Quick Demo Access Pills (Neat, Simple, & Clean) */}
+            {SHOW_DEMO_ACCESS && (
             <div className="mt-6 pt-5 border-t border-slate-100">
               <div className="flex items-center justify-between text-xs text-slate-500 mb-2.5">
                 <span className="font-semibold flex items-center gap-1.5 text-slate-700 text-[11px] uppercase tracking-wider">
@@ -453,6 +402,8 @@ export default function AuthLoginPage() {
                 </button>
               </div>
             </div>
+
+            )}
 
             <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-muted-slate">
               <span>Belum memiliki akun peserta?</span>

@@ -20,6 +20,7 @@ import {
   SlidersHorizontal,
   ChevronLeft
 } from 'lucide-react';
+import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import {
   Button,
   Badge,
@@ -188,31 +189,40 @@ export function AdminBankSoalEditor() {
   const [searchKeyword, setSearchKeyword] = useState('');
 
   // Preset Proctoring
-  const [selectedPreset, setSelectedPreset] = useState<'Ringan' | 'Sedang' | 'Ketat'>(() => {
-    return (localStorage.getItem(PRESET_STORAGE_KEY) as any) || 'Ketat';
-  });
+  const [selectedPreset, setSelectedPreset] = useState<'Ringan' | 'Sedang' | 'Ketat'>('Ketat');
 
   // Fact Sheet Items state
-  const [factSheetItems, setFactSheetItems] = useState<FactSheetItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(FACTSHEET_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.warn('Failed to parse saved factsheet:', e);
-    }
-    return INITIAL_FACT_SHEET;
-  });
+  const [factSheetItems, setFactSheetItems] = useState<FactSheetItem[]>(INITIAL_FACT_SHEET);
 
   // Questions state
-  const [questions, setQuestions] = useState<BankQuestion[]>(() => {
-    try {
-      const saved = localStorage.getItem(QUESTIONS_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.warn('Failed to parse saved questions:', e);
-    }
-    return INITIAL_QUESTIONS;
-  });
+  const [questions, setQuestions] = useState<BankQuestion[]>(INITIAL_QUESTIONS);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadMasterScope<any>('bank-soal')
+      .then((data: Record<string, any>) => {
+        if (cancelled) return;
+        if (Array.isArray(data.questions) && data.questions.length > 0) {
+          setQuestions(data.questions);
+        } else {
+          void saveMasterRecord('bank-soal', 'questions', INITIAL_QUESTIONS);
+        }
+        if (Array.isArray(data.factsheet) && data.factsheet.length > 0) {
+          setFactSheetItems(data.factsheet);
+        } else {
+          void saveMasterRecord('bank-soal', 'factsheet', INITIAL_FACT_SHEET);
+        }
+        if (data.preset) {
+          setSelectedPreset(data.preset);
+        } else {
+          void saveMasterRecord('bank-soal', 'preset', 'Ketat');
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [activeQuestion, setActiveQuestion] = useState<BankQuestion>(questions[0]);
   const [isEditingExisting, setIsEditingExisting] = useState(true);
@@ -275,7 +285,7 @@ export function AdminBankSoalEditor() {
     if (window.confirm(`Yakin ingin menghapus butir soal ${id} dari repositori?`)) {
       const next = questions.filter((q) => q.id !== id);
       setQuestions(next);
-      localStorage.setItem(QUESTIONS_STORAGE_KEY, JSON.stringify(next));
+      void saveMasterRecord('bank-soal', 'questions', next);
       showToast(`Butir soal ${id} berhasil dihapus.`);
     }
   };
@@ -294,15 +304,15 @@ export function AdminBankSoalEditor() {
     }
 
     setQuestions(nextQuestions);
-    localStorage.setItem(QUESTIONS_STORAGE_KEY, JSON.stringify(nextQuestions));
+    void saveMasterRecord('bank-soal', 'questions', nextQuestions);
     showToast(`Butir soal ${activeQuestion.id} berhasil disimpan ke repositori Bank Soal!`);
     setViewMode('table');
   };
 
   // Fact Sheet handlers
   const handleSaveFactSheet = () => {
-    localStorage.setItem(FACTSHEET_STORAGE_KEY, JSON.stringify(factSheetItems));
-    localStorage.setItem(PRESET_STORAGE_KEY, selectedPreset);
+    void saveMasterRecord('bank-soal', 'factsheet', factSheetItems);
+    void saveMasterRecord('bank-soal', 'preset', selectedPreset);
     showToast('Konfigurasi Fact Sheet & Preset Pengawasan Proctoring berhasil diperbarui!');
   };
 
@@ -320,7 +330,7 @@ export function AdminBankSoalEditor() {
 
     const nextFacts = [...factSheetItems, newFact];
     setFactSheetItems(nextFacts);
-    localStorage.setItem(FACTSHEET_STORAGE_KEY, JSON.stringify(nextFacts));
+    void saveMasterRecord('bank-soal', 'factsheet', nextFacts);
 
     setIsFactModalOpen(false);
     setFactText('');
@@ -331,7 +341,7 @@ export function AdminBankSoalEditor() {
     if (window.confirm(`Hapus fakta kunci ${id}?`)) {
       const next = factSheetItems.filter((f) => f.id !== id);
       setFactSheetItems(next);
-      localStorage.setItem(FACTSHEET_STORAGE_KEY, JSON.stringify(next));
+      void saveMasterRecord('bank-soal', 'factsheet', next);
       showToast(`Fakta kunci ${id} dihapus.`);
     }
   };
@@ -468,14 +478,14 @@ export function AdminBankSoalEditor() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50">
-                  <TableHead className="w-24">KODE</TableHead>
-                  <TableHead>TEKS SOAL</TableHead>
-                  <TableHead className="w-28">TIPE</TableHead>
-                  <TableHead className="w-40">KOMPETENSI</TableHead>
-                  <TableHead className="w-24">TINGKAT</TableHead>
-                  <TableHead className="w-24">P-VALUE</TableHead>
-                  <TableHead className="w-24">STATUS</TableHead>
-                  <TableHead className="w-28 text-right">AKSI</TableHead>
+                  <TableHead className="w-24">Kode</TableHead>
+                  <TableHead>Teks soal</TableHead>
+                  <TableHead className="w-28">Tipe</TableHead>
+                  <TableHead className="w-40">Kompetensi</TableHead>
+                  <TableHead className="w-24">Tingkat</TableHead>
+                  <TableHead className="w-24">P-value</TableHead>
+                  <TableHead className="w-24">Status</TableHead>
+                  <TableHead className="w-28 text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -486,7 +496,7 @@ export function AdminBankSoalEditor() {
                       {q.text}
                     </TableCell>
                     <TableCell className="text-xs text-slate-700">{q.type}</TableCell>
-                    <TableCell className="text-xs text-slate-600">{q.competency}</TableCell>
+                    <TableCell className="text-sm text-slate-600"><span className="block max-w-[180px] truncate" title={q.competency}>{q.competency}</span></TableCell>
                     <TableCell>
                       <Badge
                         variant={q.difficulty === 'Sulit' ? 'danger' : q.difficulty === 'Sedang' ? 'warning' : 'success'}
@@ -496,7 +506,7 @@ export function AdminBankSoalEditor() {
                         {q.difficulty}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-mono font-bold text-slate-700 text-xs">{q.pValue}</TableCell>
+                    <TableCell className="font-mono text-sm text-slate-700">{Number.isFinite(Number(q.pValue)) ? Number(q.pValue).toFixed(2) : '—'}</TableCell>
                     <TableCell>
                       <Badge
                         variant={q.status === 'Published' ? 'success' : q.status === 'Review' ? 'warning' : 'neutral'}

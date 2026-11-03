@@ -70,13 +70,15 @@ export default function AsesorProctoringReview() {
   ]);
 
   const handleStatusChange = (id: string, newStatus: 'valid' | 'false_positive') => {
+    const current = events.find((event) => event.id === id);
+    if (!current || current.status === newStatus) return;
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, status: newStatus } : e))
     );
     if (newStatus === 'valid') {
       setIntegrityScore((s) => Math.max(0, s - 6));
-    } else {
-      setIntegrityScore((s) => Math.min(100, s + 3));
+    } else if (current.status === 'valid') {
+      setIntegrityScore((s) => Math.min(100, s + 6));
     }
   };
 

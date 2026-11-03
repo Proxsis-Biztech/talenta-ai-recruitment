@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
   User,
@@ -32,12 +33,8 @@ import {
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
-import {
-  getActiveSessionUser,
-  updatePesertaUser,
-  getAllPesertaUsers,
-  type PesertaUser
-} from '../../services/userRegistryService';
+import { getActiveSessionUser } from '../../services/userRegistryService';
+import { getPortalToken, savePortalSession, getPortalUser } from '../../services/portalAuthService';
 import { getProgramById } from '../../services/assessmentCatalog';
 
 export default function PesertaProfile() {
@@ -46,26 +43,22 @@ export default function PesertaProfile() {
 
   // Fetch full peserta record if available
   const initialData = useMemo(() => {
-    const all = getAllPesertaUsers();
-    const found = all.find((u) => u.id === sessionUser.id || u.username === sessionUser.username);
-    return (
-      found || {
-        id: sessionUser.id || 'KND-0891',
-        name: sessionUser.name || 'Farhan Pratama',
-        username: sessionUser.username || 'farhan@kandidat.id',
-        password: '••••••••',
-        phone: '0812-8822-1920',
-        companyId: sessionUser.companyId || 'PT-TELKOM',
-        companyName: sessionUser.companyName || 'PT Telkom Indonesia Tbk',
-        assessmentId: sessionUser.assessmentId || 'SE-402',
-        assessmentTitle: sessionUser.assessmentTitle || 'Software Engineer Specialist Batch IV',
-        gradeLevel: (sessionUser.gradeLevel as any) || 'Grade B (Specialist / Mid)',
-        scheduleDate: '2026-10-30',
-        status: 'Siap Ujian' as const,
-        catScore: 88,
-        createdAt: '2026-10-25T08:00:00Z'
-      }
-    );
+    const portal = getPortalUser();
+    return {
+      id: sessionUser.id || '',
+      name: sessionUser.name || '',
+      username: sessionUser.username || '',
+      phone: portal?.phone || '',
+      companyId: sessionUser.companyId || '',
+      companyName: sessionUser.companyName || '',
+      assessmentId: sessionUser.assessmentId || 'SE-402',
+      assessmentTitle: sessionUser.assessmentTitle || '',
+      gradeLevel: sessionUser.gradeLevel || 'Grade B (Specialist / Mid)',
+      scheduleDate: '',
+      status: 'Siap Ujian' as const,
+      catScore: 0,
+      createdAt: ''
+    };
   }, [sessionUser]);
 
   // Form states
@@ -73,15 +66,13 @@ export default function PesertaProfile() {
   const [fullName, setFullName] = useState(initialData.name);
   const [phone, setPhone] = useState(initialData.phone);
   const [email] = useState(initialData.username);
-  const [nik, setNik] = useState('3271028491820003');
+  const [nik, setNik] = useState('');
   const [showNik, setShowNik] = useState(false);
-  const [education, setEducation] = useState('S1 Teknik Informatika / Ilmu Komputer');
-  const [university, setUniversity] = useState('Institut Teknologi Bandung (ITB)');
-  const [city, setCity] = useState('Kota Bandung, Jawa Barat');
-  const [portfolioUrl, setPortfolioUrl] = useState('https://github.com/farhan-pratama');
-  const [bio, setBio] = useState(
-    'Software Engineer berfokus pada arsitektur sistem terdistribusi, database concurrency tuning, dan event-driven message queue.'
-  );
+  const [education, setEducation] = useState('');
+  const [university, setUniversity] = useState('');
+  const [city, setCity] = useState('');
+  const [portfolioUrl, setPortfolioUrl] = useState('');
+  const [bio, setBio] = useState('');
 
   // Password change states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -119,29 +110,39 @@ export default function PesertaProfile() {
   }, []);
 
   // Save profile updates
-  const handleSaveBiodata = (e: React.FormEvent) => {
+  const handleSaveBiodata = async (e: React.FormEvent) => {
     e.preventDefault();
-    updatePesertaUser(initialData.id, {
-      name: fullName,
-      phone: phone
-    });
-
-    // Also update session user cache
-    const currentSession = getActiveSessionUser();
-    currentSession.name = fullName;
-    localStorage.setItem('talenta_active_session_user', JSON.stringify(currentSession));
-
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    const token = getPortalToken();
+    if (!token) {
+      setPassError('Sesi Anda tidak ditemukan. Silakan masuk kembali.');
+      return;
+    }
+    try {
+      const response = await axios.put('/api/portal/profile', { name: fullName, phone }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const currentToken = getPortalToken();
+      if (currentToken && response.data.user) {
+        savePortalSession({ token: currentToken, user: response.data.user });
+      }
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error) {
+      setPassError(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal menyimpan profil.' : 'Gagal menyimpan profil.');
+    }
   };
 
   // Handle password update
-  const handleSavePassword = (e: React.FormEvent) => {
+  const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPassError('');
 
-    if (newPassword.length < 6) {
-      setPassError('Kata sandi baru minimal harus 6 karakter.');
+    if (!currentPassword) {
+      setPassError('Masukkan kata sandi saat ini.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPassError('Kata sandi baru minimal harus 8 karakter.');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -149,15 +150,24 @@ export default function PesertaProfile() {
       return;
     }
 
-    updatePesertaUser(initialData.id, {
-      password: newPassword
-    });
+    const token = getPortalToken();
+    if (!token) {
+      setPassError('Sesi Anda tidak ditemukan. Silakan masuk kembali.');
+      return;
+    }
 
-    setPassSuccess(true);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setTimeout(() => setPassSuccess(false), 3000);
+    try {
+      await axios.put('/api/portal/password', { currentPassword, newPassword }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPassSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setPassSuccess(false), 3000);
+    } catch (error) {
+      setPassError(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal memperbarui kata sandi.' : 'Gagal memperbarui kata sandi.');
+    }
   };
 
   return (

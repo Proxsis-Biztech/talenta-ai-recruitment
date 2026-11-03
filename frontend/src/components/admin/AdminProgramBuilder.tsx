@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BookOpen,
   Plus,
@@ -18,6 +18,7 @@ import {
   Building
 } from 'lucide-react';
 import { Button, Badge, Input, Card } from '../ui';
+import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 
 interface StageItem {
   id: string;
@@ -127,6 +128,29 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
     setStages((prev) => prev.filter((s) => s.id !== id));
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    loadMasterScope<any>('program')
+      .then((data) => {
+        const first = Object.values(data)[0];
+        if (cancelled) return;
+        if (first) {
+          if (first.name) setProgramInfo({ ...first, status: first.status || 'Draft' });
+          if (Array.isArray(first.stages)) setStages(first.stages);
+        } else {
+          void saveMasterRecord('program', programInfo.code, {
+            ...programInfo,
+            stages,
+            id: programInfo.code
+          });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -141,26 +165,14 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
     }
     const updated = { ...programInfo, status: 'Published' };
     setProgramInfo(updated);
-    try {
-      const saved = JSON.parse(localStorage.getItem('talenta_custom_programs_v1') || '[]');
-      saved.push({ ...updated, stages, id: updated.code });
-      localStorage.setItem('talenta_custom_programs_v1', JSON.stringify(saved));
-    } catch (e) {
-      console.warn(e);
-    }
+    void saveMasterRecord('program', updated.code, { ...updated, stages, id: updated.code });
     showToast(`Program Asesmen "${programInfo.name}" (${programInfo.code}) berhasil dipublikasikan dan aktif!`);
   };
 
   const handleSaveDraft = () => {
     const updated = { ...programInfo, status: 'Draft' };
     setProgramInfo(updated);
-    try {
-      const saved = JSON.parse(localStorage.getItem('talenta_custom_programs_v1') || '[]');
-      saved.push({ ...updated, stages, id: updated.code });
-      localStorage.setItem('talenta_custom_programs_v1', JSON.stringify(saved));
-    } catch (e) {
-      console.warn(e);
-    }
+    void saveMasterRecord('program', updated.code, { ...updated, stages, id: updated.code });
     showToast(`Draf program "${programInfo.name}" berhasil disimpan.`);
   };
 

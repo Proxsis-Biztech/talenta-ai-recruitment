@@ -524,30 +524,51 @@ export function getActiveSessionUser(): AuthSessionUser {
     if (raw) {
       return JSON.parse(raw);
     }
+    const portalRaw = localStorage.getItem('portalUser');
+    if (portalRaw) {
+      const portal = JSON.parse(portalRaw);
+      return {
+        id: portal.id,
+        name: portal.name,
+        username: portal.email || portal.username || '',
+        role: portal.role,
+        companyId: portal.companyId || undefined,
+        companyName: portal.companyName || undefined,
+        assessmentId: portal.assessmentId || undefined,
+        assessmentTitle: portal.assessmentTitle || undefined,
+        gradeLevel: portal.gradeLevel || undefined,
+        specialization: portal.specialization || undefined
+      };
+    }
   } catch (e) {
     console.warn('Error reading active session user:', e);
   }
 
-  // Default fallback candidate
   return {
-    id: 'KND-0891',
-    name: 'Farhan Pratama',
-    username: 'farhan@kandidat.id',
-    role: 'peserta',
-    companyId: 'PT-TELKOM',
-    companyName: 'PT Telkom Indonesia Tbk',
-    assessmentId: 'SE-402',
-    assessmentTitle: 'Software Engineer Specialist Batch IV',
-    gradeLevel: 'Grade B (Specialist / Mid)'
+    id: '',
+    name: 'Tamu',
+    username: '',
+    role: 'peserta'
   };
 }
 
 export function clearActiveSession(): void {
-  localStorage.removeItem(SESSION_STORAGE_KEY);
-  localStorage.removeItem('authRole');
-  localStorage.removeItem('adminToken');
-  localStorage.removeItem('adminRole');
-  localStorage.removeItem('adminUsername');
-  localStorage.removeItem('asesorUsername');
-  localStorage.removeItem('pesertaUsername');
+  for (const key of [
+    SESSION_STORAGE_KEY,
+    'portalToken',
+    'portalUser',
+    'authRole',
+    'programCode',
+    'adminToken',
+    'adminRole',
+    'adminUsername',
+    'asesorUsername',
+    'asesorName',
+    'pesertaUsername',
+    'pesertaName',
+    'candidate_face_photo',
+    'talenta_cat_completed'
+  ]) {
+    localStorage.removeItem(key);
+  }
 }

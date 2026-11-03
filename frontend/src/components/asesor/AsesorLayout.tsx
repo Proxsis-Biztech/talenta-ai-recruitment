@@ -73,9 +73,9 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
       items: [
         { id: 'dashboard', label: 'Dashboard', path: '/asesor', icon: LayoutDashboard },
         { id: 'queue', label: 'Antrean Interview', path: '/asesor/interview-queue', icon: Users, badge: '5 Slot' },
-        { id: 'console', label: 'Live Console', path: `/asesor/live-console/${CANDIDATE_DIRECTORY[0].code}`, icon: Video, badge: 'Scoring' },
+        { id: 'console', label: 'Live Console', path: '/asesor/interview-queue', icon: Video, badge: 'Scoring' },
         { id: 'proctoring', label: 'Review Proctoring', path: '/asesor/proctoring', icon: ShieldAlert, badge: '7 Flag' },
-        { id: 'scoring', label: 'Penilaian & LHA', path: `/asesor/scoring/${CANDIDATE_DIRECTORY[0].code}`, icon: ClipboardCheck, badge: 'E-Sign' },
+        { id: 'scoring', label: 'Penilaian & LHA', path: '/asesor/rekap', icon: ClipboardCheck, badge: 'E-Sign' },
         { id: 'rekap', label: 'Rekap Program', path: '/asesor/rekap', icon: FileSpreadsheet },
       ]
     },
@@ -283,7 +283,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
         {/* Bottom Switcher */}
         <div className="p-3.5 border-t border-border-slate shrink-0">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => { clearActiveSession(); navigate('/'); }}
             className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-muted-slate hover:text-error-red hover:bg-red-50 transition-colors cursor-pointer ${
               isCollapsed ? 'justify-center px-0' : ''
             }`}
@@ -382,15 +382,15 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
               {profileDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setProfileDropdownOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 py-3 animate-fadeIn divide-y divide-slate-100">
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 z-50 py-1.5 animate-fadeIn divide-y divide-slate-100">
                     {/* Header info */}
-                    <div className="px-5 py-3.5">
+                    <div className="px-4 py-3">
                       <div className="flex items-center gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
                           {userInitials}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-base font-extrabold text-slate-900 truncate leading-tight">{activeAsesor.name}</p>
+                          <p className="text-sm font-semibold text-slate-900 truncate leading-tight">{activeAsesor.name}</p>
                           <p className="text-xs text-slate-500 truncate mt-0.5">{activeAsesor.username}</p>
                           <span className="inline-block mt-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200/80">
                             Dewan Asesor Independen
@@ -406,9 +406,9 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                           setProfileDropdownOpen(false);
                           navigate('/asesor/dashboard');
                         }}
-                        className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-slate-800 hover:text-amber-900 hover:bg-slate-50 font-bold transition-all cursor-pointer text-left text-sm sm:text-base group"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-800 hover:text-amber-900 hover:bg-slate-50 font-bold transition-all cursor-pointer text-left text-sm group"
                       >
-                        <LayoutDashboard className="w-5 h-5 text-amber-600 shrink-0 group-hover:scale-110 transition-transform" />
+                        <LayoutDashboard className="w-4 h-4 text-amber-600 shrink-0 group-hover:scale-110 transition-transform" />
                         <span className="flex-1">Dashboard Asesor</span>
                         <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                       </button>
@@ -417,10 +417,10 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                           setProfileDropdownOpen(false);
                           setBarsModalOpen(true);
                         }}
-                        className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-slate-800 hover:text-amber-900 hover:bg-slate-50 font-bold transition-all cursor-pointer text-left text-sm sm:text-base group"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-800 hover:text-amber-900 hover:bg-slate-50 font-bold transition-all cursor-pointer text-left text-sm group"
                       >
-                        <Scale className="w-5 h-5 text-blue-600 shrink-0 group-hover:scale-110 transition-transform" />
-                        <span className="flex-1">Panduan Rubrik BARS (1-5)</span>
+                        <Scale className="w-4 h-4 text-blue-600 shrink-0 group-hover:scale-110 transition-transform" />
+                        <span className="flex-1">Panduan Rubrik BARS</span>
                         <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                       </button>
                     </div>
@@ -433,9 +433,9 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                           clearActiveSession();
                           navigate('/login');
                         }}
-                        className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-rose-600 hover:bg-rose-50 font-bold text-sm sm:text-base transition-all cursor-pointer text-left group"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50 font-bold text-sm transition-all cursor-pointer text-left group"
                       >
-                        <LogOut className="w-5 h-5 text-rose-600 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                        <LogOut className="w-4 h-4 text-rose-600 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                         <span>Keluar dari Akun Asesor</span>
                       </button>
                     </div>

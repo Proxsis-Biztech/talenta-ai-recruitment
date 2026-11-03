@@ -40,12 +40,22 @@ app.use((_req, res, next) => {
   next();
 });
 
-// CORS — support multiple origins or fallback to localhost 3000, 3001, and 5173
+// Trust proxy so req.protocol/host and X-Forwarded-For are correct behind Coolify/Traefik/Caddy.
+app.set('trust proxy', 1);
+
+// Serve static frontend files BEFORE CORS. Vite emits module scripts with `crossorigin`,
+// so same-origin asset requests carry an Origin header; they must never hit the API CORS gate.
+// NOTE: /uploads is NOT served statically — CV files are only accessible
+// via the authenticated download endpoint (/admin/applicants/cv/:fileName)
+const rootDir = process.cwd();
+app.use(express.static(path.join(rootDir, '../frontend/dist')));
+
+// CORS — allow configured origins, wildcard, and same-origin API calls.
 const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
   : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
 
-app.use(cors({
+const corsMiddleware = cors({
   origin: (origin, callback) => {
     if (!origin || corsOrigins.includes(origin) || corsOrigins.includes('*')) {
       callback(null, true);
@@ -54,28 +64,25 @@ app.use(cors({
     }
   },
   credentials: true,
-}));
+});
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const selfOrigin = `${req.protocol}://${req.get('host')}`;
+  if (!origin || origin === selfOrigin) return next();
+  return corsMiddleware(req, res, next);
+});
 
 // Body parsing with size limits to prevent DoS
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 app.use(compression());
 
-// Trust proxy so X-Forwarded-For is used correctly behind Coolify / Traefik / Caddy.
-// Use a hop count (not `true`) so express-rate-limit can trust the client IP safely.
-app.set('trust proxy', 1);
-
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
-
-// Serve static frontend files FIRST (WITHOUT rate limiting so UI never gets blocked)
-// NOTE: /uploads is NOT served statically — CV files are only accessible
-// via the authenticated download endpoint (/admin/applicants/cv/:fileName)
-const rootDir = process.cwd();
-app.use(express.static(path.join(rootDir, '../frontend/dist')));
 
 // Generous rate limiter specifically for API endpoints (prevents DoS without throttling active users/interviews)
 const apiLimiter = rateLimit({

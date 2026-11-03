@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ClipboardCheck,
@@ -25,11 +25,12 @@ import axios from 'axios';
 import {
   getCandidateByCode,
   calculateCompositeScore,
-  saveAssessorScore,
   formatToday,
   ASSESSOR_NAME,
   ASSESSOR_TITLE
 } from '../../services/asesorScoreService';
+import { getActiveSessionUser } from '../../services/userRegistryService';
+import { getPortalToken } from '../../services/portalAuthService';
 
 interface CompetencyItem {
   id: string;
@@ -95,6 +96,7 @@ export default function AsesorScoringForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const candidate = getCandidateByCode(id);
+  const activeAssessor = getActiveSessionUser();
 
   // Mode: In-Basket Fact Sheet Simulation vs Interview
   const [assessmentType, setAssessmentType] = useState<'inbasket' | 'interview'>('inbasket');
@@ -125,14 +127,56 @@ export default function AsesorScoringForm() {
 
   // Recommendations & E-Sign
   const [recommendation, setRecommendation] = useState<'LANJUT' | 'DIPERTIMBANGKAN' | 'TIDAK'>('LANJUT');
-  const [isSigned, setIsSigned] = useState<boolean>(true);
-  const [assessorName, setAssessorName] = useState<string>(ASSESSOR_NAME);
-  const [assessorTitle, setAssessorTitle] = useState<string>(ASSESSOR_TITLE);
+  const [isSigned, setIsSigned] = useState<boolean>(false);
+  const [assessorName, setAssessorName] = useState<string>(activeAssessor.name || ASSESSOR_NAME);
+  const [assessorTitle, setAssessorTitle] = useState<string>(activeAssessor.specialization || ASSESSOR_TITLE);
+  const [lhaHash, setLhaHash] = useState<string>('');
+  const [lhaNumber, setLhaNumber] = useState<string>('');
 
   // LHA Preview Modal
   const [lhaModalOpen, setLhaModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadScore = async () => {
+      const token = getPortalToken();
+      if (!token) return;
+      try {
+        const response = await axios.get(`/api/asesor/scores/${candidate.code}`, {
+          params: { programTitle: candidate.program },
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (cancelled || !response.data?.data) return;
+        const record = response.data.data;
+        if (Array.isArray(record.competencies) && record.competencies.length > 0) {
+          setCompetencies(
+            record.competencies.map((item: any, index: number) => ({
+              id: `c${index + 1}`,
+              name: item.name,
+              weight: item.weight,
+              score: item.score,
+              notes: item.notes || ''
+            }))
+          );
+        }
+        setRecommendation(record.recommendation);
+        setIsSigned(record.status === 'signed');
+        setLhaHash(record.lhaHash || '');
+        setLhaNumber(record.lhaNumber || '');
+        setSaveMessage('Penilaian tersimpan di server.');
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status !== 404) {
+          setSaveMessage('Gagal memuat penilaian tersimpan.');
+        }
+      }
+    };
+    void loadScore();
+    return () => {
+      cancelled = true;
+    };
+  }, [candidate.code, candidate.program]);
 
   // Calculate Weighted Score (1 - 5 Scale)
   const weightedOverallScore = competencies
@@ -210,30 +254,44 @@ export default function AsesorScoringForm() {
     );
   };
 
-  const persistScore = () => {
+  const persistScore = async (status: 'draft' | 'signed') => {
+    const token = getPortalToken();
+    if (!token) {
+      throw new Error('Sesi asesor tidak ditemukan. Silakan masuk kembali.');
+    }
     const interviewScore = Math.round(Number(weightedOverallScore) * 20 * 10) / 10;
-    saveAssessorScore({
-      candidateCode: candidate.code,
-      candidateName: candidate.name,
-      program: candidate.program,
-      interviewScore,
-      compositeScore: calculateCompositeScore(candidate.catScore, interviewScore),
-      recommendation,
-      assessor: assessorName,
-      assessorTitle,
-      verifiedDate: formatToday(),
-      updatedAt: new Date().toISOString(),
-      competencies: competencies.map((c) => ({
-        name: c.name,
-        weight: c.weight,
-        score: c.score,
-        notes: c.notes
-      }))
-    });
+    const response = await axios.post(
+      '/api/asesor/scores',
+      {
+        candidateCode: candidate.code,
+        candidateName: candidate.name,
+        programTitle: candidate.program,
+        competencies: competencies.map((c) => ({
+          name: c.name,
+          weight: c.weight,
+          score: c.score,
+          notes: c.notes
+        })),
+        interviewScore,
+        compositeScore: calculateCompositeScore(candidate.catScore, interviewScore),
+        recommendation,
+        status
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (status === 'signed') {
+      setLhaHash(response.data.data.lhaHash || '');
+      setLhaNumber(response.data.data.lhaNumber || '');
+      setIsSigned(true);
+    }
+    return response.data.data;
   };
 
-  const downloadLha = () => {
-    const lhaNo = `LHA/SAI-PTF/2026/10/${candidate.code.replace(/\D/g, '').slice(-4)}`;
+  const printLha = () => {
+    if (!lhaHash) {
+      window.alert('LHA belum ditandatangani. Finalisasi penilaian terlebih dahulu.');
+      return;
+    }
     const rows = competencies
       .map(
         (c) =>
@@ -244,7 +302,7 @@ export default function AsesorScoringForm() {
 <style>body{font-family:Georgia,serif;margin:40px;color:#111}h1{font-size:18px;margin:0}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}th,td{border:1px solid #ccc;padding:6px 8px;vertical-align:top}th{background:#f1f5f9;text-align:left}.meta{font-size:12px;color:#555}</style>
 </head><body>
 <h1>SOLUSI ASESMEN INDONESIA</h1>
-<p class="meta">Proxsis Talent Force • Assessment Center Enterprise<br/>NO: ${lhaNo} • STATUS: CERTIFIED FINAL</p>
+<p class="meta">Proxsis Talent Force • Assessment Center Enterprise<br/>NO: ${lhaNumber} • STATUS: CERTIFIED FINAL</p>
 <hr/>
 <p><strong>Nama Kandidat:</strong> ${candidate.name}<br/>
 <strong>ID Kandidat:</strong> ${candidate.code}<br/>
@@ -256,29 +314,31 @@ export default function AsesorScoringForm() {
 <table><thead><tr><th>KOMPETENSI</th><th>BOBOT</th><th>SKOR (1-5)</th><th>EVIDENCE CATATAN PERILAKU</th></tr></thead><tbody>${rows}</tbody></table>
 <p><strong>Rekomendasi Dewan Asesor:</strong> ${recommendation}<br/>
 <strong>Skor Komposit (1-5):</strong> ${weightedOverallScore}</p>
-<p class="meta">Akurasi Fact Sheet: ${priorityAccuracy}%<br/>Diverifikasi oleh: ${assessorName} — ${assessorTitle}<br/>Tanggal: ${formatToday()}</p>
+<p class="meta">Diverifikasi oleh: ${assessorName} — ${assessorTitle}<br/>Tanggal: ${formatToday()}<br/>Hash SHA-256: ${lhaHash}</p>
 <p class="meta">Dokumen ini dihasilkan oleh Talenta+ Assessment Center Enterprise.</p>
 </body></html>`;
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `LHA-${candidate.code}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      window.alert('Popup diblokir. Izinkan popup untuk mencetak LHA.');
+      return;
+    }
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 300);
   };
 
-  const handleFinalize = (e: React.FormEvent) => {
+  const handleFinalize = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSaveMessage('');
     try {
-      persistScore();
-      setSaveMessage(`Penilaian ${candidate.name} (${candidate.code}) berhasil disimpan dan direkapitulasi.`);
+      await persistScore('signed');
+      setSaveMessage(`Penilaian ${candidate.name} (${candidate.code}) berhasil ditandatangani dan LHA diterbitkan.`);
       setLhaModalOpen(true);
     } catch (err) {
       console.error('Finalize scoring error:', err);
-      setSaveMessage('Gagal menyimpan penilaian. Silakan coba lagi.');
+      setSaveMessage(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal menyimpan penilaian.' : 'Gagal menyimpan penilaian.');
     } finally {
       setIsSubmitting(false);
     }
@@ -593,7 +653,7 @@ export default function AsesorScoringForm() {
                   <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200">
                     <ShieldCheck className="w-5 h-5" />
                   </div>
-                  <span className="font-mono text-[10px] text-slate-400">SHA-256 HASH VERIFIED</span>
+                  <span className="font-mono text-[10px] text-slate-400">{lhaHash ? 'SHA-256 HASH VERIFIED' : 'BELUM DITANDATANGANI'}</span>
                 </div>
               </div>
             </div>
@@ -618,9 +678,13 @@ export default function AsesorScoringForm() {
               <Button
                 variant="outline"
                 type="button"
-                onClick={() => {
-                  persistScore();
-                  setSaveMessage(`Draft penilaian ${candidate.name} (${candidate.code}) tersimpan.`);
+                onClick={async () => {
+                  try {
+                    await persistScore('draft');
+                    setSaveMessage(`Draft penilaian ${candidate.name} (${candidate.code}) tersimpan di server.`);
+                  } catch (err) {
+                    setSaveMessage(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal menyimpan draft.' : 'Gagal menyimpan draft.');
+                  }
                 }}
               >
                 Simpan Draft Saja
@@ -657,7 +721,7 @@ export default function AsesorScoringForm() {
               <div className="text-right">
                 <span className="text-xs font-mono font-bold text-blue-700 block text-base">LHA RESMI</span>
                 <span className="text-[11px] text-slate-500 font-mono">
-                  NO: LHA/SAI-PTF/2026/10/{candidate.code.replace(/\D/g, '').slice(-4)}
+                  NO: {lhaNumber || 'DRAFT'}
                 </span>
                 <span className="text-[10px] text-emerald-700 font-mono block mt-1">STATUS: CERTIFIED FINAL</span>
               </div>
@@ -721,10 +785,12 @@ export default function AsesorScoringForm() {
                 </div>
                 <div>
                   <span className="font-bold text-slate-800 block">Jaminan Integritas & Validitas Laporan (UU PDP No. 27/2022)</span>
-                  <span className="text-[11px] text-slate-500 font-mono block">
-                    Hash: 9e3a7f82b4c109d3810f5439a82645eb48992a0129bc...
+                  <span className="text-[11px] text-slate-500 font-mono block break-all">
+                    {lhaHash ? `Hash: ${lhaHash}` : 'Hash tersedia setelah finalisasi LHA.'}
                   </span>
-                  <span className="text-[10px] text-slate-400">Dapat divalidasi keabsahannya oleh tim Human Capital klien secara publik</span>
+                  <span className="text-[10px] text-slate-400">
+                    {lhaNumber ? `No. ${lhaNumber} • ` : ''}Dapat diverifikasi publik melalui /api/lha/verify/:hash
+                  </span>
                 </div>
               </div>
 
@@ -741,14 +807,14 @@ export default function AsesorScoringForm() {
               <Button
                 variant="primary"
                 onClick={() => {
-                  downloadLha();
+                  printLha();
                   setLhaModalOpen(false);
                   navigate('/asesor/rekap');
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Download className="w-4 h-4 mr-1.5" />
-                <span>Unduh LHA PDF Resmi</span>
+                <span>Cetak / Simpan LHA PDF</span>
               </Button>
             </div>
           </div>

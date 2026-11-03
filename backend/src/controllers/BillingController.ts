@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export interface CompanyBillingTenant {
   id: string;
@@ -197,23 +200,82 @@ let TRANSACTIONS: CreditUsageTransaction[] = [
   }
 ];
 
+const serializeInvoice = (invoice: any) => ({
+  ...invoice,
+  approvedAt: invoice.approvedAt ? new Date(invoice.approvedAt).toISOString() : undefined
+});
+
+const serializeTransaction = (transaction: any) => ({
+  ...transaction,
+  timestamp: new Date(transaction.timestamp).toISOString().replace('T', ' ').slice(0, 19)
+});
+
+const ensureBillingSeeded = async () => {
+  for (const tenant of TENANTS) {
+    await prisma.billingTenant.upsert({
+      where: { id: tenant.id },
+      update: {},
+      create: tenant
+    });
+  }
+  for (const invoice of INVOICES) {
+    const { tenantName: _tenantName, ...record } = invoice;
+    await prisma.billingInvoice.upsert({
+      where: { id: record.id },
+      update: {},
+      create: {
+        ...record,
+        approvedAt: record.approvedAt ? new Date(record.approvedAt) : null
+      }
+    });
+  }
+  for (const transaction of TRANSACTIONS) {
+    await prisma.billingTransaction.upsert({
+      where: { id: transaction.id },
+      update: {},
+      create: {
+        ...transaction,
+        timestamp: new Date(transaction.timestamp.replace(' ', 'T'))
+      }
+    });
+  }
+};
+
 export const getBillingOverview = async (req: Request, res: Response) => {
   try {
+    await ensureBillingSeeded();
     const tenantId = (req.query.tenantId as string) || 't-cimb';
-    const tenant = TENANTS.find(t => t.id === tenantId) || TENANTS[0];
-    const invoices = INVOICES.filter(i => i.tenantId === tenant.id);
-    const transactions = TRANSACTIONS.filter(t => t.tenantId === tenant.id);
+    const tenants = await prisma.billingTenant.findMany({ orderBy: { code: 'asc' } });
+    const tenant = tenants.find((item) => item.id === tenantId) || tenants[0];
+    if (!tenant) return res.status(404).json({ error: 'Tenant billing tidak ditemukan' });
+
+    const invoices = await prisma.billingInvoice.findMany({
+      where: { tenantId: tenant.id },
+      orderBy: { createdAt: 'desc' }
+    });
+    const transactions = await prisma.billingTransaction.findMany({
+      where: { tenantId: tenant.id },
+      orderBy: { timestamp: 'desc' }
+    });
 
     return res.json({
       success: true,
       data: {
         activeTenant: tenant,
-        allTenants: TENANTS.map(t => ({ id: t.id, name: t.name, code: t.code, availableQuota: t.availableQuota })),
+        allTenants: tenants.map((item) => ({
+          id: item.id,
+          name: item.name,
+          code: item.code,
+          availableQuota: item.availableQuota
+        })),
         ratePerCandidate: 45000,
         ppnRatePercent: 11,
-        invoices,
-        transactions,
-        totalCreditSpent: transactions.reduce((acc, curr) => acc + (curr.type === 'DEDUCTION' ? curr.deductedAmount : 0), 0)
+        invoices: invoices.map(serializeInvoice),
+        transactions: transactions.map(serializeTransaction),
+        totalCreditSpent: transactions.reduce(
+          (acc, curr) => acc + (curr.type === 'DEDUCTION' ? curr.deductedAmount : 0),
+          0
+        )
       }
     });
   } catch (err: any) {
@@ -223,41 +285,42 @@ export const getBillingOverview = async (req: Request, res: Response) => {
 
 export const requestTopUpQuota = async (req: Request, res: Response) => {
   try {
+    await ensureBillingSeeded();
     const { tenantId, requestedQuota, paymentMethod } = req.body;
-    if (!requestedQuota || requestedQuota < 1) {
+    if (!requestedQuota || Number(requestedQuota) < 1) {
       return res.status(400).json({ error: 'Jumlah kuota minimal 1 partisipan' });
     }
 
-    const tenant = TENANTS.find(t => t.id === tenantId) || TENANTS[0];
-    const subtotal = requestedQuota * 45000;
+    const tenants = await prisma.billingTenant.findMany({ orderBy: { code: 'asc' } });
+    const tenant = tenants.find((item) => item.id === tenantId) || tenants[0];
+    if (!tenant) return res.status(404).json({ error: 'Tenant billing tidak ditemukan' });
+
+    const subtotal = Number(requestedQuota) * 45000;
     const ppn11 = Math.round(subtotal * 0.11);
     const totalAmount = subtotal + ppn11;
-
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const invoiceNumber = `INV/PTF-SAI/2026/${new Date().getMonth() + 1}/${randomSuffix}`;
+    const invoiceNumber = `INV/PTF-SAI/${new Date().getFullYear()}/${new Date().getMonth() + 1}/${randomSuffix}`;
 
-    const newInvoice: BillingInvoice = {
-      id: `inv-${Date.now()}`,
-      invoiceNumber,
-      tenantId: tenant.id,
-      tenantName: tenant.name,
-      date: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      requestedQuota: Number(requestedQuota),
-      subtotal,
-      ppn11,
-      totalAmount,
-      paymentMethod: paymentMethod || 'Bank Transfer BCA Virtual Account',
-      bankAccount: 'BCA VA: 8271-9002-3841-' + randomSuffix.toString().slice(0, 3),
-      status: 'PENDING_APPROVAL'
-    };
-
-    INVOICES.unshift(newInvoice);
+    const invoice = await prisma.billingInvoice.create({
+      data: {
+        invoiceNumber,
+        tenantId: tenant.id,
+        date: new Date().toISOString().split('T')[0],
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        requestedQuota: Number(requestedQuota),
+        subtotal,
+        ppn11,
+        totalAmount,
+        paymentMethod: paymentMethod || 'Bank Transfer BCA Virtual Account',
+        bankAccount: `BCA VA: 8271-9002-3841-${randomSuffix.toString().slice(0, 3)}`,
+        status: 'PENDING_APPROVAL'
+      }
+    });
 
     return res.status(201).json({
       success: true,
       message: 'Pengajuan invoice top-up berhasil diterbitkan.',
-      data: newInvoice
+      data: serializeInvoice(invoice)
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Gagal memproses top-up kuota' });
@@ -266,43 +329,48 @@ export const requestTopUpQuota = async (req: Request, res: Response) => {
 
 export const approveInvoice = async (req: Request, res: Response) => {
   try {
+    await ensureBillingSeeded();
     const { invoiceId } = req.params;
-    const invoice = INVOICES.find(i => i.id === invoiceId);
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invoice tidak ditemukan' });
-    }
-
+    const invoice = await prisma.billingInvoice.findUnique({ where: { id: String(invoiceId) } });
+    if (!invoice) return res.status(404).json({ error: 'Invoice tidak ditemukan' });
     if (invoice.status === 'PAID_APPROVED') {
       return res.status(400).json({ error: 'Invoice ini sudah disetujui sebelumnya' });
     }
 
-    invoice.status = 'PAID_APPROVED';
-    invoice.approvedAt = new Date().toISOString();
-    invoice.approvedBy = 'superadmin';
-
-    // Top up tenant balance
-    const tenant = TENANTS.find(t => t.id === invoice.tenantId);
-    if (tenant) {
-      tenant.availableQuota += invoice.requestedQuota;
-      tenant.creditBalance += invoice.subtotal;
-
-      TRANSACTIONS.unshift({
-        id: `trx-${Date.now()}`,
-        tenantId: tenant.id,
-        batchName: 'Top-up Kuota Prabayar',
-        programTitle: `Persetujuan Invoice #${invoice.invoiceNumber}`,
-        candidateCount: invoice.requestedQuota,
-        deductedAmount: -invoice.subtotal,
-        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
-        type: 'TOP_UP',
-        description: `Penambahan ${invoice.requestedQuota} kuota via ${invoice.paymentMethod}`
+    const approved = await prisma.$transaction(async (tx) => {
+      const updated = await tx.billingInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: 'PAID_APPROVED',
+          approvedAt: new Date(),
+          approvedBy: 'superadmin'
+        }
       });
-    }
+      await tx.billingTenant.update({
+        where: { id: invoice.tenantId },
+        data: {
+          availableQuota: { increment: invoice.requestedQuota },
+          creditBalance: { increment: invoice.subtotal }
+        }
+      });
+      await tx.billingTransaction.create({
+        data: {
+          tenantId: invoice.tenantId,
+          batchName: 'Top-up Kuota Prabayar',
+          programTitle: `Persetujuan Invoice #${invoice.invoiceNumber}`,
+          candidateCount: invoice.requestedQuota,
+          deductedAmount: -invoice.subtotal,
+          type: 'TOP_UP',
+          description: `Penambahan ${invoice.requestedQuota} kuota via ${invoice.paymentMethod}`
+        }
+      });
+      return updated;
+    });
 
     return res.json({
       success: true,
       message: 'Invoice berhasil disetujui dan saldo kredit telah bertambah.',
-      data: invoice
+      data: serializeInvoice(approved)
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Gagal menyetujui invoice' });
@@ -312,27 +380,37 @@ export const approveInvoice = async (req: Request, res: Response) => {
 export const verifyLhaPublic = async (req: Request, res: Response) => {
   try {
     const { hash } = req.params;
-    if (!hash || hash.length < 8) {
+    if (!hash || hash.length < 32) {
       return res.status(400).json({ valid: false, error: 'Hash verifikasi tidak valid' });
     }
 
-    // Deterministic verify verification metadata conforming to UU PDP & BRD Section 6.2
+    const score = await prisma.assessorScore.findUnique({ where: { lhaHash: String(hash) } });
+    if (!score || score.status !== 'signed') {
+      return res.status(404).json({ valid: false, error: 'LHA tidak ditemukan atau belum ditandatangani.' });
+    }
+
+    const competencies = JSON.parse(score.competencies || '[]');
     return res.json({
       valid: true,
-      documentTitle: 'Laporan Hasil Asesmen (LHA) Resmi Eksekutif',
+      documentTitle: 'Laporan Hasil Asesmen (LHA) Resmi',
       issuingAuthority: 'Solusi Asesmen Indonesia (SAI) & Proxsis Talent Force',
-      verificationHash: hash,
-      algorithm: 'SHA-256 Digitally Signed',
-      issuedDate: '2026-10-29',
-      retentionPolicyNotice: 'Kepatuhan UU PDP No. 27/2022: Dokumen dan snapshot terenkripsi dijamin keabsahannya.',
+      verificationHash: score.lhaHash,
+      lhaNumber: score.lhaNumber,
+      candidateCode: score.candidateCode,
+      candidateName: score.candidateName,
+      programTitle: score.programTitle,
+      interviewScore: score.interviewScore,
+      compositeScore: score.compositeScore,
+      recommendation: score.recommendation,
+      competencies,
+      algorithm: 'SHA-256',
+      issuedDate: score.signedAt?.toISOString(),
       signatory: {
-        name: 'Anggita, M.Psi., Psikolog',
-        title: 'Lead Assessor Assessment Center',
-        license: 'SIPP No. 042/SAI-HIMPSI/2026',
-        status: 'Digitally Signed & Certified'
+        assessorId: score.assessorId,
+        status: 'Digitally Signed'
       }
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ valid: false, error: err.message || 'Gagal memverifikasi LHA' });
   }
 };

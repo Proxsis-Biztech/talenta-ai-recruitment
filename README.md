@@ -31,10 +31,14 @@ npm run dev
 ```
 
 > **Akun Admin Default:**
-> Username: `admin`
-> Password: `password123`
+> Username: `superadmin`
+> Password: `cleaverzz25` (ubah lewat `SUPERADMIN_PASSWORD` di production)
 
-*(Catatan: Jika ingin menggunakan PostgreSQL, ubah provider di `prisma/schema.prisma` menjadi `postgresql` dan sesuaikan variabel `DATABASE_URL` di `backend/.env` lalu jalankan ulang `npx prisma db push`)*.
+Database default menggunakan PostgreSQL:
+```env
+DATABASE_URL="postgresql://postgres:12345@localhost:5432/ai_recruitment?schema=public"
+```
+Buat database terlebih dahulu, lalu jalankan `npx prisma db push` dari folder `backend`.
 
 ### 2. Frontend (UI/UX)
 Buka terminal baru:

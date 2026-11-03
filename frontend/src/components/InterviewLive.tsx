@@ -410,8 +410,17 @@ export default function InterviewLive() {
 
   const connect = async (isReconnect = false) => {
     if (!selectedJob) return;
+    let sessionToken = '';
+    try {
+      const tokenResponse = await axios.post('/api/interview/session-token', { email: applicantEmail });
+      sessionToken = tokenResponse.data.token;
+    } catch (error) {
+      console.error('Failed to create interview session:', error);
+      setStatus('Error');
+      return;
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}/api/interview/live?voice=${encodeURIComponent(voice)}&language=${encodeURIComponent(language)}&jobTitle=${encodeURIComponent(selectedJob.title)}&jobDescription=${encodeURIComponent(selectedJob.description || '')}&email=${encodeURIComponent(applicantEmail)}`);
+    const socket = new WebSocket(`${protocol}://${window.location.host}/api/interview/live?voice=${encodeURIComponent(voice)}&language=${encodeURIComponent(language)}&jobTitle=${encodeURIComponent(selectedJob.title)}&jobDescription=${encodeURIComponent(selectedJob.description || '')}&email=${encodeURIComponent(applicantEmail)}&token=${encodeURIComponent(sessionToken)}`);
     socketRef.current = socket;
     setStatus('Connecting');
 

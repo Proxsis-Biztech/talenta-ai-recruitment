@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FileText,
   Plus,
@@ -26,6 +26,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
+import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import { Button, Badge, Card, CardContent, Modal } from '../ui';
 import {
   Table,
@@ -429,15 +430,24 @@ export const INITIAL_MATERI_LIST: MasterMateriItem[] = [
 ];
 
 export function AdminMasterMateriTree() {
-  const [materiList, setMateriList] = useState<MasterMateriItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.warn('Failed to parse saved materi list:', e);
-    }
-    return INITIAL_MATERI_LIST;
-  });
+  const [materiList, setMateriList] = useState<MasterMateriItem[]>(INITIAL_MATERI_LIST);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadMasterScope<MasterMateriItem[]>('materi')
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data.table) && data.table.length > 0) {
+          setMateriList(data.table);
+        } else {
+          void saveMasterRecord('materi', 'table', INITIAL_MATERI_LIST);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Filters
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('ALL');
@@ -476,14 +486,11 @@ export function AdminMasterMateriTree() {
   const [formIndicators, setFormIndicators] = useState<string[]>([]);
   const [newIndicatorInput, setNewIndicatorInput] = useState('');
 
-  // Save to localStorage helper
   const persistMateri = (updated: MasterMateriItem[], message = 'Perubahan Master Materi berhasil disimpan!') => {
     setMateriList(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch (e) {
-      console.warn('Failed to save to localStorage:', e);
-    }
+    void saveMasterRecord('materi', 'table', updated).catch(() => {
+      setSaveMessage('Gagal menyimpan ke server. Silakan coba lagi.');
+    });
     setSaveMessage(message);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);

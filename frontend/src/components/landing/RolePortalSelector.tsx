@@ -118,7 +118,7 @@ export default function RolePortalSelector() {
               <span className="font-heading font-extrabold text-xl text-blue-accent">
                 +
               </span>
-              <span className="text-[10px] font-mono font-semibold uppercase tracking-wider bg-soft-blue text-primary-navy px-2 py-0.5 rounded-full ml-1 border border-accent-border">
+              <span className="hidden sm:inline text-[10px] font-mono font-semibold uppercase tracking-wider bg-soft-blue text-primary-navy px-2 py-0.5 rounded-full ml-1 border border-accent-border">
                 Assessment Engine
               </span>
             </div>
@@ -137,13 +137,13 @@ export default function RolePortalSelector() {
           </button>
           <button
             onClick={() => navigate('/login')}
-            className="px-4 py-2 text-sm font-semibold text-primary-navy hover:bg-soft-blue rounded-lg transition-colors cursor-pointer"
+            className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-primary-navy hover:bg-soft-blue rounded-lg transition-colors cursor-pointer"
           >
             Masuk Akun
           </button>
           <button
             onClick={() => navigate('/peserta/exam/demo')}
-            className="px-4 py-2 text-sm font-semibold text-white bg-primary-navy hover:bg-navy-dark rounded-lg shadow-2xs transition-all flex items-center gap-2 cursor-pointer btn-press"
+            className="hidden sm:flex px-4 py-2 text-sm font-semibold text-white bg-primary-navy hover:bg-navy-dark rounded-lg shadow-2xs transition-all items-center gap-2 cursor-pointer btn-press"
           >
             <Sparkles className="w-4 h-4 text-blue-200" />
             Coba Exam Player

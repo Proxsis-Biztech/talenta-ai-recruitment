@@ -510,17 +510,17 @@ export default function AdminBillingCredit() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex overflow-x-auto border-b border-slate-200">
         <button
           onClick={() => setActiveTab('invoices')}
-          className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+          className={`px-3 sm:px-5 py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'invoices'
               ? 'border-blue-600 text-blue-700 font-semibold'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <FileText className="w-4 h-4" />
-          <span>Faktur & Invoice Resmi ({invoices.filter((i) => i.tenantId === activeTenant.id).length})</span>
+          <span>Invoice ({invoices.filter((i) => i.tenantId === activeTenant.id).length})</span>
         </button>
 
         <button
@@ -532,7 +532,7 @@ export default function AdminBillingCredit() {
           }`}
         >
           <Clock className="w-4 h-4" />
-          <span>Mutasi Pemotongan Kelas ({transactions.filter((t) => t.tenantId === activeTenant.id).length})</span>
+          <span>Mutasi kredit ({transactions.filter((t) => t.tenantId === activeTenant.id).length})</span>
         </button>
 
         <button
@@ -563,14 +563,14 @@ export default function AdminBillingCredit() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50/80">
-                  <TableHead className="font-semibold text-slate-700 text-xs">NO. INVOICE</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs">TANGGAL</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs">KUOTA DIAJUKAN</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs">DPP (SUBTOTAL)</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">No. invoice</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">Tanggal</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">Kuota diajukan</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">DPP (subtotal)</TableHead>
                   <TableHead className="font-semibold text-slate-700 text-xs">PPN 11%</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs">TOTAL TAGIHAN</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs">STATUS</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs text-right">AKSI</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">Total tagihan</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">Status</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -651,12 +651,12 @@ export default function AdminBillingCredit() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50/80">
-                  <TableHead className="font-semibold text-slate-700 text-xs">WAKTU (TIMESTAMP)</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs">BATCH KELAS</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs">MODUL PROGRAM</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs">JUMLAH KANDIDAT</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs">MUTASI KREDIT</TableHead>
-                  <TableHead className="font-semibold text-slate-700 text-xs">KETERANGAN</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">Waktu</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">Batch</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">Program</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">Kandidat</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">Mutasi kredit</TableHead>
+                  <TableHead className="font-semibold text-slate-700 text-xs">Keterangan</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -893,10 +893,10 @@ export default function AdminBillingCredit() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-100">
-                  <TableHead className="text-xs font-semibold">DESKRIPSI LAYANAN ASESMEN</TableHead>
-                  <TableHead className="text-xs font-semibold text-center">KUOTA</TableHead>
-                  <TableHead className="text-xs font-semibold text-right">TARIF / KANDIDAT</TableHead>
-                  <TableHead className="text-xs font-semibold text-right">JUMLAH (IDR)</TableHead>
+                  <TableHead className="text-xs font-semibold">Layanan asesmen</TableHead>
+                  <TableHead className="text-xs font-semibold text-center">Kuota</TableHead>
+                  <TableHead className="text-xs font-semibold text-right">Tarif / kandidat</TableHead>
+                  <TableHead className="text-xs font-semibold text-right">Jumlah (IDR)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1058,10 +1058,10 @@ export default function AdminBillingCredit() {
           <Table>
             <TableHeader>
               <TableRow className="bg-slate-100">
-                <TableHead className="text-xs">TANGGAL</TableHead>
+                <TableHead className="text-xs">Tanggal</TableHead>
                 <TableHead className="text-xs">AKTIVITAS / BATCH</TableHead>
-                <TableHead className="text-xs text-center">KUOTA</TableHead>
-                <TableHead className="text-xs text-right">MUTASI KREDIT</TableHead>
+                <TableHead className="text-xs text-center">Kuota</TableHead>
+                <TableHead className="text-xs text-right">Mutasi kredit</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

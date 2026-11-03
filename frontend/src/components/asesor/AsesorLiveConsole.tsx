@@ -141,9 +141,9 @@ export default function AsesorLiveConsole() {
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-tight">
-              Live Console Asesor: Sesi Farhan Pratama (KND-0891)
+              Live Console Asesor: Sesi {candidate.name} ({candidate.code})
             </h1>
-            <p className="text-[11px] text-slate-400">Software Engineer Specialist Batch IV • Room-A1</p>
+            <p className="text-[11px] text-slate-400">{candidate.program} • {candidate.pt}</p>
           </div>
         </div>
 
@@ -325,7 +325,7 @@ export default function AsesorLiveConsole() {
           {/* Footer Save / Next Competency */}
           <div className="p-4 border-t border-border-slate bg-slate-50 flex items-center justify-between">
             <span className="text-xs text-muted-slate">
-              Tersimpan otomatis ke database evaluasi
+              Simpan hasil penilaian melalui formulir rekomendasi
             </span>
             <Button
               variant="primary"

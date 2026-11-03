@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
   KeyRound,
@@ -14,11 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui';
 import { getAllPrograms } from '../../services/assessmentCatalog';
-import {
-  createPesertaUser,
-  getPesertaByUsername,
-  setActiveSessionUser
-} from '../../services/userRegistryService';
+import { registerPeserta, savePortalSession } from '../../services/portalAuthService';
 
 export default function AuthRegisterPage() {
   const navigate = useNavigate();
@@ -34,7 +31,7 @@ export default function AuthRegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
@@ -44,7 +41,6 @@ export default function AuthRegisterPage() {
       const program = getAllPrograms().find((p) => p.id === programCode);
 
       if (!program) {
-        setIsLoading(false);
         setError(
           `Kode program "${programCode}" tidak ditemukan. Periksa kembali kode pada undangan asesmen Anda.`
         );
@@ -52,49 +48,30 @@ export default function AuthRegisterPage() {
       }
 
       if (formData.password.length < 8) {
-        setIsLoading(false);
         setError('Kata sandi minimal 8 karakter.');
         return;
       }
 
-      const email = formData.email.trim().toLowerCase();
-      if (getPesertaByUsername(email)) {
-        setIsLoading(false);
-        setError('Email ini sudah terdaftar. Silakan masuk menggunakan akun Anda.');
-        return;
-      }
-
-      const newUser = createPesertaUser({
+      const session = await registerPeserta({
         name: formData.fullName.trim(),
-        username: email,
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
         phone: formData.phone.trim(),
+        programCode: program.id,
         companyId: program.companyId,
-        assessmentId: program.id,
+        companyName: program.companyName,
         gradeLevel: program.gradeLevel
       });
 
-      setActiveSessionUser({
-        id: newUser.id,
-        name: newUser.name,
-        username: newUser.username,
-        role: 'peserta',
-        companyId: newUser.companyId,
-        companyName: newUser.companyName,
-        assessmentId: newUser.assessmentId,
-        assessmentTitle: newUser.assessmentTitle,
-        gradeLevel: newUser.gradeLevel
-      });
-
-      localStorage.setItem('authRole', 'peserta');
-      localStorage.setItem('programCode', program.id);
-
-      setIsLoading(false);
+      savePortalSession(session);
       navigate('/peserta');
     } catch (err) {
-      console.error('Registration error:', err);
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.error || 'Pendaftaran gagal disimpan. Silakan coba lagi.'
+        : 'Pendaftaran gagal disimpan. Silakan coba lagi.';
+      setError(message);
+    } finally {
       setIsLoading(false);
-      setError('Pendaftaran gagal disimpan. Silakan coba lagi.');
     }
   };
 

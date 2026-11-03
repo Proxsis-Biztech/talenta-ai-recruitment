@@ -13,20 +13,55 @@ const audioUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }
 });
-import { login, getAdmins, createAdmin, updateAdmin, deleteAdmin } from './controllers/AdminController';
+import { login, me as getCurrentAdmin, getAdmins, createAdmin, updateAdmin, deleteAdmin } from './controllers/AdminController';
+import {
+  loginPortal, registerPeserta, tokenLogin, me as getPortalMe, updateProfile, changePassword,
+  listPortalUsers, createPortalUser, updatePortalUser, deletePortalUser
+} from './controllers/PortalAuthController';
+import { createInterviewSessionToken } from './controllers/ApplicantController';
 import { getActiveJobs, getAdminJobs, createJob, updateJob, deleteJob } from './controllers/JobController';
 import { getBillingOverview, requestTopUpQuota, approveInvoice, verifyLhaPublic } from './controllers/BillingController';
+import { startExam, saveAnswers, submitExam, getExamResult } from './controllers/ExamController';
+import { upsertAssessorScore, listAssessorScores, getAssessorScore, getSignedLha } from './controllers/AssessorScoreController';
+import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
+import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
+import { uploadExcel, downloadPortalUserTemplate, importPortalUsers } from './controllers/BulkImportController';
 import { runFactSheetMatching } from './services/factSheetService';
-import { authenticateToken, requireSuperadmin } from './middleware/auth';
+import { authenticateAny, authenticatePortal, authenticateToken, requirePortalRole, requireSuperadmin } from './middleware/auth';
 import { uploadCV } from './middleware/upload';
 
 const router = Router();
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: 'Terlalu banyak percobaan masuk. Silakan coba lagi dalam 15 menit.' }
+});
+
 // Public routes
+router.get('/health', (_req, res) => res.json({ status: 'ok', service: 'talenta-api', timestamp: new Date().toISOString() }));
 router.post('/applicants', uploadCV, submitApplication);
 router.get('/jobs', getActiveJobs);
-router.post('/admin/login', login);
+router.post('/admin/login', authLimiter, login);
 router.get('/lha/verify/:hash', verifyLhaPublic);
+router.post('/interview/session-token', authLimiter, createInterviewSessionToken);
+
+// Portal authentication (peserta & asesor)
+router.post('/portal/auth/login', authLimiter, loginPortal);
+router.post('/portal/auth/register', authLimiter, registerPeserta);
+router.post('/portal/auth/token-login', authLimiter, tokenLogin);
+router.get('/portal/auth/me', authenticatePortal, getPortalMe);
+router.put('/portal/profile', authenticatePortal, updateProfile);
+router.put('/portal/password', authenticatePortal, changePassword);
+
+// CAT exam attempts (server-side answer storage + scoring)
+router.post('/exam/:programCode/start', authenticatePortal, requirePortalRole('peserta'), startExam);
+router.put('/exam/:programCode/answers', authenticatePortal, requirePortalRole('peserta'), saveAnswers);
+router.post('/exam/:programCode/submit', authenticatePortal, requirePortalRole('peserta'), submitExam);
+router.get('/exam/:programCode/result', authenticatePortal, requirePortalRole('peserta'), getExamResult);
 
 // Protected routes (Admin only - view & read)
 router.get('/admin/applicants', authenticateToken, getApplicants);
@@ -65,6 +100,33 @@ router.post('/interview/langchain-turn', evaluateInterviewTurn);
 router.post('/interview/transcribe-audio', audioUpload.single('audio'), transcribeAudioHandler);
 router.post('/interview/tts', synthesizeSpeechHandler);
 
+// Admin master data (bank soal, materi, program builder, company matrix, AI config)
+router.get('/admin/master/:scope', authenticateToken, getMasterScope);
+router.put('/admin/master/:scope/:key', authenticateToken, putMasterRecord);
+router.delete('/admin/master/:scope/:key', authenticateToken, deleteMasterRecord);
+
+// Program access codes
+router.get('/admin/access-codes', authenticateToken, listAccessCodes);
+router.post('/admin/access-codes', authenticateToken, createAccessCode);
+router.put('/admin/access-codes/:code', authenticateToken, updateAccessCode);
+
+// Current admin session
+router.get('/admin/me', authenticateToken, getCurrentAdmin);
+
+// Portal user management (peserta & asesor accounts)
+router.get('/admin/portal-users/template', authenticateToken, requireSuperadmin, downloadPortalUserTemplate);
+router.post('/admin/portal-users/import', authenticateToken, requireSuperadmin, uploadExcel, importPortalUsers);
+router.get('/admin/portal-users', authenticateToken, requireSuperadmin, listPortalUsers);
+router.post('/admin/portal-users', authenticateToken, requireSuperadmin, createPortalUser);
+router.put('/admin/portal-users/:id', authenticateToken, requireSuperadmin, updatePortalUser);
+router.delete('/admin/portal-users/:id', authenticateToken, requireSuperadmin, deletePortalUser);
+
+// Assessor scoring, e-sign, and LHA
+router.post('/asesor/scores', authenticatePortal, requirePortalRole('asesor'), upsertAssessorScore);
+router.get('/asesor/scores', authenticateAny, listAssessorScores);
+router.get('/asesor/scores/:candidateCode', authenticateAny, getAssessorScore);
+router.get('/asesor/lha/:candidateCode', authenticateAny, getSignedLha);
+
 // Admin Management routes (superadmin only)
 router.get('/admin/users', authenticateToken, requireSuperadmin, getAdmins);
 router.post('/admin/users', authenticateToken, requireSuperadmin, createAdmin);
@@ -90,7 +152,7 @@ const factSheetLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Terlalu banyak permintaan AI Fact Sheet Matching. Silakan coba lagi nanti.' }
 });
-router.post('/admin/ai/fact-sheet-match', factSheetLimiter, async (req, res) => {
+router.post('/admin/ai/fact-sheet-match', authenticateAny, factSheetLimiter, async (req, res) => {
   try {
     const { submission, factSheet } = req.body;
     if (!submission) {

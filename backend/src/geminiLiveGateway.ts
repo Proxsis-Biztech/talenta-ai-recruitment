@@ -1,6 +1,8 @@
 import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
+import { getJwtSecret } from './middleware/auth';
 
 const prisma = new PrismaClient();
 const model = process.env.GEMINI_LIVE_MODEL || 'gemini-2.5-flash-native-audio-latest';
@@ -66,12 +68,25 @@ export const registerGeminiLiveGateway = (server: HttpServer) => {
     }
 
     const parsedUrl = new URL(req.url || '', 'http://localhost');
+    const sessionToken = parsedUrl.searchParams.get('token') || '';
+    let decodedToken: any = null;
+    try {
+      decodedToken = jwt.verify(sessionToken, getJwtSecret());
+      if (!decodedToken || !['portal', 'interview'].includes(decodedToken.type)) {
+        throw new Error('invalid token type');
+      }
+    } catch {
+      sendJson(socket, { type: 'error', message: 'Sesi wawancara tidak valid atau sudah kedaluwarsa.' });
+      socket.close(1008, 'Unauthorized');
+      return;
+    }
+
     const queryVoice = parsedUrl.searchParams.get('voice') || voices[0];
     const queryLanguage = parsedUrl.searchParams.get('language') || 'Indonesian';
     const queryJobTitle = parsedUrl.searchParams.get('jobTitle') || '';
     const queryJobDescription = parsedUrl.searchParams.get('jobDescription') || '';
-    const queryEmail = parsedUrl.searchParams.get('email') || '';
-    const queryCandidateName = parsedUrl.searchParams.get('candidateName') || '';
+    const queryEmail = decodedToken.type === 'interview' ? String(decodedToken.email || '') : parsedUrl.searchParams.get('email') || '';
+    const queryCandidateName = String(decodedToken.name || parsedUrl.searchParams.get('candidateName') || '');
 
     let session: any = null;
     let transcript = '';

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
   Building2,
   Users,
@@ -15,6 +16,7 @@ import {
   Save,
   Check
 } from 'lucide-react';
+import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import {
   Button,
   Badge,
@@ -94,15 +96,24 @@ const INITIAL_COMPANIES: CompanyItem[] = [
 ];
 
 export function AdminCompanyMatrix() {
-  const [companies, setCompanies] = useState<CompanyItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.warn('Failed to parse saved companies:', e);
-    }
-    return INITIAL_COMPANIES;
-  });
+  const [companies, setCompanies] = useState<CompanyItem[]>(INITIAL_COMPANIES);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadMasterScope<CompanyItem[]>('company')
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data.matrix) && data.matrix.length > 0) {
+          setCompanies(data.matrix);
+        } else {
+          void saveMasterRecord('company', 'matrix', INITIAL_COMPANIES);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [selectedPtId, setSelectedPtId] = useState<string>('PT-01');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -122,36 +133,66 @@ export function AdminCompanyMatrix() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Matriks Peserta x Program x Tahap x Status
-  const matrixData = [
-    {
-      program: 'Software Engineer Specialist Batch IV',
-      quota: 450,
-      tahapBerkas: 450,
-      tahapCAT: 380,
-      tahapInterview: 120,
-      statusLulus: 85,
-      statusGagal: 35
-    },
-    {
-      program: 'Data Architect & AI Specialist',
-      quota: 300,
-      tahapBerkas: 300,
-      tahapCAT: 240,
-      tahapInterview: 80,
-      statusLulus: 50,
-      statusGagal: 30
-    },
-    {
-      program: 'Digital Product Manager Fellow',
-      quota: 490,
-      tahapBerkas: 490,
-      tahapCAT: 410,
-      tahapInterview: 140,
-      statusLulus: 95,
-      statusGagal: 45
-    }
-  ];
+  // Matriks Peserta x Program x Tahap x Status (dihitung dari data server)
+  const [matrixData, setMatrixData] = useState<Array<{
+    program: string;
+    quota: number;
+    tahapBerkas: number;
+    tahapCAT: number;
+    tahapInterview: number;
+    statusLulus: number;
+    statusGagal: number;
+  }>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadMatrix = async () => {
+      const token = localStorage.getItem('adminToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      try {
+        const [jobsResponse, applicantsResponse] = await Promise.all([
+          axios.get('/api/admin/jobs', { params: { limit: 100 }, headers }),
+          axios.get('/api/admin/applicants', { params: { limit: 100 }, headers })
+        ]);
+        if (cancelled) return;
+        const jobs = jobsResponse.data.data || [];
+        const applicants = applicantsResponse.data.data || [];
+        const rows = jobs
+          .filter((job: any) => job.status === 'active')
+          .slice(0, 10)
+          .map((job: any) => {
+            const related = applicants.filter(
+              (applicant: any) =>
+                applicant.job?.title === job.title || applicant.appliedPosition === job.title
+            );
+            const screened = related.filter((applicant: any) => applicant.screeningStatus === 'success').length;
+            const interviewed = related.filter((applicant: any) =>
+              ['completed', 'scored'].includes(applicant.interviewStatus)
+            ).length;
+            const passed = related.filter(
+              (applicant: any) =>
+                Number(applicant.interviewScore || 0) >= Number(job.interviewPassingScore || 70)
+            ).length;
+            return {
+              program: job.title,
+              quota: related.length,
+              tahapBerkas: related.length,
+              tahapCAT: screened,
+              tahapInterview: interviewed,
+              statusLulus: passed,
+              statusGagal: Math.max(0, related.length - passed)
+            };
+          });
+        setMatrixData(rows);
+      } catch {
+        if (!cancelled) setMatrixData([]);
+      }
+    };
+    void loadMatrix();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleAddCompany = (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,7 +212,7 @@ export function AdminCompanyMatrix() {
     const next = [...companies, newCompany];
     setCompanies(next);
     setSelectedPtId(newCompany.id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    void saveMasterRecord('company', 'matrix', next);
 
     setIsAddModalOpen(false);
     setPtName('');
@@ -353,6 +394,13 @@ export function AdminCompanyMatrix() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {matrixData.length === 0 && (
+                <TableRow>
+                  <TableCell className="text-center text-xs text-slate-400 py-8" colSpan={8}>
+                    Belum ada program aktif dengan data peserta.
+                  </TableCell>
+                </TableRow>
+              )}
               {matrixData.map((m, idx) => (
                 <TableRow key={idx} className="hover:bg-slate-50/50">
                   <TableCell className="font-sans font-bold text-ink text-xs">{m.program}</TableCell>

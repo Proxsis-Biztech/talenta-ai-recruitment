@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '../middleware/auth';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import path from 'path';
@@ -347,20 +349,21 @@ export const updateApplicant = async (req: Request, res: Response) => {
 export const deleteApplicant = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
+    const applicant = await prisma.applicant.findUnique({ where: { id } });
+    if (!applicant) return res.status(404).json({ error: 'Data pelamar tidak ditemukan' });
 
-    // Delete related experiences first to avoid foreign key constraint errors
-    await prisma.experience.deleteMany({
-      where: { applicantId: id }
-    });
+    await prisma.experience.deleteMany({ where: { applicantId: id } });
+    await prisma.applicant.delete({ where: { id } });
 
-    await prisma.applicant.delete({
-      where: { id }
-    });
+    if (applicant.localCvPath) {
+      const localFilePath = path.join(__dirname, '../../uploads', path.basename(applicant.localCvPath));
+      fs.unlink(localFilePath, () => undefined);
+    }
 
-    res.json({ message: "Data pelamar berhasil dihapus" });
+    res.json({ message: 'Data pelamar berhasil dihapus' });
   } catch (error) {
-    console.error("Delete applicant error:", error);
-    res.status(500).json({ error: "Gagal menghapus data pelamar" });
+    console.error('Delete applicant error:', error);
+    res.status(500).json({ error: 'Gagal menghapus data pelamar' });
   }
 };
 
@@ -427,6 +430,26 @@ export const saveInterview = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Save interview error:', error);
     res.status(500).json({ error: 'Gagal menyimpan hasil wawancara' });
+  }
+};
+
+export const createInterviewSessionToken = async (req: Request, res: Response) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: 'Email wajib diisi.' });
+    const applicant = await prisma.applicant.findUnique({ where: { email } });
+    if (!applicant) {
+      return res.status(404).json({ error: 'Email tidak terdaftar. Silakan daftar terlebih dahulu.' });
+    }
+    const token = jwt.sign(
+      { type: 'interview', email: applicant.email, applicantId: applicant.id, name: applicant.fullName },
+      getJwtSecret(),
+      { expiresIn: '2h' }
+    );
+    return res.json({ token, expiresIn: 7200 });
+  } catch (error) {
+    console.error('Interview session token error:', error);
+    return res.status(500).json({ error: 'Gagal membuat sesi wawancara.' });
   }
 };
 
@@ -866,37 +889,35 @@ export const testAiLatencyHandler = async (req: Request, res: Response) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY belum dikonfigurasi' });
+      return res.status(503).json({
+        status: 'degraded',
+        error: 'GEMINI_API_KEY belum dikonfigurasi',
+        latencyMs: Date.now() - start,
+        timestamp: new Date().toISOString()
+      });
     }
     const { GoogleGenAI } = await import('@google/genai');
     const ai = new GoogleGenAI({ apiKey });
     await ai.models.generateContent({
-      model: 'gemini-3.5-flash-lite',
+      model: process.env.GEMINI_HEALTH_MODEL || 'gemini-2.5-flash',
       contents: 'Ping connectivity test. Return healthy.'
     });
-    const latencyMs = Date.now() - start;
-    res.json({
+    return res.json({
       status: 'online',
-      latencyMs,
+      latencyMs: Date.now() - start,
       timestamp: new Date().toISOString(),
       models: [
-        { id: 'gemini-2.5-flash-native-audio-latest', role: 'Live Audio Multimodal', status: 'ready', latencyTarget: '<400ms' },
-        { id: 'gemini-2.5-flash', role: 'ATS Screening & Structured Scorer', status: 'ready', latencyTarget: '<1200ms' },
-        { id: 'gemini-3.5-flash-lite', role: 'Fast Inference & Fallback', status: 'ready', latencyTarget: '<600ms' }
+        { id: 'gemini-2.5-flash-native-audio-latest', role: 'Live Audio Multimodal', status: 'configured', latencyTarget: '<400ms' },
+        { id: 'gemini-2.5-flash', role: 'ATS Screening & Structured Scorer', status: 'configured', latencyTarget: '<1200ms' },
+        { id: process.env.GEMINI_HEALTH_MODEL || 'gemini-2.5-flash', role: 'Health Probe', status: 'online', latencyTarget: '<600ms' }
       ]
     });
   } catch (err: any) {
-    const latencyMs = Date.now() - start;
-    res.status(200).json({
-      status: 'online',
-      latencyMs: latencyMs > 0 ? latencyMs : 380,
-      note: 'Primary probe fallback',
-      timestamp: new Date().toISOString(),
-      models: [
-        { id: 'gemini-2.5-flash-native-audio-latest', role: 'Live Audio Multimodal', status: 'ready', latencyTarget: '<400ms' },
-        { id: 'gemini-2.5-flash', role: 'ATS Screening & Structured Scorer', status: 'ready', latencyTarget: '<1200ms' },
-        { id: 'gemini-3.5-flash-lite', role: 'Fast Inference & Fallback', status: 'ready', latencyTarget: '<600ms' }
-      ]
+    return res.status(503).json({
+      status: 'degraded',
+      error: err?.message || 'Gemini API tidak dapat dijangkau',
+      latencyMs: Date.now() - start,
+      timestamp: new Date().toISOString()
     });
   }
 };

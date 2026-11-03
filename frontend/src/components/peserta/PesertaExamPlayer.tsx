@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Clock,
@@ -39,6 +40,7 @@ import { PesertaLayout } from './PesertaLayout';
 import { ProctoringEngine, type ProctoringViolationEvent } from '../../utils/proctoringEngine';
 import { Button, Badge, Modal, Card, CardContent } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
+import { getPortalToken } from '../../services/portalAuthService';
 import { getProgramById, DEFAULT_ASSESSMENT_PROGRAMS } from '../../services/assessmentCatalog';
 
 // Mock 40 questions covering realistic IT & Engineering competencies for CAT mode
@@ -160,66 +162,50 @@ export default function PesertaExamPlayer() {
     return getProgramById(targetId) || DEFAULT_ASSESSMENT_PROGRAMS[0];
   }, [id, activeUser.assessmentId]);
 
-  // Load 40 questions specific to this company, grade, and program
-  const questions = useMemo(() => {
-    return activeProgram.questions && activeProgram.questions.length > 0
-      ? activeProgram.questions
-      : MOCK_QUESTIONS;
-  }, [activeProgram]);
-
   // Font Size Accessibility Setting: 'normal' (16px), 'large' (18px), 'xlarge' (20px)
   const [fontSize, setFontSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
 
-  // Exam timer: 90 minutes = 5400 seconds
-  const [timeLeft, setTimeLeft] = useState(5340);
+  // Exam timer follows the program duration from the server (fallback to catalog value)
+  const [timeLeft, setTimeLeft] = useState(() => (activeProgram.durationMinutes || 90) * 60);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Active question index (0..39)
   const [currentIdx, setCurrentIdx] = useState(0);
 
   // Candidate answers dictionary: { [questionId]: answerValue }
-  const [answers, setAnswers] = useState<Record<number, any>>({
-    1: 'A',
-    2: ['A', 'B'],
-    3: '502'
-  });
+  const [answers, setAnswers] = useState<Record<number, any>>({});
 
   // Doubt marker: { [questionId]: boolean }
-  const [markedDoubt, setMarkedDoubt] = useState<Record<number, boolean>>({
-    2: true
-  });
+  const [markedDoubt, setMarkedDoubt] = useState<Record<number, boolean>>({});
 
   // Navigator filter: 'all' | 'unanswered' | 'doubt'
   const [navFilter, setNavFilter] = useState<'all' | 'unanswered' | 'doubt'>('all');
   const [showMobileNav, setShowMobileNav] = useState(false);
 
   // Auto-save feedback
-  const [autoSaveStatus, setAutoSaveStatus] = useState<string>('Tersimpan otomatis');
+  const [autoSaveStatus, setAutoSaveStatus] = useState<string>('Menyiapkan sesi...');
 
-  // Check if candidate has already submitted this CAT exam prior to this session
-  const [isExamLocked, setIsExamLocked] = useState<boolean>(() => {
-    const specificSubmitted = localStorage.getItem(`talenta_cat_submitted_${activeProgram.id}`);
-    const globalSubmitted = localStorage.getItem('talenta_cat_completed') === 'true';
-    return Boolean(specificSubmitted || globalSubmitted);
-  });
+  // Server-backed exam state
+  const [serverQuestions, setServerQuestions] = useState<Question[] | null>(null);
+  const [examReady, setExamReady] = useState(false);
+  const [examError, setExamError] = useState('');
+  const [isExamLocked, setIsExamLocked] = useState(false);
+  const [submissionData, setSubmissionData] = useState<{
+    submittedAt?: string;
+    totalAnswered?: number;
+    totalQuestions?: number;
+    score?: number;
+    integrityScore?: number;
+    manualReviewCount?: number;
+  } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const submissionData = useMemo(() => {
-    const raw = localStorage.getItem(`talenta_cat_submitted_${activeProgram.id}`);
-    if (raw) {
-      try {
-        return JSON.parse(raw);
-      } catch (e) {
-        // fallback
-      }
-    }
-    return {
-      submittedAt: localStorage.getItem('talenta_cat_submitted_at') || 'Hari ini, 13:56 WIB',
-      totalAnswered: 40,
-      totalQuestions: 40,
-      score: 86.5,
-      integrityScore: 100
-    };
-  }, [activeProgram.id]);
+  const questions = useMemo(() => {
+    if (serverQuestions && serverQuestions.length > 0) return serverQuestions;
+    return activeProgram.questions && activeProgram.questions.length > 0
+      ? activeProgram.questions
+      : MOCK_QUESTIONS;
+  }, [serverQuestions, activeProgram]);
 
   // Modals & Proctoring
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
@@ -240,6 +226,63 @@ export default function PesertaExamPlayer() {
   const [chatInput, setChatInput] = useState('');
 
   const proctoringRef = useRef<ProctoringEngine | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAttempt = async () => {
+      const token = getPortalToken();
+      if (!token) {
+        setExamError('Sesi Anda tidak ditemukan. Silakan masuk kembali.');
+        return;
+      }
+      try {
+        const response = await axios.post(
+          `/api/exam/${activeProgram.id}/start`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (cancelled) return;
+        if (response.data.locked) {
+          setIsExamLocked(true);
+          setSubmissionData({
+            submittedAt: response.data.attempt?.submittedAt
+              ? new Date(response.data.attempt.submittedAt).toLocaleString('id-ID')
+              : undefined,
+            totalAnswered: response.data.attempt?.totalAnswered,
+            totalQuestions: response.data.attempt?.totalQuestions,
+            score: response.data.attempt?.score,
+            integrityScore: response.data.attempt?.integrityScore
+          });
+          localStorage.setItem('talenta_cat_completed', 'true');
+          localStorage.setItem(`talenta_cat_submitted_${activeProgram.id}`, JSON.stringify({
+            score: response.data.attempt?.score,
+            integrityScore: response.data.attempt?.integrityScore,
+            submittedAt: response.data.attempt?.submittedAt
+          }));
+          setExamReady(true);
+          return;
+        }
+        setServerQuestions(response.data.questions || []);
+        setAnswers(response.data.attempt?.answers || {});
+        setMarkedDoubt(response.data.attempt?.markedDoubt || {});
+        if (response.data.program?.durationMinutes) {
+          setTimeLeft(Number(response.data.program.durationMinutes) * 60);
+        }
+        setExamReady(true);
+        setAutoSaveStatus('Tersimpan otomatis');
+      } catch (err) {
+        if (cancelled) return;
+        const message = axios.isAxiosError(err)
+          ? err.response?.data?.error || 'Gagal memuat sesi ujian.'
+          : 'Gagal memuat sesi ujian.';
+        setExamError(message);
+      }
+    };
+    void loadAttempt();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProgram.id]);
 
   // Robust check if question is answered
   const isQuestionAnswered = (qId: number): boolean => {
@@ -307,27 +350,26 @@ export default function PesertaExamPlayer() {
     return () => clearInterval(timer);
   }, [isExamLocked]);
 
-  // Periodic Local Auto-Save
+  // Periodic server auto-save
   useEffect(() => {
-    if (isExamLocked) return;
+    if (!examReady || isExamLocked) return;
 
-    const saveTimer = setInterval(() => {
+    const saveTimer = setInterval(async () => {
+      const token = getPortalToken();
+      if (!token) return;
       try {
-        localStorage.setItem(
-          'peserta_cat_answers',
-          JSON.stringify({
-            answers,
-            markedDoubt,
-            savedAt: new Date().toISOString()
-          })
+        await axios.put(
+          `/api/exam/${activeProgram.id}/answers`,
+          { answers, markedDoubt },
+          { headers: { Authorization: `Bearer ${token}` } }
         );
         setAutoSaveStatus(`Tersimpan aman • ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`);
-      } catch (err) {
-        console.warn('Auto-save error:', err);
+      } catch {
+        setAutoSaveStatus('Gagal menyimpan • mencoba lagi');
       }
     }, 8000);
     return () => clearInterval(saveTimer);
-  }, [answers, markedDoubt, isExamLocked]);
+  }, [answers, markedDoubt, examReady, isExamLocked, activeProgram.id]);
 
   const formatTimer = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -370,35 +412,72 @@ export default function PesertaExamPlayer() {
     }, 1200);
   };
 
-  const handleSubmitExam = () => {
-    const timestamp =
-      new Date().toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-      }) +
-      ', ' +
-      new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
-      ' WIB';
+  const handleSubmitExam = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setAutoSaveStatus('Mengirim jawaban ke server...');
+    try {
+      const token = getPortalToken();
+      if (!token) {
+        throw new Error('Sesi Anda telah berakhir. Silakan masuk kembali.');
+      }
+      const response = await axios.post(
+        `/api/exam/${activeProgram.id}/submit`,
+        {
+          answers,
+          markedDoubt,
+          violations,
+          integrityScore: Math.max(70, 100 - violations.length * 5)
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const timestamp =
+        new Date().toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        }) +
+        ', ' +
+        new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
+        ' WIB';
 
-    const submissionPayload = {
-      submittedAt: timestamp,
-      programId: activeProgram.id,
-      programTitle: activeProgram.title,
-      totalAnswered: answeredCount,
-      totalQuestions: totalQuestions,
-      score: 86.5,
-      integrityScore: Math.max(70, 100 - violations.length * 5)
-    };
-
-    localStorage.setItem('talenta_cat_completed', 'true');
-    localStorage.setItem('talenta_cat_submitted_at', timestamp);
-    localStorage.setItem(`talenta_cat_submitted_${activeProgram.id}`, JSON.stringify(submissionPayload));
-    localStorage.setItem(`talenta_cat_answers_${activeProgram.id}`, JSON.stringify(answers));
-
-    setSummaryModalOpen(false);
-    setSubmitSuccessModalOpen(true);
+      setSubmissionData({
+        submittedAt: timestamp,
+        totalAnswered: answeredCount,
+        totalQuestions,
+        score: response.data.score,
+        integrityScore: response.data.integrityScore,
+        manualReviewCount: response.data.manualReviewCount
+      });
+      localStorage.setItem('talenta_cat_completed', 'true');
+      localStorage.setItem(`talenta_cat_submitted_${activeProgram.id}`, JSON.stringify({
+        score: response.data.score,
+        integrityScore: response.data.integrityScore,
+        submittedAt: response.data.submittedAt
+      }));
+      setIsExamLocked(true);
+      setAutoSaveStatus('Jawaban tersimpan di server');
+      setSummaryModalOpen(false);
+      setSubmitSuccessModalOpen(true);
+    } catch (err) {
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.error || 'Gagal mengumpulkan ujian.'
+        : err instanceof Error
+          ? err.message
+          : 'Gagal mengumpulkan ujian.';
+      setAutoSaveStatus(message);
+      window.alert(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  useEffect(() => {
+    if (timeLeft === 0 && examReady && !isExamLocked && !isSubmitting) {
+      void handleSubmitExam();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, examReady, isExamLocked, isSubmitting]);
 
   // Filtered navigator numbers
   const filteredIndices = Array.from({ length: totalQuestions }).map((_, i) => i).filter((idx) => {
@@ -424,6 +503,34 @@ export default function PesertaExamPlayer() {
       : fontSize === 'large'
       ? 'text-sm sm:text-base'
       : 'text-sm sm:text-base';
+
+  if (examError) {
+    return (
+      <PesertaLayout activeTab="exam">
+        <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-7 h-7" />
+          </div>
+          <h1 className="text-xl font-extrabold text-ink font-heading">Sesi Ujian Tidak Dapat Dimuat</h1>
+          <p className="text-sm text-muted-slate">{examError}</p>
+          <Button variant="primary" onClick={() => window.location.reload()} className="text-xs">
+            Muat Ulang Halaman
+          </Button>
+        </div>
+      </PesertaLayout>
+    );
+  }
+
+  if (!examReady) {
+    return (
+      <PesertaLayout activeTab="exam">
+        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+          <div className="w-8 h-8 border-2 border-primary-navy border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-mono text-muted-slate">Memuat bank soal dari server asesmen...</p>
+        </div>
+      </PesertaLayout>
+    );
+  }
 
   // ─── LOCKED EXAM VIEW (If already submitted & locked) ───
   if (isExamLocked && !submitSuccessModalOpen) {
@@ -475,10 +582,10 @@ export default function PesertaExamPlayer() {
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-left md:text-right shrink-0">
                 <span className="text-[11px] text-muted-slate block font-medium">Waktu Pengumpulan Ujian:</span>
                 <span className="font-mono text-xs sm:text-sm font-bold text-slate-800">
-                  {submissionData.submittedAt || 'Hari ini, 13:56 WIB'}
+                  {submissionData?.submittedAt || 'Tersimpan di server'}
                 </span>
                 <span className="text-[10px] text-emerald-600 block mt-0.5 font-semibold">
-                  Terenkripsi SHA-256 ✓
+                  Tersimpan di server ✓
                 </span>
               </div>
             </div>
@@ -501,7 +608,7 @@ export default function PesertaExamPlayer() {
               <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70">
                 <span className="text-xs text-muted-slate block font-medium">Status Soal</span>
                 <p className="font-mono text-base sm:text-lg font-bold text-primary-navy mt-1">
-                  {submissionData.totalAnswered || 40} / {submissionData.totalQuestions || 40} Terjawab
+                  {submissionData?.totalAnswered ?? answeredCount} / {submissionData?.totalQuestions ?? totalQuestions} Terjawab
                 </p>
                 <span className="text-[11px] text-emerald-600 font-semibold">100% Selesai</span>
               </div>
@@ -509,7 +616,7 @@ export default function PesertaExamPlayer() {
               <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70">
                 <span className="text-xs text-muted-slate block font-medium">Estimasi Skor CAT</span>
                 <p className="font-mono text-base sm:text-lg font-bold text-emerald-600 mt-1">
-                  {submissionData.score || 86.5} / 100
+                  {submissionData?.score ?? 0} / 100
                 </p>
                 <span className="text-[11px] text-slate-500">Passing Grade: {activeProgram.passingScore}</span>
               </div>
@@ -517,7 +624,7 @@ export default function PesertaExamPlayer() {
               <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70">
                 <span className="text-xs text-muted-slate block font-medium">Pengawasan (AI)</span>
                 <p className="font-mono text-base sm:text-lg font-bold text-emerald-600 mt-1">
-                  {submissionData.integrityScore || 100}% Bersih
+                  {submissionData?.integrityScore ?? 100}% Bersih
                 </p>
                 <span className="text-[11px] text-slate-500">Tidak ada anomali</span>
               </div>
@@ -586,39 +693,13 @@ export default function PesertaExamPlayer() {
                     </div>
                     <p className="text-slate-600 text-xs">{q.text}</p>
                     <div className="pt-1 text-xs text-slate-500 font-mono">
-                      Jawaban Anda: <strong className="text-primary-navy">Tersimpan di Server (Enkripsi SHA-256)</strong>
+                      Jawaban Anda: <strong className="text-primary-navy">Tersimpan di Server Asesmen</strong>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Demo Testing Utility: Reset Exam Button */}
-            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-slate">
-              <div className="flex items-center gap-1.5">
-                <Info className="w-4 h-4 text-slate-400" />
-                <span>Mode Pengujian &amp; Evaluasi Sistem</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm('Apakah Anda ingin mereset status ujian CAT ini untuk mencoba simulasi pengerjaan ulang soal dari awal?')) {
-                    localStorage.removeItem('talenta_cat_completed');
-                    localStorage.removeItem('talenta_cat_submitted_at');
-                    localStorage.removeItem(`talenta_cat_submitted_${activeProgram.id}`);
-                    localStorage.removeItem(`talenta_cat_answers_${activeProgram.id}`);
-                    localStorage.removeItem('peserta_cat_answers');
-                    setIsExamLocked(false);
-                    window.location.reload();
-                  }
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-red-700 hover:border-red-300 hover:bg-red-50 text-xs font-semibold transition-colors cursor-pointer"
-                title="Reset sesi ujian untuk pengujian ulang dari awal"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset Status Ujian (Mode Pengujian)</span>
-              </button>
-            </div>
           </div>
         </div>
       </PesertaLayout>
@@ -1339,7 +1420,7 @@ export default function PesertaExamPlayer() {
               Selamat, Jawaban Anda Telah Tersimpan!
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
-              Seluruh 40 butir jawaban CAT Anda telah dienkripsi dan diverifikasi oleh sistem Talenta+.
+              Seluruh jawaban CAT Anda telah disimpan dan diverifikasi oleh sistem Talenta+.
             </p>
           </div>
 

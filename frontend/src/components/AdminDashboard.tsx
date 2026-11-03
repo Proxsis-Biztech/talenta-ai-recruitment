@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -25,6 +25,7 @@ import { AdminVerticalTimeline } from './admin/AdminVerticalTimeline';
 import { AdminMasterMateriTree } from './admin/AdminMasterMateriTree';
 import { AdminBankSoalEditor } from './admin/AdminBankSoalEditor';
 import { AdminCompanyMatrix } from './admin/AdminCompanyMatrix';
+import { AdminAccessCodes } from './admin/AdminAccessCodes';
 import AdminBillingCredit from './admin/AdminBillingCredit';
 import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
 import Swal from 'sweetalert2';
@@ -109,44 +110,29 @@ interface Applicant {
 
 // Helpers for Talenta+ Candidate Table representation
 const getCompanyForApplicant = (app: Applicant): string => {
-  if (app.experiences && app.experiences.length > 0 && app.experiences[0]?.companyName) {
-    return app.experiences[0].companyName;
-  }
-  const companies = [
-    'PT Telkom Indonesia Tbk',
-    'Bank Mandiri Tbk',
-    'Bank CIMB Niaga Tbk',
-    'Astra International Tbk',
-    'Pertamina Hulu Energi',
-  ];
-  const charSum = app.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return companies[charSum % companies.length];
+  const experienceCompany = app.experiences?.[0]?.companyName;
+  if (experienceCompany) return experienceCompany;
+  const match = app.job?.title?.match(/\(([^)]+)\)\s*$/);
+  return match?.[1] || '-';
 };
 
-const getProgramForApplicant = (app: Applicant): string => {
-  if (app.job?.title) {
-    return `Asesmen ${app.job.title} Batch I`;
-  }
-  if (app.appliedPosition) {
-    return `Asesmen ${app.appliedPosition} Batch I`;
-  }
-  return 'Asesmen Software Engineer Batch I';
-};
+const getProgramForApplicant = (app: Applicant): string =>
+  app.job?.title || app.appliedPosition || '-';
 
 const getStageForApplicant = (app: Applicant): string => {
   if (app.interviewStatus === 'completed' || app.interviewStatus === 'scored') {
-    if (app.screeningStatus === 'success' || app.compositeEvaluation?.recommendation === 'STRONG HIRE') {
-      return 'Keputusan Akhir';
-    }
-    return 'Review Asesor';
+    return 'Selesai';
   }
   if (app.interviewStatus === 'in_progress') {
-    return 'Live Interview';
+    return 'Wawancara';
   }
-  if (app.proctorFlags && app.proctorFlags !== '[]' && app.proctorFlags.length > 5) {
-    return 'AI Proctoring';
+  if (app.screeningStatus === 'success') {
+    return 'Tes CAT';
   }
-  return 'Tes Soal';
+  if (app.screeningStatus === 'failed') {
+    return 'Selesai';
+  }
+  return 'Screening';
 };
 
 const getStatusForApplicant = (app: Applicant) => {
@@ -175,15 +161,25 @@ const getStatusForApplicant = (app: Applicant) => {
 };
 
 const AVATAR_PALETTES = [
-  'bg-sky-500 text-white',
-  'bg-red-500 text-white',
-  'bg-blue-600 text-white',
-  'bg-primary-navy text-white',
-  'bg-rose-500 text-white',
-  'bg-emerald-600 text-white',
-  'bg-indigo-600 text-white',
-  'bg-amber-500 text-white',
+  'bg-slate-100 text-slate-600 border border-slate-200',
 ];
+
+const buildSmoothPath = (points: Array<{ x: number; y: number }>) => {
+  if (points.length < 2) return '';
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const p0 = points[index - 1] || points[index];
+    const p1 = points[index];
+    const p2 = points[index + 1];
+    const p3 = points[index + 2] || p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+  }
+  return path;
+};
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -199,7 +195,6 @@ export default function AdminDashboard() {
   const [programFilter, setProgramFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [chartRange, setChartRange] = useState<'30 hari' | '7 hari' | '90 hari'>('30 hari');
   const [loading, setLoading] = useState(true);
   const [activeMenu, setActiveMenu] = useState<AdminMenuKey>('dashboard');
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
@@ -282,10 +277,10 @@ export default function AdminDashboard() {
   }, [fetchApplicants, fetchAllApplicants]);
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminRole');
-    localStorage.removeItem('adminUsername');
-    navigate('/admin/login');
+    for (const key of ['adminToken', 'adminRole', 'adminUsername', 'portalToken', 'portalUser', 'talenta_active_session_user', 'authRole', 'programCode']) {
+      localStorage.removeItem(key);
+    }
+    navigate('/login');
   };
 
   const handleDelete = async (id: string) => {
@@ -781,12 +776,45 @@ ${app.interviewResult ? `
     win.document.close();
   };
 
-  const statsCards = [
-    { label: 'Total Pelamar', value: total, icon: Users, gradient: 'from-blue-600 to-indigo-600', badge: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200/50' },
-    { label: 'Menunggu Review', value: applicants.filter(a => a.screeningStatus === 'pending' || !a.screeningStatus).length, icon: Clock, gradient: 'from-amber-500 to-orange-600', badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200/50' },
-    { label: 'Sudah Di-screening', value: applicants.filter(a => a.screeningStatus === 'success').length, icon: CheckCircle2, gradient: 'from-emerald-500 to-green-600', badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/50' },
-    { label: 'Selesai Interview', value: applicants.filter(a => a.interviewStatus === 'completed' || a.interviewStatus === 'scored').length, icon: Brain, gradient: 'from-primary-navy to-blue-accent', badge: 'bg-soft-blue text-primary-navy ring-1 ring-accent-border/50' },
-  ];
+  const dashboardApplicants = allApplicants.length > 0 ? allApplicants : applicants;
+  const activeProgramCount = new Set(
+    dashboardApplicants.map((applicant) => applicant.job?.title || applicant.appliedPosition).filter(Boolean)
+  ).size;
+  const completedInterviewCount = dashboardApplicants.filter((applicant) =>
+    ['completed', 'scored'].includes(applicant.interviewStatus)
+  ).length;
+  const pendingReviewCount = dashboardApplicants.filter(
+    (applicant) => applicant.screeningStatus === 'pending' || !applicant.screeningStatus
+  ).length;
+
+  const trendMonths = useMemo(() => {
+    const now = new Date();
+    const months = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+      return {
+        key: `${date.getFullYear()}-${date.getMonth()}`,
+        label: date.toLocaleDateString('id-ID', { month: 'short' }),
+        value: 0
+      };
+    });
+    for (const applicant of dashboardApplicants) {
+      if (!applicant.createdAt) continue;
+      const date = new Date(applicant.createdAt);
+      if (Number.isNaN(date.getTime())) continue;
+      const bucket = months.find((month) => month.key === `${date.getFullYear()}-${date.getMonth()}`);
+      if (bucket) bucket.value += 1;
+    }
+    return months;
+  }, [dashboardApplicants]);
+
+  const trendMax = Math.max(1, ...trendMonths.map((month) => month.value));
+  const trendPoints = trendMonths.map((month, index) => ({
+    ...month,
+    x: (index / Math.max(1, trendMonths.length - 1)) * 800,
+    y: 170 - 20 - (month.value / trendMax) * 130
+  }));
+  const trendLinePath = buildSmoothPath(trendPoints);
+  const trendAreaPath = `${trendLinePath} L 800 170 L 0 170 Z`;
 
   const initialAvatar = (name: string) => {
     const colors = [
@@ -873,6 +901,12 @@ ${app.interviewResult ? `
       subtitle: 'Jadwal wawancara langsung, transkrip real-time, dan monitor ruang ujian',
       short: 'Interview',
       dotColor: 'bg-blue-accent'
+    },
+    'access-codes': {
+      title: 'Kode Akses Program',
+      subtitle: 'Kelola token masuk peserta, masa berlaku, dan kuota penggunaan',
+      short: 'Kode Akses',
+      dotColor: 'bg-emerald-500'
     },
     jobs: {
       title: 'Program Asesmen',
@@ -1001,115 +1035,31 @@ ${app.interviewResult ? `
                 </div>
               </div>
 
-              {/* 4 Top Metric Cards (Horizontal Grid) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-                {/* Card 1: Peserta Aktif */}
-                <Card elevation="flat" className="p-5 hover:border-slate-300 transition-all">
-                  <div className="flex items-center justify-between text-muted-slate mb-3">
-                    <span className="text-xs sm:text-sm font-medium">Peserta aktif</span>
-                    <div className="w-8 h-8 rounded-lg bg-soft-blue flex items-center justify-center text-primary-navy">
-                      <Users className="w-4.5 h-4.5" />
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl sm:text-3xl font-bold font-heading text-ink tracking-tight">
-                      {total > 0 ? total.toLocaleString('id-ID') : '1.248'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100/80">
-                    <span className="text-xs font-semibold text-success-green flex items-center gap-1">
-                      ↑ 12,5% <span className="font-normal text-muted-slate">dari bulan lalu</span>
-                    </span>
-                    <div className="flex items-end gap-0.5 h-4">
-                      <div className="w-1 bg-soft-blue h-2 rounded-xs" />
-                      <div className="w-1 bg-soft-blue h-2.5 rounded-xs" />
-                      <div className="w-1 bg-accent-border h-3 rounded-xs" />
-                      <div className="w-1 bg-blue-accent/60 h-3.5 rounded-xs" />
-                      <div className="w-1 bg-blue-accent h-4 rounded-xs" />
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Card 2: Program Berjalan */}
-                <Card elevation="flat" className="p-5 hover:border-slate-300 transition-all">
-                  <div className="flex items-center justify-between text-muted-slate mb-3">
-                    <span className="text-xs sm:text-sm font-medium">Program berjalan</span>
-                    <div className="w-8 h-8 rounded-lg bg-soft-blue flex items-center justify-center text-primary-navy">
-                      <BookOpen className="w-4.5 h-4.5" />
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl sm:text-3xl font-bold font-heading text-ink tracking-tight">
-                      12
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100/80">
-                    <span className="text-xs font-semibold text-success-green flex items-center gap-1">
-                      ↑ 8,2% <span className="font-normal text-muted-slate">dari periode lalu</span>
-                    </span>
-                    <div className="flex items-end gap-0.5 h-4">
-                      <div className="w-1 bg-soft-blue h-2 rounded-xs" />
-                      <div className="w-1 bg-accent-border h-3 rounded-xs" />
-                      <div className="w-1 bg-blue-accent/50 h-2.5 rounded-xs" />
-                      <div className="w-1 bg-blue-accent/70 h-3.5 rounded-xs" />
-                      <div className="w-1 bg-blue-accent h-4 rounded-xs" />
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Card 3: Ujian Hari Ini */}
-                <Card elevation="flat" className="p-5 hover:border-slate-300 transition-all">
-                  <div className="flex items-center justify-between text-muted-slate mb-3">
-                    <span className="text-xs sm:text-sm font-medium">Ujian hari ini</span>
-                    <div className="w-8 h-8 rounded-lg bg-soft-blue flex items-center justify-center text-primary-navy">
-                      <Clock className="w-4.5 h-4.5" />
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl sm:text-3xl font-bold font-heading text-ink tracking-tight">
-                      86
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100/80">
-                    <span className="text-xs font-semibold text-success-green flex items-center gap-1">
-                      ↑ 3,1% <span className="font-normal text-muted-slate">dari kemarin</span>
-                    </span>
-                    <div className="flex items-end gap-0.5 h-4">
-                      <div className="w-1 bg-soft-blue h-1.5 rounded-xs" />
-                      <div className="w-1 bg-soft-blue h-2.5 rounded-xs" />
-                      <div className="w-1 bg-accent-border h-3.5 rounded-xs" />
-                      <div className="w-1 bg-blue-accent/70 h-3 rounded-xs" />
-                      <div className="w-1 bg-blue-accent h-4 rounded-xs" />
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Card 4: Flag Integritas */}
-                <Card elevation="flat" className="p-5 hover:border-slate-300 transition-all">
-                  <div className="flex items-center justify-between text-muted-slate mb-3">
-                    <span className="text-xs sm:text-sm font-medium">Flag integritas</span>
-                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-warning-amber">
-                      <ShieldAlert className="w-4.5 h-4.5" />
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl sm:text-3xl font-bold font-heading text-ink tracking-tight">
-                      23
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100/80">
-                    <span className="text-xs font-semibold text-warning-amber flex items-center gap-1">
-                      ↑ 4,8% <span className="font-normal text-muted-slate">dari minggu lalu</span>
-                    </span>
-                    <div className="flex items-end gap-0.5 h-4">
-                      <div className="w-1 bg-amber-100 h-2 rounded-xs" />
-                      <div className="w-1 bg-amber-200 h-2.5 rounded-xs" />
-                      <div className="w-1 bg-amber-300 h-3 rounded-xs" />
-                      <div className="w-1 bg-amber-400 h-3.5 rounded-xs" />
-                      <div className="w-1 bg-amber-500 h-4 rounded-xs" />
-                    </div>
-                  </div>
-                </Card>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: 'Peserta aktif', value: total, hint: 'Total kandidat terdaftar', icon: Users },
+                  { label: 'Program dengan pelamar', value: activeProgramCount, hint: 'Program memiliki kandidat', icon: BookOpen },
+                  { label: 'Wawancara selesai', value: completedInterviewCount, hint: 'Sesi telah dinilai', icon: Brain },
+                  { label: 'Menunggu review', value: pendingReviewCount, hint: 'Perlu tindakan admin', icon: Clock },
+                ].map((metric) => {
+                  const Icon = metric.icon;
+                  return (
+                    <Card key={metric.label} elevation="flat" className="p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-500">{metric.label}</p>
+                          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 tabular-nums">
+                            {metric.value.toLocaleString('id-ID')}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-400">{metric.hint}</p>
+                        </div>
+                        <div className="w-9 h-9 rounded-lg bg-soft-blue border border-accent-border flex items-center justify-center text-primary-navy shrink-0">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
 
               {/* Split Section: Spline Area Chart (8) + Priority Actions (4) */}
@@ -1122,31 +1072,19 @@ ${app.interviewResult ? `
                         Tren peserta asesmen
                       </h3>
                       <p className="text-xs text-muted-slate mt-0.5">
-                        Aktivitas 30 hari terakhir
+                        Pendaftaran 6 bulan terakhir
                       </p>
                     </div>
-
-                    <div className="relative">
-                      <select
-                        value={chartRange}
-                        onChange={(e) => setChartRange(e.target.value as any)}
-                        className="text-xs font-semibold text-slate-700 bg-white border border-border-slate rounded-lg px-3 py-1.5 pr-7 focus:outline-none focus:border-primary-navy cursor-pointer appearance-none"
-                      >
-                        <option value="30 hari">30 hari</option>
-                        <option value="7 hari">7 hari</option>
-                        <option value="90 hari">90 hari</option>
-                      </select>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
+                    <span className="text-xs font-medium text-slate-400">6 bulan</span>
                   </div>
 
                   {/* SVG Spline Area Wave Chart */}
                   <div className="relative h-56 w-full mt-4 flex">
                     {/* Y-Axis scale */}
                     <div className="flex flex-col justify-between h-44 text-[11px] font-mono text-slate-400 pr-3 select-none">
-                      <span>1.200</span>
-                      <span>800</span>
-                      <span>400</span>
+                      <span>{trendMax}</span>
+                      <span>{Math.round(trendMax * 0.66)}</span>
+                      <span>{Math.round(trendMax * 0.33)}</span>
                       <span>0</span>
                     </div>
 
@@ -1175,26 +1113,42 @@ ${app.interviewResult ? `
 
                         {/* Spline Area Fill */}
                         <path
-                          d="M 0 150 C 90 145, 140 120, 210 108 C 280 95, 330 118, 410 102 C 490 88, 530 96, 610 70 C 690 48, 730 58, 800 38 L 800 170 L 0 170 Z"
+                          className="chart-area"
+                          d={trendAreaPath}
                           fill="url(#talentaWaveGradient)"
                         />
 
                         {/* Spline Stroke Line */}
                         <path
-                          d="M 0 150 C 90 145, 140 120, 210 108 C 280 95, 330 118, 410 102 C 490 88, 530 96, 610 70 C 690 48, 730 58, 800 38"
+                          className="chart-line"
+                          d={trendLinePath}
                           fill="none"
-                          stroke="#2563EB"
+                          stroke="#1E3A8A"
                           strokeWidth="2.5"
                           strokeLinecap="round"
                         />
 
                         {/* Interactive Data Dots */}
-                        <circle cx="210" cy="108" r="4" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2.5" />
-                        <circle cx="410" cy="102" r="4" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2.5" />
-                        <circle cx="610" cy="70" r="4" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2.5" />
-                        <circle cx="800" cy="38" r="4.5" fill="#2563EB" stroke="#FFFFFF" strokeWidth="2" />
+                        {trendPoints.map((point, index) => (
+                          <circle
+                            key={point.key}
+                            className="chart-dot"
+                            cx={point.x}
+                            cy={point.y}
+                            r="4"
+                            fill="#FFFFFF"
+                            stroke="#1E3A8A"
+                            strokeWidth="2.5"
+                            style={{ animationDelay: `${index * 100}ms` }}
+                          />
+                        ))}
                       </svg>
                     </div>
+                  </div>
+                  <div className="flex justify-between pl-10 pr-1 pt-2 text-[11px] font-mono text-slate-400">
+                    {trendMonths.map((month) => (
+                      <span key={month.key}>{month.label}</span>
+                    ))}
                   </div>
                 </Card>
 
@@ -1382,12 +1336,12 @@ ${app.interviewResult ? `
                       className="rounded border-slate-300 text-primary-navy focus:ring-primary-navy cursor-pointer"
                     />
                   </TableHead>
-                  <TableHead>Peserta ↕</TableHead>
-                  <TableHead>PT / Perusahaan ↕</TableHead>
+                  <TableHead>Peserta</TableHead>
+                  <TableHead>Perusahaan</TableHead>
                   <TableHead>Program</TableHead>
-                  <TableHead>Tahap ↕</TableHead>
-                  <TableHead>Status ↕</TableHead>
-                  <TableHead>Tgl Daftar ↕</TableHead>
+                  <TableHead>Tahap</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Tanggal Daftar</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1430,8 +1384,12 @@ ${app.interviewResult ? `
                         .join('')
                         .toUpperCase();
                       const regDate = app.createdAt
-                        ? new Date(app.createdAt).toISOString().split('T')[0]
-                        : '2026-03-13';
+                        ? new Date(app.createdAt).toLocaleDateString('id-ID', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric'
+                          })
+                        : '-';
 
                       return (
                         <TableRow
@@ -1473,17 +1431,21 @@ ${app.interviewResult ? `
                           </TableCell>
 
                           {/* PT / Perusahaan */}
-                          <TableCell className="text-xs font-medium text-slate-800">
-                            {getCompanyForApplicant(app)}
+                          <TableCell className="text-sm text-slate-700">
+                            <span className="block max-w-[180px] truncate" title={getCompanyForApplicant(app)}>
+                              {getCompanyForApplicant(app)}
+                            </span>
                           </TableCell>
 
                           {/* Program */}
-                          <TableCell className="text-xs text-slate-600">
-                            {getProgramForApplicant(app)}
+                          <TableCell className="text-sm text-slate-600">
+                            <span className="block max-w-[240px] truncate" title={getProgramForApplicant(app)}>
+                              {getProgramForApplicant(app).replace(/\s*\([^)]*\)\s*$/, '')}
+                            </span>
                           </TableCell>
 
                           {/* Tahap */}
-                          <TableCell className="text-xs font-medium text-slate-700">
+                          <TableCell className="text-sm text-slate-700">
                             {getStageForApplicant(app)}
                           </TableCell>
 
@@ -1502,7 +1464,7 @@ ${app.interviewResult ? `
                           </TableCell>
 
                           {/* Tgl Daftar */}
-                          <TableCell className="font-mono text-xs text-muted-slate">
+                          <TableCell className="text-sm text-slate-500 whitespace-nowrap">
                             {regDate}
                           </TableCell>
 
@@ -1634,9 +1596,9 @@ ${app.interviewResult ? `
             </div>
           ) : activeMenu === 'jobs' ? (
             <div className="animate-fade-in space-y-4">
-              <div className="flex items-center justify-between bg-white p-3.5 rounded-xl border border-border-slate">
-                <span className="text-xs font-bold text-ink">Mode Pengelolaan Program Asesmen:</span>
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3.5 rounded-xl border border-border-slate">
+                <span className="text-sm font-semibold text-ink">Mode pengelolaan program</span>
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     variant={!showProgramBuilder ? 'primary' : 'outline'}
                     size="sm"
@@ -1652,7 +1614,7 @@ ${app.interviewResult ? `
                     className="text-xs flex items-center gap-1.5"
                   >
                     <Sliders className="w-3.5 h-3.5" />
-                    <span>Program Builder Studio (3 Kolom)</span>
+                    <span>Program Builder</span>
                   </Button>
                 </div>
               </div>
@@ -1691,6 +1653,8 @@ ${app.interviewResult ? `
                 applicants={allApplicants.length > 0 ? allApplicants : applicants}
               />
             </div>
+          ) : activeMenu === 'access-codes' ? (
+            <AdminAccessCodes />
           ) : activeMenu === 'materi' ? (
             <div className="animate-fade-in">
               <AdminMasterMateriTree />

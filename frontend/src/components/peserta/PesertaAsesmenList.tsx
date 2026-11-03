@@ -70,7 +70,6 @@ export default function PesertaAsesmenList() {
     return getProgramById(activeUser.assessmentId || 'BMRI-DATA-02') || getProgramById('BMRI-DATA-02') || getProgramById('SE-402')!;
   }, [activeUser.assessmentId]);
 
-  const allPrograms = useMemo(() => getAllPrograms(), []);
 
   // Check if candidate has completed CAT exam in current session
   const isCatCompleted = useMemo(() => {
@@ -102,38 +101,8 @@ export default function PesertaAsesmenList() {
           correlationNote: 'Asesor akan memvalidasi penalaran studi kasus yang Anda jawab di lembar CAT serta mengukur kompetensi perilaku (BARS).'
         }
       },
-      ...allPrograms
-        .filter((p) => p.id !== activeProg.id)
-        .slice(0, 2)
-        .map((p, idx): AsesmenItem => {
-          const isDone = idx === 1;
-          return {
-            id: p.id,
-            title: p.title,
-            pt: p.companyName,
-            category: p.category,
-            status: isDone ? 'selesai' : 'belum',
-            badgeStatus: isDone ? 'Sudah Selesai & Lulus LHA' : 'Belum Dikerjakan',
-            badgeVariant: isDone ? 'teal' : 'warning',
-            duration: `${p.durationMinutes} Menit`,
-            questions: `${p.totalQuestions} Soal CAT`,
-            passingScore: p.passingScore,
-            deadline: isDone ? '24 Okt 2026 (Selesai)' : '31 Okt 2026',
-            progress: isDone ? 100 : 0,
-            currentStageNumber: isDone ? 4 : 1,
-            score: isDone ? 87.5 : undefined,
-            description: p.description,
-            interviewInfo: {
-              assessorName: isDone ? 'Budi Santoso, S.Psi, M.M.' : 'Tim Asesor ' + p.companyName,
-              mode: 'Live Interview Panel',
-              duration: '30-45 Menit',
-              timing: isDone ? 'Selesai Dilaksanakan' : 'Dijadwalkan setelah CAT',
-              correlationNote: 'Konfirmasi bukti perilaku kerja dan pendalaman situational judgment kasus bisnis.'
-            }
-          };
-        })
     ];
-  }, [activeProg, allPrograms, isCatCompleted]);
+  }, [activeProg, isCatCompleted]);
 
   // Selected Program for Detail View
   const selectedItem = useMemo(() => {

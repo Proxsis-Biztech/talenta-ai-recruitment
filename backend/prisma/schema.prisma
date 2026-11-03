@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -65,6 +65,7 @@ model Experience {
 
 model Job {
   id                   String      @id @default(uuid())
+  code                 String?     @unique // Program code used by the assessment portal (e.g. SE-402)
   title                String      @unique
   description          String      // Berisi jobdesk & requirements
   status               String      @default("active") // "active" | "inactive"
@@ -72,4 +73,155 @@ model Job {
   interviewPassingScore Int?       // Skor kelulusan (0-100) untuk passing threshold
   createdAt            DateTime    @default(now())
   applicants           Applicant[]
+}
+
+model PortalUser {
+  id              String          @id @default(uuid())
+  email           String          @unique
+  username        String?         @unique
+  password        String
+  name            String
+  role            String          @default("peserta") // "peserta" | "asesor" | "admin" | "superadmin"
+  phone           String?
+  companyId       String?
+  companyName     String?
+  assessmentId    String?
+  assessmentTitle String?
+  gradeLevel      String?
+  specialization  String?
+  status          String          @default("Aktif") // "Aktif" | "Nonaktif"
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  examAttempts    ExamAttempt[]
+  assessorScores  AssessorScore[]
+}
+
+model ExamAttempt {
+  id                String   @id @default(uuid())
+  userId            String
+  user              PortalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programCode       String
+  answers           String   @default("{}")
+  markedDoubt       String   @default("{}")
+  violations        String?
+  score             Float?
+  integrityScore    Int?
+  autoGradedCount   Int?
+  manualReviewCount Int?
+  competencyScores  String?
+  status            String   @default("in_progress") // "in_progress" | "submitted" | "graded"
+  startedAt         DateTime @default(now())
+  submittedAt       DateTime?
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, programCode])
+}
+
+model ProgramAccessCode {
+  code        String   @id
+  programCode String
+  maxUses     Int      @default(1000)
+  uses        Int      @default(0)
+  expiresAt   DateTime?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model ProgramQuestion {
+  id            String  @id @default(uuid())
+  programCode   String
+  orderNo       Int
+  type          String
+  competency    String
+  difficulty    String
+  text          String
+  codeSnippet   String?
+  options       String?
+  matchingPairs String?
+  correctAnswer String?
+  points        Int     @default(1)
+
+  @@unique([programCode, orderNo])
+}
+
+model AssessorScore {
+  id              String   @id @default(uuid())
+  candidateCode   String
+  candidateName   String
+  programCode     String?
+  programTitle    String
+  assessorId      String
+  assessor        PortalUser @relation(fields: [assessorId], references: [id], onDelete: Cascade)
+  competencies    String   // JSON array
+  interviewScore  Float
+  compositeScore  Float
+  recommendation  String
+  notes           String?
+  status          String   @default("draft") // "draft" | "signed"
+  lhaHash         String?  @unique
+  lhaNumber       String?
+  signedAt        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([candidateCode, programTitle])
+}
+
+model MasterRecord {
+  id        String   @id @default(uuid())
+  scope     String   // "bank-soal" | "materi" | "program" | "company" | "ai-config"
+  key       String
+  value     String   // JSON payload
+  updatedAt DateTime @updatedAt
+
+  @@unique([scope, key])
+}
+
+model BillingTenant {
+  id               String   @id
+  code             String   @unique
+  name             String
+  industry         String
+  contactPerson    String
+  email            String
+  creditBalance    Int
+  availableQuota   Int
+  usedQuota        Int
+  ratePerCandidate Int      @default(45000)
+  createdAt        DateTime @default(now())
+  invoices         BillingInvoice[]
+  transactions     BillingTransaction[]
+}
+
+model BillingInvoice {
+  id              String   @id @default(uuid())
+  invoiceNumber   String   @unique
+  tenantId        String
+  tenant          BillingTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  date            String
+  dueDate         String
+  requestedQuota  Int
+  subtotal        Int
+  ppn11           Int
+  totalAmount     Int
+  paymentMethod   String
+  bankAccount     String
+  status          String   @default("PENDING_APPROVAL")
+  proofReceiptUrl String?
+  approvedAt      DateTime?
+  approvedBy      String?
+  createdAt       DateTime @default(now())
+}
+
+model BillingTransaction {
+  id             String   @id @default(uuid())
+  tenantId       String
+  tenant         BillingTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  batchName      String
+  programTitle   String
+  candidateCount Int
+  deductedAmount Int
+  timestamp      DateTime @default(now())
+  type           String
+  description    String
 }

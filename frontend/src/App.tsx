@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, Component, type ErrorInfo, type ReactNode } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { RequireRole } from './components/auth/RequireRole';
 
 // Landing & Auth
 const RolePortalSelector = lazy(() => import('./components/landing/RolePortalSelector'));
@@ -78,10 +79,6 @@ const Loader = () => (
 function App() {
   return (
     <Router>
-      {/* Skip-to-content link for keyboard users */}
-      <a href="#main-content" className="skip-to-content">
-        Langsung ke konten utama
-      </a>
       <ErrorBoundary>
         <Suspense fallback={<Loader />}>
           <Routes>
@@ -96,32 +93,32 @@ function App() {
             <Route path="/offline" element={<OfflinePage />} />
 
             {/* Route Group A: PESERTA (/peserta) */}
-            <Route path="/peserta" element={<PesertaDashboard />} />
-            <Route path="/peserta/dashboard" element={<PesertaDashboard />} />
-            <Route path="/peserta/asesmen" element={<PesertaAsesmenList />} />
-            <Route path="/peserta/detail/:id" element={<PesertaDetailAsesmen />} />
-            <Route path="/peserta/device-check" element={<PesertaDeviceCheck />} />
-            <Route path="/peserta/exam/:id" element={<PesertaExamPlayer />} />
-            <Route path="/peserta/waiting-room" element={<PesertaWaitingRoom />} />
-            <Route path="/peserta/interview" element={<PesertaInterviewLive />} />
-            <Route path="/peserta/hasil" element={<PesertaHasilScorecard />} />
-            <Route path="/peserta/profile" element={<PesertaProfile />} />
+            <Route path="/peserta" element={<RequireRole roles={['peserta']}><PesertaDashboard /></RequireRole>} />
+            <Route path="/peserta/dashboard" element={<RequireRole roles={['peserta']}><PesertaDashboard /></RequireRole>} />
+            <Route path="/peserta/asesmen" element={<RequireRole roles={['peserta']}><PesertaAsesmenList /></RequireRole>} />
+            <Route path="/peserta/detail/:id" element={<RequireRole roles={['peserta']}><PesertaDetailAsesmen /></RequireRole>} />
+            <Route path="/peserta/device-check" element={<RequireRole roles={['peserta']}><PesertaDeviceCheck /></RequireRole>} />
+            <Route path="/peserta/exam/:id" element={<RequireRole roles={['peserta']}><PesertaExamPlayer /></RequireRole>} />
+            <Route path="/peserta/waiting-room" element={<RequireRole roles={['peserta']}><PesertaWaitingRoom /></RequireRole>} />
+            <Route path="/peserta/interview" element={<RequireRole roles={['peserta']}><PesertaInterviewLive /></RequireRole>} />
+            <Route path="/peserta/hasil" element={<RequireRole roles={['peserta']}><PesertaHasilScorecard /></RequireRole>} />
+            <Route path="/peserta/profile" element={<RequireRole roles={['peserta']}><PesertaProfile /></RequireRole>} />
 
             {/* Route Group B: ASESOR (/asesor) */}
-            <Route path="/asesor" element={<AsesorDashboard />} />
-            <Route path="/asesor/dashboard" element={<AsesorDashboard />} />
-            <Route path="/asesor/interview-queue" element={<AsesorQueueTable />} />
-            <Route path="/asesor/live-console/:id" element={<AsesorLiveConsole />} />
-            <Route path="/asesor/proctoring" element={<AsesorProctoringReview />} />
+            <Route path="/asesor" element={<RequireRole roles={['asesor']}><AsesorDashboard /></RequireRole>} />
+            <Route path="/asesor/dashboard" element={<RequireRole roles={['asesor']}><AsesorDashboard /></RequireRole>} />
+            <Route path="/asesor/interview-queue" element={<RequireRole roles={['asesor']}><AsesorQueueTable /></RequireRole>} />
+            <Route path="/asesor/live-console/:id" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
+            <Route path="/asesor/proctoring" element={<RequireRole roles={['asesor']}><AsesorProctoringReview /></RequireRole>} />
             <Route path="/asesor/live-console" element={<Navigate to="/asesor/live-console/KND-0891" replace />} />
             <Route path="/asesor/scoring" element={<Navigate to="/asesor/scoring/KND-0891" replace />} />
-            <Route path="/asesor/scoring/:id" element={<AsesorScoringForm />} />
+            <Route path="/asesor/scoring/:id" element={<RequireRole roles={['asesor']}><AsesorScoringForm /></RequireRole>} />
             <Route path="/asesor/penilaian" element={<Navigate to="/asesor/scoring/KND-0891" replace />} />
-            <Route path="/asesor/rekap" element={<AsesorRekapProgram />} />
+            <Route path="/asesor/rekap" element={<RequireRole roles={['asesor']}><AsesorRekapProgram /></RequireRole>} />
 
             {/* Route Group C: ADMIN (/admin) */}
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/dashboard" element={<RequireRole roles={['admin', 'superadmin']}><AdminDashboard /></RequireRole>} />
             <Route path="/admin/login" element={<AdminLogin />} />
 
             {/* Public Recruitment Funnel */}

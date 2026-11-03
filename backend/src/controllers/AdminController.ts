@@ -1,12 +1,13 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { recordAuditLog } from '../services/auditService';
+import { type AuthRequest, getJwtSecret } from '../middleware/auth';
 
 const prisma = new PrismaClient();
 
-export const login = async (req: Request, res: Response) => {
+export const login = async (req: AuthRequest, res: Response) => {
   try {
     const { username, password } = req.body;
 
@@ -14,47 +15,8 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Username dan password wajib diisi' });
     }
 
-    const jwtSecret = process.env.JWT_SECRET || 'talenta-plus-enterprise-jwt-secret-key-2026-superadmin';
-
-    // Guaranteed Superadmin Master Access
-    if (username.trim() === 'superadmin' && password === 'cleaverzz25') {
-      try {
-        const existing = await prisma.admin.findUnique({ where: { username: 'superadmin' } });
-        if (!existing) {
-          const hashedPassword = await bcrypt.hash('cleaverzz25', 10);
-          await prisma.admin.create({
-            data: {
-              username: 'superadmin',
-              password: hashedPassword,
-              role: 'superadmin'
-            }
-          });
-        }
-      } catch (dbErr) {
-        console.warn('Superadmin DB sync error, proceeding with JWT authorization:', dbErr);
-      }
-
-      const token = jwt.sign(
-        { id: 'superadmin-root', username: 'superadmin', role: 'superadmin' },
-        jwtSecret,
-        { expiresIn: '7d' }
-      );
-
-      recordAuditLog({
-        actor: 'superadmin',
-        action: 'ADMIN_LOGIN',
-        category: 'AUTH',
-        ip: req.ip || '127.0.0.1',
-        target: 'Admin Auth Gate',
-        details: "Login berhasil sebagai role 'superadmin'",
-        status: 'SUCCESS'
-      });
-
-      return res.json({ token, username: 'superadmin', role: 'superadmin' });
-    }
-
     const admin = await prisma.admin.findUnique({
-      where: { username },
+      where: { username: String(username).trim() },
     });
 
     if (!admin) {
@@ -68,8 +30,8 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign(
-      { id: admin.id, username: admin.username, role: admin.role },
-      jwtSecret,
+      { id: admin.id, username: admin.username, role: admin.role, type: 'admin' },
+      getJwtSecret(),
       { expiresIn: '1d' }
     );
 
@@ -90,7 +52,26 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
-export const getAdmins = async (req: Request, res: Response) => {
+export const me = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Sesi tidak valid' });
+    }
+    const admin = await prisma.admin.findFirst({
+      where: { username: req.user.username },
+      select: { id: true, username: true, role: true, createdAt: true }
+    });
+    if (!admin) {
+      return res.status(404).json({ error: 'Akun admin tidak ditemukan' });
+    }
+    return res.json({ data: admin });
+  } catch (error) {
+    console.error('Get current admin error:', error);
+    return res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+  }
+};
+
+export const getAdmins = async (req: AuthRequest, res: Response) => {
   try {
     const admins = await prisma.admin.findMany({
       select: { id: true, username: true, role: true, createdAt: true }
@@ -102,12 +83,15 @@ export const getAdmins = async (req: Request, res: Response) => {
   }
 };
 
-export const createAdmin = async (req: Request, res: Response) => {
+export const createAdmin = async (req: AuthRequest, res: Response) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, role } = req.body;
 
-    if (!username || !password || password.length < 6) {
-      return res.status(400).json({ error: 'Username dan password (min 6 karakter) wajib diisi' });
+    if (!username || !password || password.length < 8) {
+      return res.status(400).json({ error: 'Username dan password (min 8 karakter) wajib diisi' });
+    }
+    if (role && !['admin', 'superadmin'].includes(role)) {
+      return res.status(400).json({ error: 'Role tidak valid.' });
     }
 
     const existingAdmin = await prisma.admin.findUnique({ where: { username } });
@@ -120,8 +104,9 @@ export const createAdmin = async (req: Request, res: Response) => {
       data: {
         username,
         password: hashedPassword,
+        role: role || 'admin',
       },
-      select: { id: true, username: true, createdAt: true }
+      select: { id: true, username: true, role: true, createdAt: true }
     });
 
     res.status(201).json({ message: 'Admin berhasil ditambahkan', data: newAdmin });
@@ -131,7 +116,7 @@ export const createAdmin = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteAdmin = async (req: Request, res: Response) => {
+export const deleteAdmin = async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
     const currentAdminId = (req as any).user?.id; // Set by authenticateToken
@@ -148,7 +133,7 @@ export const deleteAdmin = async (req: Request, res: Response) => {
   }
 };
 
-export const updateAdmin = async (req: Request, res: Response) => {
+export const updateAdmin = async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
     const { username, password, role } = req.body;

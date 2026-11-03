@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
   Clock,
   Video,
@@ -23,16 +24,44 @@ import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById } from '../../services/assessmentCatalog';
+import { getPortalToken } from '../../services/portalAuthService';
 
 export default function PesertaWaitingRoom() {
   const navigate = useNavigate();
   const [countdown, setCountdown] = useState(180); // 3 minutes
   const [isReady, setIsReady] = useState(false);
   const [activeTab, setActiveTab] = useState<'tips' | 'rubrik' | 'perangkat'>('tips');
+  const [catEligible, setCatEligible] = useState(false);
+  const [catChecked, setCatChecked] = useState(false);
 
   const activeUser = getActiveSessionUser();
   const activeProgram = getProgramById(activeUser.assessmentId || 'BMRI-DATA-02') || getProgramById('SE-402')!;
   const savedPhoto = typeof window !== 'undefined' ? localStorage.getItem('candidate_face_photo') : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkCatStatus = async () => {
+      const token = getPortalToken();
+      if (!token) {
+        setCatChecked(true);
+        return;
+      }
+      try {
+        const response = await axios.get(`/api/exam/${activeProgram.id}/result`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!cancelled) setCatEligible(['submitted', 'graded'].includes(response.data.status));
+      } catch {
+        if (!cancelled) setCatEligible(false);
+      } finally {
+        if (!cancelled) setCatChecked(true);
+      }
+    };
+    void checkCatStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProgram.id]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [mediaActive, setMediaActive] = useState(false);
@@ -276,14 +305,22 @@ export default function PesertaWaitingRoom() {
 
               {/* Action Button */}
               <div className="pt-3 flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
-                <Button
-                  variant="primary"
-                  onClick={() => navigate('/peserta/interview')}
-                  className="w-full py-3 sm:py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs rounded-xl cursor-pointer"
-                >
-                  <Video className="w-4 h-4 shrink-0" />
-                  <span>{isReady || countdown === 0 ? 'Giliran Anda Tiba • Masuk Sesi Wawancara' : 'Masuk ke Ruang Sesi Sekarang'}</span>
-                </Button>
+                <div className="w-full space-y-2">
+                  {catChecked && !catEligible && (
+                    <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      Selesaikan dan kumpulkan ujian CAT terlebih dahulu sebelum memasuki sesi wawancara.
+                    </p>
+                  )}
+                  <Button
+                    variant="primary"
+                    disabled={!catEligible}
+                    onClick={() => navigate('/peserta/interview')}
+                    className="w-full py-3 sm:py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs rounded-xl cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <Video className="w-4 h-4 shrink-0" />
+                    <span>{!catEligible ? 'Selesaikan CAT Terlebih Dahulu' : isReady || countdown === 0 ? 'Giliran Anda Tiba • Masuk Sesi Wawancara' : 'Masuk ke Ruang Sesi Sekarang'}</span>
+                  </Button>
+                </div>
                 <Button
                   variant="outline"
                   onClick={() => navigate('/peserta/device-check')}

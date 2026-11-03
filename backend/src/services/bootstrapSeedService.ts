@@ -1,10 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import questionBank from '../data/question-bank.json';
 
 const prisma = new PrismaClient();
 
 export const DEFAULT_PROGRAMS_DATA = [
   {
+    code: 'SE-402',
     title: 'Software Engineer Specialist Batch IV (PT Telkom Indonesia Tbk)',
     description: 'Pengujian arsitektur microservices, concurrency database, clean code, dan optimasi algoritma rekayasa software terapan.',
     status: 'active',
@@ -12,6 +14,7 @@ export const DEFAULT_PROGRAMS_DATA = [
     interviewPassingScore: 75
   },
   {
+    code: 'CLD-301',
     title: 'Lead Cloud Solutions Architect (PT Telkom Indonesia Tbk)',
     description: 'Evaluasi tingkat lanjut mencakup multi-region hybrid cloud, disaster recovery, Kubernetes clustering, dan kepatuhan ISO 27001.',
     status: 'active',
@@ -19,6 +22,7 @@ export const DEFAULT_PROGRAMS_DATA = [
     interviewPassingScore: 80
   },
   {
+    code: 'FED-101',
     title: 'Senior Frontend Engineer Specialist (PT Telkom Indonesia Tbk)',
     description: 'Kompetensi rekayasa UI/UX modern, micro-frontend architecture, Web Vitals performance, dan state management enterprise.',
     status: 'active',
@@ -26,6 +30,7 @@ export const DEFAULT_PROGRAMS_DATA = [
     interviewPassingScore: 75
   },
   {
+    code: 'BMRI-DATA-02',
     title: 'Lead Data Engineer & Concurrency Specialist (PT Bank Mandiri Tbk)',
     description: 'Pipeline streaming terdistribusi, Lakehouse tuning, Apache Spark/Kafka, idempotensi data finansial berkapasitas tinggi.',
     status: 'active',
@@ -33,6 +38,7 @@ export const DEFAULT_PROGRAMS_DATA = [
     interviewPassingScore: 80
   },
   {
+    code: 'BMRI-SEC-03',
     title: 'Cybersecurity & Fraud Prevention Analyst (PT Bank Mandiri Tbk)',
     description: 'Mitigasi ancaman zero-day, SOC SIEM anomaly detection, fraud transaction analysis, dan audit regulasi BI/OJK.',
     status: 'active',
@@ -40,6 +46,7 @@ export const DEFAULT_PROGRAMS_DATA = [
     interviewPassingScore: 80
   },
   {
+    code: 'CIMB-BPM-02',
     title: 'Senior Business Process Management Specialist (PT Bank CIMB Niaga Tbk)',
     description: 'Digital banking process re-engineering, lean operations, SLA governance, dan integrasi workflow otomatis.',
     status: 'active',
@@ -47,6 +54,7 @@ export const DEFAULT_PROGRAMS_DATA = [
     interviewPassingScore: 75
   },
   {
+    code: 'CIMB-AUD-01',
     title: 'IT Internal Audit & Compliance Officer (PT Bank CIMB Niaga Tbk)',
     description: 'Audit infrastruktur perbankan, COBIT 2019 framework, data privacy & compliance terhadap regulasi perlindungan data perbankan.',
     status: 'active',
@@ -54,6 +62,7 @@ export const DEFAULT_PROGRAMS_DATA = [
     interviewPassingScore: 75
   },
   {
+    code: 'ASII-OPS-01',
     title: 'Industrial Operations & Supply Chain Specialist (PT Astra International Tbk)',
     description: 'Optimasi lean manufacturing, just-in-time logistics, supply chain predictive analytics, dan manajemen lini perakitan presisi.',
     status: 'active',
@@ -61,6 +70,7 @@ export const DEFAULT_PROGRAMS_DATA = [
     interviewPassingScore: 75
   },
   {
+    code: 'ASII-FIN-02',
     title: 'Corporate Finance & M&A Strategic Analyst (PT Astra International Tbk)',
     description: 'Financial modeling multi-skenario, capital budgeting, due diligence M&A, dan portofolio risk evaluation holding.',
     status: 'active',
@@ -68,6 +78,7 @@ export const DEFAULT_PROGRAMS_DATA = [
     interviewPassingScore: 80
   },
   {
+    code: 'PHE-HSE-02',
     title: 'Environmental Safety & ESG Risk Engineer (PT Pertamina Hulu Energi)',
     description: 'Manajemen risiko HSE offshore/onshore, reduksi carbon footprint, kepatuhan ISO 14001, dan standar keselamatan hulu migas.',
     status: 'active',
@@ -75,6 +86,7 @@ export const DEFAULT_PROGRAMS_DATA = [
     interviewPassingScore: 75
   },
   {
+    code: 'PHE-GEO-01',
     title: 'Senior Geoscientist & Subsurface Modeler (PT Pertamina Hulu Energi)',
     description: 'Interpretasi seismik 3D, pemodelan reservoir reservoir statis & dinamis, karakterisasi petrofisika sumur eksplorasi migas.',
     status: 'active',
@@ -85,29 +97,34 @@ export const DEFAULT_PROGRAMS_DATA = [
 
 export async function bootstrapDatabaseSeed() {
   try {
-    // 1. Ensure Superadmin account exists
+    // 1. Ensure Superadmin account exists. The password comes from SUPERADMIN_PASSWORD.
     const superadminUser = 'superadmin';
-    const plainPassword = 'cleaverzz25';
+    const configuredPassword = process.env.SUPERADMIN_PASSWORD;
+    const isProduction = process.env.NODE_ENV === 'production';
+    const plainPassword = configuredPassword || (isProduction ? null : 'cleaverzz25');
     const existingAdmin = await prisma.admin.findUnique({ where: { username: superadminUser } });
-    const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
     if (!existingAdmin) {
-      await prisma.admin.create({
-        data: {
-          username: superadminUser,
-          password: hashedPassword,
-          role: 'superadmin'
-        }
-      });
-      console.log('✅ Default superadmin seeded: superadmin / cleaverzz25');
-    } else {
-      const match = await bcrypt.compare(plainPassword, existingAdmin.password);
+      if (!plainPassword) {
+        console.warn('⚠️ SUPERADMIN_PASSWORD belum diisi; akun superadmin tidak dibuat.');
+      } else {
+        await prisma.admin.create({
+          data: {
+            username: superadminUser,
+            password: await bcrypt.hash(plainPassword, 10),
+            role: 'superadmin'
+          }
+        });
+        console.log('✅ Superadmin account seeded from SUPERADMIN_PASSWORD.');
+      }
+    } else if (configuredPassword) {
+      const match = await bcrypt.compare(configuredPassword, existingAdmin.password);
       if (!match) {
         await prisma.admin.update({
           where: { username: superadminUser },
-          data: { password: hashedPassword, role: 'superadmin' }
+          data: { password: await bcrypt.hash(configuredPassword, 10), role: 'superadmin' }
         });
-        console.log('✅ Superadmin password synchronized.');
+        console.log('✅ Superadmin password synchronized with SUPERADMIN_PASSWORD.');
       }
     }
 
@@ -124,6 +141,7 @@ export async function bootstrapDatabaseSeed() {
         try {
           job = await prisma.job.create({
             data: {
+              code: item.code,
               title: item.title,
               description: item.description,
               status: item.status,
@@ -135,11 +153,100 @@ export async function bootstrapDatabaseSeed() {
         } catch (e) {
           // ignore duplicate title if any
         }
+      } else if (!job.code) {
+        try {
+          job = await prisma.job.update({ where: { id: job.id }, data: { code: item.code } });
+        } catch {
+          // keep the existing job when the code is already assigned to another record
+        }
       }
       if (job) jobsList.push(job);
     }
     if (newlySeededJobs > 0) console.log(`✅ Seeded ${newlySeededJobs} missing assessment jobs.`);
     if (jobsList.length === 0) jobsList = await prisma.job.findMany();
+
+    // 2b. Seed the server-side CAT question bank (answer keys never reach the browser)
+    for (const program of questionBank.programs) {
+      const count = await prisma.programQuestion.count({ where: { programCode: program.code } });
+      if (count === 0) {
+        await prisma.programQuestion.createMany({
+          data: program.questions.map((q) => ({
+            programCode: program.code,
+            orderNo: q.id,
+            type: q.type,
+            competency: q.competency,
+            difficulty: q.difficulty,
+            text: q.text,
+            codeSnippet: q.codeSnippet,
+            options: JSON.stringify(q.options),
+            matchingPairs: JSON.stringify(q.matchingPairs),
+            correctAnswer: q.correctAnswer === null ? null : JSON.stringify(q.correctAnswer)
+          }))
+        });
+      }
+    }
+    console.log('✅ CAT question bank synchronized.');
+
+    for (const program of questionBank.programs) {
+      await prisma.programAccessCode.upsert({
+        where: { code: program.code },
+        update: { programCode: program.code, active: true },
+        create: {
+          code: program.code,
+          programCode: program.code,
+          maxUses: 10000,
+          expiresAt: new Date('2027-12-31T23:59:59Z'),
+          active: true
+        }
+      });
+    }
+    console.log('✅ Program access codes synchronized.');
+
+    // 2c. Seed demo portal accounts (passwords are hashed, never stored in plain text)
+    const demoPortalUsers: any[] = [
+      {
+        email: 'farhan@kandidat.id',
+        password: 'peserta123',
+        name: 'Farhan Pratama',
+        role: 'peserta',
+        phone: '0812-8822-1920',
+        companyId: 'PT-TELKOM',
+        companyName: 'PT Telkom Indonesia Tbk',
+        assessmentId: 'SE-402',
+        assessmentTitle: 'Software Engineer Specialist Batch IV (PT Telkom Indonesia Tbk)',
+        gradeLevel: 'Grade B (Specialist / Mid)'
+      },
+      {
+        email: 'amanda@kandidat.id',
+        password: 'peserta123',
+        name: 'Amanda Nurul Aulia',
+        role: 'peserta',
+        phone: '0813-7721-4455',
+        companyId: 'PT-MANDIRI',
+        companyName: 'PT Bank Mandiri (Persero) Tbk',
+        assessmentId: 'BMRI-DATA-02',
+        assessmentTitle: 'Data Science & Credit Risk Analytics',
+        gradeLevel: 'Grade B (Specialist / Mid)'
+      },
+      {
+        email: 'asesor@talenta.id',
+        username: 'asesor',
+        password: 'asesor123',
+        name: 'Dr. Dwi Hartanto, M.Psi., Psikolog',
+        role: 'asesor',
+        companyName: 'Solusi Asesmen Indonesia',
+        specialization: 'Assessment Center & Behavioral Interview'
+      }
+    ];
+    for (const account of demoPortalUsers) {
+      const existing = await prisma.portalUser.findUnique({ where: { email: account.email } });
+      if (!existing) {
+        await prisma.portalUser.create({
+          data: { ...account, password: await bcrypt.hash(account.password, 10) }
+        });
+      }
+    }
+    console.log('✅ Portal accounts synchronized.');
 
     // 3. Ensure Sample Applicants exist so Admin & Asesor views have real data
     if (jobsList.length > 0) {

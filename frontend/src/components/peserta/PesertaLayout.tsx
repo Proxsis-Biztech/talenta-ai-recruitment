@@ -352,7 +352,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           )}
 
           <button
-            onClick={() => navigate('/')}
+            onClick={() => { clearActiveSession(); navigate('/'); }}
             className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer ${
               isCollapsed ? 'justify-center px-0' : ''
             }`}
@@ -486,21 +486,21 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     className="fixed inset-0 z-40"
                     onClick={() => setProfileDropdownOpen(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 py-3 animate-fadeIn divide-y divide-slate-100">
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 z-50 py-1.5 animate-fadeIn divide-y divide-slate-100">
                     {/* Header info */}
-                    <div className="px-5 py-3.5">
+                    <div className="px-4 py-3">
                       <div className="flex items-center gap-3.5">
                         {savedFacePhoto ? (
-                          <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-emerald-500 shrink-0 shadow-xs">
+                          <div className="w-9 h-9 rounded-lg overflow-hidden border-2 border-emerald-500 shrink-0 shadow-xs">
                             <img src={savedFacePhoto} alt={activeUser.name} className="w-full h-full object-cover" />
                           </div>
                         ) : (
-                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-navy to-blue-accent text-white flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-navy to-blue-accent text-white flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
                             {userInitials}
                           </div>
                         )}
                         <div className="min-w-0">
-                          <p className="text-base font-extrabold text-slate-900 truncate leading-tight">{activeUser.name}</p>
+                          <p className="text-sm font-semibold text-slate-900 truncate leading-tight">{activeUser.name}</p>
                           <p className="text-xs text-slate-500 truncate mt-0.5">{activeUser.username}</p>
                           <span className="inline-block mt-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-blue-50 text-primary-navy border border-blue-200/80">
                             ID: {activeUser.id || 'KND-0891'}
@@ -516,10 +516,10 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                           setProfileDropdownOpen(false);
                           navigate('/peserta/profile');
                         }}
-                        className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-slate-800 hover:text-primary-navy hover:bg-slate-50 font-bold transition-all cursor-pointer text-left text-sm sm:text-base group"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-800 hover:text-primary-navy hover:bg-slate-50 font-bold transition-all cursor-pointer text-left text-sm group"
                       >
-                        <User className="w-5 h-5 text-blue-600 shrink-0 group-hover:scale-110 transition-transform" />
-                        <span className="flex-1">Halaman Profil Lengkap</span>
+                        <User className="w-4 h-4 text-blue-600 shrink-0 group-hover:scale-110 transition-transform" />
+                        <span className="flex-1">Profil Lengkap</span>
                         <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                       </button>
 
@@ -528,9 +528,9 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                           setProfileDropdownOpen(false);
                           setHelpModalOpen(true);
                         }}
-                        className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-slate-800 hover:text-primary-navy hover:bg-slate-50 font-bold transition-all cursor-pointer text-left text-sm sm:text-base group"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-800 hover:text-primary-navy hover:bg-slate-50 font-bold transition-all cursor-pointer text-left text-sm group"
                       >
-                        <HelpCircle className="w-5 h-5 text-slate-500 shrink-0 group-hover:scale-110 transition-transform" />
+                        <HelpCircle className="w-4 h-4 text-slate-500 shrink-0 group-hover:scale-110 transition-transform" />
                         <span className="flex-1">Panduan &amp; Tata Tertib</span>
                       </button>
                     </div>
@@ -543,9 +543,9 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                           clearActiveSession();
                           navigate('/login');
                         }}
-                        className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-red-600 hover:bg-red-50 text-sm sm:text-base font-extrabold transition-all cursor-pointer text-left group"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 text-sm sm:text-sm font-semibold transition-all cursor-pointer text-left group"
                       >
-                        <LogOut className="w-5 h-5 text-red-600 shrink-0 group-hover:scale-110 transition-transform" />
+                        <LogOut className="w-4 h-4 text-red-600 shrink-0 group-hover:scale-110 transition-transform" />
                         <span>Keluar dari Akun</span>
                       </button>
                     </div>

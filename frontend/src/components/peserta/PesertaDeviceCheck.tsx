@@ -62,6 +62,7 @@ export default function PesertaDeviceCheck() {
   // Face registration states
   const [faceDetected, setFaceDetected] = useState(true);
   const [initialFaceRegistered, setInitialFaceRegistered] = useState(false);
+  const [faceError, setFaceError] = useState('');
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(() => {
     return localStorage.getItem('candidate_face_photo') || null;
   });
@@ -193,67 +194,34 @@ export default function PesertaDeviceCheck() {
   // 2. Real Face Snapshot Capture
   // ──────────────────────────────────────────────
   const handleCaptureFace = () => {
+    setFaceError('');
+    if (cameraStatus !== 'active' || !videoRef.current || videoRef.current.videoWidth === 0) {
+      setFaceError('Kamera belum aktif. Aktifkan akses kamera terlebih dahulu sebelum mengambil foto registrasi wajah.');
+      return;
+    }
     setRegisteringFace(true);
-
     setTimeout(() => {
       try {
         const canvas = canvasRef.current || document.createElement('canvas');
         canvas.width = 640;
         canvas.height = 480;
         const ctx = canvas.getContext('2d');
-
-        if (ctx) {
-          if (cameraStatus === 'active' && videoRef.current && videoRef.current.videoWidth > 0) {
-            // Real snapshot from webcam feed
-            ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-          } else {
-            // High-quality simulated verified biometric badge
-            ctx.fillStyle = '#0F172A';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Subtle gradient circle
-            const grad = ctx.createRadialGradient(320, 220, 40, 320, 220, 160);
-            grad.addColorStop(0, '#1E3A8A');
-            grad.addColorStop(1, '#0284C7');
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(320, 200, 100, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Candidate initials
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 52px Inter, sans-serif';
-            ctx.textAlign = 'center';
-            const initials = activeUser.name
-              .split(' ')
-              .slice(0, 2)
-              .map((w) => w[0])
-              .join('')
-              .toUpperCase() || 'P';
-            ctx.fillText(initials, 320, 215);
-
-            // Watermark text
-            ctx.fillStyle = '#10B981';
-            ctx.font = 'bold 16px Inter, sans-serif';
-            ctx.fillText(`✓ VERIFIED BIOMETRIC BIOMETRI`, 320, 340);
-
-            ctx.fillStyle = '#94A3B8';
-            ctx.font = '14px monospace';
-            ctx.fillText(`${activeUser.name} • ${activeUser.id}`, 320, 370);
-            ctx.fillText(new Date().toLocaleString('id-ID'), 320, 400);
-          }
-
-          const photoUrl = canvas.toDataURL('image/jpeg', 0.88);
-          setCapturedPhotoUrl(photoUrl);
-          setInitialFaceRegistered(true);
-          localStorage.setItem('candidate_face_photo', photoUrl);
+        if (!ctx || !videoRef.current) {
+          setFaceError('Perangkat kamera tidak mendukung pengambilan snapshot.');
+          return;
         }
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const photoUrl = canvas.toDataURL('image/jpeg', 0.88);
+        setCapturedPhotoUrl(photoUrl);
+        setInitialFaceRegistered(true);
+        localStorage.setItem('candidate_face_photo', photoUrl);
       } catch (err) {
         console.warn('Face capture error:', err);
+        setFaceError('Gagal mengambil foto wajah. Silakan coba lagi.');
       } finally {
         setRegisteringFace(false);
       }
-    }, 600);
+    }, 300);
   };
 
   // ──────────────────────────────────────────────
@@ -316,8 +284,13 @@ export default function PesertaDeviceCheck() {
   // 5. Proceed to Exam Navigation
   // ──────────────────────────────────────────────
   const handleProceedToExam = () => {
+    if (!consentGiven) {
+      setFaceError('Centang persetujuan biometrik sebelum melanjutkan ke ujian.');
+      return;
+    }
     if (!initialFaceRegistered) {
-      handleCaptureFace();
+      setFaceError('Registrasi wajah wajib diselesaikan sebelum masuk lembar ujian.');
+      return;
     }
     navigate(`/peserta/exam/${activeProgram.id}`);
   };
@@ -634,6 +607,11 @@ export default function PesertaDeviceCheck() {
                       <span>📸 {initialFaceRegistered ? 'Ambil Ulang Foto Wajah' : 'Ambil Foto Registrasi Wajah Sekarang'}</span>
                     )}
                   </Button>
+                  {faceError && (
+                    <p className="mt-2 text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                      {faceError}
+                    </p>
+                  )}
                 </div>
               </div>
 

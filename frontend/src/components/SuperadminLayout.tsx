@@ -26,6 +26,7 @@ import {
   ExternalLink,
   ShieldCheck,
   CreditCard,
+  KeyRound,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
@@ -35,6 +36,7 @@ export type AdminMenuKey =
   | 'dashboard'
   | 'peserta'
   | 'jobs'
+  | 'access-codes'
   | 'materi'
   | 'bank-soal'
   | 'perusahaan'
@@ -90,18 +92,19 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'asesmen-soal',
     label: 'MANAJEMEN ASESMEN & SOAL',
     items: [
-      { key: 'jobs', label: 'Program Asesmen', icon: BookOpen, badge: '11' },
+      { key: 'jobs', label: 'Program Asesmen', icon: BookOpen },
+      { key: 'access-codes', label: 'Kode Akses Program', icon: KeyRound },
       { key: 'materi', label: 'Master Materi & Silabus', icon: FileText },
-      { key: 'bank-soal', label: 'Bank Soal CAT', icon: CheckSquare, badge: '40' },
+      { key: 'bank-soal', label: 'Bank Soal CAT', icon: CheckSquare },
     ],
   },
   {
     id: 'pelaksanaan',
     label: 'PELAKSANAAN & EVALUASI',
     items: [
-      { key: 'peserta', label: 'Peserta & Kandidat', icon: Users, badge: '1.248' },
-      { key: 'pipeline', label: 'Live Interview Asesor', icon: Video, badge: 'Live' },
-      { key: 'proctoring', label: 'Monitoring Proctoring', icon: ShieldAlert, badge: 'AI' },
+      { key: 'peserta', label: 'Peserta & Kandidat', icon: Users },
+      { key: 'pipeline', label: 'Live Interview Asesor', icon: Video },
+      { key: 'proctoring', label: 'Monitoring Proctoring', icon: ShieldAlert },
       { key: 'ranking', label: 'Hasil & Peringkat (LHA)', icon: BarChart3 },
     ],
   },
@@ -109,8 +112,8 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'enterprise',
     label: 'ENTERPRISE & KUOTA',
     items: [
-      { key: 'perusahaan', label: 'PT & Klien Enterprise', icon: Building2, badge: '5 PT' },
-      { key: 'billing', label: 'Billing & Kuota Kredit', icon: CreditCard, badge: 'Rp' },
+      { key: 'perusahaan', label: 'PT & Klien Enterprise', icon: Building2 },
+      { key: 'billing', label: 'Billing & Kuota Kredit', icon: CreditCard },
     ],
   },
   {
@@ -171,15 +174,15 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const displayName = userRole === 'superadmin' ? 'Administrator' : (username || 'Admin Sistem');
+
   // Compute initials
-  const initials = username
-    ? username
-        .split(' ')
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase()
-    : 'RA';
+  const initials = displayName
+    .split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 
   return (
     <div id="superadmin-root" className="min-h-screen bg-page-bg text-ink flex font-sans">
@@ -239,40 +242,6 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
           )}
         </div>
 
-        {/* User Card */}
-        {isCollapsed ? (
-          <div className="py-3 flex justify-center border-b border-slate-100">
-            <div
-              className="w-10 h-10 rounded-full bg-soft-blue border border-accent-border flex items-center justify-center text-primary-navy font-bold text-xs shadow-xs cursor-pointer group relative"
-              title={`${username} (${userRole})`}
-            >
-              {initials}
-              <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                {username} · {userRole}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="mx-3.5 mt-3.5 mb-2 p-3 rounded-xl bg-page-bg border border-border-slate">
-            <div className="flex items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-soft-blue border border-accent-border flex items-center justify-center text-primary-navy font-bold text-xs shadow-xs shrink-0 font-heading">
-                  {initials}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-ink truncate leading-tight">
-                    {username}
-                  </p>
-                  <p className="text-xs text-muted-slate capitalize truncate mt-0.5">
-                    {userRole === 'superadmin' ? 'Superadmin' : 'Admin'}
-                  </p>
-                </div>
-              </div>
-              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-            </div>
-          </div>
-        )}
-
         {/* Navigation Items */}
         <nav className={`flex-1 ${isCollapsed ? 'overflow-visible py-3 px-2 space-y-3' : 'overflow-y-auto py-3 px-3 space-y-4'}`}>
           {NAV_GROUPS.filter((group) => !group.superadminOnly || userRole === 'superadmin').map(
@@ -292,7 +261,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
 
                 {/* Group Header (Expanded) */}
                 {!isCollapsed && (
-                  <div className="px-3 pt-1 pb-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center justify-between">
+                  <div className="px-3.5 pt-1.5 pb-2 text-[11px] font-bold tracking-wider text-slate-400 uppercase flex items-center justify-between">
                     <span>{group.label}</span>
                     <span className="text-[9px] text-slate-400 font-normal">
                       {group.items.filter((i) => !i.superadminOnly || userRole === 'superadmin').length}
@@ -347,7 +316,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                             setActiveMenu(item.key);
                             if (window.innerWidth < 1024) setMobileDrawerOpen(false);
                           }}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm font-medium group text-left cursor-pointer ${
+                          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-[15px] font-medium group text-left cursor-pointer ${
                             isActive
                               ? 'bg-soft-blue text-primary-navy font-bold shadow-2xs border-l-2 border-primary-navy pl-2.5'
                               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -435,7 +404,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
 
       {/* ─── MAIN CONTENT CONTAINER ─── */}
       <div
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
+        className={`flex-1 flex flex-col min-h-screen min-w-0 w-full transition-all duration-300 ${
           isCollapsed ? 'lg:ml-18' : 'lg:ml-68'
         }`}
       >
@@ -525,7 +494,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                     </div>
                     <div className="hidden xl:flex flex-col text-left">
                       <span className="text-xs font-bold text-ink leading-tight">
-                        {username || 'Admin Sistem'}
+                        {displayName}
                       </span>
                       <span className="text-[11px] text-muted-slate">
                         admin@talenta.id
@@ -582,7 +551,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 p-5 sm:p-8 space-y-8 max-w-[1600px] w-full mx-auto">
+        <main className="flex-1 p-6 sm:p-10 space-y-10 max-w-[1600px] w-full mx-auto">
           {children}
         </main>
       </div>

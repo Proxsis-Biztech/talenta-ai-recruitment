@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { loadMasterScope, saveMasterRecord, deleteMasterRecord } from '../services/masterDataService';
 import Swal from 'sweetalert2';
 import { 
   Cpu, Sliders, Volume2, ShieldCheck, Zap, Activity,
@@ -33,14 +34,26 @@ const DEFAULT_CONFIG: AIConfiguration = {
 };
 
 export default function AIConfigView() {
-  const [config, setConfig] = useState<AIConfiguration>(() => {
-    try {
-      const saved = localStorage.getItem('aiRecruitmentConfig');
-      return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
-    } catch {
-      return DEFAULT_CONFIG;
-    }
-  });
+  const [config, setConfig] = useState<AIConfiguration>(DEFAULT_CONFIG);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadMasterScope<AIConfiguration>('ai-config')
+      .then((data) => {
+        if (cancelled) return;
+        if (data.default) {
+          setConfig({ ...DEFAULT_CONFIG, ...data.default });
+        } else {
+          void saveMasterRecord('ai-config', 'default', DEFAULT_CONFIG);
+        }
+      })
+      .catch(() => {
+        // Keep defaults when the admin session cannot load server config.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [saving, setSaving] = useState(false);
   const [pingLoading, setPingLoading] = useState(false);
@@ -70,10 +83,10 @@ export default function AIConfigView() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
     try {
-      localStorage.setItem('aiRecruitmentConfig', JSON.stringify(config));
+      await saveMasterRecord('ai-config', 'default', config);
       Swal.fire({
         icon: 'success',
         title: 'Konfigurasi Tersimpan',
@@ -92,9 +105,9 @@ export default function AIConfigView() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setConfig(DEFAULT_CONFIG);
-    localStorage.removeItem('aiRecruitmentConfig');
+    await deleteMasterRecord('ai-config', 'default').catch(() => undefined);
     Swal.fire({
       icon: 'info',
       title: 'Reset ke Default',
@@ -131,7 +144,7 @@ export default function AIConfigView() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
           <Button
             variant="secondary"
             size="sm"
@@ -139,7 +152,7 @@ export default function AIConfigView() {
             disabled={pingLoading}
             leftIcon={<Activity className={`w-3.5 h-3.5 ${pingLoading ? 'animate-spin text-primary-navy' : 'text-slate-500'}`} />}
           >
-            {pingLoading ? 'Mengukur Latensi...' : 'Uji Latensi Gemini API'}
+            {pingLoading ? 'Mengukur...' : 'Uji Latensi'}
           </Button>
           <Button
             variant="primary"

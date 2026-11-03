@@ -51,7 +51,6 @@ export const TableRow = React.forwardRef<HTMLTableRowElement, TableRowProps>(
     <tr
       ref={ref}
       className={cn(
-        'transition-colors duration-100',
         isSelected ? 'bg-soft-blue/70 hover:bg-soft-blue' : 'hover:bg-slate-50/70',
         className
       )}

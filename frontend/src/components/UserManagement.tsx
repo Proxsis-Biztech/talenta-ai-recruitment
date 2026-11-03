@@ -25,7 +25,10 @@ import {
   ChevronRight,
   Filter,
   Sparkles,
-  BookOpen
+  BookOpen,
+  Upload,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import {
   Card,
@@ -46,18 +49,7 @@ import {
   getProgramsByCompany,
   type AssessmentProgram
 } from '../services/assessmentCatalog';
-import {
-  getAllPesertaUsers,
-  createPesertaUser,
-  deletePesertaUser,
-  updatePesertaUser,
-  type PesertaUser,
-  getAllAsesorUsers,
-  createAsesorUser,
-  deleteAsesorUser,
-  updateAsesorUser,
-  type AsesorUser
-} from '../services/userRegistryService';
+import type { PesertaUser, AsesorUser } from '../services/userRegistryService';
 
 interface Admin {
   id: string;
@@ -74,6 +66,8 @@ export default function UserManagement() {
   // TAB 1: Peserta (Candidates) State
   // ──────────────────────────────────────────────
   const [pesertaList, setPesertaList] = useState<PesertaUser[]>([]);
+  const [importing, setImporting] = useState(false);
+  const importInputRef = React.useRef<HTMLInputElement>(null);
   const [pesertaSearch, setPesertaSearch] = useState('');
   const [pesertaCompanyFilter, setPesertaCompanyFilter] = useState('ALL');
   const [pesertaGradeFilter, setPesertaGradeFilter] = useState('ALL');
@@ -103,9 +97,32 @@ export default function UserManagement() {
     }
   }, [availableProgramsForModal]);
 
-  const loadPeserta = useCallback(() => {
-    const list = getAllPesertaUsers();
-    setPesertaList(list);
+  const loadPeserta = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await axios.get('/api/admin/portal-users', {
+        params: { role: 'peserta' },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const list = (response.data.data || []).map((user: any): PesertaUser => ({
+        id: user.id,
+        name: user.name,
+        username: user.email,
+        password: '',
+        phone: user.phone || '',
+        companyId: user.companyId || '',
+        companyName: user.companyName || '',
+        assessmentId: user.assessmentId || '',
+        assessmentTitle: user.assessmentTitle || '',
+        gradeLevel: user.gradeLevel || 'Grade B (Specialist / Mid)',
+        scheduleDate: '',
+        status: user.status === 'Nonaktif' ? 'Selesai' : 'Siap Ujian',
+        createdAt: user.createdAt
+      }));
+      setPesertaList(list);
+    } catch {
+      setPesertaList([]);
+    }
   }, []);
 
   // ──────────────────────────────────────────────
@@ -138,9 +155,30 @@ export default function UserManagement() {
     }
   }, [availableProgramsForAsesorModal]);
 
-  const loadAsesor = useCallback(() => {
-    const list = getAllAsesorUsers();
-    setAsesorList(list);
+  const loadAsesor = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await axios.get('/api/admin/portal-users', {
+        params: { role: 'asesor' },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const list = (response.data.data || []).map((user: any): AsesorUser => ({
+        id: user.id,
+        name: user.name,
+        username: user.email,
+        password: '',
+        phone: user.phone || '',
+        specialization: user.specialization || '',
+        assignedCompanyId: user.companyId || '',
+        assignedCompanyName: user.companyName || '',
+        assignedProgramIds: [],
+        status: user.status === 'Nonaktif' ? 'Nonaktif' : 'Aktif',
+        createdAt: user.createdAt
+      }));
+      setAsesorList(list);
+    } catch {
+      setAsesorList([]);
+    }
   }, []);
 
   // ──────────────────────────────────────────────
@@ -193,7 +231,7 @@ export default function UserManagement() {
   // ──────────────────────────────────────────────
   // Handlers for Peserta
   // ──────────────────────────────────────────────
-  const handleCreatePeserta = (e: React.FormEvent) => {
+  const handleCreatePeserta = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pesertaFormName.trim() || !pesertaFormUsername.trim()) {
       setPesertaFormError('Nama lengkap dan username/email wajib diisi.');
@@ -201,18 +239,23 @@ export default function UserManagement() {
     }
 
     try {
-      createPesertaUser({
+      const token = localStorage.getItem('adminToken');
+      const program = getAllPrograms().find((item) => item.id === pesertaFormAssessmentId);
+      const company = COMPANIES_CATALOG.find((item) => item.id === pesertaFormCompanyId);
+      await axios.post('/api/admin/portal-users', {
         name: pesertaFormName,
-        username: pesertaFormUsername,
+        email: pesertaFormUsername,
         password: pesertaFormPassword,
         phone: pesertaFormPhone,
+        role: 'peserta',
         companyId: pesertaFormCompanyId,
+        companyName: company?.name,
         assessmentId: pesertaFormAssessmentId,
-        gradeLevel: pesertaFormGrade,
-        scheduleDate: pesertaFormDate
-      });
+        assessmentTitle: program?.title,
+        gradeLevel: pesertaFormGrade
+      }, { headers: { Authorization: `Bearer ${token}` } });
 
-      loadPeserta();
+      await loadPeserta();
       setShowAddPesertaModal(false);
 
       // Reset form
@@ -234,6 +277,57 @@ export default function UserManagement() {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await axios.get('/api/admin/portal-users/template', {
+        responseType: 'blob',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'Template_Import_Peserta_Talenta.xlsx';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      Swal.fire('Gagal', 'Template Excel tidak dapat diunduh.', 'error');
+    }
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await axios.post('/api/admin/portal-users/import', formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      await loadPeserta();
+      const result = response.data;
+      const errorList = Array.isArray(result.errors) && result.errors.length > 0
+        ? `<div style="text-align:left;max-height:180px;overflow:auto;margin-top:8px;font-size:11px">${result.errors.slice(0, 8).map((item: any) => `<div>Baris ${item.row}: ${item.message}</div>`).join('')}</div>`
+        : '';
+      Swal.fire({
+        icon: result.skipped > 0 ? 'warning' : 'success',
+        title: 'Import Excel Selesai',
+        html: `<b>${result.created}</b> akun dibuat, <b>${result.skipped}</b> dilewati dari <b>${result.total}</b> baris.${errorList}`,
+        confirmButtonColor: '#1E3A8A'
+      });
+    } catch (error: any) {
+      Swal.fire('Import Gagal', error.response?.data?.error || 'File Excel tidak dapat diproses.', 'error');
+    } finally {
+      setImporting(false);
+      event.target.value = '';
+    }
+  };
+
   const handleDeletePeserta = async (id: string, name: string) => {
     const result = await Swal.fire({
       title: 'Hapus Akun Peserta?',
@@ -247,8 +341,9 @@ export default function UserManagement() {
     });
 
     if (result.isConfirmed) {
-      deletePesertaUser(id);
-      loadPeserta();
+      const token = localStorage.getItem('adminToken');
+      await axios.delete(`/api/admin/portal-users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await loadPeserta();
       Swal.fire({
         icon: 'success',
         title: 'Akun Terhapus',
@@ -274,11 +369,18 @@ export default function UserManagement() {
           return 'Kata sandi minimal 6 karakter!';
         }
       }
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed && result.value) {
-        updatePesertaUser(peserta.id, { password: result.value });
-        loadPeserta();
-        Swal.fire('Berhasil!', `Kata sandi baru telah diatur ke: ${result.value}`, 'success');
+        try {
+          const token = localStorage.getItem('adminToken');
+          await axios.put(`/api/admin/portal-users/${peserta.id}`, { password: result.value }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          await loadPeserta();
+          Swal.fire('Berhasil!', 'Kata sandi peserta telah diperbarui.', 'success');
+        } catch (error: any) {
+          Swal.fire('Gagal', error.response?.data?.error || 'Kata sandi gagal diperbarui.', 'error');
+        }
       }
     });
   };
@@ -286,7 +388,7 @@ export default function UserManagement() {
   // ──────────────────────────────────────────────
   // Handlers for Asesor
   // ──────────────────────────────────────────────
-  const handleCreateAsesor = (e: React.FormEvent) => {
+  const handleCreateAsesor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!asesorFormName.trim() || !asesorFormUsername.trim()) {
       setAsesorFormError('Nama lengkap dan username/email asesor wajib diisi.');
@@ -294,17 +396,20 @@ export default function UserManagement() {
     }
 
     try {
-      createAsesorUser({
+      const token = localStorage.getItem('adminToken');
+      const company = COMPANIES_CATALOG.find((item) => item.id === asesorFormCompanyId);
+      await axios.post('/api/admin/portal-users', {
         name: asesorFormName,
-        username: asesorFormUsername,
+        email: asesorFormUsername,
         password: asesorFormPassword,
         phone: asesorFormPhone,
+        role: 'asesor',
         specialization: asesorFormSpec,
-        assignedCompanyId: asesorFormCompanyId,
-        assignedProgramIds: asesorFormPrograms
-      });
+        companyId: asesorFormCompanyId,
+        companyName: company?.name
+      }, { headers: { Authorization: `Bearer ${token}` } });
 
-      loadAsesor();
+      await loadAsesor();
       setShowAddAsesorModal(false);
 
       // Reset
@@ -339,8 +444,9 @@ export default function UserManagement() {
     });
 
     if (result.isConfirmed) {
-      deleteAsesorUser(id);
-      loadAsesor();
+      const token = localStorage.getItem('adminToken');
+      await axios.delete(`/api/admin/portal-users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await loadAsesor();
       Swal.fire({
         icon: 'success',
         title: 'Akun Asesor Dicabut',
@@ -681,14 +787,40 @@ export default function UserManagement() {
               </select>
             </div>
 
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setShowAddPesertaModal(true)}
-              leftIcon={<UserPlus className="w-4 h-4" />}
-            >
-              + Daftarkan Akun Peserta Baru
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadTemplate}
+                leftIcon={<Download className="w-4 h-4" />}
+              >
+                Template Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={importing}
+                onClick={() => importInputRef.current?.click()}
+                leftIcon={importing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              >
+                {importing ? 'Mengimpor...' : 'Impor Excel'}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setShowAddPesertaModal(true)}
+                leftIcon={<UserPlus className="w-4 h-4" />}
+              >
+                + Daftarkan Akun Peserta Baru
+              </Button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleImportFile}
+              />
+            </div>
           </div>
 
           {/* Table of Peserta */}

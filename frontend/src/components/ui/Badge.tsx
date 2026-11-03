@@ -23,7 +23,7 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
   ) => {
     // Base badge container with soft, comfortable padding & natural typography
     const baseClasses =
-      'inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-md select-none border whitespace-nowrap transition-colors font-sans';
+      'inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-md select-none border whitespace-nowrap font-sans';
 
     // Map shadcn variant names
     const resolvedVariant = 
@@ -78,6 +78,7 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
     return (
       <span
         ref={ref}
+        data-slot="badge"
         className={cn(
           baseClasses,
           styles[resolvedFormat]?.[resolvedVariant] || styles.soft.neutral,

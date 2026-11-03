@@ -29,7 +29,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
     return (
-      <div className="w-full space-y-2">
+      <div data-slot="input-wrapper" className="w-full space-y-2">
         {label && (
           <label
             htmlFor={inputId}
@@ -47,15 +47,16 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             id={inputId}
             ref={ref}
+            data-slot="input"
             disabled={disabled}
             className={cn(
-              'w-full h-10 sm:h-10.5 rounded-lg bg-white border text-sm text-slate-800 transition-colors',
-              'border-slate-200/90 placeholder:text-slate-400',
-              'focus:outline-none focus:border-primary-navy focus:ring-2 focus:ring-primary-navy/15',
+              'flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-800',
+              'placeholder:text-slate-400 file:border-0 file:bg-transparent file:text-sm file:font-medium',
+              'focus-visible:outline-none focus-visible:border-primary-navy focus-visible:ring-2 focus-visible:ring-primary-navy/15',
               'disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed',
-              leftIcon ? 'pl-10' : 'pl-3.5',
-              rightIcon ? 'pr-10' : 'pr-3.5',
-              error && 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/15',
+              leftIcon ? 'pl-10' : '',
+              rightIcon ? 'pr-10' : '',
+              error && 'border-rose-400 focus-visible:border-rose-500 focus-visible:ring-rose-500/15',
               isMonospace && 'font-mono text-xs',
               className
             )}
