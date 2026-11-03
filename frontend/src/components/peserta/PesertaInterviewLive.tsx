@@ -384,6 +384,14 @@ export default function PesertaInterviewLive() {
           setTimeout(() => {
             if (activeSourcesCountRef.current === 0) {
               setIsAiSpeaking(false);
+              if (
+                hasStartedInterviewRef.current &&
+                handsFreeModeRef.current &&
+                micOnRef.current &&
+                !isListeningRef.current
+              ) {
+                void handleStartListening();
+              }
             }
           }, 300);
         }
@@ -601,7 +609,7 @@ export default function PesertaInterviewLive() {
     setHasStartedInterview(true);
     getOrCreateAudioContext();
 
-    const greetingText = `Halo ${sessionUser.name || 'Farhan Pratama'}, selamat datang di sesi wawancara AI Talenta Plus untuk posisi ${program.title}. Saya Ava, asesor AI Anda. Mari kita mulai dengan pertanyaan pertama: ${questions[0].question}`;
+    const greetingText = `Halo ${sessionUser.name || 'Farhan Pratama'}, saya Ava. Mari mulai wawancara untuk posisi ${program.title}. ${questions[0].question}`;
 
     setLiveCaptionText(greetingText);
     setMessages((prev) => [
