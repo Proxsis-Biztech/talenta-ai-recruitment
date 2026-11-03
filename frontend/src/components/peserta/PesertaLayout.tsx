@@ -175,7 +175,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                 onClick={() => navigate('/')}
                 className="flex items-center gap-3 min-w-0 cursor-pointer group"
               >
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary-navy to-blue-accent text-white flex items-center justify-center font-extrabold text-xl shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-extrabold text-xl shadow-xs shrink-0 group-hover:scale-105 transition-transform">
                   T
                 </div>
                 <div className="flex flex-col truncate">
@@ -216,7 +216,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
         {isCollapsed ? (
           <div className="py-4 flex justify-center border-b border-slate-100">
             <div
-              className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary-navy to-blue-accent text-white flex items-center justify-center font-bold text-sm shadow-xs cursor-pointer group relative"
+              className="w-11 h-11 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-bold text-sm shadow-xs cursor-pointer group relative"
               title={`${activeUser.name} (${activeUser.id})`}
             >
               {userInitials}
@@ -226,10 +226,10 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
             </div>
           </div>
         ) : (
-          <div className="mx-4 mt-4 mb-2 p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-soft-blue/60 border border-slate-200/60 relative overflow-hidden">
+          <div className="mx-4 mt-4 mb-2 p-4 rounded-2xl bg-slate-50 border border-slate-200/60 relative overflow-hidden">
             <div aria-hidden className="pointer-events-none absolute -right-6 -top-6 w-24 h-24 rounded-full bg-blue-accent/10 blur-xl" />
             <div className="relative flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary-navy to-blue-accent text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
                 {userInitials}
               </div>
               <div className="flex-1 min-w-0">
@@ -250,7 +250,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
             </div>
             <div className="w-full bg-slate-200/80 rounded-full h-1.5 mt-2 overflow-hidden relative">
               <div
-                className="bg-gradient-to-r from-primary-navy to-blue-accent h-full rounded-full transition-all duration-500 relative"
+                className="bg-primary-navy h-full rounded-full transition-all duration-500 relative"
                 style={{ width: isCatCompleted ? '75%' : '40%' }}
               >
                 <span className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full shadow-sm" />
@@ -286,7 +286,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     }}
                     className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs sm:text-sm font-medium transition-all cursor-pointer relative group ${
                       isActive
-                        ? 'bg-gradient-to-r from-soft-blue/90 to-blue-50/40 text-primary-navy font-bold border border-accent-border shadow-2xs'
+                        ? 'bg-soft-blue text-primary-navy font-bold border border-accent-border shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 border border-transparent hover:translate-x-0.5'
                     } ${isCollapsed ? 'justify-center px-0' : ''}`}
                     title={isCollapsed ? item.label : undefined}
@@ -294,7 +294,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     {/* Active indicator rail */}
                     <span
                       aria-hidden
-                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-gradient-to-b from-blue-accent to-primary-navy transition-opacity duration-200 ${
+                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-primary-navy transition-opacity duration-200 ${
                         isActive && !isCollapsed ? 'opacity-100' : 'opacity-0'
                       }`}
                     />
@@ -340,7 +340,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
         {/* Bottom Support Footer */}
         <div className="p-4 border-t border-slate-100 shrink-0 space-y-3">
           {!isCollapsed && (
-            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200/70 text-xs text-emerald-950 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200/70 text-xs text-emerald-950 space-y-1.5">
               <div className="flex items-center gap-1.5 font-bold text-emerald-900">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 <span>Privasi Terlindungi</span>
@@ -462,7 +462,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     <img src={savedFacePhoto} alt={activeUser.name} className="w-full h-full object-cover" />
                   </div>
                 ) : (
-                  <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary-navy to-blue-accent text-white flex items-center justify-center font-bold text-xs shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+                  <div className="w-9 h-9 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-bold text-xs shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
                     {userInitials}
                   </div>
                 )}
@@ -486,69 +486,47 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     className="fixed inset-0 z-40"
                     onClick={() => setProfileDropdownOpen(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 z-50 py-1.5 animate-fadeIn divide-y divide-slate-100">
-                    {/* Header info */}
-                    <div className="px-4 py-3">
-                      <div className="flex items-center gap-3.5">
-                        {savedFacePhoto ? (
-                          <div className="w-9 h-9 rounded-lg overflow-hidden border-2 border-emerald-500 shrink-0 shadow-xs">
-                            <img src={savedFacePhoto} alt={activeUser.name} className="w-full h-full object-cover" />
-                          </div>
-                        ) : (
-                          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-navy to-blue-accent text-white flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
-                            {userInitials}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 truncate leading-tight">{activeUser.name}</p>
-                          <p className="text-xs text-slate-500 truncate mt-0.5">{activeUser.username}</p>
-                          <span className="inline-block mt-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-blue-50 text-primary-navy border border-blue-200/80">
-                            ID: {activeUser.id || 'KND-0891'}
-                          </span>
-                        </div>
-                      </div>
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-border-slate rounded-xl shadow-lg py-1.5 z-50">
+                    <div className="px-4 py-2.5 border-b border-slate-100">
+                      <p className="text-sm font-bold text-ink truncate">{activeUser.name}</p>
+                      <p className="text-xs text-muted-slate truncate">{activeUser.username}</p>
                     </div>
 
-                    {/* Navigation Items (Simple & Larger Text) */}
-                    <div className="p-2 space-y-1">
-                      <button
-                        onClick={() => {
-                          setProfileDropdownOpen(false);
-                          navigate('/peserta/profile');
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-800 hover:text-primary-navy hover:bg-slate-50 font-bold transition-all cursor-pointer text-left text-sm group"
-                      >
-                        <User className="w-4 h-4 text-blue-600 shrink-0 group-hover:scale-110 transition-transform" />
-                        <span className="flex-1">Profil Lengkap</span>
-                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-                      </button>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('/peserta/profile');
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <User className="w-4 h-4 text-slate-400" />
+                      <span>Profil Lengkap</span>
+                    </button>
 
-                      <button
-                        onClick={() => {
-                          setProfileDropdownOpen(false);
-                          setHelpModalOpen(true);
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-800 hover:text-primary-navy hover:bg-slate-50 font-bold transition-all cursor-pointer text-left text-sm group"
-                      >
-                        <HelpCircle className="w-4 h-4 text-slate-500 shrink-0 group-hover:scale-110 transition-transform" />
-                        <span className="flex-1">Panduan &amp; Tata Tertib</span>
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        setHelpModalOpen(true);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <HelpCircle className="w-4 h-4 text-slate-400" />
+                      <span>Panduan &amp; Tata Tertib</span>
+                    </button>
 
-                    {/* Logout Section */}
-                    <div className="p-2">
-                      <button
-                        onClick={() => {
-                          setProfileDropdownOpen(false);
-                          clearActiveSession();
-                          navigate('/login');
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 text-sm sm:text-sm font-semibold transition-all cursor-pointer text-left group"
-                      >
-                        <LogOut className="w-4 h-4 text-red-600 shrink-0 group-hover:scale-110 transition-transform" />
-                        <span>Keluar dari Akun</span>
-                      </button>
-                    </div>
+                    <div className="my-1 border-t border-slate-100" />
+
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        clearActiveSession();
+                        navigate('/login');
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4 text-rose-500" />
+                      <span>Keluar dari Akun</span>
+                    </button>
                   </div>
                 </>
               )}

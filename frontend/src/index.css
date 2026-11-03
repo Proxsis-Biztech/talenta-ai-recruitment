@@ -199,7 +199,7 @@ html {
   }
 
   .skeleton {
-    @apply bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 bg-[length:200%_100%] animate-pulse rounded-lg;
+    @apply bg-slate-200 animate-pulse rounded-lg;
   }
 
   /* Tinted shadow for brand elements */
@@ -647,4 +647,21 @@ html {
 
 #superadmin-root aside {
   background: #ffffff !important;
+}
+
+#superadmin-root main .bg-white {
+  background-image: none !important;
+  background-color: #ffffff !important;
+}
+
+#superadmin-root main table thead tr {
+  background: #f9fafb !important;
+}
+
+#superadmin-root aside nav button[class*="bg-soft-blue"] {
+  background: #eef2ff !important;
+}
+
+#superadmin-root main [class*="bg-gradient-to-"] {
+  background-image: none !important;
 }
