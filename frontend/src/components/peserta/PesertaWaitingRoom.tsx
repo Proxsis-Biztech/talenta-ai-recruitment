@@ -139,7 +139,7 @@ export default function PesertaWaitingRoom() {
                 Estimasi Waktu Menuju Giliran Anda:
               </span>
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3">
-                <div className="font-mono text-3xl sm:text-4xl font-extrabold text-primary-navy bg-gradient-to-b from-soft-blue to-white px-6 py-2.5 rounded-2xl border border-accent-border shadow-2xs tabular-nums ring-1 ring-white/60">
+                <div className="font-mono text-3xl sm:text-4xl font-extrabold text-primary-navy bg-soft-blue px-6 py-2.5 rounded-2xl border border-accent-border shadow-2xs tabular-nums ring-1 ring-white/60">
                   {formatTime(countdown)}
                 </div>
                 {countdown > 0 && (

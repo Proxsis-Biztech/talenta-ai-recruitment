@@ -128,7 +128,7 @@ export default function PesertaHasilScorecard() {
   return (
     <PesertaLayout activeTab="hasil">
       <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 space-y-7 antialiased print:p-0 print:max-w-none">
-        <div className="bg-gradient-to-r from-slate-800 via-primary-navy to-blue-800 rounded-3xl p-6 sm:p-10 text-white shadow-sm relative overflow-hidden print:bg-white print:text-slate-900 print:border print:border-slate-300">
+        <div className="bg-primary-navy rounded-3xl p-6 sm:p-10 text-white shadow-sm relative overflow-hidden print:bg-white print:text-slate-900 print:border print:border-slate-300">
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 text-blue-100 text-xs sm:text-sm font-semibold backdrop-blur-xs border border-white/10 print:border-slate-300 print:text-blue-700">

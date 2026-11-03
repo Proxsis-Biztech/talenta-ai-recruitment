@@ -86,7 +86,7 @@ export const ProctoringCharacter: React.FC<ProctoringCharacterProps> = ({
   const getMoodColors = () => {
     if (mood === 'warning') {
       return {
-        bg: 'from-amber-500 to-amber-700',
+        bg: 'bg-amber-500',
         glow: 'rgba(245, 158, 11, 0.4)',
         visor: '#f59e0b',
         border: 'border-amber-300',
@@ -95,7 +95,7 @@ export const ProctoringCharacter: React.FC<ProctoringCharacterProps> = ({
     }
     if (mood === 'verified') {
       return {
-        bg: 'from-emerald-500 to-teal-700',
+        bg: 'bg-emerald-500',
         glow: 'rgba(16, 185, 129, 0.4)',
         visor: '#10b981',
         border: 'border-emerald-300',
@@ -104,7 +104,7 @@ export const ProctoringCharacter: React.FC<ProctoringCharacterProps> = ({
     }
     if (isListening || isAiAnalyzing) {
       return {
-        bg: 'from-blue-600 to-indigo-700',
+        bg: 'bg-blue-600',
         glow: 'rgba(59, 130, 246, 0.5)',
         visor: '#38bdf8',
         border: 'border-blue-300',
@@ -112,7 +112,7 @@ export const ProctoringCharacter: React.FC<ProctoringCharacterProps> = ({
       };
     }
     return {
-      bg: 'from-primary-navy to-navy-dark',
+      bg: 'bg-primary-navy',
       glow: 'rgba(29, 78, 216, 0.3)',
       visor: '#06b6d4',
       border: 'border-cyan-400',
@@ -144,7 +144,7 @@ export const ProctoringCharacter: React.FC<ProctoringCharacterProps> = ({
         </button>
       ) : (
         /* Full Character Card View */
-        <div className="bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950/95 text-white rounded-3xl p-4 sm:p-5 shadow-2xl border border-slate-700/80 backdrop-blur-xl space-y-3.5">
+        <div className="bg-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-2xl border border-slate-700/80 backdrop-blur-xl space-y-3.5">
           {/* Header Row: Title & Action Toggles */}
           <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
             <div className="flex items-center gap-2">
@@ -201,7 +201,7 @@ export const ProctoringCharacter: React.FC<ProctoringCharacterProps> = ({
 
               {/* Bot SVG Body */}
               <div
-                className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr ${colors.bg} p-1.5 shadow-lg border-2 ${colors.border} flex items-center justify-center transform hover:scale-105 transition-all`}
+                className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl ${colors.bg} p-1.5 shadow-lg border-2 ${colors.border} flex items-center justify-center transform hover:scale-105 transition-all`}
               >
                 <svg
                   viewBox="0 0 100 100"

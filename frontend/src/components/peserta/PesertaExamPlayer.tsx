@@ -637,7 +637,7 @@ export default function PesertaExamPlayer() {
             </div>
 
             {/* Next Stage Guide Box */}
-            <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border border-blue-200 space-y-3">
+            <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200 space-y-3">
               <div className="flex items-center gap-2.5 text-primary-navy font-extrabold text-sm sm:text-base font-heading">
                 <Video className="w-5 h-5 text-blue-600" />
                 <span>Tahap Berikutnya: Masuk ke Ruang Tunggu Wawancara (Waiting Room)</span>
@@ -712,7 +712,7 @@ export default function PesertaExamPlayer() {
       <header className="h-18 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40 shadow-xs">
         {/* Left: Program Info & Candidate Name */}
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-navy to-blue-accent text-white font-heading font-extrabold flex items-center justify-center text-sm shadow-sm shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-primary-navy text-white font-heading font-extrabold flex items-center justify-center text-sm shadow-sm shrink-0">
             CAT
           </div>
           <div>

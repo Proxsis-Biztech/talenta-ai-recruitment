@@ -1355,7 +1355,7 @@ export default function PesertaInterviewLive() {
           {/* Center Stage: The Iconic Gemini Live Multimodal AI Orb & Waveforms */}
           <div className="my-auto py-2 sm:py-3 flex flex-col items-center justify-center text-center px-4 relative z-0">
             {/* Ambient Background Aura */}
-            <div className="absolute w-56 h-56 rounded-full bg-gradient-to-tr from-cyan-200/40 via-blue-200/30 to-violet-200/40 blur-3xl pointer-events-none" />
+            <div className="absolute w-56 h-56 rounded-full bg-blue-100/30 blur-3xl pointer-events-none" />
 
             {/* Glowing Gemini Live Orb */}
             <div className="relative flex items-center justify-center">
@@ -1369,11 +1369,11 @@ export default function PesertaInterviewLive() {
 
               {/* Central Gemini Sphere */}
               <div
-                className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-[#1E40AF] via-[#6366F1] to-[#06B6D4] p-1 shadow-lg transition-transform duration-300 ${
+                className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-primary-navy p-1 shadow-lg transition-transform duration-300 ${
                   isAiSpeaking ? 'scale-105 shadow-blue-500/30' : 'hover:scale-102'
                 }`}
               >
-                <div className="w-full h-full rounded-full bg-gradient-to-br from-white/20 via-transparent to-black/20 flex flex-col items-center justify-center text-white relative overflow-hidden backdrop-blur-xs">
+                <div className="w-full h-full rounded-full bg-white/10 flex flex-col items-center justify-center text-white relative overflow-hidden backdrop-blur-xs">
                   <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-white animate-pulse" />
                   <span className="text-[9px] sm:text-[10px] font-mono font-bold tracking-widest uppercase mt-0.5 text-cyan-200">
                     GEMINI
@@ -1389,7 +1389,7 @@ export default function PesertaInterviewLive() {
                   key={i}
                   className={`w-1 rounded-full transition-all duration-150 ${
                     isAiSpeaking
-                      ? 'bg-gradient-to-t from-blue-600 to-cyan-400 animate-pulse'
+                      ? 'bg-blue-600 animate-pulse'
                       : isListening
                       ? 'bg-emerald-500'
                       : 'bg-slate-200'
@@ -1561,7 +1561,7 @@ export default function PesertaInterviewLive() {
                     )}
 
                     {/* OpenCV Laser Scanning Line Animation */}
-                    <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#06b6d4] animate-pulse pointer-events-none top-1/2 -translate-y-1/2" />
+                    <div className="absolute left-0 right-0 h-1 bg-cyan-400/40 shadow-[0_0_12px_#06b6d4] animate-pulse pointer-events-none top-1/2 -translate-y-1/2" />
 
                     {/* OpenCV Reticle */}
                     <div className="absolute inset-2 border border-emerald-400/60 rounded-lg pointer-events-none flex items-end justify-start p-1">
@@ -1618,7 +1618,7 @@ export default function PesertaInterviewLive() {
             /* Pertanyaan & Interactive Answer Form */
             <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
               {/* Active Question Highlight Card */}
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/80 to-indigo-50/50 border border-blue-200/90 space-y-2.5 shadow-2xs">
+              <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200/90 space-y-2.5 shadow-2xs">
                 <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-blue-800 font-mono">
                   <span>
                     Soal #{activeQuestion.id} dari {questions.length}
@@ -1840,7 +1840,7 @@ export default function PesertaInterviewLive() {
               isListening
                 ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/30 ring-4 ring-rose-200 animate-pulse'
                 : !hasStartedInterview
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]'
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]'
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98]'
             }`}
             title={
@@ -1930,7 +1930,7 @@ export default function PesertaInterviewLive() {
         size="md"
       >
         <div className="space-y-5 text-center p-2">
-          <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-lg">
+          <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-500 text-white flex items-center justify-center shadow-lg">
             <Award className="w-9 h-9" />
           </div>
 

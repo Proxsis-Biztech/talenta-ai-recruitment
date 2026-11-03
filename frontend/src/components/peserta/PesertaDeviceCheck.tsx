@@ -352,7 +352,7 @@ export default function PesertaDeviceCheck() {
           {/* ─── Left Column (7 cols): Camera Live Preview ─── */}
           <div className="lg:col-span-7 w-full min-w-0 space-y-6">
             <div className="bg-slate-900 rounded-3xl overflow-hidden shadow-tinted-lg border border-slate-800 relative aspect-video flex flex-col justify-between p-6 ring-1 ring-slate-900/10">
-              <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-blue-accent/15 to-transparent" />
+              <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-blue-accent/5" />
               {/* Real Video Element (displays live webcam stream if active) */}
               <video
                 ref={videoRef}
@@ -459,7 +459,7 @@ export default function PesertaDeviceCheck() {
               </div>
               <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 border border-slate-200">
                 <div
-                  className="bg-gradient-to-r from-emerald-400 via-blue-500 to-primary-navy h-full rounded-full transition-all duration-150"
+                  className="bg-primary-navy h-full rounded-full transition-all duration-150"
                   style={{ width: `${audioLevel}%` }}
                 />
               </div>

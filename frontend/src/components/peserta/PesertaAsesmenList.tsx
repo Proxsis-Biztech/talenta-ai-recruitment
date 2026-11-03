@@ -479,7 +479,7 @@ export default function PesertaAsesmenList() {
 
             {/* ─── Penjelasan Korelasi CAT & Wawancara (Important Context Box) ─── */}
             {showFlowGuide && (
-              <div className="bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border border-blue-200/90 rounded-3xl p-5 sm:p-6 relative shadow-xs">
+              <div className="bg-blue-50 border border-blue-200/90 rounded-3xl p-5 sm:p-6 relative shadow-xs">
                 <button
                   onClick={() => setShowFlowGuide(false)}
                   className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 text-xs font-semibold cursor-pointer p-1"
@@ -597,7 +597,7 @@ export default function PesertaAsesmenList() {
                         searchParams.set('id', item.id);
                         setSearchParams(searchParams);
                       }}
-                      className="bg-white rounded-3xl border border-slate-200/90 hover:border-blue-500 hover:shadow-lg transition-all duration-200 p-6 flex flex-col justify-between cursor-pointer group relative overflow-hidden bg-gradient-to-b from-white to-slate-50/40"
+                      className="bg-white rounded-3xl border border-slate-200/90 hover:border-blue-500 hover:shadow-lg transition-all duration-200 p-6 flex flex-col justify-between cursor-pointer group relative overflow-hidden "
                     >
                       {/* Top Accent Strip */}
                       <div

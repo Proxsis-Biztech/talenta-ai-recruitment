@@ -372,24 +372,8 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           isCollapsed ? 'lg:ml-20' : 'lg:ml-72'
         }`}
       >
-        {/* ─── Ambient Background Layer (soft brand glow, breaks digital flatness) ─── */}
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[420px] overflow-hidden -z-10">
-          <div className="absolute -top-32 right-[8%] w-[560px] h-[380px] rounded-full bg-blue-accent/10 blur-[110px] animate-fade-in" />
-          <div className="absolute -top-40 left-[14%] w-[420px] h-[320px] rounded-full bg-primary-navy/8 blur-[100px]" />
-          <div className="absolute top-24 right-[38%] w-[300px] h-[240px] rounded-full bg-emerald-400/8 blur-[90px] animate-fade-in" />
-          <div
-            className="absolute inset-0 opacity-[0.35]"
-            style={{
-              backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(30,58,138,0.07) 1px, transparent 0)',
-              backgroundSize: '26px 26px',
-              maskImage: 'linear-gradient(to bottom, black, transparent 75%)',
-              WebkitMaskImage: 'linear-gradient(to bottom, black, transparent 75%)',
-            }}
-          />
-        </div>
-
         {/* ─── Topbar ─── */}
-        <header className="h-20 bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+        <header className="h-20 bg-white border-b border-slate-200/70 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
           {/* Left Topbar Content */}
           <div className="flex items-center gap-3 min-w-0">
             {/* Mobile Hamburger Button */}

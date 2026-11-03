@@ -175,7 +175,7 @@ export default function PesertaProfile() {
       <div className="p-4 sm:p-8 max-w-6xl mx-auto space-y-6">
         {/* ─── Top Banner Profile Header ─── */}
         <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-blue-100/50 via-indigo-50/20 to-transparent rounded-full -mr-20 -mt-20 pointer-events-none" />
+          <div className="absolute top-0 right-0 w-80 h-80 bg-blue-100/20 rounded-full -mr-20 -mt-20 pointer-events-none" />
 
           <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div className="flex items-center gap-5">
@@ -193,7 +193,7 @@ export default function PesertaProfile() {
                     </div>
                   </div>
                 ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-primary-navy via-navy-dark to-blue-accent text-white flex items-center justify-center font-heading font-black text-2xl shadow-sm">
+                  <div className="w-20 h-20 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-heading font-black text-2xl shadow-sm">
                     {userInitials}
                   </div>
                 )}
@@ -571,7 +571,7 @@ export default function PesertaProfile() {
               </div>
 
               {/* Interview Assignment Card */}
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50/60 to-indigo-50/40 border border-blue-200/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3.5">
                   <div className="w-12 h-12 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-bold font-heading text-lg shadow-2xs">
                     DH
