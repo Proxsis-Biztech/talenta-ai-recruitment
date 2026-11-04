@@ -51,6 +51,8 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
   const activeUser = useMemo(() => getActiveSessionUser(), []);
   const faceVerified = Boolean(getPortalUser()?.faceVerifiedAt);
   const displayId = getPortalUser()?.candidateCode || activeUser.id.slice(0, 8);
+  const portalProfile = getPortalUser();
+  const profileFilled = [portalProfile?.name, portalProfile?.phone, portalProfile?.nik || portalProfile?.employeeNumber, portalProfile?.education, portalProfile?.university, portalProfile?.city].filter(Boolean).length;
   const [interviewCalled, setInterviewCalled] = useState(
     () => localStorage.getItem('peserta_interview_called') === 'true' || getPortalUser()?.interviewStatus === 'called'
   );
@@ -105,7 +107,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
       items: [
         { id: 'dashboard', label: 'Dashboard Peserta', path: '/peserta', icon: LayoutDashboard },
         { id: 'asesmen', label: 'Asesmen Saya', path: '/peserta/asesmen', icon: FileCheck2, badge: '1 Aktif' },
-        { id: 'waiting-room', label: 'Ruang Wawancara', path: '/peserta/waiting-room', icon: Video, badge: interviewCalled ? 'Giliran Anda' : isCatCompleted ? 'Siap' : undefined },
+        { id: 'waiting-room', label: 'Ruang Wawancara', path: '/peserta/waiting-room', icon: Video, badge: interviewCalled ? 'Giliran Anda' : isCatCompleted && faceVerified ? 'Siap' : 'Terkunci' },
         { id: 'hasil', label: 'Hasil Nilai & LHA', path: '/peserta/hasil', icon: CheckCircle2 },
         { id: 'profile', label: 'Profil & Dokumen', path: '/peserta/profile', icon: User },
       ]
@@ -265,6 +267,16 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
               <span className="font-semibold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded-full border border-accent-border shadow-2xs">
                 {isCatCompleted ? 'Menuju Wawancara' : 'Tahap Ujian CAT'}
               </span>
+            </div>
+
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] text-slate-500">
+                <span>Kelengkapan profil</span>
+                <span className="font-mono font-bold text-primary-navy">{profileFilled} / 6</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                <div className="h-full bg-primary-navy rounded-full" style={{ width: `${(profileFilled / 6) * 100}%` }} />
+              </div>
             </div>
             <div className="w-full bg-slate-200/80 rounded-full h-1.5 mt-2 overflow-hidden relative">
               <div
