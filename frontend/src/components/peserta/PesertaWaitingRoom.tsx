@@ -24,7 +24,8 @@ import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById } from '../../services/assessmentCatalog';
-import { getPortalToken } from '../../services/portalAuthService';
+import { getPortalToken, getPortalUser, savePortalSession } from '../../services/portalAuthService';
+import { CameraProctorTile } from './CameraProctorTile';
 
 export default function PesertaWaitingRoom() {
   const navigate = useNavigate();
@@ -36,10 +37,12 @@ export default function PesertaWaitingRoom() {
   const [activeTab, setActiveTab] = useState<'tips' | 'rubrik' | 'perangkat'>('tips');
   const [catEligible, setCatEligible] = useState(false);
   const [catChecked, setCatChecked] = useState(false);
+  const [queueState, setQueueState] = useState<any>(null);
+  const [toastDismissed, setToastDismissed] = useState(false);
+  const [toastSeconds, setToastSeconds] = useState(0);
 
   const activeUser = getActiveSessionUser();
   const activeProgram = getProgramById(activeUser.assessmentId || 'BMRI-DATA-02') || getProgramById('SE-402')!;
-  const savedPhoto = typeof window !== 'undefined' ? localStorage.getItem('candidate_face_photo') : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +98,74 @@ export default function PesertaWaitingRoom() {
     return () => clearInterval(timer);
   }, [scheduledAt]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const token = getPortalToken();
+    if (!token) return;
+    const loadQueue = async () => {
+      try {
+        const response = await axios.get('/api/portal/waiting-room', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!cancelled) {
+          setQueueState(response.data);
+          if (response.data?.status !== 'called') {
+            localStorage.removeItem('peserta_interview_called');
+            window.dispatchEvent(new Event('interview-called'));
+          }
+        }
+      } catch {
+        if (!cancelled) setQueueState(null);
+      }
+    };
+    void loadQueue();
+    const timer = setInterval(loadQueue, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (queueState?.status !== 'called') return;
+    setToastDismissed(false);
+    document.title = 'Giliran Anda!';
+    const user = getPortalUser();
+    const token = getPortalToken();
+    localStorage.setItem('peserta_interview_called', 'true');
+    if (user && token && user.interviewStatus !== 'called') {
+      savePortalSession({ token, user: { ...user, interviewStatus: 'called' } });
+    }
+    window.dispatchEvent(new Event('interview-called'));
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch {}
+    return () => {
+      document.title = 'Ruang Tunggu Wawancara | Talenta+';
+    };
+  }, [queueState?.status]);
+
+  useEffect(() => {
+    if (queueState?.status !== 'called' || !queueState?.deadline) return;
+    const update = () => {
+      const diff = Math.max(0, Math.floor((new Date(queueState.deadline).getTime() - Date.now()) / 1000));
+      setToastSeconds(diff);
+    };
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [queueState?.status, queueState?.deadline]);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [mediaActive, setMediaActive] = useState(false);
 
@@ -143,6 +214,16 @@ export default function PesertaWaitingRoom() {
 
   return (
     <PesertaLayout activeTab="waiting-room">
+      {queueState?.status === 'called' && !toastDismissed && (
+        <div role="alert" aria-live="assertive" className="fixed right-4 top-20 z-50 w-[min(360px,calc(100vw-2rem))] rounded-xl bg-emerald-600 text-white shadow-xl p-4 space-y-3">
+          <p className="font-bold text-sm">Giliran Anda tiba</p>
+          <p className="text-xs text-emerald-50">Sesi peserta sebelumnya sudah selesai. Asesor siap. Masuk dalam {formatTime(toastSeconds)}.</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/peserta/interview')} className="flex-1 rounded-lg bg-white text-emerald-700 text-xs font-bold py-2 px-3">Masuk Sekarang</button>
+            <button onClick={() => setToastDismissed(true)} className="rounded-lg border border-white/40 text-white text-xs font-semibold py-2 px-3">Nanti</button>
+          </div>
+        </div>
+      )}
       <div className="max-w-5xl mx-auto px-4 sm:px-8 py-10 sm:py-14 space-y-10 antialiased">
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto space-y-3">
@@ -172,7 +253,13 @@ export default function PesertaWaitingRoom() {
               </span>
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3">
                 <div className="font-mono text-3xl sm:text-4xl font-extrabold text-primary-navy bg-soft-blue px-6 py-2.5 rounded-2xl border border-accent-border shadow-2xs tabular-nums ring-1 ring-white/60">
-                  {scheduledAt ? formatTime(countdown) : '--:--'}
+                  {queueState?.status === 'called'
+                    ? formatTime(toastSeconds)
+                    : queueState?.status === 'waiting' || queueState?.status === 'next'
+                      ? 'Menunggu'
+                      : scheduledAt
+                        ? formatTime(countdown)
+                        : '--:--'}
                 </div>
                 {countdown > 0 && (
                   <button
@@ -188,7 +275,7 @@ export default function PesertaWaitingRoom() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full lg:w-auto text-xs sm:text-sm text-slate-600">
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <Users className="w-4 h-4 text-blue-accent shrink-0" />
-                <span className="truncate">Posisi Antrean: <strong className="text-ink">{queuePosition ? `#${queuePosition} Peserta Berikutnya` : 'Belum dijadwalkan'}</strong></span>
+                <span className="truncate">Posisi Antrean: <strong className="text-ink">{queueState?.status === 'called' ? 'Giliran Anda' : queueState?.position ? `#${queueState.position} Peserta Berikutnya` : queuePosition ? `#${queuePosition} Peserta Berikutnya` : 'Belum dijadwalkan'}</strong></span>
               </div>
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -209,22 +296,7 @@ export default function PesertaWaitingRoom() {
                   muted
                   className={`w-full h-full object-cover ${mediaActive ? 'block' : 'hidden'}`}
                 />
-                {!mediaActive && (
-                  savedPhoto ? (
-                    <img
-                      src={savedPhoto}
-                      alt="Foto Profil Terverifikasi"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-center p-4 space-y-2">
-                      <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-300 font-heading font-extrabold text-xl mx-auto">
-                        {activeUser.name.charAt(0)}
-                      </div>
-                      <p className="text-xs text-slate-400">Pratinjau Kamera Aktif Saat Memasuki Sesi</p>
-                    </div>
-                  )
-                )}
+                {!mediaActive && <CameraProctorTile compact active={false} />}
 
                 <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg text-[11px] text-emerald-400 font-mono flex items-center gap-2 border border-emerald-500/30">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -345,12 +417,12 @@ export default function PesertaWaitingRoom() {
                   )}
                   <Button
                     variant="primary"
-                    disabled={!catEligible || !scheduledAt}
+                    disabled={!catEligible || !scheduledAt || (queueState && !queueState.canEnter)}
                     onClick={() => navigate('/peserta/interview')}
                     className="w-full py-3 sm:py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs rounded-xl cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Video className="w-4 h-4 shrink-0" />
-                    <span>{!catEligible ? 'Selesaikan CAT Terlebih Dahulu' : !scheduledAt ? 'Menunggu Jadwal dari Admin' : isReady ? 'Giliran Anda Tiba • Masuk Sesi Wawancara' : 'Masuk ke Ruang Sesi Sekarang'}</span>
+                    <span>{!catEligible ? 'Selesaikan CAT Terlebih Dahulu' : !scheduledAt ? 'Menunggu Jadwal dari Admin' : queueState?.status === 'called' ? 'Giliran Anda Tiba • Masuk Sesi Wawancara' : queueState?.status === 'waiting' || queueState?.status === 'next' ? 'Menunggu Sesi Sebelumnya Selesai' : 'Masuk ke Ruang Sesi Sekarang'}</span>
                   </Button>
                 </div>
                 <Button

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -51,6 +51,9 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
   const activeUser = useMemo(() => getActiveSessionUser(), []);
   const faceVerified = Boolean(getPortalUser()?.faceVerifiedAt);
   const displayId = getPortalUser()?.candidateCode || activeUser.id.slice(0, 8);
+  const [interviewCalled, setInterviewCalled] = useState(
+    () => localStorage.getItem('peserta_interview_called') === 'true' || getPortalUser()?.interviewStatus === 'called'
+  );
   const userInitials = useMemo(() => {
     return (
       activeUser.name
@@ -83,13 +86,26 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
     localStorage.setItem('peserta_sidebar_collapsed', String(next));
   };
 
+  useEffect(() => {
+    const sync = () =>
+      setInterviewCalled(
+        localStorage.getItem('peserta_interview_called') === 'true' || getPortalUser()?.interviewStatus === 'called'
+      );
+    window.addEventListener('interview-called', sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener('interview-called', sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+
   const navGroups = [
     {
       group: 'TAHAPAN ASESMEN',
       items: [
         { id: 'dashboard', label: 'Dashboard Peserta', path: '/peserta', icon: LayoutDashboard },
         { id: 'asesmen', label: 'Asesmen Saya', path: '/peserta/asesmen', icon: FileCheck2, badge: '1 Aktif' },
-        { id: 'waiting-room', label: 'Ruang Wawancara', path: '/peserta/waiting-room', icon: Video, badge: isCatCompleted ? 'Siap' : undefined },
+        { id: 'waiting-room', label: 'Ruang Wawancara', path: '/peserta/waiting-room', icon: Video, badge: interviewCalled ? 'Giliran Anda' : isCatCompleted ? 'Siap' : undefined },
         { id: 'hasil', label: 'Hasil Nilai & LHA', path: '/peserta/hasil', icon: CheckCircle2 },
         { id: 'profile', label: 'Profil & Dokumen', path: '/peserta/profile', icon: User },
       ]
@@ -436,7 +452,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
               title="Pemberitahuan Asesmen"
             >
               <Bell className="w-4.5 h-4.5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-600 rounded-full ring-2 ring-white" />
+              <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ring-2 ring-white ${interviewCalled ? 'bg-rose-500 animate-pulse' : 'bg-blue-600'}`} />
             </button>
 
             {/* Profile Dropdown Navigation (Top Right) */}
@@ -775,12 +791,22 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
         size="md"
       >
         <div className="space-y-3 text-xs sm:text-sm">
+          {interviewCalled && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-3">
+              <Bell className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-rose-950">Giliran wawancara Anda tiba</p>
+                <p className="text-xs text-rose-800 mt-0.5">Sesi peserta sebelumnya selesai. Masuk ke Ruang Wawancara sekarang.</p>
+                <Button variant="primary" size="sm" onClick={() => { setNotifModalOpen(false); navigate('/peserta/waiting-room'); }} className="mt-2 text-xs">Masuk Sekarang</Button>
+              </div>
+            </div>
+          )}
           <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start gap-3">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-bold text-emerald-950">Sesi Ujian CAT Telah Dibuka</p>
               <p className="text-xs text-emerald-800 mt-0.5">
-                Anda dapat memulai pengerjaan 40 butir soal kapan saja sebelum pukul 23:59 WIB hari ini.
+                Anda dapat memulai pengerjaan paket soal sesuai jadwal yang ditetapkan.
               </p>
               <span className="text-[10px] text-emerald-700 font-mono mt-1 block">Baru saja</span>
             </div>
@@ -791,7 +817,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
             <div>
               <p className="font-bold text-primary-navy">Jadwal Wawancara Terkonfirmasi</p>
               <p className="text-xs text-slate-600 mt-0.5">
-                Wawancara kompetensi dilakukan setelah Anda menyelesaikan paket soal CAT bersama Lead Assessor atau Gemini AI Live.
+                Wawancara kompetensi dilakukan setelah Anda menyelesaikan paket soal CAT bersama asesor.
               </p>
               <span className="text-[10px] text-slate-500 font-mono mt-1 block">Kemarin, 16:30 WIB</span>
             </div>

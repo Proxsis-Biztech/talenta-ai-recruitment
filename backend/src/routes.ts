@@ -25,6 +25,7 @@ import { startExam, saveAnswers, submitExam, getExamResult } from './controllers
 import { upsertAssessorScore, listAssessorScores, getAssessorScore, getSignedLha } from './controllers/AssessorScoreController';
 import { getProctoringReviews, upsertProctoringReview } from './controllers/ProctoringController';
 import { getInterviewQuestions } from './controllers/InterviewController';
+import { getWaitingRoomStatus, completeAndCallNext } from './controllers/InterviewQueueController';
 import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
 import { uploadExcel, downloadPortalUserTemplate, importPortalUsers } from './controllers/BulkImportController';
@@ -62,6 +63,8 @@ router.put('/portal/password', authenticatePortal, changePassword);
 router.post('/portal/onboarding', authenticatePortal, completeOnboarding);
 router.post('/portal/device-check', authenticatePortal, completeDeviceCheck);
 router.get('/portal/dashboard', authenticatePortal, getPortalDashboard);
+router.get('/portal/waiting-room', authenticatePortal, requirePortalRole('peserta'), getWaitingRoomStatus);
+router.post('/asesor/interview/:candidateCode/complete-and-call-next', authenticatePortal, requirePortalRole('asesor'), completeAndCallNext);
 
 router.get('/interview/questions', authenticatePortal, requirePortalRole('peserta'), getInterviewQuestions);
 

@@ -39,6 +39,7 @@ export default function AsesorLiveConsole() {
   const [activeCompetency, setActiveCompetency] = useState<string>('c1');
   const [flagModalOpen, setFlagModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [callingNext, setCallingNext] = useState(false);
 
   // Rubric state
   const [rubrics, setRubrics] = useState<RubricItem[]>([
@@ -156,6 +157,26 @@ export default function AsesorLiveConsole() {
       window.alert(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal menyimpan catatan sesi.' : 'Gagal menyimpan catatan sesi.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCompleteAndCallNext = async () => {
+    setCallingNext(true);
+    try {
+      const token = getPortalToken();
+      if (!token) throw new Error('Sesi asesor tidak ditemukan.');
+      const response = await axios.post(
+        `/api/asesor/interview/${candidate.code}/complete-and-call-next`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const next = response.data?.next;
+      window.alert(next ? `Sesi selesai. Peserta berikutnya: ${next.name} (${next.candidateCode || '-'}).` : 'Sesi selesai. Tidak ada peserta berikutnya dalam antrean.');
+      navigate('/asesor/interview-queue');
+    } catch (error) {
+      window.alert(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal memanggil peserta berikutnya.' : 'Gagal memanggil peserta berikutnya.');
+    } finally {
+      setCallingNext(false);
     }
   };
 
@@ -356,15 +377,26 @@ export default function AsesorLiveConsole() {
             <span className="text-xs text-muted-slate">
               Simpan hasil penilaian melalui formulir rekomendasi
             </span>
-            <Button
-              variant="primary"
-              onClick={handleEndSession}
-              disabled={saving}
-              className="text-xs flex items-center gap-1.5"
-            >
-              <span>{saving ? 'Menyimpan...' : 'Lanjut ke Formulir Rekomendasi'}</span>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleCompleteAndCallNext}
+                disabled={callingNext || saving}
+                className="text-xs flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{callingNext ? 'Memanggil...' : 'Selesai & Panggil Berikutnya'}</span>
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleEndSession}
+                disabled={saving || callingNext}
+                className="text-xs flex items-center gap-1.5"
+              >
+                <span>{saving ? 'Menyimpan...' : 'Lanjut ke Formulir Rekomendasi'}</span>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>

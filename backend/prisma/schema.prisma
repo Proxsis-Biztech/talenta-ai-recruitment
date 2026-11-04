@@ -100,6 +100,9 @@ model PortalUser {
   department      String?
   assessorName    String?
   interviewScheduledAt DateTime?
+  interviewCalledAt   DateTime?
+  interviewEnteredAt  DateTime?
+  interviewCompletedAt DateTime?
   interviewStatus String          @default("not_started")
   interviewScore  Float?
   faceVerifiedAt  DateTime?
