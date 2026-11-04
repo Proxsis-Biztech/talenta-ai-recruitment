@@ -41,6 +41,7 @@ export default function PesertaHasilScorecard() {
   const [downloading, setDownloading] = useState(false);
   const [result, setResult] = useState<ExamResult | null>(null);
   const [lha, setLha] = useState<any>(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -104,7 +105,7 @@ export default function PesertaHasilScorecard() {
   const score = Number(result?.score ?? 0);
   const integrityScore = Number(result?.integrityScore ?? 0);
   const competencies = Array.isArray(result?.competencyScores) ? result.competencyScores : [];
-  const meetsThreshold = score >= activeProgram.passingScore;
+  const finalScore = lha?.compositeScore ?? null;
 
   if (loading) {
     return (
@@ -158,21 +159,30 @@ export default function PesertaHasilScorecard() {
 
             <div className="bg-white/15 border border-white/20 p-5 sm:p-6 rounded-3xl backdrop-blur-md flex flex-col items-center justify-center shrink-0 w-full md:w-auto md:min-w-[170px] shadow-sm print:bg-slate-100 print:border-slate-300">
               <span className="text-xs uppercase tracking-wider text-blue-200 print:text-slate-600 font-bold">
-                Skor CAT Otomatis
+                Status Hasil
               </span>
-              <span className="font-mono text-4xl sm:text-5xl font-extrabold text-white print:text-primary-navy mt-1">
-                {score.toFixed(1)}
+              <span className="font-mono text-2xl sm:text-3xl font-extrabold text-white print:text-primary-navy mt-1">
+                {finalScore !== null ? finalScore : 'Tersimpan'}
               </span>
               <span className="text-xs text-blue-200 print:text-slate-500 mt-1 font-medium">
-                Ambang CAT: {activeProgram.passingScore}
+                {lha ? 'LHA terverifikasi asesor' : 'Menunggu verifikasi asesor'}
               </span>
-              <span className={`mt-2 text-[11px] font-bold px-2.5 py-0.5 rounded-full ${meetsThreshold ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
-                {meetsThreshold ? 'Memenuhi ambang CAT' : 'Di bawah ambang CAT'}
+              <span className={`mt-2 text-[11px] font-bold px-2.5 py-0.5 rounded-full ${lha ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
+                {lha ? lha.recommendation : 'Menunggu asesor'}
               </span>
             </div>
           </div>
         </div>
 
+        {!lha && (
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={() => setShowBreakdown((value) => !value)} className="text-xs">
+              {showBreakdown ? 'Sembunyikan rincian objektif' : 'Lihat rincian objektif'}
+            </Button>
+          </div>
+        )}
+
+        {(lha || showBreakdown) && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-7 w-full min-w-0 bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
@@ -262,6 +272,7 @@ export default function PesertaHasilScorecard() {
             </div>
           </div>
         </div>
+        )}
 
         {(result.manualReviewCount ?? 0) > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3">
@@ -271,7 +282,7 @@ export default function PesertaHasilScorecard() {
                 {result.manualReviewCount} jawaban esai menunggu penilaian asesor
               </p>
               <p className="text-xs text-amber-800 mt-1">
-                Skor CAT di atas hanya mencakup butir objektif (pilihan ganda, multi-select, isian singkat, dan matching). Nilai akhir dan LHA akan diterbitkan setelah asesor menyelesaikan review.
+                Butir objektif telah dinilai secara otomatis. Nilai akhir, klasifikasi, dan LHA diterbitkan setelah asesor menyelesaikan review.
               </p>
             </div>
           </div>

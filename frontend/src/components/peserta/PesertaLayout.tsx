@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { Badge, Modal, Button } from '../ui';
 import { getActiveSessionUser, clearActiveSession } from '../../services/userRegistryService';
+import { getPortalUser } from '../../services/portalAuthService';
 
 interface PesertaLayoutProps {
   children: React.ReactNode;
@@ -48,6 +49,8 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
 
   // Active candidate session data
   const activeUser = useMemo(() => getActiveSessionUser(), []);
+  const faceVerified = Boolean(getPortalUser()?.faceVerifiedAt);
+  const displayId = getPortalUser()?.candidateCode || activeUser.id.slice(0, 8);
   const userInitials = useMemo(() => {
     return (
       activeUser.name
@@ -85,7 +88,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
       group: 'TAHAPAN ASESMEN',
       items: [
         { id: 'dashboard', label: 'Dashboard Peserta', path: '/peserta', icon: LayoutDashboard },
-        { id: 'asesmen', label: 'Daftar Asesmen & CAT', path: '/peserta/asesmen', icon: FileCheck2, badge: '1 Aktif' },
+        { id: 'asesmen', label: 'Asesmen Saya', path: '/peserta/asesmen', icon: FileCheck2, badge: '1 Aktif' },
         { id: 'waiting-room', label: 'Ruang Wawancara', path: '/peserta/waiting-room', icon: Video, badge: isCatCompleted ? 'Siap' : undefined },
         { id: 'hasil', label: 'Hasil Nilai & LHA', path: '/peserta/hasil', icon: CheckCircle2 },
         { id: 'profile', label: 'Profil & Dokumen', path: '/peserta/profile', icon: User },
@@ -217,11 +220,11 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           <div className="py-4 flex justify-center border-b border-slate-100">
             <div
               className="w-11 h-11 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-bold text-sm shadow-xs cursor-pointer group relative"
-              title={`${activeUser.name} (${activeUser.id})`}
+              title={`${activeUser.name} (${displayId})`}
             >
               {userInitials}
               <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900 text-white text-xs rounded-lg shadow-xl pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                {activeUser.name} • {activeUser.id}
+                {activeUser.name} • {displayId}
               </span>
             </div>
           </div>
@@ -236,7 +239,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                   {activeUser.name}
                 </p>
                 <p className="text-xs text-slate-500 font-mono truncate mt-0.5">
-                  ID: {activeUser.id}
+                  ID: {displayId}
                 </p>
               </div>
             </div>
@@ -416,11 +419,15 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
               <span>Panduan &amp; Alur</span>
             </button>
 
-            {/* Live Connection Telemetry */}
-            <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200/80 rounded-full text-emerald-800 text-xs font-semibold shadow-2xs">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Sistem Siap • Koneksi Lancar</span>
-            </div>
+            {/* Proctoring readiness */}
+            <button
+              type="button"
+              onClick={() => navigate('/peserta/device-check')}
+              className={`hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border ${faceVerified ? 'bg-emerald-50 border-emerald-200/80 text-emerald-800' : 'bg-amber-50 border-amber-200/80 text-amber-800'}`}
+            >
+              <span className={`w-2.5 h-2.5 rounded-full ${faceVerified ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              <span>{faceVerified ? 'Pengawasan Siap' : 'Perlu Cek Perangkat'}</span>
+            </button>
 
             {/* Notification Bell (Functional popover modal) */}
             <button
@@ -607,7 +614,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     3
                   </div>
                   <div className="space-y-1">
-                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Kerjakan Tahap 2: Ujian CAT (40 Soal)</p>
+                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Kerjakan Tahap 2: Ujian CAT sesuai paket</p>
                     <p className="text-xs text-muted-slate leading-relaxed">
                       Masuk ke Ruang Ujian CAT. Anda akan mengerjakan 40 butir soal pilihan ganda &amp; studi kasus situasional. Jawaban Anda tersimpan otomatis ke server secara real-time.
                     </p>
@@ -631,9 +638,9 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     5
                   </div>
                   <div className="space-y-1">
-                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Ikuti Tahap 4: Wawancara Live Asesor / Gemini AI</p>
+                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Ikuti Tahap 4: Wawancara Live bersama Asesor</p>
                     <p className="text-xs text-muted-slate leading-relaxed">
-                      Saat giliran tiba, masuk ke ruang wawancara live. Asesor / AI Gemini Live akan mengajukan pertanyaan mendalam seputar penalaran jawaban Anda di lembar CAT.
+                      Saat giliran tiba, masuk ke ruang wawancara live. Asesor (atau avatar AI sesuai program) akan mengajukan pertanyaan mendalam; penilaian akhir tetap dilakukan asesor.
                     </p>
                   </div>
                 </div>
@@ -645,7 +652,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                   <div className="space-y-1">
                     <p className="font-bold text-slate-900 text-xs sm:text-sm">Buka Tahap 5: Hasil &amp; Nilai Akhir (LHA)</p>
                     <p className="text-xs text-muted-slate leading-relaxed">
-                      Setelah asesor menyelesaikan penilaian rubrik BARS, rekapitulasi nilai komposit dan Laporan Hasil Asesmen (LHA) resmi dapat diunduh langsung.
+                      Laporan Hasil Asesmen (LHA) resmi tersedia setelah asesor menyelesaikan penilaian dan menandatangani laporan.
                     </p>
                   </div>
                 </div>
@@ -680,7 +687,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     ❓ Apa hubungan antara soal CAT dan wawancara?
                   </p>
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    Ujian CAT menguji pilihan keputusan teknis Anda (contoh: pemecahan masalah penurunan OTP atau arsitektur cloud). Pada sesi wawancara, Asesor atau Gemini AI Live akan menanyakan: <em>"Mengapa Anda memilih pendekatan tersebut di soal nomor 3?"</em> atau <em>"Bagaimana Anda memitigasi risiko jika solusi tersebut gagal?"</em>. Ini menguji apakah Anda benar-benar memahami konsep dan memiliki kompetensi perilaku kerja (BARS).
+                    Ujian CAT menguji pilihan keputusan teknis Anda (contoh: pemecahan masalah penurunan OTP atau arsitektur cloud). Pada sesi wawancara, asesor akan menanyakan: <em>"Mengapa Anda memilih pendekatan tersebut di soal nomor 3?"</em> atau <em>"Bagaimana Anda memitigasi risiko jika solusi tersebut gagal?"</em>. Ini menguji apakah Anda benar-benar memahami konsep dan memiliki kompetensi perilaku kerja (BARS).
                   </p>
                 </div>
 
@@ -689,7 +696,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     ❓ Mengapa menu wawancara terpisah di navigasi sidebar?
                   </p>
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    Menu wawancara disediakan secara khusus karena memiliki infrastruktur interaktif video/audio real-time, integrasi antrean (*Waiting Room*), serta dukungan <strong>Gemini AI Live Voice</strong>. Dengan memisahkannya ke dalam 5 tahapan berurutan, Anda dapat dengan mudah berpindah antar tahapan secara terstruktur.
+                    Menu wawancara disediakan secara khusus karena memiliki infrastruktur interaktif video/audio real-time, integrasi antrean (*Waiting Room*), serta dukungan wawancara video/audio. Dengan memisahkannya ke dalam 5 tahapan berurutan, Anda dapat dengan mudah berpindah antar tahapan secara terstruktur.
                   </p>
                 </div>
 
@@ -771,7 +778,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start gap-3">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-emerald-950">Sesi Ujian CAT 40 Soal Telah Dibuka</p>
+              <p className="font-bold text-emerald-950">Sesi Ujian CAT Telah Dibuka</p>
               <p className="text-xs text-emerald-800 mt-0.5">
                 Anda dapat memulai pengerjaan 40 butir soal kapan saja sebelum pukul 23:59 WIB hari ini.
               </p>
@@ -784,7 +791,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
             <div>
               <p className="font-bold text-primary-navy">Jadwal Wawancara Terkonfirmasi</p>
               <p className="text-xs text-slate-600 mt-0.5">
-                Wawancara kompetensi dilakukan setelah Anda menyelesaikan 40 soal CAT bersama Lead Assessor atau Gemini AI Live.
+                Wawancara kompetensi dilakukan setelah Anda menyelesaikan paket soal CAT bersama Lead Assessor atau Gemini AI Live.
               </p>
               <span className="text-[10px] text-slate-500 font-mono mt-1 block">Kemarin, 16:30 WIB</span>
             </div>

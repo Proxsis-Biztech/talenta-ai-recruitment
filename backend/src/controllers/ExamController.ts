@@ -110,6 +110,14 @@ const sanitizeQuestions = (questions: Array<{
     matchingPairs: parseJson(question.matchingPairs, [])
   }));
 
+const isPortalProfileComplete = async (userId: string) => {
+  const user = await prisma.portalUser.findUnique({
+    where: { id: userId },
+    select: { name: true, phone: true, nik: true, employeeNumber: true, education: true, university: true, city: true }
+  });
+  return Boolean(user?.name && user?.phone && (user?.nik || user?.employeeNumber) && user?.education && user?.university && user?.city);
+};
+
 const canAccessProgram = (portalUser: { assessmentId?: string | null } | undefined, programCode: string) => {
   if (!portalUser?.assessmentId) return false;
   return portalUser.assessmentId.toUpperCase() === programCode;
@@ -129,6 +137,9 @@ const loadProgram = async (programCode: string) => {
 export const startExam = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    if (!(await isPortalProfileComplete(req.portalUser.id))) {
+      return res.status(403).json({ error: 'Lengkapi data profil terlebih dahulu sebelum memulai ujian.' });
+    }
     const program = await loadProgram(String(req.params.programCode));
     if (!program) return res.status(404).json({ error: 'Program asesmen tidak ditemukan.' });
     if (!canAccessProgram(req.portalUser, program.code)) {
@@ -235,6 +246,9 @@ export const saveAnswers = async (req: AuthRequest, res: Response) => {
 export const submitExam = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    if (!(await isPortalProfileComplete(req.portalUser.id))) {
+      return res.status(403).json({ error: 'Lengkapi data profil terlebih dahulu sebelum mengumpulkan ujian.' });
+    }
     const program = await loadProgram(String(req.params.programCode));
     if (!program) return res.status(404).json({ error: 'Program asesmen tidak ditemukan.' });
     if (!canAccessProgram(req.portalUser, program.code)) {

@@ -18,6 +18,8 @@ export default function PesertaOnboarding() {
   const [education, setEducation] = useState(currentUser?.education || '');
   const [university, setUniversity] = useState(currentUser?.university || '');
   const [city, setCity] = useState(currentUser?.city || '');
+  const [employeeNumber, setEmployeeNumber] = useState(currentUser?.employeeNumber || '');
+  const [department, setDepartment] = useState(currentUser?.department || '');
   const [portfolioUrl, setPortfolioUrl] = useState(currentUser?.portfolioUrl || '');
   const [bio, setBio] = useState(currentUser?.bio || '');
   const [error, setError] = useState('');
@@ -38,6 +40,10 @@ export default function PesertaOnboarding() {
       setError('Konfirmasi kata sandi baru tidak cocok.');
       return;
     }
+    if (!nik.trim() && !employeeNumber.trim()) {
+      setError('Isi NIK atau nomor pegawai.');
+      return;
+    }
     const token = getPortalToken();
     if (!token) {
       setError('Sesi Anda tidak ditemukan. Silakan masuk kembali.');
@@ -54,6 +60,8 @@ export default function PesertaOnboarding() {
         education,
         university,
         city,
+        employeeNumber,
+        department,
         portfolioUrl,
         bio
       }, { headers: { Authorization: `Bearer ${token}` } });
@@ -106,10 +114,12 @@ export default function PesertaOnboarding() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Nama Lengkap" value={name} onChange={(e) => setName(e.target.value)} required />
                 <Input label="No. Telepon" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-                <Input label="NIK" value={nik} onChange={(e) => setNik(e.target.value)} required />
+                <Input label="NIK (opsional jika ada nomor pegawai)" value={nik} onChange={(e) => setNik(e.target.value)} />
                 <Input label="Pendidikan" value={education} onChange={(e) => setEducation(e.target.value)} placeholder="Contoh: S1 Teknik Informatika" required />
                 <Input label="Universitas" value={university} onChange={(e) => setUniversity(e.target.value)} required />
                 <Input label="Kota Domisili" value={city} onChange={(e) => setCity(e.target.value)} required />
+                <Input label="Nomor Pegawai (opsional jika ada NIK)" value={employeeNumber} onChange={(e) => setEmployeeNumber(e.target.value)} />
+                <Input label="Departemen / Level (opsional)" value={department} onChange={(e) => setDepartment(e.target.value)} />
                 <Input label="Portfolio / LinkedIn" value={portfolioUrl} onChange={(e) => setPortfolioUrl(e.target.value)} placeholder="Opsional" />
               </div>
               <div className="space-y-2">

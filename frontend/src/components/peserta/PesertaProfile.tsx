@@ -71,6 +71,8 @@ export default function PesertaProfile() {
   const [education, setEducation] = useState(getPortalUser()?.education || '');
   const [university, setUniversity] = useState(getPortalUser()?.university || '');
   const [city, setCity] = useState(getPortalUser()?.city || '');
+  const [employeeNumber, setEmployeeNumber] = useState(getPortalUser()?.employeeNumber || '');
+  const [department, setDepartment] = useState(getPortalUser()?.department || '');
   const [portfolioUrl, setPortfolioUrl] = useState(getPortalUser()?.portfolioUrl || '');
   const [bio, setBio] = useState(getPortalUser()?.bio || '');
 
@@ -118,7 +120,7 @@ export default function PesertaProfile() {
       return;
     }
     try {
-      const response = await axios.put('/api/portal/profile', { name: fullName, phone, nik, education, university, city, portfolioUrl, bio }, {
+      const response = await axios.put('/api/portal/profile', { name: fullName, phone, nik, education, university, city, employeeNumber, department, portfolioUrl, bio }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const currentToken = getPortalToken();
@@ -217,7 +219,7 @@ export default function PesertaProfile() {
                     {getPortalUser()?.faceVerifiedAt ? 'Terverifikasi' : 'Belum Verifikasi'}
                   </span>
                   <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 text-xs font-mono font-semibold">
-                    {initialData.id}
+                    {getPortalUser()?.candidateCode || initialData.id.slice(0, 8)}
                   </span>
                 </div>
 
@@ -357,12 +359,30 @@ export default function PesertaProfile() {
               </div>
             )}
 
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-700">Kelengkapan profil</span>
+                <span className="font-mono font-bold text-primary-navy">
+                  {[fullName, phone, nik || employeeNumber, education, university, city].filter(Boolean).length} / 6
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                <div
+                  className="h-full bg-primary-navy rounded-full"
+                  style={{ width: `${([fullName, phone, nik || employeeNumber, education, university, city].filter(Boolean).length / 6) * 100}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-slate-500">
+                <span className="text-rose-600 font-bold">*</span> wajib diisi. Kolom bertanda (opsional) tidak menghalangi tahap berikutnya.
+              </p>
+            </div>
+
             <form onSubmit={handleSaveBiodata} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {/* Nama Lengkap */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Nama Lengkap (Sesuai KTP)
+                    Nama Lengkap (Sesuai KTP) *
                   </label>
                   <input
                     type="text"
@@ -395,7 +415,7 @@ export default function PesertaProfile() {
                 {/* No Telepon / WA */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Nomor WhatsApp / Seluler
+                    Nomor WhatsApp / Seluler *
                   </label>
                   <input
                     type="tel"
@@ -431,7 +451,7 @@ export default function PesertaProfile() {
                 {/* Pendidikan Terakhir */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Jenjang &amp; Jurusan Pendidikan
+                    Jenjang &amp; Jurusan Pendidikan *
                   </label>
                   <input
                     type="text"
@@ -444,7 +464,7 @@ export default function PesertaProfile() {
                 {/* Perguruan Tinggi */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Universitas / Institusi Asal
+                    Universitas / Institusi Asal *
                   </label>
                   <input
                     type="text"
@@ -457,7 +477,7 @@ export default function PesertaProfile() {
                 {/* Domisili */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Kota Domisili Saat Ini
+                    Kota Domisili Saat Ini *
                   </label>
                   <input
                     type="text"
@@ -467,10 +487,36 @@ export default function PesertaProfile() {
                   />
                 </div>
 
+                {/* Nomor Pegawai */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Nomor Pegawai (opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={employeeNumber}
+                    onChange={(e) => setEmployeeNumber(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all font-mono"
+                  />
+                </div>
+
+                {/* Departemen / Level */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Departemen / Level (opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all"
+                  />
+                </div>
+
                 {/* Link Portofolio / GitHub */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Tautan GitHub / LinkedIn
+                    Tautan GitHub / LinkedIn (opsional)
                   </label>
                   <input
                     type="url"
@@ -484,7 +530,7 @@ export default function PesertaProfile() {
               {/* Bio Singkat */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Ringkasan Pengalaman Teknis / Bio Profesional
+                  Ringkasan Pengalaman Teknis / Bio Profesional (opsional)
                 </label>
                 <textarea
                   rows={3}
@@ -540,7 +586,7 @@ export default function PesertaProfile() {
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
                   <span className="text-[11px] font-medium text-slate-500 block">Metode Ujian</span>
                   <span className="text-sm sm:text-base font-bold text-slate-900 mt-1 block">
-                    CAT 40 Soal
+                    CAT {program.questions?.length || 40} Soal
                   </span>
                   <span className="text-[10px] text-emerald-700 font-semibold">Tingkat {program.gradeLevel}</span>
                 </div>

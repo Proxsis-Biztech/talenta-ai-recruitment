@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -34,6 +34,57 @@ export default function AuthLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [successRole, setSuccessRole] = useState<'admin' | 'asesor' | 'peserta' | null>(null);
+  const [googleReady, setGoogleReady] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
+  const handleGoogleLogin = async (credential: string) => {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      const response = await axios.post('/api/portal/auth/google', { credential });
+      const session = {
+        token: response.data.token,
+        user: response.data.user,
+        requiresOnboarding: response.data.requiresOnboarding
+      };
+      clearPortalSession();
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminRole');
+      localStorage.removeItem('adminUsername');
+      savePortalSession(session);
+      navigate(session.requiresOnboarding ? '/peserta/onboarding' : '/peserta');
+    } catch (err) {
+      setError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal masuk dengan Google.' : 'Gagal masuk dengan Google.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!googleClientId) return;
+    const existing = document.querySelector('script[data-google-identity]');
+    const script = (existing as HTMLScriptElement) || document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.setAttribute('data-google-identity', 'true');
+    script.onload = () => {
+      const google = (window as any).google;
+      if (!google?.accounts?.id) return;
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: (response: any) => {
+          if (response?.credential) void handleGoogleLogin(response.credential);
+        }
+      });
+      setGoogleReady(true);
+    };
+    if (!existing) document.body.appendChild(script);
+    return () => {
+      if (!existing) script.remove();
+    };
+  }, [googleClientId]);
 
   // Quick fill demo helper
   const handleFillDemo = (type: 'superadmin' | 'asesor' | 'peserta-telkom' | 'peserta-mandiri' | 'code') => {
@@ -326,6 +377,28 @@ export default function AuthLoginPage() {
               </div>
             </form>
 
+            {googleClientId && (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">atau</span>
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+                <button
+                  type="button"
+                  disabled={!googleReady || googleLoading}
+                  onClick={() => {
+                    const google = (window as any).google;
+                    google?.accounts?.id?.prompt?.();
+                  }}
+                  className="w-full flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <span className="w-5 h-5 rounded-full border border-slate-200 flex items-center justify-center text-[11px] font-bold text-[#4285F4]">G</span>
+                  <span>{googleLoading ? 'Menghubungkan...' : googleReady ? 'Lanjutkan dengan Google' : 'Memuat Google...'}</span>
+                </button>
+              </div>
+            )}
+
             {SHOW_DEMO_ACCESS && (
             <div className="mt-6 pt-5 border-t border-slate-100">
               <div className="flex items-center justify-between text-xs text-slate-500 mb-2.5">
@@ -446,7 +519,7 @@ export default function AuthLoginPage() {
               Platform Asesmen &amp; Seleksi Talenta Berbasis AI
             </h2>
             <p className="text-blue-100/90 text-sm xl:text-base leading-relaxed max-w-lg">
-              Solusi terpadu pengujian CAT 40 soal, pengawasan integritas OpenCV real-time, dan penilaian rubrik wawancara asesor terstandarisasi BARS.
+              Solusi asesmen terpadu: tes adaptif, pengawasan kamera, dan penilaian asesor dengan LHA terverifikasi.
             </p>
           </div>
 
@@ -459,7 +532,7 @@ export default function AuthLoginPage() {
                   CAT
                 </div>
                 <div>
-                  <span className="font-bold text-white block text-xs">Simulasi Ujian 40 Soal</span>
+                  <span className="font-bold text-white block text-xs">Simulasi Ujian Adaptif</span>
                   <span className="text-blue-200 text-[11px]">PT Telkom • Software Engineer</span>
                 </div>
               </div>
@@ -494,21 +567,21 @@ export default function AuthLoginPage() {
             <div className="flex items-center justify-between text-xs pt-1 text-blue-200">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span className="text-[11px]">AI Proctoring: 1 Wajah Terverifikasi</span>
+                <span className="text-[11px]">Proctoring: kamera & tab dipantau</span>
               </div>
-              <span className="text-[11px] font-mono text-cyan-300">OpenCV • 30 FPS</span>
+              <span className="text-[11px] font-mono text-cyan-300">Status real-time</span>
             </div>
           </div>
 
           {/* Key Metrics Ribbon */}
           <div className="grid grid-cols-3 gap-3 max-w-lg">
             <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
-              <span className="font-mono text-xl xl:text-2xl font-black text-white block">99.8%</span>
-              <span className="text-[11px] text-blue-200">Akurasi AI</span>
+              <span className="font-mono text-xl xl:text-2xl font-black text-white block">LHA</span>
+              <span className="text-[11px] text-blue-200">Terverifikasi</span>
             </div>
             <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
-              <span className="font-mono text-xl xl:text-2xl font-black text-cyan-300 block">40 CAT</span>
-              <span className="text-[11px] text-blue-200">Standard Soal</span>
+              <span className="font-mono text-xl xl:text-2xl font-black text-cyan-300 block">Adaptif</span>
+              <span className="text-[11px] text-blue-200">Paket soal</span>
             </div>
             <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
               <span className="font-mono text-xl xl:text-2xl font-black text-emerald-300 block">5 PT</span>

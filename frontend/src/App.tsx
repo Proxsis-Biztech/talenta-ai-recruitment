@@ -2,6 +2,7 @@ import React, { Suspense, lazy, Component, type ErrorInfo, type ReactNode } from
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { RequireRole } from './components/auth/RequireRole';
 import { RequireOnboarding } from './components/auth/RequireOnboarding';
+import { RequireProfileComplete } from './components/auth/RequireProfileComplete';
 
 // Landing & Auth
 const RolePortalSelector = lazy(() => import('./components/landing/RolePortalSelector'));
@@ -99,10 +100,10 @@ function App() {
             <Route path="/peserta/dashboard" element={<RequireRole roles={['peserta']}><RequireOnboarding><PesertaDashboard /></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/asesmen" element={<RequireRole roles={['peserta']}><RequireOnboarding><PesertaAsesmenList /></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/detail/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><PesertaDetailAsesmen /></RequireOnboarding></RequireRole>} />
-            <Route path="/peserta/device-check" element={<RequireRole roles={['peserta']}><RequireOnboarding><PesertaDeviceCheck /></RequireOnboarding></RequireRole>} />
-            <Route path="/peserta/exam/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><PesertaExamPlayer /></RequireOnboarding></RequireRole>} />
-            <Route path="/peserta/waiting-room" element={<RequireRole roles={['peserta']}><RequireOnboarding><PesertaWaitingRoom /></RequireOnboarding></RequireRole>} />
-            <Route path="/peserta/interview" element={<RequireRole roles={['peserta']}><RequireOnboarding><PesertaInterviewLive /></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/device-check" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaDeviceCheck /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/exam/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaExamPlayer /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/waiting-room" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaWaitingRoom /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/interview" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaInterviewLive /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/hasil" element={<RequireRole roles={['peserta']}><RequireOnboarding><PesertaHasilScorecard /></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/onboarding" element={<RequireRole roles={['peserta']}><PesertaOnboarding /></RequireRole>} />
             <Route path="/peserta/profile" element={<RequireRole roles={['peserta']}><RequireOnboarding><PesertaProfile /></RequireOnboarding></RequireRole>} />

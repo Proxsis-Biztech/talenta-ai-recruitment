@@ -96,6 +96,8 @@ model PortalUser {
   portfolioUrl    String?
   bio             String?
   candidateCode   String?         @unique
+  employeeNumber  String?
+  department      String?
   assessorName    String?
   interviewScheduledAt DateTime?
   interviewStatus String          @default("not_started")

@@ -41,6 +41,7 @@ import { ProctoringEngine, type ProctoringViolationEvent } from '../../utils/pro
 import { Button, Badge, Modal, Card, CardContent } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getPortalToken } from '../../services/portalAuthService';
+import { CameraProctorTile } from './CameraProctorTile';
 import { getProgramById, DEFAULT_ASSESSMENT_PROGRAMS } from '../../services/assessmentCatalog';
 
 // Mock 40 questions covering realistic IT & Engineering competencies for CAT mode
@@ -708,6 +709,7 @@ export default function PesertaExamPlayer() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans select-none antialiased">
+      {!isExamLocked && <CameraProctorTile floating />}
       {/* ─── Topbar / Header (Calm, Professional, User-Friendly) ─── */}
       <header className="h-18 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40 shadow-xs">
         {/* Left: Program Info & Candidate Name */}

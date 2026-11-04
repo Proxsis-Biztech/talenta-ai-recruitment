@@ -28,6 +28,7 @@ import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById } from '../../services/assessmentCatalog';
 import { getPortalToken } from '../../services/portalAuthService';
+import { CameraProctorTile } from './CameraProctorTile';
 
 export default function PesertaDashboard() {
   const navigate = useNavigate();
@@ -65,6 +66,9 @@ export default function PesertaDashboard() {
 
   const isCatCompleted = ['submitted', 'graded'].includes(dashboard?.exam?.status || '');
   const faceVerified = Boolean(dashboard?.user?.faceVerifiedAt);
+  const profileComplete = dashboard
+    ? Boolean(dashboard?.user?.name && dashboard?.user?.phone && (dashboard?.user?.nik || dashboard?.user?.employeeNumber) && dashboard?.user?.education && dashboard?.user?.university && dashboard?.user?.city)
+    : true;
   const interview = dashboard?.interview || {};
   const lha = dashboard?.lha;
 
@@ -72,6 +76,17 @@ export default function PesertaDashboard() {
     value
       ? new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
       : '-';
+
+  const formatSchedule = (value?: string | null) =>
+    value
+      ? new Date(value).toLocaleString('id-ID', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }) + ' WIB'
+      : 'Belum dijadwalkan';
 
   const stages = [
     { title: 'Pendaftaran & Berkas', status: 'completed', date: formatDate(dashboard?.user?.createdAt), desc: 'Terverifikasi' },
@@ -85,7 +100,7 @@ export default function PesertaDashboard() {
       title: 'Tes Kemampuan Teknis (CAT)',
       status: isCatCompleted ? 'completed' : 'active',
       date: isCatCompleted ? formatDate(dashboard?.exam?.submittedAt) : 'Siap dimulai',
-      desc: isCatCompleted ? `Skor ${dashboard?.exam?.score ?? 0} / 100` : '40 Soal • Siap Dimulai'
+      desc: isCatCompleted ? 'Jawaban tersimpan' : 'Paket soal • Siap Dimulai'
     },
     {
       title: 'Live Interview & Rubrik Asesor',
@@ -104,6 +119,17 @@ export default function PesertaDashboard() {
   return (
     <PesertaLayout activeTab="dashboard">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-10 sm:py-14 space-y-10 sm:space-y-12 antialiased">
+        {!profileComplete && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-amber-900">Lengkapi data diri sebelum memulai asesmen</p>
+              <p className="text-xs text-amber-800 mt-1">Kolom bertanda * pada Profil Peserta wajib diisi. Tahap berikutnya terkunci sampai profil lengkap.</p>
+            </div>
+            <Button variant="primary" onClick={() => navigate('/peserta/profile')} className="text-xs py-2 px-4 shrink-0">
+              Lengkapi Data Diri
+            </Button>
+          </div>
+        )}
         {/* ─── Hero Header: Asymmetric 8 / 4 Split (Friendly, Clear Next Step) ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch">
           {/* Sisi Kiri (8 kolom): Salam Personal, Status Tahapan & Aksi Utama */}
@@ -144,26 +170,29 @@ export default function PesertaDashboard() {
                   </Button>
                   <Button
                     variant="outline"
+                    disabled={!dashboard?.lha}
                     onClick={() => navigate('/peserta/hasil')}
                     className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm text-slate-700 flex items-center gap-2 cursor-pointer"
                   >
                     <Award className="w-4 h-4 text-emerald-600" />
-                    <span>Lihat Rekap Nilai CAT</span>
+                    <span>{dashboard?.lha ? 'Lihat LHA Resmi' : 'Menunggu Penilaian Asesor'}</span>
                   </Button>
                 </>
               ) : (
                 <>
                   <Button
                     variant="primary"
+                    disabled={!profileComplete}
                     onClick={() => navigate(`/peserta/exam/${activeProgram.id}`)}
                     className="py-3 px-6 rounded-xl font-bold text-xs sm:text-sm shadow-xs flex items-center gap-2 cursor-pointer"
                   >
                     <PlayCircle className="w-4 h-4 text-blue-100" />
-                    <span>Mulai Ujian CAT Sekarang (40 Soal)</span>
+                    <span>{profileComplete ? 'Mulai Ujian CAT Sekarang (40 Soal)' : 'Lengkapi Profil untuk Memulai Ujian'}</span>
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
                   <Button
                     variant="outline"
+                    disabled={!profileComplete}
                     onClick={() => navigate('/peserta/device-check')}
                     className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm text-slate-700 flex items-center gap-2 cursor-pointer"
                   >
@@ -195,14 +224,27 @@ export default function PesertaDashboard() {
                 </div>
                 <div className="flex justify-between py-2.5 border-b border-slate-200/60">
                   <span>Nomor Peserta</span>
-                  <span className="font-mono font-bold text-ink">{activeUser.id}</span>
+                  <span className="font-mono font-bold text-ink">{dashboard?.user?.candidateCode || activeUser.id.slice(0, 8)}</span>
                 </div>
                 <div className="flex justify-between py-2.5">
                   <span>Jadwal Wawancara</span>
                   <span className="font-mono font-semibold text-ink text-right">
-                    {interview.scheduledAt ? new Date(interview.scheduledAt).toLocaleString('id-ID') : 'Belum dijadwalkan'}
+                    {formatSchedule(interview.scheduledAt)}
                   </span>
                 </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-700">Status Pengawasan</span>
+                  <span className={`text-[11px] font-semibold ${faceVerified ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {faceVerified ? 'Siap' : 'Perlu tindakan'}
+                  </span>
+                </div>
+                <CameraProctorTile compact active={Boolean(faceVerified && dashboard?.exam?.status === 'in_progress')} />
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Kamera aktif hanya saat Cek Perangkat atau sesi ujian berlangsung.
+                </p>
               </div>
             </div>
 
@@ -249,8 +291,8 @@ export default function PesertaDashboard() {
                   <p className="font-mono text-base font-bold text-primary-navy mt-0.5">{activeProgram.totalQuestions} Butir (CAT)</p>
                 </div>
                 <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
-                  <span className="text-xs text-muted-slate block font-medium">Passing Grade</span>
-                  <p className="font-mono text-base font-bold text-emerald-600 mt-0.5">{activeProgram.passingScore} / 100</p>
+                  <span className="text-xs text-muted-slate block font-medium">Status Hasil</span>
+                  <p className="text-sm font-bold text-amber-700 mt-0.5">Menunggu asesor</p>
                 </div>
                 <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
                   <span className="text-xs text-muted-slate block font-medium">Tingkat / Grade</span>
@@ -317,7 +359,7 @@ export default function PesertaDashboard() {
                   <Calendar className="w-4 h-4 text-primary-navy shrink-0" />
                   <div className="text-xs">
                     <p className="font-bold text-ink">
-                      {interview.scheduledAt ? new Date(interview.scheduledAt).toLocaleString('id-ID') : 'Belum dijadwalkan'}
+                      {formatSchedule(interview.scheduledAt)}
                     </p>
                     <p className="text-muted-slate text-[11px]">{dashboard?.program?.durationMinutes || 45} Menit</p>
                   </div>
@@ -338,11 +380,12 @@ export default function PesertaDashboard() {
             <div className="mt-6 pt-4 border-t border-slate-100">
               <Button
                 variant="outline"
+                disabled={!profileComplete}
                 onClick={() => navigate('/peserta/waiting-room')}
                 className="w-full py-2.5 px-4 rounded-xl text-primary-navy font-bold text-xs flex items-center justify-center gap-2 cursor-pointer bg-soft-blue hover:bg-blue-100/70 border-accent-border"
               >
                 <Clock className="w-4 h-4 text-blue-accent" />
-                <span>Masuk ke Waiting Room</span>
+                <span>{profileComplete ? 'Masuk ke Waiting Room' : 'Lengkapi Profil untuk Wawancara'}</span>
               </Button>
             </div>
           </div>

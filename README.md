@@ -57,3 +57,7 @@ Buka URL yang diberikan oleh Vite (biasanya `http://localhost:5173`) di browser 
 - `POST /api/admin/login`: Autentikasi Admin.
 - `GET /api/admin/applicants`: List pendaftar (Membutuhkan Bearer Token).
 - `GET /api/admin/applicants/cv/:fileName`: Unduh file CV pendaftar (Membutuhkan Bearer Token).
+
+### Login Google (opsional)
+
+Set `GOOGLE_CLIENT_ID` di backend dan `VITE_GOOGLE_CLIENT_ID` di frontend dengan client ID OAuth yang sama. Tombol Google hanya muncul bila client ID dikonfigurasi.

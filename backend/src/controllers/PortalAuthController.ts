@@ -30,6 +30,8 @@ const userSelect = {
   portfolioUrl: true,
   bio: true,
   candidateCode: true,
+  employeeNumber: true,
+  department: true,
   assessorName: true,
   interviewScheduledAt: true,
   interviewStatus: true,
@@ -91,6 +93,51 @@ export const loginPortal = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Portal login error:', error);
     return res.status(500).json({ error: 'Terjadi kesalahan pada server.' });
+  }
+};
+
+export const googleLogin = async (req: AuthRequest, res: Response) => {
+  try {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      return res.status(503).json({ error: 'Login Google belum dikonfigurasi oleh administrator.' });
+    }
+    const credential = String(req.body.credential || '');
+    if (!credential) return res.status(400).json({ error: 'Token Google wajib dikirim.' });
+
+    const tokenResponse = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
+    );
+    if (!tokenResponse.ok) {
+      return res.status(401).json({ error: 'Token Google tidak valid.' });
+    }
+    const tokenInfo = await tokenResponse.json();
+    if (tokenInfo.aud !== clientId) {
+      return res.status(401).json({ error: 'Token Google bukan untuk aplikasi ini.' });
+    }
+    if (tokenInfo.email_verified !== 'true' && tokenInfo.email_verified !== true) {
+      return res.status(401).json({ error: 'Email Google belum terverifikasi.' });
+    }
+
+    const email = String(tokenInfo.email || '').toLowerCase();
+    const user = await prisma.portalUser.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ error: 'Email Google ini belum terdaftar. Gunakan email undangan atau daftar program baru.' });
+    }
+    if (user.status !== 'Aktif') {
+      return res.status(403).json({ error: 'Akun Anda sedang dinonaktifkan.' });
+    }
+
+    const token = signPortalToken(user);
+    const safeUser = await prisma.portalUser.findUnique({ where: { id: user.id }, select: userSelect });
+    return res.json({
+      token,
+      user: safeUser,
+      requiresOnboarding: Boolean(safeUser && (!safeUser.profileCompleted || safeUser.mustChangePassword))
+    });
+  } catch (error) {
+    console.error('Google login error:', error);
+    return res.status(500).json({ error: 'Gagal masuk dengan Google.' });
   }
 };
 
@@ -232,7 +279,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       data.name = name;
     }
     if (req.body.phone !== undefined) data.phone = String(req.body.phone).trim() || null;
-    for (const field of ['nik', 'education', 'university', 'city', 'portfolioUrl', 'bio']) {
+    for (const field of ['nik', 'education', 'university', 'city', 'portfolioUrl', 'bio', 'employeeNumber', 'department']) {
       if (req.body[field] !== undefined) {
         data[field] = req.body[field] === null ? null : String(req.body[field]);
       }
@@ -291,7 +338,6 @@ export const completeOnboarding = async (req: AuthRequest, res: Response) => {
     const requiredFields = {
       name: String(req.body.name || '').trim(),
       phone: String(req.body.phone || '').trim(),
-      nik: String(req.body.nik || '').trim(),
       education: String(req.body.education || '').trim(),
       university: String(req.body.university || '').trim(),
       city: String(req.body.city || '').trim()
@@ -299,6 +345,9 @@ export const completeOnboarding = async (req: AuthRequest, res: Response) => {
     const missing = Object.entries(requiredFields)
       .filter(([, value]) => !value)
       .map(([key]) => key);
+    const nik = String(req.body.nik || '').trim();
+    const employeeNumber = String(req.body.employeeNumber || '').trim();
+    if (!nik && !employeeNumber) missing.push('nik atau nomor pegawai');
     if (missing.length > 0) {
       return res.status(400).json({ error: `Lengkapi data berikut: ${missing.join(', ')}.` });
     }
@@ -307,8 +356,11 @@ export const completeOnboarding = async (req: AuthRequest, res: Response) => {
       where: { id: user.id },
       data: {
         ...requiredFields,
+        nik: nik || null,
+        employeeNumber: employeeNumber || null,
         portfolioUrl: req.body.portfolioUrl ? String(req.body.portfolioUrl).trim() : null,
         bio: req.body.bio ? String(req.body.bio).trim() : null,
+        department: req.body.department ? String(req.body.department).trim() : null,
         password: await bcrypt.hash(newPassword, 10),
         mustChangePassword: false,
         profileCompleted: true
@@ -329,6 +381,13 @@ export const completeOnboarding = async (req: AuthRequest, res: Response) => {
 export const completeDeviceCheck = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    const profile = await prisma.portalUser.findUnique({
+      where: { id: req.portalUser.id },
+      select: { name: true, phone: true, nik: true, employeeNumber: true, education: true, university: true, city: true }
+    });
+    if (!profile?.name || !profile?.phone || (!profile?.nik && !profile?.employeeNumber) || !profile?.education || !profile?.university || !profile?.city) {
+      return res.status(403).json({ error: 'Lengkapi data profil terlebih dahulu sebelum cek perangkat.' });
+    }
     if (!req.body.faceCaptured) {
       return res.status(400).json({ error: 'Snapshot wajah belum diterima.' });
     }
@@ -523,7 +582,7 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
     }
 
     const data: Record<string, unknown> = {};
-    for (const field of ['name', 'username', 'phone', 'companyId', 'companyName', 'assessmentId', 'assessmentTitle', 'gradeLevel', 'specialization', 'status', 'nik', 'education', 'university', 'city', 'portfolioUrl', 'bio']) {
+    for (const field of ['name', 'username', 'phone', 'companyId', 'companyName', 'assessmentId', 'assessmentTitle', 'gradeLevel', 'specialization', 'status', 'nik', 'education', 'university', 'city', 'portfolioUrl', 'bio', 'employeeNumber', 'department']) {
       if (req.body[field] !== undefined) data[field] = req.body[field] === null ? null : String(req.body[field]);
     }
     if (req.body.role && ['peserta', 'asesor'].includes(req.body.role)) data.role = req.body.role;

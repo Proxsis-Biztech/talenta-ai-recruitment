@@ -20,6 +20,8 @@ export interface PortalUser {
   portfolioUrl?: string | null;
   bio?: string | null;
   candidateCode?: string | null;
+  employeeNumber?: string | null;
+  department?: string | null;
   assessorName?: string | null;
   interviewScheduledAt?: string | null;
   interviewStatus?: string | null;
