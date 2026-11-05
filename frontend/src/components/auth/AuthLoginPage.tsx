@@ -129,7 +129,7 @@ export default function AuthLoginPage() {
         const session = await tokenLogin({ programCode: programCode.trim().toUpperCase() });
         savePortalSession(session);
         setSuccessRole('peserta');
-        setTimeout(() => navigate(session.requiresOnboarding ? '/peserta/onboarding' : '/peserta/device-check'), 300);
+        setTimeout(() => navigate(session.requiresOnboarding ? '/peserta/onboarding' : !session.user.faceVerifiedAt ? '/peserta/profile?tab=biometrik' : '/peserta'), 300);
         return;
       }
 
@@ -168,7 +168,7 @@ export default function AuthLoginPage() {
       const session = await loginPortal(identifier.trim(), password);
       savePortalSession(session);
       setSuccessRole(session.user.role === 'asesor' ? 'asesor' : 'peserta');
-      setTimeout(() => navigate(session.user.role === 'asesor' ? '/asesor' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta'), 300);
+      setTimeout(() => navigate(session.user.role === 'asesor' ? '/asesor' : session.requiresOnboarding ? '/peserta/onboarding' : !session.user.faceVerifiedAt ? '/peserta/profile?tab=biometrik' : '/peserta'), 300);
     } catch (err) {
       const message = axios.isAxiosError(err)
         ? err.response?.data?.error ||

@@ -138,7 +138,6 @@ export function AdminCompanyMatrix() {
     program: string;
     quota: number;
     tahapBerkas: number;
-    tahapCAT: number;
     tahapInterview: number;
     statusLulus: number;
     statusGagal: number;
@@ -165,7 +164,6 @@ export function AdminCompanyMatrix() {
               (applicant: any) =>
                 applicant.job?.title === job.title || applicant.appliedPosition === job.title
             );
-            const screened = related.filter((applicant: any) => applicant.screeningStatus === 'success').length;
             const interviewed = related.filter((applicant: any) =>
               ['completed', 'scored'].includes(applicant.interviewStatus)
             ).length;
@@ -177,7 +175,6 @@ export function AdminCompanyMatrix() {
               program: job.title,
               quota: related.length,
               tahapBerkas: related.length,
-              tahapCAT: screened,
               tahapInterview: interviewed,
               statusLulus: passed,
               statusGagal: Math.max(0, related.length - passed)
@@ -235,7 +232,6 @@ export function AdminCompanyMatrix() {
       `"${m.program}"`,
       m.quota,
       m.tahapBerkas,
-      m.tahapCAT,
       m.tahapInterview,
       m.statusLulus,
       m.statusGagal
@@ -387,7 +383,6 @@ export function AdminCompanyMatrix() {
                 <TableHead>PROGRAM ASESMEN</TableHead>
                 <TableHead className="text-center">KUOTA</TableHead>
                 <TableHead className="text-center">TAHAP BERKAS</TableHead>
-                <TableHead className="text-center">TAHAP CAT</TableHead>
                 <TableHead className="text-center">LIVE INTERVIEW</TableHead>
                 <TableHead className="text-center">STATUS LULUS</TableHead>
                 <TableHead className="text-center">STATUS GAGAL</TableHead>
@@ -396,7 +391,7 @@ export function AdminCompanyMatrix() {
             <TableBody>
               {matrixData.length === 0 && (
                 <TableRow>
-                  <TableCell className="text-center text-xs text-slate-400 py-8" colSpan={8}>
+                  <TableCell className="text-center text-xs text-slate-400 py-8" colSpan={7}>
                     Belum ada program aktif dengan data peserta.
                   </TableCell>
                 </TableRow>
@@ -406,9 +401,6 @@ export function AdminCompanyMatrix() {
                   <TableCell className="font-sans font-bold text-ink text-xs">{m.program}</TableCell>
                   <TableCell className="font-mono text-center text-slate-700 text-xs">{m.quota}</TableCell>
                   <TableCell className="font-mono text-center text-slate-700 text-xs">{m.tahapBerkas}</TableCell>
-                  <TableCell className="font-mono text-center text-blue-accent font-bold text-xs">
-                    {m.tahapCAT}
-                  </TableCell>
                   <TableCell className="font-mono text-center text-primary-navy font-bold text-xs">
                     {m.tahapInterview}
                   </TableCell>

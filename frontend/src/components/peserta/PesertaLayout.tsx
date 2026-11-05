@@ -50,9 +50,6 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
   // Active candidate session data
   const activeUser = useMemo(() => getActiveSessionUser(), []);
   const faceVerified = Boolean(getPortalUser()?.faceVerifiedAt);
-  const displayId = getPortalUser()?.candidateCode || activeUser.id.slice(0, 8);
-  const portalProfile = getPortalUser();
-  const profileFilled = [portalProfile?.name, portalProfile?.phone, portalProfile?.nik || portalProfile?.employeeNumber, portalProfile?.education, portalProfile?.university, portalProfile?.city].filter(Boolean).length;
   const [interviewCalled, setInterviewCalled] = useState(
     () => localStorage.getItem('peserta_interview_called') === 'true' || getPortalUser()?.interviewStatus === 'called'
   );
@@ -230,62 +227,6 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Friendly Candidate Profile Card */}
-        {isCollapsed ? (
-          <div className="py-4 flex justify-center border-b border-slate-100">
-            <div
-              className="w-11 h-11 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-bold text-sm shadow-xs cursor-pointer group relative"
-              title={`${activeUser.name} (${displayId})`}
-            >
-              {userInitials}
-              <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900 text-white text-xs rounded-lg shadow-xl pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                {activeUser.name} • {displayId}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="mx-4 mt-4 mb-2 p-4 rounded-2xl bg-slate-50 border border-slate-200/60 relative overflow-hidden">
-            <div className="relative flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                {userInitials}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-slate-900 truncate leading-tight">
-                  {activeUser.name}
-                </p>
-                <p className="text-xs text-slate-500 font-mono truncate mt-0.5">
-                  ID: {displayId}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-3.5 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs relative">
-              <span className="text-slate-500 font-medium">Status Anda:</span>
-              <span className="font-semibold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded-full border border-accent-border shadow-2xs">
-                {isCatCompleted ? 'Menuju Wawancara' : 'Tahap Ujian CAT'}
-              </span>
-            </div>
-
-            <div className="mt-3 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] text-slate-500">
-                <span>Kelengkapan profil</span>
-                <span className="font-mono font-bold text-primary-navy">{profileFilled} / 6</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                <div className="h-full bg-primary-navy rounded-full" style={{ width: `${(profileFilled / 6) * 100}%` }} />
-              </div>
-            </div>
-            <div className="w-full bg-slate-200/80 rounded-full h-1.5 mt-2 overflow-hidden relative">
-              <div
-                className="bg-primary-navy h-full rounded-full transition-all duration-500 relative"
-                style={{ width: isCatCompleted ? '75%' : '40%' }}
-              >
-                <span className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full shadow-sm" />
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Scrollable Nav Item Groups */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-7">

@@ -341,6 +341,7 @@ export const completeOnboarding = async (req: AuthRequest, res: Response) => {
     const requiredFields = {
       name: String(req.body.name || '').trim(),
       phone: String(req.body.phone || '').trim(),
+      nik: String(req.body.nik || '').trim(),
       education: String(req.body.education || '').trim(),
       university: String(req.body.university || '').trim(),
       city: String(req.body.city || '').trim()
@@ -350,7 +351,6 @@ export const completeOnboarding = async (req: AuthRequest, res: Response) => {
       .map(([key]) => key);
     const nik = String(req.body.nik || '').trim();
     const employeeNumber = String(req.body.employeeNumber || '').trim();
-    if (!nik && !employeeNumber) missing.push('nik atau nomor pegawai');
     if (missing.length > 0) {
       return res.status(400).json({ error: `Lengkapi data berikut: ${missing.join(', ')}.` });
     }
@@ -388,7 +388,7 @@ export const completeDeviceCheck = async (req: AuthRequest, res: Response) => {
       where: { id: req.portalUser.id },
       select: { name: true, phone: true, nik: true, employeeNumber: true, education: true, university: true, city: true }
     });
-    if (!profile?.name || !profile?.phone || (!profile?.nik && !profile?.employeeNumber) || !profile?.education || !profile?.university || !profile?.city) {
+    if (!profile?.name || !profile?.phone || !profile?.nik || !profile?.education || !profile?.university || !profile?.city) {
       return res.status(403).json({ error: 'Lengkapi data profil terlebih dahulu sebelum cek perangkat.' });
     }
     if (!req.body.faceCaptured) {

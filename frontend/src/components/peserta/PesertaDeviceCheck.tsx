@@ -28,7 +28,7 @@ import {
 import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
-import { getPortalToken, savePortalSession } from '../../services/portalAuthService';
+import { getPortalToken, getPortalUser, savePortalSession } from '../../services/portalAuthService';
 import { getProgramById, DEFAULT_ASSESSMENT_PROGRAMS } from '../../services/assessmentCatalog';
 
 export default function PesertaDeviceCheck() {
@@ -63,7 +63,7 @@ export default function PesertaDeviceCheck() {
 
   // Face registration states
   const [faceDetected, setFaceDetected] = useState(true);
-  const [initialFaceRegistered, setInitialFaceRegistered] = useState(false);
+  const [initialFaceRegistered, setInitialFaceRegistered] = useState(Boolean(getPortalUser()?.faceVerifiedAt));
   const [faceError, setFaceError] = useState('');
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(() => {
     return localStorage.getItem('candidate_face_photo') || null;
@@ -323,7 +323,7 @@ export default function PesertaDeviceCheck() {
               <Badge variant="teal">Verifikasi Mandatori</Badge>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
-              Uji Kesiapan Perangkat & Registrasi Wajah
+              Uji Kesiapan Perangkat
             </h1>
             <p className="text-sm text-muted-slate mt-2.5 leading-relaxed flex items-center gap-2">
               <Building2 className="w-4 h-4 text-slate-400" />
@@ -573,59 +573,22 @@ export default function PesertaDeviceCheck() {
                   <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                 </div>
 
-                {/* 6. Face Registration (Photo Snapshot) */}
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Camera className="w-4 h-4 text-blue-accent" />
-                      <span className="text-xs sm:text-sm font-bold text-ink">Registrasi Foto Wajah Awal</span>
-                    </div>
-                    {initialFaceRegistered ? (
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        ✓ Foto Tersimpan
-                      </span>
-                    ) : (
-                      <Badge variant="warning">Perlu Diambil</Badge>
-                    )}
+                {/* Face registration is handled in Profile > Biometrik & Perangkat */}
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs sm:text-sm font-bold text-ink">Registrasi Foto Wajah</p>
+                    <p className="text-xs text-muted-slate mt-1">
+                      Registrasi wajah dilakukan di halaman Profil → Biometrik &amp; Perangkat.
+                    </p>
                   </div>
-
-                  {/* Thumbnail of Captured Photo if available */}
-                  {capturedPhotoUrl && (
-                    <div className="flex items-center gap-3 p-2.5 bg-white border border-slate-200 rounded-xl">
-                      <img
-                        src={capturedPhotoUrl}
-                        alt="Foto Wajah Terdaftar"
-                        className="w-14 h-14 rounded-lg object-cover border border-slate-200 shrink-0"
-                      />
-                      <div className="text-xs text-slate-600">
-                        <span className="font-bold text-ink block">{activeUser.name}</span>
-                        <span className="text-[11px] text-emerald-700 font-mono">Tersimpan di Sistem Proctoring</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <p className="text-xs text-muted-slate leading-relaxed">
-                    Foto wajah ini menjadi acuan pencocokan selama pengerjaan 40 soal ujian CAT.
-                  </p>
-
                   <Button
                     variant="outline"
                     type="button"
-                    disabled={registeringFace}
-                    onClick={handleCaptureFace}
-                    className="w-full text-xs sm:text-sm py-2.5 font-semibold bg-white cursor-pointer"
+                    onClick={() => navigate('/peserta/profile?tab=biometrik')}
+                    className="text-xs py-2 px-4 bg-white shrink-0"
                   >
-                    {registeringFace ? (
-                      <span>Memproses Pengenalan Wajah...</span>
-                    ) : (
-                      <span>📸 {initialFaceRegistered ? 'Ambil Ulang Foto Wajah' : 'Ambil Foto Registrasi Wajah Sekarang'}</span>
-                    )}
+                    Buka Profil
                   </Button>
-                  {faceError && (
-                    <p className="mt-2 text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
-                      {faceError}
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -654,7 +617,16 @@ export default function PesertaDeviceCheck() {
               </div>
 
               {/* Proceed Button */}
-              <div className="pt-2">
+              <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/peserta')}
+                  disabled={!initialFaceRegistered}
+                  className="w-full py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Selesai &amp; Lanjut ke Dashboard</span>
+                </Button>
                 <Button
                   variant="primary"
                   onClick={handleProceedToExam}

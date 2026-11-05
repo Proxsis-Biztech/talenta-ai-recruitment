@@ -29,10 +29,6 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
   // Aggregate Metrics
   const totalApplicants = applicants.length;
   
-  const screenedCount = useMemo(() => {
-    return applicants.filter(a => a.screeningStatus === 'success').length;
-  }, [applicants]);
-
   const interviewedCount = useMemo(() => {
     return applicants.filter(a => a.interviewStatus === 'completed').length;
   }, [applicants]);
@@ -84,7 +80,7 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
           Funnel Konversi Bakat (End-to-End Recruitment)
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-1">
             <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500 block font-sans">
               1. Pendaftaran Masuk
@@ -93,19 +89,9 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
             <span className="text-[11px] text-slate-500 font-sans">100% Total Pelamar</span>
           </div>
 
-          <div className="p-3.5 rounded-lg border border-accent-border bg-soft-blue/50 space-y-1">
-            <span className="text-[10px] uppercase font-semibold tracking-wider text-primary-navy block font-sans">
-              2. Lolos Screening CV
-            </span>
-            <div className="text-xl font-bold font-mono text-blue-accent">{screenedCount}</div>
-            <span className="text-[11px] text-primary-navy font-sans font-medium">
-              {totalApplicants > 0 ? Math.round((screenedCount / totalApplicants) * 100) : 0}% Konversi
-            </span>
-          </div>
-
           <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-1">
             <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500 block font-sans">
-              3. Sesi Wawancara AI
+              2. Sesi Wawancara AI
             </span>
             <div className="text-xl font-bold font-mono text-slate-900">{interviewedCount}</div>
             <span className="text-[11px] text-slate-500 font-sans">
@@ -115,7 +101,7 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
 
           <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-1">
             <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500 block font-sans">
-              4. Sudah Dinilai
+              3. Sudah Dinilai
             </span>
             <div className="text-xl font-bold font-mono text-slate-900">{scoredCount}</div>
             <span className="text-[11px] text-slate-500 font-sans">
@@ -125,7 +111,7 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
 
           <div className="p-3.5 rounded-lg border border-emerald-200 bg-emerald-50/60 space-y-1">
             <span className="text-[10px] uppercase font-semibold tracking-wider text-emerald-800 block font-sans">
-              5. Direkomendasikan
+              4. Direkomendasikan
             </span>
             <div className="text-xl font-bold font-mono text-emerald-900">{strongHireCount}</div>
             <span className="text-[11px] text-emerald-700 font-sans font-semibold">

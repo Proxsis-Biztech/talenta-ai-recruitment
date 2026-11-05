@@ -41,16 +41,14 @@ export function AdminAnalyticsCharts({ applicants }: AdminAnalyticsChartsProps) 
   const total = applicants.length;
 
   const pipeline = useMemo(() => {
-    const screened = applicants.filter((a) => a.screeningStatus === 'success').length;
     const interviewed = applicants.filter((a) => ['completed', 'scored'].includes(a.interviewStatus)).length;
     const recommended = applicants.filter((a) =>
       ['STRONG HIRE', 'RECOMMENDED HIRE'].includes(a.compositeEvaluation?.recommendation || '')
     ).length;
     return [
       { label: 'Terdaftar', value: total, color: COLORS[0] },
-      { label: 'Lolos Screening', value: screened, color: COLORS[1] },
-      { label: 'Wawancara Selesai', value: interviewed, color: COLORS[2] },
-      { label: 'Direkomendasikan', value: recommended, color: COLORS[3] }
+      { label: 'Wawancara Selesai', value: interviewed, color: COLORS[1] },
+      { label: 'Direkomendasikan', value: recommended, color: COLORS[2] }
     ];
   }, [applicants, total]);
 

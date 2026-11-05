@@ -144,7 +144,7 @@ export default function RankingView() {
 
   const handleExportCSV = () => {
     if (applicants.length === 0) return;
-    const headers = ['Rank', 'Nama', 'Email', 'Posisi', 'Pendidikan', 'Universitas', 'Skor Wawancara AI', 'Skor CV', 'Rekomendasi', 'Passing Score', 'Status Kelulusan'];
+    const headers = ['Rank', 'Nama', 'Email', 'Posisi', 'Pendidikan', 'Universitas', 'Skor Wawancara AI', 'Rekomendasi', 'Passing Score', 'Status Kelulusan'];
     const rows = filteredApplicants.map((app, idx) => {
       const rec = getRecommendation(app.interviewResult).label;
       const isPassed = app.passingScore != null && app.interviewScore != null
@@ -158,7 +158,6 @@ export default function RankingView() {
         `"${app.education}"`,
         `"${app.university || '-'}"`,
         app.interviewScore ?? '-',
-        app.screeningScore ?? '-',
         `"${rec}"`,
         app.passingScore ?? '-',
         `"${isPassed}"`
@@ -253,7 +252,7 @@ export default function RankingView() {
   <table>
     <tr><th>Nama</th><td>${escapeHtml(app.fullName)}</td><th>Posisi</th><td>${escapeHtml(app.jobTitle)}</td></tr>
     <tr><th>Email</th><td>${escapeHtml(app.email)}</td><th>Pendidikan</th><td>${escapeHtml(app.education)} ${escapeHtml(app.university || '')}</td></tr>
-    <tr><th>Skor CV</th><td>${app.screeningScore != null ? app.screeningScore + '%' : '-'}</td><th>Rekomendasi</th><td>${escapeHtml(rec)}</td></tr>
+    <tr><th>Rekomendasi</th><td colspan="3">${escapeHtml(rec)}</td></tr>
     <tr><th>Nilai Kelulusan Min.</th><td>${app.passingScore != null ? app.passingScore + '%' : '-'}</td><th>Status</th><td>${app.passingScore != null && app.interviewScore != null ? (app.interviewScore >= app.passingScore ? 'Lolos' : 'Di Bawah Syarat') : '-'}</td></tr>
   </table>
 </div>
@@ -446,15 +445,6 @@ ${app.interviewTranscript ? `<div class="banner"><h2>Transkrip Percakapan</h2><d
                         <div className={`h-full rounded-full ${scoreColor(app.interviewScore)}`} style={{ width: `${app.interviewScore ?? 0}%` }} />
                       </div>
                     </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">CV Screening</span>
-                        <span className="text-xs font-bold font-mono text-slate-800">{app.screeningScore !== null ? `${app.screeningScore}%` : '-'}</span>
-                      </div>
-                      <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                        <div className={`h-full rounded-full ${scoreColor(app.screeningScore)}`} style={{ width: `${app.screeningScore ?? 0}%` }} />
-                      </div>
-                    </div>
                   </div>
 
                   {/* Recommendation Badge */}
@@ -574,12 +564,6 @@ ${app.interviewTranscript ? `<div class="banner"><h2>Transkrip Percakapan</h2><d
                     </p>
                   )}
                 </div>
-                {detailApplicant.screeningScore !== null && (
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Skor CV Screening</p>
-                    <p className="text-2xl font-extrabold text-blue-600 mt-1">{detailApplicant.screeningScore}%</p>
-                  </div>
-                )}
               </div>
 
               {/* Assessment Summary */}
@@ -773,16 +757,6 @@ ${app.interviewTranscript ? `<div class="banner"><h2>Transkrip Percakapan</h2><d
                             })}
                           </tr>
                         ))}
-                        <tr>
-                          <td className="px-5 py-3 text-xs font-bold text-slate-600">Skor CV Screening</td>
-                          {selected.map(app => (
-                            <td key={app.id} className="px-5 py-3 text-center">
-                              <span className="inline-flex items-center gap-1 text-xs font-extrabold text-blue-700">
-                                <Star className="w-3 h-3" /> {app.screeningScore !== null ? `${app.screeningScore}%` : '-'}
-                              </span>
-                            </td>
-                          ))}
-                        </tr>
                         <tr>
                           <td className="px-5 py-3 text-xs font-bold text-slate-600">Threshold Kelulusan</td>
                           {selected.map(app => {

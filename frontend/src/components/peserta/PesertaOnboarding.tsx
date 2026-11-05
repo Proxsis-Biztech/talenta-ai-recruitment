@@ -40,8 +40,8 @@ export default function PesertaOnboarding() {
       setError('Konfirmasi kata sandi baru tidak cocok.');
       return;
     }
-    if (!nik.trim() && !employeeNumber.trim()) {
-      setError('Isi NIK atau nomor pegawai.');
+    if (!nik.trim()) {
+      setError('NIK wajib diisi.');
       return;
     }
     const token = getPortalToken();
@@ -66,7 +66,7 @@ export default function PesertaOnboarding() {
         bio
       }, { headers: { Authorization: `Bearer ${token}` } });
       savePortalSession({ token, user: response.data.user });
-      navigate('/peserta', { replace: true });
+      navigate('/peserta/profile?tab=biometrik', { replace: true });
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal menyimpan data onboarding.' : 'Gagal menyimpan data onboarding.');
     } finally {
@@ -89,7 +89,7 @@ export default function PesertaOnboarding() {
           <div className="flex items-start gap-3 pb-5 border-b border-slate-100">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <p className="text-sm text-slate-600">
-              Sebelum mengikuti asesmen, lengkapi data profil dan ganti kata sandi awal Anda. Data ini digunakan untuk verifikasi identitas dan penerbitan LHA.
+              Sebelum mengikuti asesmen, lengkapi data diri, ganti kata sandi awal, lalu selesaikan verifikasi biometrik & perangkat pada langkah berikutnya.
             </p>
           </div>
 
@@ -114,11 +114,11 @@ export default function PesertaOnboarding() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Nama Lengkap" value={name} onChange={(e) => setName(e.target.value)} required />
                 <Input label="No. Telepon" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-                <Input label="NIK (opsional jika ada nomor pegawai)" value={nik} onChange={(e) => setNik(e.target.value)} />
+                <Input label="NIK" value={nik} onChange={(e) => setNik(e.target.value)} required />
                 <Input label="Pendidikan" value={education} onChange={(e) => setEducation(e.target.value)} placeholder="Contoh: S1 Teknik Informatika" required />
                 <Input label="Universitas" value={university} onChange={(e) => setUniversity(e.target.value)} required />
                 <Input label="Kota Domisili" value={city} onChange={(e) => setCity(e.target.value)} required />
-                <Input label="Nomor Pegawai (opsional jika ada NIK)" value={employeeNumber} onChange={(e) => setEmployeeNumber(e.target.value)} />
+                <Input label="Nomor Pegawai (opsional)" value={employeeNumber} onChange={(e) => setEmployeeNumber(e.target.value)} />
                 <Input label="Departemen / Level (opsional)" value={department} onChange={(e) => setDepartment(e.target.value)} />
                 <Input label="Portfolio / LinkedIn" value={portfolioUrl} onChange={(e) => setPortfolioUrl(e.target.value)} placeholder="Opsional" />
               </div>

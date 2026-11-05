@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   User,
   Mail,
@@ -62,7 +62,9 @@ export default function PesertaProfile() {
   }, [sessionUser]);
 
   // Form states
-  const [activeTab, setActiveTab] = useState<'biodata' | 'asesmen' | 'biometrik' | 'keamanan'>('biodata');
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'biometrik' ? 'biometrik' : 'biodata';
+  const [activeTab, setActiveTab] = useState<'biodata' | 'asesmen' | 'biometrik' | 'keamanan'>(initialTab);
   const [fullName, setFullName] = useState(initialData.name);
   const [phone, setPhone] = useState(initialData.phone);
   const [email] = useState(initialData.username);
@@ -89,7 +91,12 @@ export default function PesertaProfile() {
   const [passError, setPassError] = useState('');
 
   // Registered face snapshot from localStorage
-  const savedFacePhoto = localStorage.getItem('candidate_face_photo');
+  const [savedFacePhoto, setSavedFacePhoto] = useState<string | null>(localStorage.getItem('candidate_face_photo'));
+  const faceVideoRef = useRef<HTMLVideoElement | null>(null);
+  const faceCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [faceCameraActive, setFaceCameraActive] = useState(false);
+  const [faceCapturing, setFaceCapturing] = useState(false);
+  const [faceError, setFaceError] = useState('');
 
   const userInitials = useMemo(() => {
     return (
@@ -111,9 +118,80 @@ export default function PesertaProfile() {
     return localStorage.getItem('talenta_cat_completed') === 'true';
   }, []);
 
+  const stopFaceCamera = () => {
+    const stream = faceVideoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((track) => track.stop());
+    if (faceVideoRef.current) faceVideoRef.current.srcObject = null;
+    setFaceCameraActive(false);
+  };
+
+  const startFaceCamera = async () => {
+    setFaceError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+      if (faceVideoRef.current) {
+        faceVideoRef.current.srcObject = stream;
+        await faceVideoRef.current.play().catch(() => undefined);
+      }
+      setFaceCameraActive(true);
+    } catch {
+      setFaceError('Izin kamera ditolak. Aktifkan kamera untuk registrasi wajah.');
+    }
+  };
+
+  const captureFacePhoto = async () => {
+    if (!faceVideoRef.current || faceVideoRef.current.videoWidth === 0) {
+      setFaceError('Kamera belum siap. Coba lagi.');
+      return;
+    }
+    setFaceCapturing(true);
+    setFaceError('');
+    try {
+      const canvas = faceCanvasRef.current || document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Canvas tidak tersedia');
+      context.drawImage(faceVideoRef.current, 0, 0, canvas.width, canvas.height);
+      const photo = canvas.toDataURL('image/jpeg', 0.88);
+      setSavedFacePhoto(photo);
+      localStorage.setItem('candidate_face_photo', photo);
+      const token = getPortalToken();
+      if (token) {
+        const response = await axios.post('/api/portal/device-check', { faceCaptured: true }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.data?.user) savePortalSession({ token, user: response.data.user });
+      }
+      stopFaceCamera();
+    } catch (error) {
+      setFaceError(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal menyimpan foto wajah.' : 'Gagal mengambil foto wajah.');
+    } finally {
+      setFaceCapturing(false);
+    }
+  };
+
+  useEffect(() => () => stopFaceCamera(), []);
+
   // Save profile updates
   const handleSaveBiodata = async (e: React.FormEvent) => {
     e.preventDefault();
+    const requiredFields = [
+      { label: 'Nama Lengkap', value: fullName, id: 'profile-fullname' },
+      { label: 'Nomor WhatsApp', value: phone, id: 'profile-phone' },
+      { label: 'NIK', value: nik, id: 'profile-nik' },
+      { label: 'Pendidikan', value: education, id: 'profile-education' },
+      { label: 'Universitas', value: university, id: 'profile-university' },
+      { label: 'Kota Domisili', value: city, id: 'profile-city' }
+    ];
+    const missing = requiredFields.filter((field) => !field.value.trim());
+    if (missing.length > 0) {
+      setPassError(`${missing.length} kolom wajib belum diisi: ${missing.map((field) => field.label).join(', ')}.`);
+      const first = document.getElementById(missing[0].id);
+      first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      (first as HTMLInputElement | null)?.focus();
+      return;
+    }
     const token = getPortalToken();
     if (!token) {
       setPassError('Sesi Anda tidak ditemukan. Silakan masuk kembali.');
@@ -363,13 +441,13 @@ export default function PesertaProfile() {
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-slate-700">Kelengkapan profil</span>
                 <span className="font-mono font-bold text-primary-navy">
-                  {[fullName, phone, nik || employeeNumber, education, university, city].filter(Boolean).length} / 6
+                  {[fullName, phone, nik, education, university, city].filter(Boolean).length} / 6
                 </span>
               </div>
               <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
                 <div
                   className="h-full bg-primary-navy rounded-full"
-                  style={{ width: `${([fullName, phone, nik || employeeNumber, education, university, city].filter(Boolean).length / 6) * 100}%` }}
+                  style={{ width: `${([fullName, phone, nik, education, university, city].filter(Boolean).length / 6) * 100}%` }}
                 />
               </div>
               <p className="text-[11px] text-slate-500">
@@ -386,6 +464,7 @@ export default function PesertaProfile() {
                   </label>
                   <input
                     type="text"
+                    id="profile-fullname"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
@@ -419,6 +498,7 @@ export default function PesertaProfile() {
                   </label>
                   <input
                     type="tel"
+                    id="profile-phone"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     required
@@ -429,13 +509,15 @@ export default function PesertaProfile() {
                 {/* NIK / KTP */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Nomor Induk Kependudukan (NIK)
+                    Nomor Induk Kependudukan (NIK) *
                   </label>
                   <div className="relative">
                     <input
+                      id="profile-nik"
                       type={showNik ? 'text' : 'password'}
                       value={nik}
                       onChange={(e) => setNik(e.target.value)}
+                      required
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all font-mono tracking-wider"
                     />
                     <button
@@ -455,8 +537,10 @@ export default function PesertaProfile() {
                   </label>
                   <input
                     type="text"
+                    id="profile-education"
                     value={education}
                     onChange={(e) => setEducation(e.target.value)}
+                    required
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all"
                   />
                 </div>
@@ -468,8 +552,10 @@ export default function PesertaProfile() {
                   </label>
                   <input
                     type="text"
+                    id="profile-university"
                     value={university}
                     onChange={(e) => setUniversity(e.target.value)}
+                    required
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all"
                   />
                 </div>
@@ -481,8 +567,10 @@ export default function PesertaProfile() {
                   </label>
                   <input
                     type="text"
+                    id="profile-city"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
+                    required
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all"
                   />
                 </div>
@@ -691,41 +779,54 @@ export default function PesertaProfile() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Snapshot Photo Card */}
+              {/* Face Registration Card */}
               <div className="md:col-span-1 p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col items-center text-center space-y-3">
                 <span className="text-xs font-bold text-slate-700">Foto Referensi Wajah Ujian</span>
+                <canvas ref={faceCanvasRef} className="hidden" />
 
-                {savedFacePhoto ? (
-                  <div className="w-36 h-36 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-md relative group">
-                    <img
-                      src={savedFacePhoto}
-                      alt="Registered candidate face"
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <button
-                        onClick={() => navigate('/peserta/device-check')}
-                        className="px-3 py-1.5 bg-white text-slate-900 rounded-lg text-xs font-bold shadow"
-                      >
-                        Foto Ulang
-                      </button>
-                    </div>
+                {faceCameraActive ? (
+                  <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-primary-navy bg-slate-900">
+                    <video ref={faceVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
+                  </div>
+                ) : savedFacePhoto ? (
+                  <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-sm">
+                    <img src={savedFacePhoto} alt="Foto wajah terdaftar" className="w-full h-full object-cover" />
                   </div>
                 ) : (
-                  <div className="w-36 h-36 rounded-2xl bg-slate-200 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-3 text-slate-500">
+                  <div className="w-40 h-40 rounded-2xl bg-slate-200 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-3 text-slate-500">
                     <Camera className="w-8 h-8 text-slate-400 mb-1" />
-                    <span className="text-[11px] font-semibold text-center leading-tight">
-                      Belum Ada Foto Terdaftar
-                    </span>
+                    <span className="text-[11px] font-semibold text-center leading-tight">Belum ada foto terdaftar</span>
                   </div>
                 )}
 
+                {faceError && (
+                  <p className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
+                    {faceError}
+                  </p>
+                )}
+
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {faceCameraActive ? (
+                    <>
+                      <Button variant="primary" size="sm" onClick={captureFacePhoto} disabled={faceCapturing} className="text-xs">
+                        {faceCapturing ? 'Menyimpan...' : 'Ambil Foto'}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={stopFaceCamera} className="text-xs">Batal</Button>
+                    </>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={startFaceCamera} className="text-xs">
+                      <Camera className="w-3.5 h-3.5 mr-1.5" />
+                      {savedFacePhoto ? 'Foto Ulang' : 'Aktifkan Kamera'}
+                    </Button>
+                  )}
+                </div>
+
                 <div className="space-y-1">
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                    {savedFacePhoto ? '✓ Wajah Terdaftar (OpenCV)' : 'Harap Lakukan Cek Perangkat'}
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${savedFacePhoto || getPortalUser()?.faceVerifiedAt ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                    {savedFacePhoto || getPortalUser()?.faceVerifiedAt ? 'Wajah terdaftar' : 'Belum terverifikasi'}
                   </span>
                   <p className="text-[11px] text-slate-500">
-                    Digunakan untuk pencocokan frame video 30 FPS saat ujian berlangsung.
+                    Foto disimpan sebagai referensi verifikasi integritas saat ujian.
                   </p>
                 </div>
               </div>

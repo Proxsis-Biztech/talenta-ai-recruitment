@@ -39,7 +39,6 @@ interface Applicant {
 interface PipelineViewProps {
   applicants: Applicant[];
   onViewApplicant: (applicant: Applicant) => void;
-  onScreenCV: (applicantId: string) => Promise<void>;
   onScoreInterview: (applicantId: string) => Promise<void>;
   onOpenDecision: (applicant: Applicant) => void;
   onRefresh: () => void;
@@ -50,11 +49,9 @@ interface PipelineViewProps {
 export default function PipelineView({
   applicants,
   onViewApplicant,
-  onScreenCV,
   onScoreInterview,
   onOpenDecision,
   onRefresh,
-  screeningLoading = false,
   scoringLoading = false
 }: PipelineViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -82,16 +79,10 @@ export default function PipelineView({
     });
   }, [applicants, searchQuery, selectedRole]);
 
-  // Stage 1: Pending Screening
-  const stagePending = useMemo(() => {
-    return filtered.filter(a => a.screeningStatus === 'pending');
-  }, [filtered]);
-
-  // Stage 2: Interview In Progress / Scheduled
+  // Stage 1: Interview In Progress / Scheduled
   const stageInterview = useMemo(() => {
-    return filtered.filter(a => 
-      a.screeningStatus === 'success' && 
-      (a.interviewStatus === 'in_progress' || a.interviewStatus === 'not_started')
+    return filtered.filter(a =>
+      a.interviewStatus === 'in_progress' || a.interviewStatus === 'not_started'
     );
   }, [filtered]);
 
@@ -137,7 +128,7 @@ export default function PipelineView({
   return (
     <div className="space-y-6">
       {/* Telemetry Summary Ribbon */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card elevation="flat" className="p-4 border-slate-200">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             Total di Pipeline
@@ -145,16 +136,6 @@ export default function PipelineView({
           <div className="mt-2 flex items-baseline justify-between">
             <span className="text-2xl font-bold font-mono text-slate-900">{filtered.length}</span>
             <span className="text-xs text-slate-500">Kandidat</span>
-          </div>
-        </Card>
-
-        <Card elevation="flat" className="p-4 border-slate-200">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Antrean ATS CV
-          </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-amber-600">{stagePending.length}</span>
-            <span className="text-xs text-amber-700 font-semibold">Perlu Screening</span>
           </div>
         </Card>
 
@@ -219,76 +200,7 @@ export default function PipelineView({
       </Card>
 
       {/* Kanban Board Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
-        {/* Column 1: Screening CV Pending */}
-        <div className="bg-slate-50/80 border border-slate-200 border-t-2 border-t-amber-500 rounded-xl flex flex-col max-h-[calc(100vh-240px)] shadow-xs">
-          <div className="p-3.5 border-b border-slate-200 bg-white rounded-t-xl flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <h3 className="text-xs font-bold tracking-wider text-slate-800 uppercase font-sans">
-                1. Antrean ATS CV
-              </h3>
-            </div>
-            <Badge variant="warning" format="soft" isMonospace>
-              {stagePending.length}
-            </Badge>
-          </div>
-
-          <div className="p-3 overflow-y-auto space-y-3 flex-1">
-            {stagePending.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400">
-                Tidak ada antrean CV pending
-              </div>
-            ) : (
-              stagePending.map(applicant => (
-                <div 
-                  key={applicant.id}
-                  className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs hover:border-primary-navy transition-all space-y-2 group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-900 leading-snug group-hover:text-primary-navy transition-colors">
-                        {applicant.fullName}
-                      </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {applicant.job?.title || applicant.appliedPosition}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                    <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">
-                      {applicant.education}
-                    </span>
-                    {applicant.gpa && (
-                      <span className="font-mono text-slate-600">IPK {applicant.gpa.toFixed(2)}</span>
-                    )}
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => onViewApplicant(applicant)}
-                    >
-                      Dossier
-                    </Button>
-                    <Button
-                      variant="primary"
-                      size="xs"
-                      onClick={() => onScreenCV(applicant.id)}
-                      disabled={screeningLoading}
-                      leftIcon={<Sparkles className="w-3 h-3" />}
-                    >
-                      Screen AI
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
         {/* Column 2: Interview In Progress / Scheduled */}
         <div className="bg-slate-50/80 border border-slate-200 border-t-2 border-t-blue-500 rounded-xl flex flex-col max-h-[calc(100vh-240px)] shadow-xs">
           <div className="p-3.5 border-b border-slate-200 bg-white rounded-t-xl flex items-center justify-between">
@@ -323,11 +235,6 @@ export default function PipelineView({
                         {applicant.job?.title || applicant.appliedPosition}
                       </p>
                     </div>
-                    {applicant.screeningScore && (
-                      <Badge variant="success" format="soft" isMonospace>
-                        CV {applicant.screeningScore}
-                      </Badge>
-                    )}
                   </div>
 
                   <div className="flex items-center gap-2 text-[11px] text-slate-500">
@@ -483,7 +390,6 @@ export default function PipelineView({
                           {rec}
                         </Badge>
                         <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                          <span>CV:{applicant.screeningScore || '-'}</span>
                           <span>WCR:{applicant.interviewScore || '-'}</span>
                         </div>
                       </div>

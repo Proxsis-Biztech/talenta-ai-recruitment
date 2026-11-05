@@ -25,7 +25,6 @@ import { AdminVerticalTimeline } from './admin/AdminVerticalTimeline';
 import { AdminMasterMateriTree } from './admin/AdminMasterMateriTree';
 import { AdminBankSoalEditor } from './admin/AdminBankSoalEditor';
 import { AdminCompanyMatrix } from './admin/AdminCompanyMatrix';
-import { AdminAccessCodes } from './admin/AdminAccessCodes';
 import AdminBillingCredit from './admin/AdminBillingCredit';
 import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
 import Swal from 'sweetalert2';
@@ -700,7 +699,6 @@ export default function AdminDashboard() {
     <!-- 3-Pillar Weight Breakdown -->
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px;font-family:monospace;">
       <div style="background:#fff;padding:6px 8px;border:1px solid #e2e8f0;border-radius:4px;">
-        <span style="color:#64748b;">CV Match (35%):</span> <strong style="color:#0f172a;">${app.screeningScore ?? '-'}%</strong>
       </div>
       <div style="background:#fff;padding:6px 8px;border:1px solid #e2e8f0;border-radius:4px;">
         <span style="color:#64748b;">Live Voice (50%):</span> <strong style="color:#0f172a;">${app.interviewScore ?? '-'}%</strong>
@@ -902,12 +900,6 @@ ${app.interviewResult ? `
       short: 'Interview',
       dotColor: 'bg-blue-accent'
     },
-    'access-codes': {
-      title: 'Kode Akses Program',
-      subtitle: 'Kelola token masuk peserta, masa berlaku, dan kuota penggunaan',
-      short: 'Kode Akses',
-      dotColor: 'bg-emerald-500'
-    },
     jobs: {
       title: 'Program Asesmen',
       subtitle: 'Kelola program asesmen lowongan, kriteria kelulusan, dan bobot evaluasi',
@@ -1016,15 +1008,6 @@ ${app.interviewResult ? `
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="primary"
-                    onClick={handleBatchScreen}
-                    isLoading={batchScreeningLoading}
-                    leftIcon={<Sparkles className="w-3.5 h-3.5" />}
-                    className="shadow-xs"
-                  >
-                    Screening Massal AI
-                  </Button>
                   <Button
                     variant="secondary"
                     onClick={handleExportCSV}
@@ -1579,11 +1562,9 @@ ${app.interviewResult ? `
               <PipelineView 
                 applicants={allApplicants.length > 0 ? (allApplicants as any) : (applicants as any)}
                 onViewApplicant={(app: any) => setSelectedApplicant(app)}
-                onScreenCV={handleScreenCV}
                 onScoreInterview={handleScoreInterview}
                 onOpenDecision={(app: any) => openDecisionModal(app)}
                 onRefresh={fetchAllApplicants}
-                screeningLoading={screeningLoading}
                 scoringLoading={scoringLoading}
               />
             </div>
@@ -1646,8 +1627,6 @@ ${app.interviewResult ? `
                 applicants={allApplicants.length > 0 ? allApplicants : applicants}
               />
             </div>
-          ) : activeMenu === 'access-codes' ? (
-            <AdminAccessCodes />
           ) : activeMenu === 'materi' ? (
             <div className="animate-fade-in">
               <AdminMasterMateriTree />
@@ -1796,11 +1775,7 @@ ${app.interviewResult ? `
                         {selectedApplicant.compositeEvaluation.rationale}
                       </p>
                       {/* Breakdown Bars */}
-                      <div className="grid grid-cols-3 gap-2 mt-3 text-[11px]">
-                        <div className="bg-white p-2 rounded-md border border-slate-200">
-                          <span className="text-slate-500 block text-[9px] uppercase font-semibold">CV Match (35%)</span>
-                          <strong className="text-slate-900 font-bold font-mono">{selectedApplicant.screeningScore ?? '-'}%</strong>
-                        </div>
+                      <div className="grid grid-cols-2 gap-2 mt-3 text-[11px]">
                         <div className="bg-white p-2 rounded-md border border-slate-200">
                           <span className="text-slate-500 block text-[9px] uppercase font-semibold">Voice Live (50%)</span>
                           <strong className="text-slate-900 font-bold font-mono">{selectedApplicant.interviewScore ?? '-'}%</strong>
@@ -1877,80 +1852,6 @@ ${app.interviewResult ? `
                   </div>
                 </div>
               )}
-
-              {/* AI Screening Card */}
-              <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-xs space-y-3">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 rounded-md bg-soft-blue border border-accent-border text-primary-navy">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 font-heading text-sm">AI Screening Analisis CV</h4>
-                      <p className="text-xs text-slate-500">Pencocokan latar belakang dan riwayat kerja oleh Gemini AI</p>
-                    </div>
-                  </div>
-                  {selectedApplicant.screeningStatus === 'success' && selectedApplicant.screeningScore !== null && (
-                    <div className="px-3 py-1.5 rounded-md text-center bg-soft-blue border border-accent-border font-mono">
-                      <p className="text-[9px] font-bold uppercase tracking-wider text-primary-navy">Skor CV</p>
-                      <p className="text-xl font-bold text-blue-accent">{selectedApplicant.screeningScore}%</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  {selectedApplicant.screeningStatus === 'pending' ? (
-                    <div className="flex flex-col items-center justify-center py-6 text-center">
-                      <Cpu className="w-6 h-6 text-primary-navy animate-pulse mb-2" />
-                      <p className="text-slate-800 font-bold text-xs">AI sedang menganalisis dokumen CV...</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Proses screening berjalan di latar belakang.</p>
-                    </div>
-                  ) : selectedApplicant.screeningStatus === 'failed' ? (
-                    <div className="bg-rose-50 p-3.5 rounded-md border border-rose-200">
-                      <p className="font-bold text-xs text-rose-800">Analisis AI gagal</p>
-                      <p className="text-xs text-rose-700 mt-1">{selectedApplicant.screeningSummary}</p>
-                      <button
-                        onClick={() => handleScreenCV(selectedApplicant.id)}
-                        disabled={screeningLoading}
-                        className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-700 text-white rounded-md text-xs font-semibold hover:bg-rose-800 transition-colors shadow-xs disabled:opacity-50"
-                      >
-                        <RefreshCw className={`w-3 h-3 ${screeningLoading ? 'animate-spin' : ''}`} /> Coba Lagi
-                      </button>
-                    </div>
-                  ) : selectedApplicant.screeningStatus === 'success' && selectedApplicant.screeningSummary ? (
-                    <>
-                      <div className="bg-slate-50 p-3.5 rounded-md border border-slate-200 text-slate-700 text-xs leading-relaxed whitespace-pre-line font-sans">
-                        {selectedApplicant.screeningSummary}
-                      </div>
-                      <div className="flex justify-end">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => handleScreenCV(selectedApplicant.id)}
-                          disabled={screeningLoading}
-                          leftIcon={<RefreshCw className={`w-3 h-3 ${screeningLoading ? 'animate-spin' : ''}`} />}
-                        >
-                          {screeningLoading ? 'Menganalisis...' : 'Analisis Ulang'}
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="bg-slate-50 p-4 rounded-md text-center border border-dashed border-slate-300">
-                      <p className="text-slate-600 font-medium text-xs">CV belum dianalisis</p>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => handleScreenCV(selectedApplicant.id)}
-                        disabled={screeningLoading}
-                        className="mt-2.5"
-                        leftIcon={<Cpu className={`w-3.5 h-3.5 ${screeningLoading ? 'animate-spin' : ''}`} />}
-                      >
-                        {screeningLoading ? 'Menganalisis...' : 'Jalankan AI Screening'}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
 
               {/* AI Interview Card */}
               <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-xs space-y-3">

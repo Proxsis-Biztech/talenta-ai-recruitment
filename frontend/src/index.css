@@ -665,3 +665,23 @@ html {
 #superadmin-root main [class*="bg-gradient-to-"] {
   background-image: none !important;
 }
+
+/* Admin table breathing room */
+#superadmin-root main table th {
+  padding-top: 1.125rem;
+  padding-bottom: 1.125rem;
+}
+
+#superadmin-root main table td {
+  padding-top: 1.125rem;
+  padding-bottom: 1.125rem;
+}
+
+#superadmin-root main table td .flex.items-center.gap-1,
+#superadmin-root main table td .flex.items-center.gap-1\.5 {
+  gap: 0.625rem;
+}
+
+#superadmin-root main table td button {
+  min-height: 2rem;
+}

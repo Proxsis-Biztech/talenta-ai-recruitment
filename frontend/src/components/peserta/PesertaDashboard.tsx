@@ -67,7 +67,7 @@ export default function PesertaDashboard() {
   const isCatCompleted = ['submitted', 'graded'].includes(dashboard?.exam?.status || '');
   const faceVerified = Boolean(dashboard?.user?.faceVerifiedAt);
   const profileComplete = dashboard
-    ? Boolean(dashboard?.user?.name && dashboard?.user?.phone && (dashboard?.user?.nik || dashboard?.user?.employeeNumber) && dashboard?.user?.education && dashboard?.user?.university && dashboard?.user?.city)
+    ? Boolean(dashboard?.user?.name && dashboard?.user?.phone && dashboard?.user?.nik && dashboard?.user?.education && dashboard?.user?.university && dashboard?.user?.city)
     : true;
   const interview = dashboard?.interview || {};
   const lha = dashboard?.lha;
@@ -116,6 +116,18 @@ export default function PesertaDashboard() {
     }
   ];
 
+  const profileFilled = [
+    dashboard?.user?.name,
+    dashboard?.user?.phone,
+    dashboard?.user?.nik,
+    dashboard?.user?.education,
+    dashboard?.user?.university,
+    dashboard?.user?.city
+  ].filter(Boolean).length;
+  const completedStages = stages.filter((stage) => stage.status === 'completed').length;
+  const assessmentProgress = Math.round((completedStages / stages.length) * 100);
+  const activeStage = stages.find((stage) => stage.status === 'active')?.title || 'Selesai';
+
   return (
     <PesertaLayout activeTab="dashboard">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-10 sm:py-14 space-y-10 sm:space-y-12 antialiased">
@@ -133,17 +145,8 @@ export default function PesertaDashboard() {
         {/* ─── Hero Header: Asymmetric 8 / 4 Split (Friendly, Clear Next Step) ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch">
           {/* Sisi Kiri (8 kolom): Salam Personal, Status Tahapan & Aksi Utama */}
-          <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-7 sm:p-10 shadow-xs flex flex-col justify-between relative overflow-hidden card-hover">
+          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col justify-between relative overflow-hidden ">
             <div className="space-y-5 relative">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-soft-blue text-primary-navy text-xs font-semibold border border-accent-border">
-                <Sparkles className="w-3.5 h-3.5 text-blue-accent" />
-                <span>
-                  {isCatCompleted
-                    ? 'Tahap Ujian CAT Selesai • Lanjut Sesi Wawancara'
-                    : 'Ujian CAT Siap Dikerjakan • 40 Soal'}
-                </span>
-              </div>
-
               <div>
                 <h1 className="text-3xl sm:text-4xl font-extrabold font-heading text-ink tracking-tight leading-tight">
                   Selamat Datang, {activeUser.name}!
@@ -153,6 +156,29 @@ export default function PesertaDashboard() {
                     ? `Selamat, Anda telah menuntaskan lembar CAT untuk ${activeProgram.title}. Seluruh jawaban Anda telah tersimpan dengan aman. Langkah berikutnya adalah sesi Wawancara Tatap Muka bersama Asesor.`
                     : `Sesi evaluasi kompetensi untuk posisi ${activeProgram.title} di ${activeProgram.companyName} telah dibuka. Ikuti tahapan asesmen dengan tenang, seluruh progres Anda tercatat otomatis.`}
                 </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-600">Progres tahapan</span>
+                    <span className="font-mono font-bold text-primary-navy">{completedStages} / {stages.length}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white border border-slate-200 overflow-hidden">
+                    <div className="h-full rounded-full bg-primary-navy" style={{ width: `${assessmentProgress}%` }} />
+                  </div>
+                  <p className="text-[11px] text-slate-500">Tahap aktif: {activeStage}</p>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-600">Kelengkapan profil</span>
+                    <span className={`font-mono font-bold ${profileFilled === 6 ? 'text-emerald-700' : 'text-amber-700'}`}>{profileFilled} / 6</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white border border-slate-200 overflow-hidden">
+                    <div className={`h-full rounded-full ${profileFilled === 6 ? 'bg-emerald-500' : 'bg-amber-500'}`} style={{ width: `${(profileFilled / 6) * 100}%` }} />
+                  </div>
+                  <p className="text-[11px] text-slate-500">{profileFilled === 6 ? 'Profil lengkap' : 'Lengkapi profil agar 6/6'}</p>
+                </div>
               </div>
             </div>
 
@@ -205,14 +231,14 @@ export default function PesertaDashboard() {
           </div>
 
           {/* Sisi Kanan (4 kolom): Docket Status Peserta & Bantuan Cepat */}
-          <div className="lg:col-span-4 bg-exam-bg rounded-3xl border border-slate-200 p-7 sm:p-8 flex flex-col justify-between shadow-2xs relative overflow-hidden">
+          <div className="lg:col-span-4 bg-exam-bg rounded-2xl border border-slate-200 p-6 sm:p-8 flex flex-col justify-between shadow-2xs relative overflow-hidden">
             <div className="space-y-5 relative">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-primary-navy uppercase tracking-wider bg-white px-2.5 py-1 rounded-md border border-slate-200">
                   REF: {activeProgram.id}
                 </span>
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
                   Sesi Aktif
                 </span>
               </div>
@@ -260,14 +286,14 @@ export default function PesertaDashboard() {
         {/* ─── 8 / 4 Split: Active Assessment & Upcoming Interview ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch">
           {/* Active Assessment Card (8 cols) */}
-          <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-7 sm:p-10 shadow-xs flex flex-col justify-between card-hover">
+          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col justify-between ">
             <div>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                 <span className="text-xs font-mono font-bold uppercase tracking-wider text-primary-navy bg-soft-blue px-3 py-1 rounded-lg border border-accent-border">
                   PROGRAM UTAMA: {activeProgram.id}
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   Sesi Terbuka • {activeProgram.gradeLevel}
                 </span>
               </div>
@@ -275,26 +301,22 @@ export default function PesertaDashboard() {
               <h2 className="text-xl sm:text-2xl font-bold font-heading text-ink leading-snug">
                 {activeProgram.title}
               </h2>
-              <p className="text-sm text-muted-slate mt-1.5 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-slate-400" />
-                <span>Instansi Penguji: <strong>{activeProgram.companyName}</strong></span>
-              </p>
 
               {/* 4 Metric Chips */}
               <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
+                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200">
                   <span className="text-xs text-muted-slate block font-medium">Durasi Ujian</span>
                   <p className="font-mono text-base font-bold text-ink mt-0.5">{activeProgram.durationMinutes} Menit</p>
                 </div>
-                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
+                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200">
                   <span className="text-xs text-muted-slate block font-medium">Beban Soal</span>
                   <p className="font-mono text-base font-bold text-primary-navy mt-0.5">{activeProgram.totalQuestions} Butir (CAT)</p>
                 </div>
-                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
+                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200">
                   <span className="text-xs text-muted-slate block font-medium">Status Hasil</span>
                   <p className="text-sm font-bold text-amber-700 mt-0.5">Menunggu asesor</p>
                 </div>
-                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
+                <div className="p-4 bg-exam-bg rounded-2xl border border-slate-200">
                   <span className="text-xs text-muted-slate block font-medium">Tingkat / Grade</span>
                   <p className="font-mono text-xs sm:text-sm font-bold text-amber-600 mt-1 line-clamp-1">{activeProgram.difficultyLabel} ({activeProgram.gradeLevel.split(' ')[0]})</p>
                 </div>
@@ -338,13 +360,13 @@ export default function PesertaDashboard() {
           </div>
 
           {/* Upcoming Interview Card (4 cols) */}
-          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-7 sm:p-8 flex flex-col justify-between shadow-xs card-hover">
+          <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 flex flex-col justify-between shadow-xs ">
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-mono font-bold uppercase tracking-wider text-blue-accent bg-soft-blue px-3 py-1 rounded-md border border-accent-border">
                   JADWAL WAWANCARA
                 </span>
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-accent animate-ping" />
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-accent" />
               </div>
 
               <h3 className="font-heading font-bold text-base text-ink">
@@ -392,7 +414,7 @@ export default function PesertaDashboard() {
         </div>
 
         {/* ─── Visual Pipeline Tahapan Asesmen (Clean, Friendly Stepper) ─── */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-7 sm:p-10 shadow-xs space-y-8">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="font-heading font-bold text-lg text-ink">
@@ -430,7 +452,7 @@ export default function PesertaDashboard() {
                       {isCompleted ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                       ) : isActive ? (
-                        <span className="w-2.5 h-2.5 rounded-full bg-blue-accent animate-pulse" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-accent" />
                       ) : (
                         <Clock className="w-3.5 h-3.5 text-slate-300" />
                       )}
@@ -458,7 +480,7 @@ export default function PesertaDashboard() {
         </div>
 
         {/* ─── Tips Pengerjaan Ujian Nyaman & Lancar (Reassuring Guidance) ─── */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-7 sm:p-10 shadow-xs">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
           <div className="flex items-center gap-2.5 mb-6 text-ink">
             <Lightbulb className="w-4 h-4 text-amber-500" />
             <h3 className="font-heading font-bold text-base">
@@ -466,7 +488,7 @@ export default function PesertaDashboard() {
             </h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs text-slate-600">
-            <div className="p-5 rounded-2xl bg-exam-bg border border-slate-200 space-y-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
+            <div className="p-5 rounded-2xl bg-exam-bg border border-slate-200 space-y-2">
               <div className="flex items-center gap-2 font-bold text-ink text-xs">
                 <Smile className="w-3.5 h-3.5 text-blue-accent" />
                 <span>Pencahayaan &amp; Posisi Nyaman</span>
@@ -475,7 +497,7 @@ export default function PesertaDashboard() {
                 Duduk tegak menghadap layar di ruangan dengan pencahayaan cukup agar kamera web dapat mengenali kehadiran Anda tanpa silau.
               </p>
             </div>
-            <div className="p-5 rounded-2xl bg-exam-bg border border-slate-200 space-y-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
+            <div className="p-5 rounded-2xl bg-exam-bg border border-slate-200 space-y-2">
               <div className="flex items-center gap-2 font-bold text-ink text-xs">
                 <Wifi className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Koneksi Internet Stabil</span>
@@ -484,7 +506,7 @@ export default function PesertaDashboard() {
                 Gunakan jaringan internet minimal 5 Mbps. Jika sinyal sempat terputus, sistem akan mencoba menghubungkan kembali secara otomatis.
               </p>
             </div>
-            <div className="p-5 rounded-2xl bg-exam-bg border border-slate-200 space-y-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xs hover:border-accent-border">
+            <div className="p-5 rounded-2xl bg-exam-bg border border-slate-200 space-y-2">
               <div className="flex items-center gap-2 font-bold text-ink text-xs">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Penyimpanan Respon Otomatis</span>

@@ -702,16 +702,8 @@ export function computeCompositeEvaluation(
   else if (proctorCount >= 3) integrityPenalty = 20;
 
   let compositeScore = 0;
-  if (screeningScore != null && interviewScore != null) {
-    // 35% CV match, 50% Interview live, 15% integrity baseline minus penalty
-    const integrityScore = Math.max(0, 15 - integrityPenalty);
-    compositeScore = Math.round((cv * 0.35) + (interview * 0.50) + integrityScore);
-  } else if (interviewScore != null) {
+  if (interviewScore != null) {
     compositeScore = Math.max(0, Math.round(interview - integrityPenalty));
-  } else if (screeningScore != null) {
-    compositeScore = Math.round(cv);
-  } else {
-    compositeScore = 0;
   }
 
   let recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED' = 'NOT RECOMMENDED';
@@ -736,7 +728,7 @@ export function computeCompositeEvaluation(
   return {
     compositeScore,
     recommendation,
-    cvContribution: Math.round(cv * 0.35),
+    cvContribution: 0,
     interviewContribution: Math.round(interview * 0.50),
     integrityPenalty,
     proctorCount,
