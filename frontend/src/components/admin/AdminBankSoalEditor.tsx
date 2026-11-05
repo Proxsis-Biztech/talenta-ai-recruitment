@@ -528,30 +528,30 @@ export function AdminBankSoalEditor() {
                   Semua Program
                 </Button>
                 <div className="min-w-0">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Program Asesmen</label>
-                  <select value={selectedProgramCode} onChange={(e) => setSelectedProgramCode(e.target.value)} className="w-full sm:w-[340px] px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Program Asesmen</label>
+                  <select value={selectedProgramCode} onChange={(e) => setSelectedProgramCode(e.target.value)} className="w-full sm:w-[360px] h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy">
                     {programs.map((program) => (
                       <option key={program.id} value={program.id}>[{program.id}] {program.title}</option>
                     ))}
                   </select>
                 </div>
               </div>
-              <Button variant="primary" size="sm" onClick={() => handleCreateNew()} className="text-xs flex items-center gap-1.5 cursor-pointer shadow-xs">
-                <Plus className="w-3.5 h-3.5" />
+              <Button variant="primary" size="md" onClick={() => handleCreateNew()} className="h-11 px-4 text-sm font-semibold rounded-xl flex items-center gap-2 cursor-pointer shadow-xs">
+                <Plus className="w-4 h-4" />
                 <span>Tambah Butir Soal</span>
               </Button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Pencarian</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Pencarian</label>
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="Cari kode atau teks soal..." className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none" />
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="Cari kode atau teks soal..." className="w-full h-11 pl-10 pr-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm outline-none focus:border-primary-navy" />
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Tipe Soal</label>
-                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold cursor-pointer">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Tipe Soal</label>
+                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy">
                   <option value="all">Semua Tipe</option>
                   <option value="Pilihan Ganda">Pilihan Ganda</option>
                   <option value="Multi-Select">Multi-Select</option>
@@ -561,8 +561,8 @@ export function AdminBankSoalEditor() {
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Kesulitan</label>
-                <select value={filterDiff} onChange={(e) => setFilterDiff(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold cursor-pointer">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Kesulitan</label>
+                <select value={filterDiff} onChange={(e) => setFilterDiff(e.target.value)} className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy">
                   <option value="all">Semua Kesulitan</option>
                   <option value="Mudah">Mudah</option>
                   <option value="Sedang">Sedang</option>
@@ -650,11 +650,11 @@ export function AdminBankSoalEditor() {
 
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block font-bold text-ink mb-1">Tipe Soal</label>
+                <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Tipe Soal</label>
                 <select
                   value={activeQuestion.type}
                   onChange={(e) => setActiveQuestion({ ...activeQuestion, type: e.target.value as any })}
-                  className="w-full px-3 py-2 rounded-lg border border-border-slate font-semibold bg-white cursor-pointer"
+                  className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
                 >
                   <option value="Pilihan Ganda">Pilihan Ganda</option>
                   <option value="Multi-Select">Multi-Select</option>
@@ -665,11 +665,11 @@ export function AdminBankSoalEditor() {
               </div>
 
               <div>
-                <label className="block font-bold text-ink mb-1">Tingkat Kesulitan</label>
+                <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Tingkat Kesulitan</label>
                 <select
                   value={activeQuestion.difficulty}
                   onChange={(e) => setActiveQuestion({ ...activeQuestion, difficulty: e.target.value as any })}
-                  className="w-full px-3 py-2 rounded-lg border border-border-slate font-semibold bg-white cursor-pointer"
+                  className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
                 >
                   <option value="Mudah">Mudah</option>
                   <option value="Sedang">Sedang</option>
@@ -678,11 +678,11 @@ export function AdminBankSoalEditor() {
               </div>
 
               <div>
-                <label className="block font-bold text-ink mb-1">Status Butir</label>
+                <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Status Butir</label>
                 <select
                   value={activeQuestion.status}
                   onChange={(e) => setActiveQuestion({ ...activeQuestion, status: e.target.value as any })}
-                  className="w-full px-3 py-2 rounded-lg border border-border-slate font-semibold bg-white cursor-pointer"
+                  className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
                 >
                   <option value="Published">Published</option>
                   <option value="Review">Review</option>

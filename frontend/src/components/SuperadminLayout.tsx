@@ -475,7 +475,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
 
                 {tenants.length > 0 && (
                   <div className="hidden lg:flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-slate-400">Tenant</span>
+                    <span className="text-xs font-bold text-slate-500">Tenant</span>
                     <select
                       value={activeTenantId}
                       onChange={(event) => {
@@ -486,7 +486,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                         window.location.reload();
                       }}
                       disabled={userRole !== 'superadmin'}
-                      className="max-w-[190px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 disabled:bg-slate-50 disabled:text-slate-500"
+                      className="max-w-[220px] h-10 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-800 shadow-2xs focus:outline-none focus:border-primary-navy disabled:bg-slate-50 disabled:text-slate-500 cursor-pointer"
                     >
                       {userRole === 'superadmin' && <option value="">Semua tenant</option>}
                       {tenants.map((tenant) => (

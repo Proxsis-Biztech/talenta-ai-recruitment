@@ -942,7 +942,7 @@ export default function JobManagement() {
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-sm font-semibold text-slate-800 mb-1.5">
               Judul Posisi Pekerjaan
             </label>
             <input
@@ -951,12 +951,12 @@ export default function JobManagement() {
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="e.g. Senior Backend Engineer"
-              className="w-full px-3 py-2 text-xs font-sans bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+              className="w-full px-3.5 py-2.5 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-sm font-semibold text-slate-800 mb-1.5">
               Deskripsi Pekerjaan &amp; Kriteria Kualifikasi
             </label>
             <textarea
@@ -965,13 +965,13 @@ export default function JobManagement() {
               value={newDescription}
               onChange={(e) => setNewDescription(e.target.value)}
               placeholder="Deskripsikan tanggung jawab utama, tech stack, dan persyaratan kompetensi..."
-              className="w-full px-3 py-2 text-xs font-sans bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy leading-relaxed"
+              className="w-full px-3.5 py-2.5 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy leading-relaxed transition-colors"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-800 mb-1.5">
                 Durasi Wawancara AI (Menit)
               </label>
               <input
@@ -980,11 +980,11 @@ export default function JobManagement() {
                 max="60"
                 value={newDuration}
                 onChange={(e) => setNewDuration(e.target.value === '' ? '' : Number(e.target.value))}
-                className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                className="w-full h-11 px-3.5 py-2 text-sm font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-800 mb-1.5">
                 Ambang Kelulusan (Passing Score 0-100)
               </label>
               <input
@@ -993,19 +993,19 @@ export default function JobManagement() {
                 max="100"
                 value={newPassingScore}
                 onChange={(e) => setNewPassingScore(e.target.value === '' ? '' : Number(e.target.value))}
-                className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                className="w-full h-11 px-3.5 py-2 text-sm font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-sm font-semibold text-slate-800 mb-1.5">
               Status Formasi
             </label>
             <select
               value={newStatus}
               onChange={(e) => setNewStatus(e.target.value as 'active' | 'inactive')}
-              className="w-full px-3 py-2 text-xs font-sans bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
+              className="w-full h-11 px-3.5 py-2 text-sm font-medium text-slate-800 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
             >
               <option value="active">Aktif (Terbuka untuk Pendaftaran)</option>
               <option value="inactive">Nonaktif (Arsip Internal)</option>
@@ -1046,8 +1046,8 @@ export default function JobManagement() {
             <button
               type="button"
               onClick={() => setEditTab('profil')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
-                editTab === 'profil' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
+                editTab === 'profil' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               <Edit2 className="w-4 h-4" />
@@ -1056,8 +1056,8 @@ export default function JobManagement() {
             <button
               type="button"
               onClick={() => setEditTab('soal')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
-                editTab === 'soal' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
+                editTab === 'soal' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               <BookOpen className="w-4 h-4" />
@@ -1066,8 +1066,8 @@ export default function JobManagement() {
             <button
               type="button"
               onClick={() => setEditTab('materi')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
-                editTab === 'materi' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
+                editTab === 'materi' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               <Layers className="w-4 h-4" />
@@ -1080,72 +1080,72 @@ export default function JobManagement() {
             <div className={editTab === 'profil' ? 'block' : 'hidden'}>
               <form id="job-edit-form" onSubmit={handleUpdateJob} className="space-y-4">
                 {editError && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center gap-2">
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" />
                     <span>{editError}</span>
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Judul Posisi Pekerjaan</label>
+                  <label className="block text-sm font-semibold text-slate-800 mb-1.5">Judul Posisi Pekerjaan</label>
                   <input
                     type="text"
                     required
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full px-3 py-2 text-xs font-sans bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                    className="w-full px-3.5 py-2.5 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Deskripsi Pekerjaan &amp; Kriteria Kualifikasi</label>
+                  <label className="block text-sm font-semibold text-slate-800 mb-1.5">Deskripsi Pekerjaan &amp; Kriteria Kualifikasi</label>
                   <textarea
                     required
                     rows={4}
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
-                    className="w-full px-3 py-2 text-xs font-sans bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy leading-relaxed"
+                    className="w-full px-3.5 py-2.5 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy leading-relaxed"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Durasi Wawancara AI (Menit)</label>
+                    <label className="block text-sm font-semibold text-slate-800 mb-1.5">Durasi Wawancara AI (Menit)</label>
                     <input
                       type="number"
                       min="5"
                       max="60"
                       value={editDuration}
                       onChange={(e) => setEditDuration(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                      className="w-full h-11 px-3.5 py-2 text-sm font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Ambang Kelulusan (Passing Score 0-100)</label>
+                    <label className="block text-sm font-semibold text-slate-800 mb-1.5">Ambang Kelulusan (Passing Score 0-100)</label>
                     <input
                       type="number"
                       min="0"
                       max="100"
                       value={editPassingScore}
                       onChange={(e) => setEditPassingScore(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                      className="w-full h-11 px-3.5 py-2 text-sm font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Status Formasi</label>
+                  <label className="block text-sm font-semibold text-slate-800 mb-1.5">Status Formasi</label>
                   <select
                     value={editStatus}
                     onChange={(e) => setEditStatus(e.target.value as 'active' | 'inactive')}
-                    className="w-full px-3 py-2 text-xs font-sans bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
+                    className="w-full h-11 px-3.5 py-2 text-sm font-medium text-slate-800 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
                   >
                     <option value="active">Aktif (Terbuka untuk Pendaftaran)</option>
                     <option value="inactive">Nonaktif (Arsip Internal)</option>
                   </select>
                 </div>
 
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 flex items-start gap-2">
+                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900 flex items-start gap-2.5">
                   <BookOpen className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                   <span>
                     Tab <strong>Bank Soal CAT</strong> dan <strong>Silabus &amp; Materi</strong> berisi konten yang sama dengan
@@ -1157,15 +1157,15 @@ export default function JobManagement() {
 
             {/* TAB SOAL — Bank soal editable (tampilan kartu identik dengan modal Lihat Soal) */}
             {editTab === 'soal' && (() => {
-              const editInputCls = 'w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy';
-              const labelCls = 'block text-[11px] font-semibold text-slate-600 mb-1';
+              const editInputCls = 'w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy';
+              const labelCls = 'block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5';
               return (
                 <div className="space-y-4">
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-3">
+                  <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900 flex items-start gap-3">
                     <BookOpen className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-semibold text-blue-950">Bank Soal CAT — {editQuestions.length} Butir Aktif</p>
-                      <p className="text-blue-700 text-[11px] mt-0.5">
+                      <p className="font-semibold text-blue-950 text-sm">Bank Soal CAT — {editQuestions.length} Butir Aktif</p>
+                      <p className="text-blue-700 text-xs mt-0.5">
                         Soal yang disunting di sini langsung dipakai pada lembar ujian CAT peserta dan tampil identik pada menu
                         “Lihat Soal &amp; Materi”.
                       </p>
@@ -1174,7 +1174,7 @@ export default function JobManagement() {
 
                   {importFeedback && (
                     <div
-                      className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 animate-in fade-in ${
+                      className={`p-3.5 rounded-xl border text-sm flex items-center justify-between gap-2 animate-in fade-in ${
                         importFeedback.type === 'success'
                           ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                           : importFeedback.type === 'error'
@@ -1195,7 +1195,7 @@ export default function JobManagement() {
                         onClick={() => setImportFeedback(null)}
                         className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   )}
@@ -1204,49 +1204,50 @@ export default function JobManagement() {
                     <Button
                       type="button"
                       variant={showImportPanel ? 'primary' : 'outline'}
-                      size="sm"
+                      size="md"
                       onClick={() => {
                         setShowImportPanel(!showImportPanel);
                         setImportFeedback(null);
                       }}
-                      className="text-xs"
+                      className="h-11 px-4 text-sm font-semibold rounded-xl"
                     >
-                      <Download className="w-3.5 h-3.5 mr-1.5" />
+                      <Download className="w-4 h-4 mr-2" />
                       {showImportPanel ? 'Tutup Panel Import' : 'Import dari Bank Soal CAT'}
                     </Button>
                     <div className="relative flex-1">
-                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="text"
                         value={editQSearch}
                         onChange={(e) => setEditQSearch(e.target.value)}
                         placeholder="Cari soal untuk diedit..."
-                        className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                        className="w-full h-11 pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy placeholder:text-slate-400"
                       />
                     </div>
                     <Button
                       type="button"
                       variant="primary"
-                      size="sm"
-                      leftIcon={<Plus className="w-3.5 h-3.5" />}
+                      size="md"
+                      leftIcon={<Plus className="w-4 h-4" />}
                       onClick={handleAddQuestion}
+                      className="h-11 px-4 text-sm font-semibold rounded-xl"
                     >
                       Tambah Soal
                     </Button>
                   </div>
 
                   {showImportPanel && (
-                    <div className="p-4 bg-slate-50 border border-slate-200/90 rounded-xl space-y-3.5 shadow-2xs animate-in fade-in duration-150">
-                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-soft-blue text-primary-navy flex items-center justify-center font-bold">
-                            <Download className="w-3.5 h-3.5" />
+                    <div className="p-4.5 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-4 shadow-2xs animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-soft-blue text-primary-navy flex items-center justify-center font-bold">
+                            <Download className="w-4 h-4" />
                           </div>
                           <div>
-                            <h4 className="text-xs font-bold text-ink font-heading">
+                            <h4 className="text-sm font-bold text-slate-900 font-heading">
                               Panel Import dari Bank Soal CAT
                             </h4>
-                            <p className="text-[11px] text-muted-slate">
+                            <p className="text-xs text-slate-600">
                               Pilih program sumber dan tipe soal dari Bank Soal CAT untuk diimpor ke formasi ini.
                             </p>
                           </div>
@@ -1254,22 +1255,22 @@ export default function JobManagement() {
                         <button
                           type="button"
                           onClick={() => setShowImportPanel(false)}
-                          className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+                          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                         {/* 1. Sumber Program */}
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
                             1. Program Sumber Bank Soal
                           </label>
                           <select
                             value={importSourceProgramId}
                             onChange={(e) => setImportSourceProgramId(e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-primary-navy font-medium text-slate-800 cursor-pointer"
+                            className="w-full h-11 px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-primary-navy font-medium text-slate-800 shadow-2xs cursor-pointer"
                           >
                             {allProgramsList.map((prog) => (
                               <option key={prog.id} value={prog.id}>
@@ -1281,13 +1282,13 @@ export default function JobManagement() {
 
                         {/* 2. Dropdown Tipe Soal */}
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
                             2. Dropdown Tipe Soal di Bank Soal CAT *
                           </label>
                           <select
                             value={importTypeFilter}
                             onChange={(e) => setImportTypeFilter(e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-primary-navy font-bold text-primary-navy cursor-pointer"
+                            className="w-full h-11 px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-primary-navy font-bold text-primary-navy shadow-2xs cursor-pointer"
                           >
                             <option value="ALL">Semua Tipe Soal ({availableBankQuestionsForImport.length} Butir)</option>
                             <option value="single">Pilihan Ganda ({countByImportType.single || 0} Butir)</option>
@@ -1300,13 +1301,13 @@ export default function JobManagement() {
 
                         {/* 3. Mode Aksi Impor */}
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
                             3. Mode Aksi Impor
                           </label>
                           <select
                             value={importMode}
                             onChange={(e) => setImportMode(e.target.value as 'append' | 'replace')}
-                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-primary-navy font-medium text-slate-800 cursor-pointer"
+                            className="w-full h-11 px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-primary-navy font-medium text-slate-800 shadow-2xs cursor-pointer"
                           >
                             <option value="append">Tambahkan ke Soal yang Ada (Append)</option>
                             <option value="replace">Gantikan / Timpa Seluruh Soal (Replace)</option>
@@ -1315,11 +1316,11 @@ export default function JobManagement() {
                       </div>
 
                       {/* Footer Panel Import */}
-                      <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200">
-                        <div className="text-xs text-slate-600">
+                      <div className="pt-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200">
+                        <div className="text-sm text-slate-700">
                           Ditemukan <strong className="text-primary-navy font-bold">{filteredImportQuestions.length}</strong> butir soal siap diimpor
                           {importTypeFilter !== 'ALL' && (
-                            <span className="ml-1 text-[11px] text-muted-slate">
+                            <span className="ml-1 text-xs text-slate-500">
                               (hanya bertipe {questionTypeLabel(importTypeFilter as any)})
                             </span>
                           )}
@@ -1328,18 +1329,20 @@ export default function JobManagement() {
                           <Button
                             type="button"
                             variant="secondary"
-                            size="xs"
+                            size="sm"
                             onClick={() => setShowImportPanel(false)}
+                            className="h-10 px-4 text-sm font-medium rounded-lg"
                           >
                             Batal
                           </Button>
                           <Button
                             type="button"
                             variant="primary"
-                            size="xs"
+                            size="sm"
                             disabled={filteredImportQuestions.length === 0}
                             onClick={handleExecuteImport}
-                            leftIcon={<Download className="w-3.5 h-3.5" />}
+                            leftIcon={<Download className="w-4 h-4" />}
+                            className="h-10 px-4 text-sm font-semibold rounded-lg"
                           >
                             Impor {filteredImportQuestions.length} Soal ke Formasi
                           </Button>
@@ -1348,9 +1351,9 @@ export default function JobManagement() {
                     </div>
                   )}
 
-                  <div className="space-y-3">
+                  <div className="space-y-3.5">
                     {editVisibleQuestions.length === 0 ? (
-                      <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs">
+                      <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-sm">
                         Tidak ada soal yang cocok dengan pencarian. Tambah soal baru atau ubah kata kunci.
                       </div>
                     ) : (
@@ -1359,21 +1362,21 @@ export default function JobManagement() {
                         return (
                           <div
                             key={q.id}
-                            className={`p-4 rounded-xl border shadow-2xs space-y-3 transition-colors ${
+                            className={`p-4.5 rounded-2xl border shadow-2xs space-y-3.5 transition-colors ${
                               isEditing ? 'bg-blue-50/40 border-accent-border' : 'bg-white border-slate-200 hover:border-slate-300'
                             }`}
                           >
                             {/* Header */}
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="w-7 h-7 rounded-md bg-indigo-50 text-indigo-700 font-mono font-bold text-xs flex items-center justify-center border border-indigo-200">
+                                <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 font-mono font-bold text-sm flex items-center justify-center border border-indigo-200">
                                   #{q.id.toString().padStart(2, '0')}
                                 </span>
-                                <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                                   {questionTypeLabel(q.type)}
                                 </span>
                                 <span
-                                  className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                                  className={`px-2.5 py-1 rounded-md text-xs font-semibold ${
                                     q.difficulty === 'Sulit'
                                       ? 'bg-rose-50 text-rose-700 border border-rose-200'
                                       : q.difficulty === 'Sedang'
@@ -1383,25 +1386,25 @@ export default function JobManagement() {
                                 >
                                   {q.difficulty}
                                 </span>
-                                <span className="text-[11px] text-slate-400">{q.competency}</span>
+                                <span className="text-xs text-slate-500">{q.competency}</span>
                               </div>
 
                               <div className="flex items-center gap-1.5">
                                 {isEditing ? (
                                   <>
-                                    <Button type="button" variant="outline" size="xs" onClick={() => resetQuestionToOriginal(q.id)}>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => resetQuestionToOriginal(q.id)} className="text-xs">
                                       Batal
                                     </Button>
-                                    <Button type="button" variant="primary" size="xs" onClick={() => setEditingQId(null)}>
+                                    <Button type="button" variant="primary" size="sm" onClick={() => setEditingQId(null)} className="text-xs font-semibold">
                                       Selesai Edit
                                     </Button>
                                   </>
                                 ) : (
                                   <>
-                                    <Button type="button" variant="secondary" size="xs" leftIcon={<Edit2 className="w-3 h-3" />} onClick={() => setEditingQId(q.id)}>
+                                    <Button type="button" variant="secondary" size="sm" leftIcon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => setEditingQId(q.id)} className="text-xs">
                                       Edit Soal
                                     </Button>
-                                    <Button type="button" variant="danger" size="xs" leftIcon={<Trash2 className="w-3 h-3" />} onClick={() => handleDeleteQuestion(q.id)}>
+                                    <Button type="button" variant="danger" size="sm" leftIcon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => handleDeleteQuestion(q.id)} className="text-xs">
                                       Hapus
                                     </Button>
                                   </>
@@ -1411,14 +1414,14 @@ export default function JobManagement() {
 
                             {isEditing ? (
                               /* ── Form edit soal ── */
-                              <div className="space-y-3">
+                              <div className="space-y-3.5">
                                 <div>
                                   <label className={labelCls}>Teks Soal</label>
                                   <textarea
                                     rows={3}
                                     value={q.text}
                                     onChange={(e) => updateEditQuestion(q.id, { text: e.target.value })}
-                                    className={`${editInputCls} leading-relaxed`}
+                                    className={`${editInputCls} leading-relaxed text-sm`}
                                   />
                                 </div>
 
@@ -1437,7 +1440,7 @@ export default function JobManagement() {
                                     <select
                                       value={q.type}
                                       onChange={(e) => updateEditQuestion(q.id, { type: e.target.value as QuestionItem['type'] })}
-                                      className={`${editInputCls} cursor-pointer`}
+                                      className={`${editInputCls} h-11 py-2 font-medium cursor-pointer`}
                                     >
                                       <option value="single">Pilihan Ganda</option>
                                       <option value="multi">Multi-Select</option>
@@ -1451,7 +1454,7 @@ export default function JobManagement() {
                                     <select
                                       value={q.difficulty}
                                       onChange={(e) => updateEditQuestion(q.id, { difficulty: e.target.value as QuestionItem['difficulty'] })}
-                                      className={`${editInputCls} cursor-pointer`}
+                                      className={`${editInputCls} h-11 py-2 font-medium cursor-pointer`}
                                     >
                                       <option value="Mudah">Mudah</option>
                                       <option value="Sedang">Sedang</option>
@@ -1461,20 +1464,20 @@ export default function JobManagement() {
                                 </div>
 
                                 {q.codeSnippet && (
-                                  <pre className="p-3 bg-slate-900 text-emerald-400 rounded-lg text-[11px] font-mono overflow-x-auto leading-normal">
+                                  <pre className="p-3 bg-slate-900 text-emerald-400 rounded-xl text-xs font-mono overflow-x-auto leading-normal">
                                     <code>{q.codeSnippet}</code>
                                   </pre>
                                 )}
 
                                 {/* Opsi jawaban (single/multi/matching) */}
                                 {q.options && q.options.length > 0 && (
-                                  <div className="space-y-2">
-                                    <span className="text-[11px] font-semibold text-slate-600 block">
+                                  <div className="space-y-2.5">
+                                    <span className="text-xs sm:text-sm font-semibold text-slate-700 block">
                                       Opsi Jawaban — centang {q.type === 'multi' ? 'semua jawaban benar (boleh lebih dari satu)' : 'satu jawaban benar'}
                                     </span>
                                     {q.options.map((opt) => (
-                                      <div key={opt.key} className="flex items-start gap-2">
-                                        <label className="flex items-center gap-1.5 pt-2 shrink-0 cursor-pointer">
+                                      <div key={opt.key} className="flex items-center gap-2.5">
+                                        <label className="flex items-center gap-2 shrink-0 cursor-pointer">
                                           <input
                                             type={q.type === 'multi' ? 'checkbox' : 'radio'}
                                             name={`q-${q.id}-correct`}
@@ -1482,9 +1485,9 @@ export default function JobManagement() {
                                             onChange={(e) =>
                                               updateEditOption(q.id, opt.key, { isCorrect: e.target.checked }, q.type !== 'multi')
                                             }
-                                            className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
+                                            className="w-4 h-4 accent-emerald-600 cursor-pointer"
                                           />
-                                          <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center font-bold text-[10px] text-slate-600">
+                                          <span className="w-6 h-6 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center font-bold text-xs text-slate-700">
                                             {opt.key}
                                           </span>
                                         </label>
@@ -1493,7 +1496,7 @@ export default function JobManagement() {
                                           value={opt.label}
                                           onChange={(e) => updateEditOption(q.id, opt.key, { label: e.target.value })}
                                           placeholder={`Teks jawaban ${opt.key}...`}
-                                          className="flex-1 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                                          className="flex-1 h-10 px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                                         />
                                       </div>
                                     ))}
@@ -1502,14 +1505,14 @@ export default function JobManagement() {
 
                                 {/* Matching pairs (read-only) */}
                                 {q.matchingPairs && q.matchingPairs.length > 0 && (
-                                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
-                                    <span className="text-[11px] font-bold text-slate-700 block">Pasangan Pencocokan Baku:</span>
+                                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                                    <span className="text-xs sm:text-sm font-bold text-slate-800 block">Pasangan Pencocokan Baku:</span>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       {q.matchingPairs.map((pair, idx) => (
-                                        <div key={idx} className="bg-white p-2 rounded border border-slate-200 text-xs flex items-center justify-between gap-2">
+                                        <div key={idx} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs sm:text-sm flex items-center justify-between gap-2">
                                           <span className="font-semibold text-slate-800">{pair.left}</span>
-                                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                          <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                                          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                                          <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs">
                                             {pair.correctRight || pair.rightOptions[0]}
                                           </span>
                                         </div>
@@ -1537,37 +1540,37 @@ export default function JobManagement() {
                                     rows={2}
                                     value={q.explanation || ''}
                                     onChange={(e) => updateEditQuestion(q.id, { explanation: e.target.value })}
-                                    className={`${editInputCls} leading-relaxed`}
+                                    className={`${editInputCls} leading-relaxed text-sm`}
                                   />
                                 </div>
                               </div>
                             ) : (
                               /* ── Tampilan ringkas (identik modal Lihat Soal & Materi) ── */
                               <div className="space-y-3">
-                                <p className="text-xs font-medium text-slate-900 leading-relaxed">{q.text}</p>
+                                <p className="text-sm sm:text-[15px] font-medium text-slate-900 leading-relaxed">{q.text}</p>
 
                                 {q.options && q.options.length > 0 && (
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                                     {q.options.map((opt) => (
                                       <div
                                         key={opt.key}
-                                        className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+                                        className={`p-3 sm:p-3.5 rounded-xl border text-sm flex items-start gap-3 transition-colors ${
                                           opt.isCorrect
                                             ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950 font-medium ring-1 ring-emerald-300/50'
-                                            : 'bg-slate-50/70 border-slate-200 text-slate-700'
+                                            : 'bg-slate-50/70 border-slate-200 text-slate-800 hover:bg-slate-50'
                                         }`}
                                       >
                                         <span
-                                          className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 font-bold text-[10px] ${
-                                            opt.isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                                          className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 font-bold text-xs ${
+                                            opt.isCorrect ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-slate-200 text-slate-700'
                                           }`}
                                         >
                                           {opt.key}
                                         </span>
-                                        <span className="flex-1 leading-snug">{opt.label}</span>
+                                        <span className="flex-1 leading-relaxed">{opt.label}</span>
                                         {opt.isCorrect && (
-                                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded whitespace-nowrap flex items-center gap-0.5 shrink-0">
-                                            <Check className="w-3 h-3 text-emerald-600" />
+                                          <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md whitespace-nowrap flex items-center gap-1 shrink-0">
+                                            <Check className="w-3.5 h-3.5 text-emerald-600" />
                                             KUNCI
                                           </span>
                                         )}
@@ -1577,7 +1580,7 @@ export default function JobManagement() {
                                 )}
 
                                 {q.correctAnswer && (
-                                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 flex items-center gap-2">
+                                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-900 flex items-center gap-2.5">
                                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                                     <span>
                                       <strong>Kunci Jawaban:</strong> {q.correctAnswer}
@@ -1586,7 +1589,7 @@ export default function JobManagement() {
                                 )}
 
                                 {q.explanation && (
-                                  <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg text-xs text-blue-900 flex items-start gap-2">
+                                  <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-sm text-blue-900 flex items-start gap-2.5">
                                     <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                                     <span>
                                       <strong className="text-blue-800">Rasional:</strong> {q.explanation}
@@ -1607,11 +1610,11 @@ export default function JobManagement() {
             {/* TAB MATERI — Silabus & materi editable (sumber sama dengan menu Master Materi & Lihat Soal & Materi) */}
             {editTab === 'materi' && (
               <div className="space-y-4">
-                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 flex items-start gap-3">
+                <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-900 flex items-start gap-3">
                   <Layers className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-indigo-950">Silabus &amp; Modul Pembelajaran Formasi Ini</p>
-                    <p className="text-indigo-700 text-[11px] mt-0.5">
+                    <p className="font-semibold text-indigo-950 text-sm">Silabus &amp; Modul Pembelajaran Formasi Ini</p>
+                    <p className="text-indigo-700 text-xs mt-0.5">
                       Data sama dengan tab materi pada menu “Lihat Soal &amp; Materi”. Suntingan tersimpan bersama konfigurasi saat menekan
                       <strong> Simpan Semua Perubahan</strong>.
                     </p>
@@ -1622,35 +1625,35 @@ export default function JobManagement() {
                   {editMaterials.map((mat) => {
                     const isEditing = editingMatId === mat.id;
                     return (
-                      <Card key={mat.id} elevation="flat" className="p-4.5 border border-slate-200 space-y-3">
+                      <Card key={mat.id} elevation="flat" className="p-5 border border-slate-200 rounded-2xl space-y-3.5">
                         <div className="flex items-start justify-between gap-3 flex-wrap border-b border-slate-100 pb-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                              <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">
                                 {mat.code}
                               </span>
-                              <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700">{mat.type}</span>
-                              <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                              <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700">{mat.type}</span>
+                              <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                                 {mat.assessmentLevel}
                               </span>
                               <span className="text-xs text-slate-400 font-mono">v{mat.version}</span>
                             </div>
-                            <p className="text-xs text-slate-500 mt-1.5">
+                            <p className="text-xs sm:text-sm text-slate-500 mt-1.5">
                               Kategori: <strong className="text-slate-700">{mat.category}</strong> • Subkategori: {mat.subcategory || '-'}
                             </p>
                           </div>
                           <div className="flex items-center gap-1.5">
                             {isEditing ? (
                               <>
-                                <Button type="button" variant="outline" size="xs" onClick={() => resetMaterialToOriginal(mat.id)}>
+                                <Button type="button" variant="outline" size="sm" onClick={() => resetMaterialToOriginal(mat.id)} className="text-xs">
                                   Batal
                                 </Button>
-                                <Button type="button" variant="primary" size="xs" onClick={() => setEditingMatId(null)}>
+                                <Button type="button" variant="primary" size="sm" onClick={() => setEditingMatId(null)} className="text-xs font-semibold">
                                   Selesai Edit
                                 </Button>
                               </>
                             ) : (
-                              <Button type="button" variant="secondary" size="xs" leftIcon={<Edit2 className="w-3 h-3" />} onClick={() => setEditingMatId(mat.id)}>
+                              <Button type="button" variant="secondary" size="sm" leftIcon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => setEditingMatId(mat.id)} className="text-xs">
                                 Edit Materi
                               </Button>
                             )}
@@ -1658,41 +1661,41 @@ export default function JobManagement() {
                         </div>
 
                         {isEditing ? (
-                          <div className="space-y-3">
+                          <div className="space-y-3.5">
                             <div>
-                              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Judul Modul</label>
+                              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Judul Modul</label>
                               <input
                                 type="text"
                                 value={mat.title}
                                 onChange={(e) => updateEditMaterial(mat.id, { title: e.target.value })}
-                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                                className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Ringkasan Silabus &amp; Pokok Bahasan</label>
+                              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Ringkasan Silabus &amp; Pokok Bahasan</label>
                               <textarea
                                 rows={3}
                                 value={mat.content}
                                 onChange={(e) => updateEditMaterial(mat.id, { content: e.target.value })}
-                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                                className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Panduan Rubrik &amp; Standar Kelulusan Asesor</label>
+                              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Panduan Rubrik &amp; Standar Kelulusan Asesor</label>
                               <textarea
                                 rows={2}
                                 value={mat.rubric}
                                 onChange={(e) => updateEditMaterial(mat.id, { rubric: e.target.value })}
-                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                                className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                               />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Status Modul</label>
+                                <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Status Modul</label>
                                 <select
                                   value={mat.status || 'Aktif'}
                                   onChange={(e) => updateEditMaterial(mat.id, { status: e.target.value as MasterMateriItem['status'] })}
-                                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                                  className="w-full h-11 px-3.5 py-2 text-sm font-medium bg-white border border-slate-300 rounded-xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                                 >
                                   <option value="Aktif">Aktif</option>
                                   <option value="Draft">Draft</option>
@@ -1703,26 +1706,26 @@ export default function JobManagement() {
                           </div>
                         ) : (
                           <div className="space-y-3">
-                            <h4 className="text-sm font-bold text-slate-900">{mat.title}</h4>
+                            <h4 className="text-base font-bold text-slate-900">{mat.title}</h4>
                             <div>
-                              <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Ringkasan Silabus &amp; Pokok Bahasan</h5>
-                              <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">{mat.content}</p>
+                              <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Ringkasan Silabus &amp; Pokok Bahasan</h5>
+                              <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">{mat.content}</p>
                             </div>
                             <div>
-                              <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Panduan Rubrik &amp; Standar Kelulusan Asesor</h5>
-                              <p className="text-xs text-slate-600 leading-relaxed bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-blue-900">{mat.rubric}</p>
+                              <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Panduan Rubrik &amp; Standar Kelulusan Asesor</h5>
+                              <p className="text-sm text-slate-700 leading-relaxed bg-blue-50/50 p-3.5 rounded-xl border border-blue-100 text-blue-900">{mat.rubric}</p>
                             </div>
                           </div>
                         )}
 
                         {mat.behavioralIndicators && mat.behavioralIndicators.length > 0 && (
                           <div>
-                            <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Indikator Perilaku Baku (Behavioral Indicators)</h5>
-                            <div className="space-y-1.5">
+                            <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Indikator Perilaku Baku (Behavioral Indicators)</h5>
+                            <div className="space-y-2">
                               {mat.behavioralIndicators.map((ind, i) => (
-                                <div key={i} className="flex items-start gap-2 text-xs text-slate-700">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                                  <span className="leading-tight">{ind}</span>
+                                <div key={i} className="flex items-start gap-2.5 text-sm text-slate-700">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                  <span className="leading-snug">{ind}</span>
                                 </div>
                               ))}
                             </div>
@@ -1887,30 +1890,30 @@ export default function JobManagement() {
                 {/* Filter & Search Bar */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                   <div className="relative flex-1">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
                       value={qSearch}
                       onChange={(e) => setQSearch(e.target.value)}
                       placeholder="Cari teks soal, kompetensi, atau kata kunci..."
-                      className="w-full pl-9 pr-8 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className="w-full h-11 pl-10 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                     {qSearch && (
                       <button
                         type="button"
                         onClick={() => setQSearch('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <select
                       value={qTypeFilter}
                       onChange={(e) => setQTypeFilter(e.target.value)}
-                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none cursor-pointer"
+                      className="h-11 px-3.5 py-2 text-sm font-medium text-slate-800 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-primary-navy shadow-2xs cursor-pointer"
                     >
                       <option value="ALL">Semua Tipe Soal</option>
                       <option value="single">Pilihan Ganda</option>
@@ -1923,7 +1926,7 @@ export default function JobManagement() {
                     <select
                       value={qDiffFilter}
                       onChange={(e) => setQDiffFilter(e.target.value)}
-                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none cursor-pointer"
+                      className="h-11 px-3.5 py-2 text-sm font-medium text-slate-800 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-primary-navy shadow-2xs cursor-pointer"
                     >
                       <option value="ALL">Semua Tingkat Kesulitan</option>
                       <option value="Mudah">Mudah</option>
@@ -1934,27 +1937,27 @@ export default function JobManagement() {
                 </div>
 
                 {/* Question List */}
-                <div className="space-y-3">
+                <div className="space-y-3.5">
                   {filteredQuestions.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs">
+                    <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-sm">
                       {detailQuestionCounts.total === 0 ? 'Belum ada soal di Bank Soal CAT untuk program ini.' : 'Tidak ada soal yang sesuai dengan kata kunci atau filter yang dipilih.'}
                     </div>
                   ) : (
                     filteredQuestions.map((q) => (
                       <div
                         key={q.id}
-                        className="p-4 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition-colors shadow-2xs space-y-3"
+                        className="p-4.5 bg-white border border-slate-200 rounded-2xl hover:border-slate-300 transition-colors shadow-2xs space-y-3.5"
                       >
                         {/* Question Header */}
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-2">
-                            <span className="w-7 h-7 rounded-md bg-indigo-50 text-indigo-700 font-mono font-bold text-xs flex items-center justify-center border border-indigo-200">
+                            <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 font-mono font-bold text-sm flex items-center justify-center border border-indigo-200">
                               #{q.id.toString().padStart(2, '0')}
                             </span>
-                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                               {q.type === 'single' ? 'Pilihan Ganda' : q.type === 'multi' ? 'Multi-Select' : q.type === 'short' ? 'Isian Singkat' : q.type === 'essay' ? 'Studi Kasus / Esai' : 'Matching'}
                             </span>
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                            <span className={`px-2.5 py-1 rounded-md text-xs font-semibold ${
                               q.difficulty === 'Sulit' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
                               q.difficulty === 'Sedang' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
                               'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -1962,48 +1965,48 @@ export default function JobManagement() {
                               {q.difficulty}
                             </span>
                           </div>
-                          <span className="text-xs text-slate-500 font-medium">
+                          <span className="text-xs sm:text-sm text-slate-500 font-medium">
                             Kompetensi: <strong className="text-slate-800">{q.competency}</strong>
                           </span>
                         </div>
 
                         {/* Question Body */}
-                        <p className="text-xs font-medium text-slate-900 leading-relaxed">
+                        <p className="text-sm sm:text-[15px] font-medium text-slate-900 leading-relaxed">
                           {q.text}
                         </p>
 
                         {/* Code Snippet if any */}
                         {q.codeSnippet && (
-                          <pre className="p-3 bg-slate-900 text-emerald-400 rounded-lg text-[11px] font-mono overflow-x-auto leading-normal">
+                          <pre className="p-3 bg-slate-900 text-emerald-400 rounded-xl text-xs font-mono overflow-x-auto leading-normal">
                             <code>{q.codeSnippet}</code>
                           </pre>
                         )}
 
                         {/* Options */}
                         {q.options && q.options.length > 0 && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                             {q.options.map((opt) => (
                               <div
                                 key={opt.key}
-                                className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+                                className={`p-3 sm:p-3.5 rounded-xl border text-sm flex items-start gap-3 transition-colors ${
                                   opt.isCorrect
                                     ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950 font-medium ring-1 ring-emerald-300/50'
-                                    : 'bg-slate-50/70 border-slate-200 text-slate-700'
+                                    : 'bg-slate-50/70 border-slate-200 text-slate-800 hover:bg-slate-50'
                                 }`}
                               >
                                 <span
-                                  className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 font-bold text-[10px] ${
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 font-bold text-xs ${
                                     opt.isCorrect
-                                      ? 'bg-emerald-600 text-white'
-                                      : 'bg-slate-200 text-slate-600'
+                                      ? 'bg-emerald-600 text-white shadow-2xs'
+                                      : 'bg-slate-200 text-slate-700'
                                   }`}
                                 >
                                   {opt.key}
                                 </span>
-                                <span className="flex-1 leading-snug">{opt.label}</span>
+                                <span className="flex-1 leading-relaxed">{opt.label}</span>
                                 {opt.isCorrect && (
-                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded whitespace-nowrap flex items-center gap-0.5 shrink-0">
-                                    <Check className="w-3 h-3 text-emerald-600" />
+                                  <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md whitespace-nowrap flex items-center gap-1 shrink-0">
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
                                     KUNCI BENAR
                                   </span>
                                 )}
@@ -2014,16 +2017,16 @@ export default function JobManagement() {
 
                         {/* Matching Pairs if any */}
                         {q.matchingPairs && q.matchingPairs.length > 0 && (
-                          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
-                            <span className="text-[11px] font-bold text-slate-700 block">
+                          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                            <span className="text-xs sm:text-sm font-bold text-slate-800 block">
                               Pasangan Pencocokan Baku:
                             </span>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {q.matchingPairs.map((pair, idx) => (
-                                <div key={idx} className="bg-white p-2 rounded border border-slate-200 text-xs flex items-center justify-between gap-2">
+                                <div key={idx} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs sm:text-sm flex items-center justify-between gap-2">
                                   <span className="font-semibold text-slate-800">{pair.left}</span>
-                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                  <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                                  <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs">
                                     {pair.correctRight || pair.rightOptions[0]}
                                   </span>
                                 </div>
@@ -2034,7 +2037,7 @@ export default function JobManagement() {
 
                         {/* Short Answer / Correct Answer */}
                         {q.correctAnswer && (
-                          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 flex items-center gap-2">
+                          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-900 flex items-center gap-2.5">
                             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                             <span>
                               <strong>Kunci Jawaban Tepat:</strong> {q.correctAnswer}
@@ -2044,10 +2047,10 @@ export default function JobManagement() {
 
                         {/* Explanation / Rasional */}
                         {q.explanation && (
-                          <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg text-xs text-blue-900 flex items-start gap-2">
+                          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-sm text-blue-900 flex items-start gap-2.5">
                             <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                             <div>
-                              <strong className="text-blue-800">Rasional & Pembahasan:</strong> {q.explanation}
+                              <strong className="text-blue-800">Rasional &amp; Pembahasan:</strong> {q.explanation}
                             </div>
                           </div>
                         )}

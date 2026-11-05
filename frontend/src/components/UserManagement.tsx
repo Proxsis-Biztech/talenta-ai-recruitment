@@ -755,7 +755,7 @@ export default function UserManagement() {
                   placeholder="Cari nama, email, program, atau ID peserta..."
                   value={pesertaSearch}
                   onChange={(e) => setPesertaSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs font-sans bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                  className="w-full h-11 pl-10 pr-3.5 py-2 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                 />
               </div>
 
@@ -763,7 +763,7 @@ export default function UserManagement() {
               <select
                 value={pesertaCompanyFilter}
                 onChange={(e) => setPesertaCompanyFilter(e.target.value)}
-                className="px-3 py-2 text-xs font-sans bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
+                className="h-11 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl shadow-2xs focus:outline-none focus:border-primary-navy cursor-pointer"
               >
                 <option value="ALL">Semua Perusahaan (PT)</option>
                 {COMPANIES_CATALOG.map((c) => (
@@ -777,7 +777,7 @@ export default function UserManagement() {
               <select
                 value={pesertaGradeFilter}
                 onChange={(e) => setPesertaGradeFilter(e.target.value)}
-                className="px-3 py-2 text-xs font-sans bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
+                className="h-11 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl shadow-2xs focus:outline-none focus:border-primary-navy cursor-pointer"
               >
                 <option value="ALL">Semua Grade Soal</option>
                 <option value="Grade C">Grade C (Junior / Dasar)</option>
@@ -1026,13 +1026,13 @@ export default function UserManagement() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
                       Pilih Instansi / Perusahaan (PT) *
                     </label>
                     <select
                       value={pesertaFormCompanyId}
                       onChange={(e) => setPesertaFormCompanyId(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium"
+                      className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium text-slate-800 shadow-2xs"
                     >
                       {COMPANIES_CATALOG.map((c) => (
                         <option key={c.id} value={c.id}>
@@ -1043,7 +1043,7 @@ export default function UserManagement() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
                       Pilih Jenis Asesmen *
                     </label>
                     <select
@@ -1056,7 +1056,7 @@ export default function UserManagement() {
                           setPesertaFormGrade(match.gradeLevel);
                         }
                       }}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium"
+                      className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium text-slate-800 shadow-2xs"
                     >
                       {availableProgramsForModal.length === 0 ? (
                         <option value="">Tidak ada program untuk PT ini</option>
@@ -1073,13 +1073,13 @@ export default function UserManagement() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
                       Tingkat Kesulitan / Grade Soal *
                     </label>
                     <select
                       value={pesertaFormGrade}
                       onChange={(e: any) => setPesertaFormGrade(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium"
+                      className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium text-slate-800 shadow-2xs"
                     >
                       <option value="Grade C (Junior)">Grade C (Junior / Dasar - 40 Soal)</option>
                       <option value="Grade B (Specialist / Mid)">Grade B (Specialist / Mid - 40 Soal)</option>
@@ -1191,7 +1191,7 @@ export default function UserManagement() {
                   placeholder="Cari nama asesor, username, atau spesialisasi..."
                   value={asesorSearch}
                   onChange={(e) => setAsesorSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs font-sans bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                  className="w-full h-11 pl-10 pr-3.5 py-2 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                 />
               </div>
 
@@ -1199,7 +1199,7 @@ export default function UserManagement() {
               <select
                 value={asesorCompanyFilter}
                 onChange={(e) => setAsesorCompanyFilter(e.target.value)}
-                className="px-3 py-2 text-xs font-sans bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
+                className="h-11 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl shadow-2xs focus:outline-none focus:border-primary-navy cursor-pointer"
               >
                 <option value="ALL">Semua Instansi PT</option>
                 {COMPANIES_CATALOG.map((c) => (
@@ -1384,13 +1384,13 @@ export default function UserManagement() {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
                   Instansi / PT Penugasan Asesor *
                 </label>
                 <select
                   value={asesorFormCompanyId}
                   onChange={(e) => setAsesorFormCompanyId(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium"
+                  className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium text-slate-800 shadow-2xs"
                 >
                   {COMPANIES_CATALOG.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -1527,14 +1527,14 @@ export default function UserManagement() {
                       placeholder="Cari admin berdasarkan username atau ID..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 text-xs font-sans bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                      className="w-full h-11 pl-10 pr-3.5 py-2 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                     />
                   </div>
 
                   <select
                     value={roleFilter}
                     onChange={(e: any) => setRoleFilter(e.target.value)}
-                    className="px-3 py-2 text-xs font-sans bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
+                    className="h-11 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl shadow-2xs focus:outline-none focus:border-primary-navy cursor-pointer"
                   >
                     <option value="ALL">Semua Peran</option>
                     <option value="superadmin">Superadmin</option>
