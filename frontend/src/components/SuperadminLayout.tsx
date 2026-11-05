@@ -91,7 +91,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: 'asesmen-soal',
-    label: 'MANAJEMEN ASESMEN & SOAL',
+    label: 'ASESMEN & SOAL',
     items: [
       { key: 'jobs', label: 'Program Asesmen', icon: BookOpen },
       { key: 'materi', label: 'Master Materi & Silabus', icon: FileText },
@@ -142,6 +142,20 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
 }) => {
   // Mobile drawer state
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('admin_sidebar_groups') || '{}');
+    } catch {
+      return {};
+    }
+  });
+  const toggleGroup = (groupId: string) => {
+    setCollapsedGroups((prev) => {
+      const next = { ...prev, [groupId]: !prev[groupId] };
+      localStorage.setItem('admin_sidebar_groups', JSON.stringify(next));
+      return next;
+    });
+  };
 
   // Desktop sidebar collapse state (persisted)
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
@@ -213,50 +227,19 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
             : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        {/* Brand Header */}
-        <div
-          className={`h-18 flex items-center border-b border-border-slate shrink-0 transition-all ${
-            isCollapsed ? 'justify-center px-2' : 'justify-between px-5'
-          }`}
-        >
-          {isCollapsed ? (
-            <button
-              onClick={toggleCollapse}
-              className="w-10 h-10 rounded-xl bg-primary-navy hover:bg-navy-dark flex items-center justify-center text-white font-extrabold text-xl shadow-xs cursor-pointer transition-transform hover:scale-105 group relative font-heading"
-              title="Perluas Sidebar (Right)"
-              aria-label="Expand Sidebar"
-            >
-              <span>R</span>
-              <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                Perluas Sidebar (Right)
-              </span>
-            </button>
-          ) : (
-            <>
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9.5 h-9.5 rounded-xl bg-primary-navy flex items-center justify-center text-white font-extrabold text-lg shadow-xs shrink-0 font-heading">
-R
-                </div>
-                <div className="flex flex-col truncate">
-                  <span className="text-lg font-extrabold tracking-tight text-ink leading-snug font-heading flex items-center">
-                    Right
-                  </span>
-                  <span className="text-[11px] text-muted-slate font-medium tracking-tight">
-                    Assessment Platform
-                  </span>
-                </div>
-              </div>
-
-              <button
-                onClick={toggleCollapse}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer hidden lg:flex"
-                title="Ciutkan Sidebar"
-                aria-label="Collapse Sidebar"
-              >
-                <PanelLeftClose className="w-4.5 h-4.5" />
-              </button>
-            </>
+        {/* Sidebar Collapse / Expand */}
+        <div className={`h-18 flex items-center border-b border-border-slate shrink-0 ${isCollapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
+          {!isCollapsed && (
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Menu Admin</span>
           )}
+          <button
+            onClick={toggleCollapse}
+            className="w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-primary-navy hover:bg-slate-50 flex items-center justify-center cursor-pointer"
+            title={isCollapsed ? 'Perluas Sidebar' : 'Ciutkan Sidebar'}
+            aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          >
+            {isCollapsed ? <PanelLeftOpen className="w-4.5 h-4.5" /> : <PanelLeftClose className="w-4.5 h-4.5" />}
+          </button>
         </div>
 
         {/* Navigation Items */}
@@ -278,15 +261,18 @@ R
 
                 {/* Group Header (Expanded) */}
                 {!isCollapsed && (
-                  <div className="px-3.5 pt-1.5 pb-2 text-[11px] font-bold tracking-wider text-slate-400 uppercase flex items-center justify-between">
-                    <span>{group.label}</span>
-                    <span className="text-[9px] text-slate-400 font-normal">
-                      {group.items.filter((i) => !i.superadminOnly || userRole === 'superadmin').length}
-                    </span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    className="w-full min-w-0 px-3.5 pt-1.5 pb-2 text-[11px] font-bold tracking-wider text-slate-400 uppercase flex items-center justify-between gap-2 cursor-pointer hover:text-slate-600"
+                    aria-expanded={!collapsedGroups[group.id]}
+                  >
+                    <span className="truncate whitespace-nowrap">{group.label}</span>
+                    {collapsedGroups[group.id] ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
                 )}
 
-                <div className="space-y-0.5">
+                <div className={`space-y-0.5 ${collapsedGroups[group.id] && !isCollapsed ? 'hidden' : ''}`}>
                   {group.items
                     .filter((item) => !item.superadminOnly || userRole === 'superadmin')
                     .map((item) => {
@@ -344,7 +330,7 @@ R
                               isActive ? 'text-primary-navy' : 'text-slate-400 group-hover:text-slate-700'
                             }`}
                           />
-                          <span className="truncate flex-1">{item.label}</span>
+                          <span className="truncate whitespace-nowrap flex-1">{item.label}</span>
                           {item.badge && (
                             <Badge
                               variant={isActive ? 'navy' : 'neutral'}

@@ -289,6 +289,11 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
         data[field] = req.body[field] === null ? null : String(req.body[field]);
       }
     }
+    const existing = await prisma.portalUser.findUnique({ where: { id: req.portalUser.id } });
+    const merged = { ...existing, ...data } as any;
+    if (merged.name && merged.phone && merged.nik && merged.education && merged.university && merged.city) {
+      data.profileCompleted = true;
+    }
     const user = await prisma.portalUser.update({
       where: { id: req.portalUser.id },
       data,

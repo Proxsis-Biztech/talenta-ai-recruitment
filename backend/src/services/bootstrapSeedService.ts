@@ -319,6 +319,56 @@ export async function bootstrapDatabaseSeed() {
     }
     console.log('✅ Portal accounts synchronized.');
 
+    // UAT test accounts: 5 peserta + 5 asesor (one per tenant)
+    const uatTenants = [
+      { code: 'TELKOM', company: 'PT Telkom Indonesia Tbk', assessmentId: 'SE-402', assessmentTitle: 'Software Engineer Specialist Batch IV (PT Telkom Indonesia Tbk)' },
+      { code: 'MANDIRI', company: 'PT Bank Mandiri (Persero) Tbk', assessmentId: 'BMRI-DATA-02', assessmentTitle: 'Data Science & Credit Risk Analytics' },
+      { code: 'CIMB', company: 'PT Bank CIMB Niaga Tbk', assessmentId: 'CIMB-BPM-02', assessmentTitle: 'Senior Business Process Management Specialist' },
+      { code: 'ASTRA', company: 'PT Astra International Tbk', assessmentId: 'ASII-OPS-01', assessmentTitle: 'Industrial Operations & Supply Chain Specialist' },
+      { code: 'PERTAMINA', company: 'PT Pertamina Hulu Energi', assessmentId: 'PHE-HSE-02', assessmentTitle: 'Environmental Safety & ESG Risk Engineer' }
+    ];
+    for (let index = 0; index < uatTenants.length; index += 1) {
+      const tenant = uatTenants[index];
+      const tenantId = tenantsByCode.get(tenant.code)?.id || null;
+      const pesertaEmail = `peserta${index + 1}@right.id`;
+      if (!(await prisma.portalUser.findUnique({ where: { email: pesertaEmail } }))) {
+        await prisma.portalUser.create({
+          data: {
+            email: pesertaEmail,
+            password: await bcrypt.hash('peserta123', 10),
+            name: `Peserta UAT ${index + 1}`,
+            role: 'peserta',
+            phone: `08120000010${index}`,
+            tenantId,
+            companyName: tenant.company,
+            assessmentId: tenant.assessmentId,
+            assessmentTitle: tenant.assessmentTitle,
+            candidateCode: `KND-UAT-${index + 1}`,
+            profileCompleted: true,
+            mustChangePassword: false
+          }
+        });
+      }
+      const asesorEmail = `asesor${index + 1}@right.id`;
+      if (!(await prisma.portalUser.findUnique({ where: { email: asesorEmail } }))) {
+        await prisma.portalUser.create({
+          data: {
+            email: asesorEmail,
+            username: `asesor${index + 1}`,
+            password: await bcrypt.hash('asesor123', 10),
+            name: `Asesor UAT ${index + 1}`,
+            role: 'asesor',
+            tenantId,
+            companyName: tenant.company,
+            specialization: 'Assessment Center & Behavioral Interview',
+            profileCompleted: true,
+            mustChangePassword: false
+          }
+        });
+      }
+    }
+    console.log('✅ UAT test accounts synchronized.');
+
     // 3. Ensure Sample Applicants exist so Admin & Asesor views have real data
     if (jobsList.length > 0) {
       const existingEmails = new Set(

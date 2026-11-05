@@ -32,6 +32,7 @@ import {
   INITIAL_MATERI_LIST, 
   type MasterMateriItem 
 } from './admin/AdminMasterMateriTree';
+import { loadMasterScope } from '../services/masterDataService';
 
 interface Job {
   id: string;
@@ -82,6 +83,7 @@ function questionTypeLabel(t: QuestionItem['type']): string {
 
 export default function JobManagement() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [bankSoalQuestions, setBankSoalQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,6 +130,11 @@ export default function JobManagement() {
   const [qSearch, setQSearch] = useState('');
   const [qTypeFilter, setQTypeFilter] = useState('ALL');
   const [qDiffFilter, setQDiffFilter] = useState('ALL');
+
+  const getBankQuestionCountForJob = useCallback((job: Job) => {
+    const program = findProgramByTitle(job.title, job.id);
+    return bankSoalQuestions.filter((question) => (question.programCode || 'SE-402') === program.id).length;
+  }, [bankSoalQuestions]);
 
   const getMaterialsForJob = useCallback((job: Job): MasterMateriItem[] => {
     // 1) Edit khusus per formasi (dari modal Ubah) selalu menang
@@ -178,10 +185,48 @@ export default function JobManagement() {
     ];
   }, []);
 
+  useEffect(() => {
+    loadMasterScope<any>('bank-soal')
+      .then((data) => {
+        if (Array.isArray(data.questions)) setBankSoalQuestions(data.questions);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const mapBankQuestion = (question: any, index: number): QuestionItem => {
+    const typeMap: Record<string, QuestionItem['type']> = {
+      'Pilihan Ganda': 'single',
+      'Multi-Select': 'multi',
+      'Isian Singkat': 'short',
+      'Esai': 'essay',
+      'Matching': 'matching'
+    };
+    return {
+      id: index + 1,
+      type: typeMap[question.type] || 'single',
+      text: question.text || '',
+      competency: question.competency || 'General',
+      difficulty: question.difficulty || 'Sedang',
+      options: (question.options || []).map((option: any) => ({
+        key: option.key,
+        label: option.text || option.label || '',
+        isCorrect: Boolean(option.isCorrect)
+      })),
+      matchingPairs: [],
+      codeSnippet: null,
+      explanation: question.explanation || '',
+      weight: 1
+    } as unknown as QuestionItem;
+  };
+
   const handleOpenDetailModal = (job: Job) => {
     const program = findProgramByTitle(job.title, job.id);
+    const programQuestions = bankSoalQuestions
+      .filter((question) => (question.programCode || 'SE-402') === program.id)
+      .map(mapBankQuestion);
+    const detailProgram = { ...program, questions: programQuestions };
     const materials = getMaterialsForJob(job);
-    setSelectedJobDetail({ job, program, materials });
+    setSelectedJobDetail({ job, program: detailProgram, materials });
     setDetailTab('soal');
     setQSearch('');
     setQTypeFilter('ALL');
@@ -686,7 +731,7 @@ export default function JobManagement() {
                           className="inline-flex items-center gap-1 text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition-colors cursor-pointer"
                         >
                           <BookOpen className="w-3 h-3 text-blue-600" />
-                          40 Soal CAT
+                          {getBankQuestionCountForJob(job)} Soal CAT
                         </button>
                         <button
                           type="button"
@@ -739,7 +784,7 @@ export default function JobManagement() {
                       onClick={() => handleOpenDetailModal(job)}
                       leftIcon={<Eye className="w-3 h-3" />}
                       className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-xs"
-                      title="Lihat 40 soal ujian CAT dan silabus materi untuk formasi ini"
+                      title={`Lihat ${getBankQuestionCountForJob(job)} soal ujian CAT dan silabus materi untuk formasi ini`}
                     >
                       Lihat Soal & Materi
                     </Button>
@@ -1625,7 +1670,7 @@ export default function JobManagement() {
                 <div className="space-y-3">
                   {filteredQuestions.length === 0 ? (
                     <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs">
-                      Tidak ada soal yang sesuai dengan kata kunci atau filter yang dipilih.
+                      {detailQuestionCounts.total === 0 ? 'Belum ada soal di Bank Soal CAT untuk program ini.' : 'Tidak ada soal yang sesuai dengan kata kunci atau filter yang dipilih.'}
                     </div>
                   ) : (
                     filteredQuestions.map((q) => (
@@ -1914,7 +1959,7 @@ export default function JobManagement() {
                   </h5>
                   <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-xs">
                     <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                      <span className="text-slate-500 block text-[11px]">Tes CAT (40 Soal)</span>
+                      <span className="text-slate-500 block text-[11px]">Tes CAT ({selectedJobDetail.program.questions.length} Soal)</span>
                       <span className="font-mono font-bold text-base text-primary-navy">35%</span>
                     </div>
                     <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">

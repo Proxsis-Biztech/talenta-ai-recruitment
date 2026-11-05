@@ -161,7 +161,14 @@ export default function PesertaProfile() {
         const response = await axios.post('/api/portal/device-check', { faceCaptured: true }, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        if (response.data?.user) savePortalSession({ token, user: response.data.user });
+        if (response.data?.user) {
+          savePortalSession({ token, user: response.data.user });
+          if (!response.data.user.profileCompleted) {
+            setTimeout(() => setActiveTab('biodata'), 500);
+          } else if (response.data.user.mustChangePassword) {
+            setTimeout(() => navigate('/peserta/onboarding'), 500);
+          }
+        }
       }
       stopFaceCamera();
     } catch (error) {
@@ -204,6 +211,9 @@ export default function PesertaProfile() {
       const currentToken = getPortalToken();
       if (currentToken && response.data.user) {
         savePortalSession({ token: currentToken, user: response.data.user });
+        if (response.data.user.profileCompleted && response.data.user.faceVerifiedAt) {
+          setTimeout(() => navigate(response.data.user.mustChangePassword ? '/peserta/onboarding' : '/peserta'), 700);
+        }
       }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);

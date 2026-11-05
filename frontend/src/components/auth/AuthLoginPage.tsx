@@ -53,7 +53,7 @@ export default function AuthLoginPage() {
       localStorage.removeItem('adminRole');
       localStorage.removeItem('adminUsername');
       savePortalSession(session);
-      navigate(session.requiresOnboarding ? '/peserta/onboarding' : '/peserta');
+      navigate(!session.user.faceVerifiedAt ? '/peserta/device-check' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta');
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal masuk dengan Google.' : 'Gagal masuk dengan Google.');
     } finally {
@@ -129,7 +129,7 @@ export default function AuthLoginPage() {
         const session = await tokenLogin({ programCode: programCode.trim().toUpperCase() });
         savePortalSession(session);
         setSuccessRole('peserta');
-        setTimeout(() => navigate(session.requiresOnboarding ? '/peserta/onboarding' : !session.user.faceVerifiedAt ? '/peserta/profile?tab=biometrik' : '/peserta'), 300);
+        setTimeout(() => navigate(!session.user.faceVerifiedAt ? '/peserta/device-check' : !session.user.faceVerifiedAt ? '/peserta/device-check' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta'), 300);
         return;
       }
 
@@ -168,7 +168,7 @@ export default function AuthLoginPage() {
       const session = await loginPortal(identifier.trim(), password);
       savePortalSession(session);
       setSuccessRole(session.user.role === 'asesor' ? 'asesor' : 'peserta');
-      setTimeout(() => navigate(session.user.role === 'asesor' ? '/asesor' : session.requiresOnboarding ? '/peserta/onboarding' : !session.user.faceVerifiedAt ? '/peserta/profile?tab=biometrik' : '/peserta'), 300);
+      setTimeout(() => navigate(session.user.role === 'asesor' ? '/asesor' : !session.user.faceVerifiedAt ? '/peserta/device-check' : !session.user.faceVerifiedAt ? '/peserta/device-check' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta'), 300);
     } catch (err) {
       const message = axios.isAxiosError(err)
         ? err.response?.data?.error ||
@@ -370,28 +370,6 @@ export default function AuthLoginPage() {
               </div>
             </form>
 
-            {googleClientId && (
-              <div className="mt-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-px flex-1 bg-slate-200" />
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">atau</span>
-                  <div className="h-px flex-1 bg-slate-200" />
-                </div>
-                <button
-                  type="button"
-                  disabled={!googleReady || googleLoading}
-                  onClick={() => {
-                    const google = (window as any).google;
-                    google?.accounts?.id?.prompt?.();
-                  }}
-                  className="w-full flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <span className="w-5 h-5 rounded-full border border-slate-200 flex items-center justify-center text-[11px] font-bold text-[#4285F4]">G</span>
-                  <span>{googleLoading ? 'Menghubungkan...' : googleReady ? 'Lanjutkan dengan Google' : 'Memuat Google...'}</span>
-                </button>
-              </div>
-            )}
-
             {SHOW_DEMO_ACCESS && (
             <div className="mt-6 pt-5 border-t border-slate-100">
               <div className="flex items-center justify-between text-xs text-slate-500 mb-2.5">
@@ -471,14 +449,8 @@ export default function AuthLoginPage() {
 
             )}
 
-            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-muted-slate">
-              <span>Belum memiliki akun peserta?</span>
-              <button
-                onClick={() => navigate('/register')}
-                className="font-bold text-primary-navy hover:underline cursor-pointer"
-              >
-                Daftar Program Baru →
-              </button>
+            <div className="mt-6 pt-4 border-t border-slate-100 text-xs text-muted-slate">
+              Akun peserta dibuat oleh admin melalui email undangan.
             </div>
           </div>
         </div>

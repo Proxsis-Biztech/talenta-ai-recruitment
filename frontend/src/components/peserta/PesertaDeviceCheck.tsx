@@ -620,12 +620,11 @@ export default function PesertaDeviceCheck() {
               <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => navigate('/peserta')}
-                  disabled={!initialFaceRegistered}
+                  onClick={() => navigate(getPortalUser()?.faceVerifiedAt ? '/peserta' : '/peserta/profile?tab=biometrik')}
                   className="w-full py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Selesai &amp; Lanjut ke Dashboard</span>
+                  <span>{getPortalUser()?.faceVerifiedAt ? 'Selesai & Lanjut ke Dashboard' : 'Lanjut Registrasi Wajah'}</span>
                 </Button>
                 <Button
                   variant="primary"

@@ -56,7 +56,6 @@ router.post('/interview/session-token', authLimiter, createInterviewSessionToken
 // Portal authentication (peserta & asesor)
 router.post('/portal/auth/login', authLimiter, loginPortal);
 router.post('/portal/auth/register', authLimiter, registerPeserta);
-router.post('/portal/auth/google', authLimiter, googleLogin);
 router.post('/portal/auth/token-login', authLimiter, tokenLogin);
 router.get('/portal/auth/me', authenticatePortal, getPortalMe);
 router.put('/portal/profile', authenticatePortal, updateProfile);
