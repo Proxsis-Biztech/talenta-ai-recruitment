@@ -28,7 +28,6 @@ import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById } from '../../services/assessmentCatalog';
 import { getPortalToken } from '../../services/portalAuthService';
-import { CameraProctorTile } from './CameraProctorTile';
 
 export default function PesertaDashboard() {
   const navigate = useNavigate();
@@ -143,159 +142,246 @@ export default function PesertaDashboard() {
             </Button>
           </div>
         )}
-        {/* ─── Hero Header: Asymmetric 8 / 4 Split (Friendly, Clear Next Step) ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch">
-          {/* Sisi Kiri (8 kolom): Salam Personal, Status Tahapan & Aksi Utama */}
-          <div className="lg:col-span-8 bg-primary-navy text-white rounded-2xl border border-primary-navy p-6 sm:p-8 shadow-sm flex flex-col justify-between relative overflow-hidden">
-            <div aria-hidden className="absolute -right-20 -top-20 w-64 h-64 rounded-full bg-white/5" />
-            <div aria-hidden className="absolute -right-8 bottom-10 w-36 h-36 rounded-full bg-white/5" />
-            <div className="space-y-5 relative">
+        {/* ─── Hero Header: Connected Dual-Tone Split Banner (Sambung Menyatu, Beda Warna, Elegan) ─── */}
+        <div className="rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden bg-white grid grid-cols-1 lg:grid-cols-12">
+          {/* Sisi Kiri (lg:col-span-8): Tema Deep Primary Navy dengan Nuansa Elegan */}
+          <div className="lg:col-span-8 bg-gradient-to-br from-[#1E3A8A] via-[#1a347d] to-[#11214e] text-white p-6 sm:p-9 flex flex-col justify-between relative overflow-hidden">
+            {/* Ambient Lighting Orbs */}
+            <div aria-hidden className="absolute -right-20 -top-20 w-72 h-72 rounded-full bg-blue-400/15 blur-3xl pointer-events-none" />
+            <div aria-hidden className="absolute -left-12 -bottom-12 w-64 h-64 rounded-full bg-indigo-500/10 blur-2xl pointer-events-none" />
+            <div aria-hidden className="absolute right-16 bottom-8 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
+
+            <div className="space-y-6 relative">
+              {/* Top Header Badge & Live Session Indicator */}
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 text-white flex items-center justify-center font-bold text-sm">{initials || 'P'}</div>
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-md border border-white/25 text-white flex items-center justify-center font-bold text-base shadow-sm ring-2 ring-white/10">
+                    {initials || 'P'}
+                  </div>
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-200">Dashboard Peserta</p>
-                    <p className="text-sm font-semibold text-white">ID {dashboard?.user?.candidateCode || activeUser.id.slice(0, 8)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-blue-200">Dashboard Peserta</p>
+                      <span className="w-1 h-1 rounded-full bg-blue-300/60" />
+                      <span className="text-[11px] font-mono font-medium text-blue-200/90">
+                        ID {dashboard?.user?.candidateCode || activeUser.id.slice(0, 8)}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-white/95 mt-0.5">{activeProgram.companyName}</p>
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 border border-emerald-300/30 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
-                  Sesi aktif
+
+                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/20 border border-emerald-300/40 px-3 py-1 text-xs font-semibold text-emerald-200 backdrop-blur-xs">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                  </span>
+                  Sesi Aktif
                 </span>
               </div>
 
+              {/* Greeting & Subtitle */}
               <div>
-                <h1 className="text-3xl sm:text-4xl font-extrabold font-heading text-white tracking-tight leading-tight">
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-white tracking-tight leading-tight">
                   Selamat Datang, {activeUser.name}!
                 </h1>
-                <p className="text-sm sm:text-base text-blue-100 mt-3.5 leading-relaxed max-w-2xl">
+                <p className="text-xs sm:text-sm lg:text-base text-blue-100/90 mt-3 leading-relaxed max-w-2xl font-normal">
                   {isCatCompleted
                     ? `Selamat, Anda telah menuntaskan lembar CAT untuk ${activeProgram.title}. Seluruh jawaban Anda telah tersimpan dengan aman. Langkah berikutnya adalah sesi Wawancara Tatap Muka bersama Asesor.`
                     : `Sesi evaluasi kompetensi untuk posisi ${activeProgram.title} di ${activeProgram.companyName} telah dibuka. Ikuti tahapan asesmen dengan tenang, seluruh progres Anda tercatat otomatis.`}
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-white/15 bg-white/10 p-4">
-                <div className="space-y-1.5">
+              {/* Dual Progress Glass Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-xl p-3.5 space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-blue-100">Progres tahapan</span>
-                    <span className="font-mono font-bold text-white">{completedStages} / {stages.length}</span>
+                    <span className="font-medium text-blue-100 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-sky-300" />
+                      Progres Tahapan
+                    </span>
+                    <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded-md text-[11px]">
+                      {completedStages} / {stages.length}
+                    </span>
                   </div>
-                  <div className="h-2 rounded-full bg-white/20 overflow-hidden">
-                    <div className="h-full rounded-full bg-white" style={{ width: `${assessmentProgress}%` }} />
+                  <div className="h-2 rounded-full bg-black/20 overflow-hidden p-0.5">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-sky-400 to-blue-300 transition-all duration-500 shadow-xs"
+                      style={{ width: `${assessmentProgress}%` }}
+                    />
                   </div>
-                  <p className="text-[11px] text-blue-200">Tahap aktif: {activeStage}</p>
+                  <p className="text-[11px] text-blue-200/90 font-medium truncate">
+                    Tahap aktif: <span className="text-white font-semibold">{activeStage}</span>
+                  </p>
                 </div>
-                <div className="space-y-1.5">
+
+                <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-xl p-3.5 space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-blue-100">Kelengkapan profil</span>
-                    <span className={`font-mono font-bold ${profileFilled === 6 ? 'text-emerald-200' : 'text-amber-200'}`}>{profileFilled} / 6</span>
+                    <span className="font-medium text-blue-100 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
+                      Kelengkapan Profil
+                    </span>
+                    <span
+                      className={`font-mono font-bold px-2 py-0.5 rounded-md text-[11px] ${
+                        profileFilled === 6 ? 'bg-emerald-400/20 text-emerald-200' : 'bg-amber-400/20 text-amber-200'
+                      }`}
+                    >
+                      {profileFilled} / 6
+                    </span>
                   </div>
-                  <div className="h-2 rounded-full bg-white/20 overflow-hidden">
-                    <div className={`h-full rounded-full ${profileFilled === 6 ? 'bg-emerald-300' : 'bg-amber-300'}`} style={{ width: `${(profileFilled / 6) * 100}%` }} />
+                  <div className="h-2 rounded-full bg-black/20 overflow-hidden p-0.5">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        profileFilled === 6
+                          ? 'bg-gradient-to-r from-emerald-400 to-teal-300'
+                          : 'bg-gradient-to-r from-amber-400 to-yellow-300'
+                      }`}
+                      style={{ width: `${(profileFilled / 6) * 100}%` }}
+                    />
                   </div>
-                  <p className="text-[11px] text-blue-200">{profileFilled === 6 ? 'Profil lengkap' : 'Lengkapi profil agar 6/6'}</p>
+                  <p className="text-[11px] text-blue-200/90 font-medium">
+                    {profileFilled === 6 ? (
+                      <span className="text-emerald-200 font-semibold flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Data profil terverifikasi lengkap
+                      </span>
+                    ) : (
+                      <span className="text-amber-200">Lengkapi profil Anda agar 6/6</span>
+                    )}
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-9 pt-7 border-t border-white/15 flex flex-wrap items-center gap-4 relative">
+            {/* CTA Buttons in Left Side */}
+            <div className="mt-8 pt-6 border-t border-white/15 flex flex-wrap items-center gap-3.5 relative">
               {isCatCompleted ? (
                 <>
-                  <Button
-                    variant="primary"
+                  <button
+                    type="button"
                     onClick={() => navigate('/peserta/waiting-room')}
-                    className="py-3 px-6 rounded-xl font-bold text-xs sm:text-sm bg-white text-primary-navy border-white hover:bg-blue-50 shadow-xs flex items-center gap-2 cursor-pointer"
+                    className="py-3 px-6 rounded-xl font-bold text-xs sm:text-sm bg-white text-primary-navy hover:bg-blue-50 shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer group"
                   >
                     <Video className="w-4 h-4 text-primary-navy" />
                     <span>Masuk Ruang Tunggu Wawancara</span>
-                    <ArrowRight className="w-4 h-4 ml-1" />
-                  </Button>
-                  <Button
-                    variant="outline"
+                    <ArrowRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
+                  </button>
+                  <button
+                    type="button"
                     disabled={!dashboard?.lha}
                     onClick={() => navigate('/peserta/hasil')}
-                    className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm text-white border-white/30 hover:bg-white/10 flex items-center gap-2 cursor-pointer"
+                    className={`py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm border transition-all duration-200 flex items-center gap-2 ${
+                      dashboard?.lha
+                        ? 'border-white/30 text-white hover:bg-white/10 cursor-pointer'
+                        : 'border-white/20 text-white/60 bg-white/5 cursor-not-allowed'
+                    }`}
                   >
-                    <Award className="w-4 h-4 text-emerald-600" />
+                    <Award className="w-4 h-4 text-emerald-300" />
                     <span>{dashboard?.lha ? 'Lihat LHA Resmi' : 'Menunggu Penilaian Asesor'}</span>
-                  </Button>
+                  </button>
                 </>
               ) : (
                 <>
-                  <Button
-                    variant="primary"
+                  <button
+                    type="button"
                     disabled={!profileComplete}
                     onClick={() => navigate(`/peserta/exam/${activeProgram.id}`)}
-                    className="py-3 px-6 rounded-xl font-bold text-xs sm:text-sm shadow-xs flex items-center gap-2 cursor-pointer"
+                    className="py-3 px-6 rounded-xl font-bold text-xs sm:text-sm bg-white text-primary-navy hover:bg-blue-50 shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer group disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <PlayCircle className="w-4 h-4 text-primary-navy" />
                     <span>{profileComplete ? 'Mulai Ujian CAT Sekarang (40 Soal)' : 'Lengkapi Profil untuk Memulai Ujian'}</span>
-                    <ArrowRight className="w-4 h-4 ml-1" />
-                  </Button>
-                  <Button
-                    variant="outline"
+                    <ArrowRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
+                  </button>
+                  <button
+                    type="button"
                     disabled={!profileComplete}
                     onClick={() => navigate('/peserta/device-check')}
-                    className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm text-slate-700 flex items-center gap-2 cursor-pointer"
+                    className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm text-white border border-white/30 hover:bg-white/10 transition-all duration-200 flex items-center gap-2 cursor-pointer"
                   >
-                    <Laptop className="w-4 h-4 text-primary-navy" />
+                    <Laptop className="w-4 h-4 text-white" />
                     <span>Uji Ulang Kamera &amp; Mic</span>
-                  </Button>
+                  </button>
                 </>
               )}
             </div>
           </div>
 
-          {/* Sisi Kanan (4 kolom): Docket Status Peserta & Bantuan Cepat */}
-          <div className="lg:col-span-4 bg-exam-bg rounded-2xl border border-slate-200 p-6 sm:p-8 flex flex-col justify-between shadow-2xs relative overflow-hidden">
-            <div className="space-y-5 relative">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-bold text-primary-navy uppercase tracking-wider bg-white px-2.5 py-1 rounded-md border border-slate-200">
+          {/* Sisi Kanan (lg:col-span-4): Sambungan Doket & Status dengan Warna Kontras Bersih */}
+          <div className="lg:col-span-4 bg-gradient-to-b from-[#FAFBFD] via-[#F8FAFC] to-[#F1F5F9] border-t lg:border-t-0 lg:border-l border-slate-200/90 p-6 sm:p-8 flex flex-col justify-between relative">
+            <div className="space-y-5">
+              {/* Header Sisi Kanan */}
+              <div className="flex items-center justify-between pb-3.5 border-b border-slate-200/80">
+                <span className="font-mono text-xs font-bold text-primary-navy uppercase tracking-wider bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
                   REF: {activeProgram.id}
                 </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Sesi Aktif
                 </span>
               </div>
 
-              <div className="space-y-2 text-xs text-muted-slate">
-                <div className="flex justify-between py-2.5 border-b border-slate-200/60">
-                  <span>Instansi Penguji</span>
-                  <span className="font-semibold text-ink text-right">{activeProgram.companyName}</span>
+              {/* Structured Metadata Rows */}
+              <div className="space-y-2.5">
+                <div className="p-3 rounded-xl bg-white border border-slate-200/70 shadow-2xs flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 text-primary-navy">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Instansi Penguji</p>
+                      <p className="text-xs font-bold text-slate-800 truncate">{activeProgram.companyName}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between py-2.5 border-b border-slate-200/60">
-                  <span>Nomor Peserta</span>
-                  <span className="font-mono font-bold text-ink">{dashboard?.user?.candidateCode || activeUser.id.slice(0, 8)}</span>
-                </div>
-                <div className="flex justify-between py-2.5">
-                  <span>Jadwal Wawancara</span>
-                  <span className="font-mono font-semibold text-ink text-right">
-                    {formatSchedule(interview.scheduledAt)}
-                  </span>
-                </div>
-              </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-700">Status Pengawasan</span>
-                  <span className={`text-[11px] font-semibold ${faceVerified ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {faceVerified ? 'Siap' : 'Perlu tindakan'}
-                  </span>
+                <div className="p-3 rounded-xl bg-white border border-slate-200/70 shadow-2xs flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0 text-indigo-700">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Nomor Peserta</p>
+                      <p className="text-xs font-mono font-bold text-primary-navy truncate">
+                        {dashboard?.user?.candidateCode || activeUser.id.slice(0, 8)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <CameraProctorTile compact active={Boolean(faceVerified && dashboard?.exam?.status === 'in_progress')} />
-                <p className="text-[11px] text-slate-500 leading-snug">
-                  Kamera aktif hanya saat Cek Perangkat atau sesi ujian berlangsung.
-                </p>
+
+                <div className="p-3 rounded-xl bg-white border border-slate-200/70 shadow-2xs flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0 text-amber-700">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Jadwal Wawancara</p>
+                      <p className="text-xs font-semibold text-slate-800 truncate">
+                        {formatSchedule(interview.scheduledAt)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="mt-5 pt-4 border-t border-slate-200/80 bg-white/70 rounded-xl p-3 text-xs text-slate-600 flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <p className="leading-snug">
-                Butuh bantuan teknis? Hubungi helpdesk pengawas melalui ikon bantuan di bilah atas.
-              </p>
+            {/* Bottom Support & Integrity Badge */}
+            <div className="mt-6 pt-4 border-t border-slate-200/80 space-y-2.5">
+              <div className="rounded-xl bg-emerald-50/70 border border-emerald-200/80 p-3 text-xs text-emerald-900 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-semibold text-emerald-950 text-xs">Pusat Bantuan &amp; Integritas</p>
+                  <p className="text-[11px] text-emerald-800 leading-snug">
+                    Butuh bantuan teknis? Hubungi helpdesk pengawas melalui bilah atas atau periksa kesiapan perangkat Anda.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => navigate('/peserta/device-check')}
+                className="w-full py-2 px-3 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-2xs"
+              >
+                <Laptop className="w-3.5 h-3.5 text-slate-500" />
+                <span>Uji Kesiapan Perangkat (Kamera &amp; Mic)</span>
+              </button>
             </div>
           </div>
         </div>

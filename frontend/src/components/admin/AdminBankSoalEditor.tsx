@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CheckSquare,
   Plus,
@@ -18,9 +18,11 @@ import {
   CheckCircle2,
   ShieldAlert,
   SlidersHorizontal,
-  ChevronLeft
+  ChevronLeft,
+  Layers
 } from 'lucide-react';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
+import { getAllPrograms } from '../../services/assessmentCatalog';
 import {
   Button,
   Badge,
@@ -39,6 +41,7 @@ import {
 export interface BankQuestion {
   id: string;
   type: 'Pilihan Ganda' | 'Multi-Select' | 'Isian Singkat' | 'Esai' | 'Matching';
+  programCode?: string;
   text: string;
   competency: string;
   difficulty: 'Mudah' | 'Sedang' | 'Sulit';
@@ -183,7 +186,7 @@ const INITIAL_QUESTIONS: BankQuestion[] = [
 ];
 
 export function AdminBankSoalEditor() {
-  const [viewMode, setViewMode] = useState<'table' | 'editor' | 'stats' | 'factsheet'>('table');
+  const [viewMode, setViewMode] = useState<'programs' | 'table' | 'editor' | 'stats' | 'factsheet'>('programs');
   const [filterType, setFilterType] = useState('all');
   const [filterDiff, setFilterDiff] = useState('all');
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -195,6 +198,8 @@ export function AdminBankSoalEditor() {
   const [factSheetItems, setFactSheetItems] = useState<FactSheetItem[]>(INITIAL_FACT_SHEET);
 
   // Questions state
+  const programs = useMemo(() => getAllPrograms(), []);
+  const [selectedProgramCode, setSelectedProgramCode] = useState(programs[0]?.id || 'SE-402');
   const [questions, setQuestions] = useState<BankQuestion[]>(INITIAL_QUESTIONS);
 
   useEffect(() => {
@@ -203,7 +208,14 @@ export function AdminBankSoalEditor() {
       .then((data: Record<string, any>) => {
         if (cancelled) return;
         if (Array.isArray(data.questions) && data.questions.length > 0) {
-          setQuestions(data.questions);
+          const normalized = data.questions.map((question: BankQuestion) => ({
+            ...question,
+            programCode: question.programCode || programs[0]?.id || 'SE-402'
+          }));
+          setQuestions(normalized);
+          if (normalized.some((question: BankQuestion, index: number) => question.programCode !== data.questions[index]?.programCode)) {
+            void saveMasterRecord('bank-soal', 'questions', normalized);
+          }
         } else {
           void saveMasterRecord('bank-soal', 'questions', INITIAL_QUESTIONS);
         }
@@ -248,10 +260,11 @@ export function AdminBankSoalEditor() {
     setViewMode('editor');
   };
 
-  const handleCreateNew = () => {
+  const handleCreateNew = (type: BankQuestion['type'] = 'Pilihan Ganda') => {
     const newQ: BankQuestion = {
       id: `SOAL-${Math.floor(400 + Math.random() * 500)}`,
-      type: 'Pilihan Ganda',
+      type,
+      programCode: selectedProgramCode,
       text: '',
       competency: 'System Architecture',
       difficulty: 'Sedang',
@@ -347,6 +360,7 @@ export function AdminBankSoalEditor() {
   };
 
   const filtered = questions.filter((q) => {
+    if ((q.programCode || programs[0]?.id || 'SE-402') !== selectedProgramCode) return false;
     if (filterType !== 'all' && q.type !== filterType) return false;
     if (filterDiff !== 'all' && q.difficulty !== filterDiff) return false;
     if (
@@ -359,6 +373,22 @@ export function AdminBankSoalEditor() {
     return true;
   });
 
+  const QUESTION_TYPES: BankQuestion['type'][] = ['Pilihan Ganda', 'Multi-Select', 'Isian Singkat', 'Esai', 'Matching'];
+  const typeCounts = QUESTION_TYPES.map((type) => ({
+    type,
+    count: questions.filter((question) => (question.programCode || programs[0]?.id || 'SE-402') === selectedProgramCode && question.type === type).length
+  }));
+
+  const programRows = programs.map((program) => {
+    const programQuestions = questions.filter((question) => (question.programCode || programs[0]?.id || 'SE-402') === program.id);
+    return {
+      ...program,
+      total: programQuestions.length,
+      published: programQuestions.filter((question) => question.status === 'Published').length,
+      typeCount: new Set(programQuestions.map((question) => question.type)).size
+    };
+  });
+
   return (
     <div className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs space-y-6">
       {/* View Switcher Header */}
@@ -368,7 +398,7 @@ export function AdminBankSoalEditor() {
             <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded border border-accent-border">
               BANK SOAL AI
             </span>
-            <Badge variant="navy">{questions.length} Butir Soal Terstandar</Badge>
+            <Badge variant="navy">{filtered.length} Butir Soal • {selectedProgramCode}</Badge>
           </div>
           <h2 className="text-xl font-extrabold font-heading text-ink tracking-tight mt-1">
             Repositori Bank Soal &amp; Item Analytics
@@ -376,6 +406,15 @@ export function AdminBankSoalEditor() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={viewMode === 'programs' ? 'primary' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('programs')}
+            className="text-xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Semua Program</span>
+          </Button>
           <Button
             variant={viewMode === 'table' ? 'primary' : 'outline'}
             size="sm"
@@ -387,7 +426,7 @@ export function AdminBankSoalEditor() {
           <Button
             variant={viewMode === 'editor' ? 'primary' : 'outline'}
             size="sm"
-            onClick={handleCreateNew}
+            onClick={() => handleCreateNew()}
             className="text-xs flex items-center gap-1.5 cursor-pointer"
           >
             <Edit className="w-3.5 h-3.5" />
@@ -421,136 +460,171 @@ export function AdminBankSoalEditor() {
         </div>
       )}
 
-      {/* ─── TAB 1: Tabel Soal ─── */}
-      {viewMode === 'table' && (
+      {/* ─── Program Overview ─── */}
+      {viewMode === 'programs' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="font-bold text-ink">Filter:</span>
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  placeholder="Cari kode atau teks soal..."
-                  className="pl-8 pr-3 py-1 bg-white border border-slate-300 rounded-lg text-xs outline-none"
-                />
-              </div>
-
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-semibold cursor-pointer"
-              >
-                <option value="all">Semua Tipe</option>
-                <option value="Pilihan Ganda">Pilihan Ganda</option>
-                <option value="Multi-Select">Multi-Select</option>
-                <option value="Isian Singkat">Isian Singkat</option>
-                <option value="Esai">Esai</option>
-                <option value="Matching">Matching</option>
-              </select>
-
-              <select
-                value={filterDiff}
-                onChange={(e) => setFilterDiff(e.target.value)}
-                className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-semibold cursor-pointer"
-              >
-                <option value="all">Semua Kesulitan</option>
-                <option value="Mudah">Mudah</option>
-                <option value="Sedang">Sedang</option>
-                <option value="Sulit">Sulit</option>
-              </select>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-ink">Bank Soal per Program Asesmen</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Pilih program untuk melihat dan mengelola butir soal CAT.</p>
             </div>
-
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleCreateNew}
-              className="text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Tambah Butir Soal</span>
-            </Button>
+            <Badge variant="navy">{programRows.reduce((sum, program) => sum + program.total, 0)} Total Soal</Badge>
           </div>
-
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50">
                   <TableHead className="w-24">Kode</TableHead>
-                  <TableHead>Teks soal</TableHead>
-                  <TableHead className="w-28">Tipe</TableHead>
-                  <TableHead className="w-40">Kompetensi</TableHead>
-                  <TableHead className="w-24">Tingkat</TableHead>
-                  <TableHead className="w-24">P-value</TableHead>
-                  <TableHead className="w-24">Status</TableHead>
-                  <TableHead className="w-28 text-right">Aksi</TableHead>
+                  <TableHead>Program Asesmen</TableHead>
+                  <TableHead className="w-28 text-center">Jumlah Soal</TableHead>
+                  <TableHead className="w-28 text-center">Tipe Soal</TableHead>
+                  <TableHead className="w-28 text-center">Published</TableHead>
+                  <TableHead className="w-32 text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((q) => (
-                  <TableRow key={q.id} className="hover:bg-slate-50/50">
-                    <TableCell className="font-mono font-bold text-primary-navy text-xs">{q.id}</TableCell>
-                    <TableCell className="max-w-xs truncate text-ink font-medium text-xs" title={q.text}>
-                      {q.text}
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-700">{q.type}</TableCell>
-                    <TableCell className="text-sm text-slate-600"><span className="block max-w-[180px] truncate" title={q.competency}>{q.competency}</span></TableCell>
+                {programRows.map((program) => (
+                  <TableRow key={program.id}>
+                    <TableCell className="font-mono text-xs font-bold text-primary-navy">{program.id}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={q.difficulty === 'Sulit' ? 'danger' : q.difficulty === 'Sedang' ? 'warning' : 'success'}
-                        format="soft"
-                        className="text-[11px]"
-                      >
-                        {q.difficulty}
-                      </Badge>
+                      <p className="text-sm font-semibold text-slate-800">{program.title}</p>
+                      <p className="text-[11px] text-slate-500">{program.companyName}</p>
                     </TableCell>
-                    <TableCell className="font-mono text-sm text-slate-700">{Number.isFinite(Number(q.pValue)) ? Number(q.pValue).toFixed(2) : '—'}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={q.status === 'Published' ? 'success' : q.status === 'Review' ? 'warning' : 'neutral'}
-                        format="soft"
-                        className="text-[11px]"
-                      >
-                        {q.status}
-                      </Badge>
-                    </TableCell>
+                    <TableCell className="text-center font-mono font-bold text-slate-700">{program.total}</TableCell>
+                    <TableCell className="text-center text-sm text-slate-600">{program.typeCount}</TableCell>
+                    <TableCell className="text-center text-sm text-emerald-700 font-semibold">{program.published}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleStats(q)}
-                          title="Statistik Butir Soal"
-                          className="cursor-pointer"
-                        >
-                          <BarChart3 className="w-4 h-4 text-slate-500 hover:text-blue-600" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(q)}
-                          title="Edit Soal"
-                          className="cursor-pointer"
-                        >
-                          <Edit className="w-4 h-4 text-slate-500 hover:text-primary-navy" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteQuestion(q.id)}
-                          title="Hapus Soal"
-                          className="cursor-pointer text-slate-400 hover:text-red-600"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => { setSelectedProgramCode(program.id); setViewMode('table'); }}
+                        className="text-xs"
+                      >
+                        Kelola Soal
+                        <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+          </div>
+        </div>
+      )}
+
+      {/* ─── TAB 1: Tabel Soal ─── */}
+      {viewMode === 'table' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                <Button variant="ghost" size="sm" onClick={() => setViewMode('programs')} className="text-xs self-start sm:self-auto">
+                  <ChevronLeft className="w-3.5 h-3.5 mr-1" />
+                  Semua Program
+                </Button>
+                <div className="min-w-0">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Program Asesmen</label>
+                  <select value={selectedProgramCode} onChange={(e) => setSelectedProgramCode(e.target.value)} className="w-full sm:w-[340px] px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700">
+                    {programs.map((program) => (
+                      <option key={program.id} value={program.id}>[{program.id}] {program.title}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <Button variant="primary" size="sm" onClick={() => handleCreateNew()} className="text-xs flex items-center gap-1.5 cursor-pointer shadow-xs">
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tambah Butir Soal</span>
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Pencarian</label>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="Cari kode atau teks soal..." className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Tipe Soal</label>
+                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold cursor-pointer">
+                  <option value="all">Semua Tipe</option>
+                  <option value="Pilihan Ganda">Pilihan Ganda</option>
+                  <option value="Multi-Select">Multi-Select</option>
+                  <option value="Isian Singkat">Isian Singkat</option>
+                  <option value="Esai">Esai</option>
+                  <option value="Matching">Matching</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Kesulitan</label>
+                <select value={filterDiff} onChange={(e) => setFilterDiff(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold cursor-pointer">
+                  <option value="all">Semua Kesulitan</option>
+                  <option value="Mudah">Mudah</option>
+                  <option value="Sedang">Sedang</option>
+                  <option value="Sulit">Sulit</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <h3 className="text-sm font-bold text-ink">Konfigurasi Tipe Soal</h3>
+              <p className="text-[11px] text-slate-500">Klik tipe untuk memfilter; tombol + menambah soal langsung pada tipe tersebut.</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {typeCounts.map(({ type, count }) => (
+                <div key={type} className={`rounded-xl border p-3 space-y-2 ${filterType === type ? 'border-primary-navy bg-soft-blue' : 'border-slate-200 bg-slate-50/60'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <button type="button" onClick={() => setFilterType(filterType === type ? 'all' : type)} className="text-left cursor-pointer min-w-0">
+                      <span className="block text-xs font-bold text-slate-800 truncate">{type}</span>
+                      <span className="block font-mono text-lg font-extrabold text-primary-navy mt-0.5">{count}</span>
+                    </button>
+                    <button type="button" onClick={() => handleCreateNew(type)} className="w-7 h-7 rounded-lg bg-primary-navy text-white flex items-center justify-center hover:bg-navy-dark cursor-pointer shrink-0" title={`Tambah soal ${type}`}>
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500">soal tersimpan</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {filtered.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-xs text-slate-500">
+                Belum ada soal untuk filter ini. Gunakan tombol + pada konfigurasi tipe soal.
+              </div>
+            ) : filtered.map((q, index) => (
+              <div key={q.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="w-8 h-8 rounded-lg bg-primary-navy text-white flex items-center justify-center font-mono font-bold text-xs">{index + 1}</span>
+                    <Badge variant="navy" format="soft">{q.type}</Badge>
+                    <Badge variant={q.difficulty === 'Sulit' ? 'danger' : q.difficulty === 'Sedang' ? 'warning' : 'success'} format="soft">{q.difficulty}</Badge>
+                    <Badge variant={q.status === 'Published' ? 'success' : q.status === 'Review' ? 'warning' : 'neutral'} format="soft">{q.status}</Badge>
+                  </div>
+                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                    <Button variant="ghost" size="icon" onClick={() => handleStats(q)} title="Statistik Butir Soal" className="cursor-pointer">
+                      <BarChart3 className="w-4 h-4 text-slate-500 hover:text-blue-600" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(q)} title="Edit Soal" className="cursor-pointer">
+                      <Edit className="w-4 h-4 text-slate-500 hover:text-primary-navy" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id)} title="Hapus Soal" className="cursor-pointer text-slate-400 hover:text-red-600">
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-slate-800 leading-relaxed">{q.text || '(Teks soal belum diisi)'}</p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
+                  <span className="font-mono">{q.id}</span>
+                  <span>Kompetensi: <strong className="text-slate-700">{q.competency}</strong></span>
+                  <span>P-value: <strong className="font-mono text-slate-700">{Number.isFinite(Number(q.pValue)) ? Number(q.pValue).toFixed(2) : '—'}</strong></span>
+                  {q.options.length > 0 && <span>{q.options.length} opsi</span>}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

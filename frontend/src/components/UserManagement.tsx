@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
-  KeyRound,
   RefreshCw,
   Building2,
   GraduationCap,
@@ -61,6 +60,7 @@ interface Admin {
 export default function UserManagement() {
   // Navigation Tabs: 'peserta' | 'asesor' | 'admin'
   const [activeTab, setActiveTab] = useState<'peserta' | 'asesor' | 'admin'>('peserta');
+  const isSuperadmin = localStorage.getItem('adminRole') === 'superadmin';
 
   // ──────────────────────────────────────────────
   // TAB 1: Peserta (Candidates) State
@@ -74,6 +74,7 @@ export default function UserManagement() {
 
   // Modal: Add Peserta
   const [showAddPesertaModal, setShowAddPesertaModal] = useState(false);
+  const [editingPesertaId, setEditingPesertaId] = useState<string | null>(null);
   const [pesertaFormName, setPesertaFormName] = useState('');
   const [pesertaFormUsername, setPesertaFormUsername] = useState('');
   const [pesertaFormPassword, setPesertaFormPassword] = useState('peserta123');
@@ -231,6 +232,20 @@ export default function UserManagement() {
   // ──────────────────────────────────────────────
   // Handlers for Peserta
   // ──────────────────────────────────────────────
+  const handleEditPeserta = (peserta: PesertaUser) => {
+    setEditingPesertaId(peserta.id);
+    setPesertaFormName(peserta.name);
+    setPesertaFormUsername(peserta.username);
+    setPesertaFormPassword('');
+    setPesertaFormPhone(peserta.phone || '');
+    setPesertaFormCompanyId(peserta.companyId || COMPANIES_CATALOG[0].id);
+    setPesertaFormAssessmentId(peserta.assessmentId || '');
+    setPesertaFormGrade(peserta.gradeLevel as any);
+    setPesertaFormDate(peserta.scheduleDate || new Date().toISOString().split('T')[0]);
+    setPesertaFormError('');
+    setShowAddPesertaModal(true);
+  };
+
   const handleCreatePeserta = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pesertaFormName.trim() || !pesertaFormUsername.trim()) {
@@ -242,21 +257,32 @@ export default function UserManagement() {
       const token = localStorage.getItem('adminToken');
       const program = getAllPrograms().find((item) => item.id === pesertaFormAssessmentId);
       const company = COMPANIES_CATALOG.find((item) => item.id === pesertaFormCompanyId);
-      await axios.post('/api/admin/portal-users', {
+      const payload: Record<string, unknown> = {
         name: pesertaFormName,
-        email: pesertaFormUsername,
-        password: pesertaFormPassword,
         phone: pesertaFormPhone,
-        role: 'peserta',
         companyId: pesertaFormCompanyId,
         companyName: company?.name,
         assessmentId: pesertaFormAssessmentId,
         assessmentTitle: program?.title,
         gradeLevel: pesertaFormGrade
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      };
+      if (pesertaFormPassword.trim()) payload.password = pesertaFormPassword;
+      if (editingPesertaId) {
+        await axios.put(`/api/admin/portal-users/${editingPesertaId}`, payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        await axios.post('/api/admin/portal-users', {
+          ...payload,
+          email: pesertaFormUsername,
+          password: pesertaFormPassword || 'peserta123',
+          role: 'peserta'
+        }, { headers: { Authorization: `Bearer ${token}` } });
+      }
 
       await loadPeserta();
       setShowAddPesertaModal(false);
+      setEditingPesertaId(null);
 
       // Reset form
       setPesertaFormName('');
@@ -267,8 +293,10 @@ export default function UserManagement() {
 
       Swal.fire({
         icon: 'success',
-        title: 'Akun Peserta Diterbitkan!',
-        html: `Akun <b>${pesertaFormUsername}</b> berhasil didaftarkan dan dialokasikan ke program asesmen CAT 40 Soal.`,
+        title: editingPesertaId ? 'Data Peserta Diperbarui!' : 'Akun Peserta Diterbitkan!',
+        html: editingPesertaId
+          ? `Data <b>${pesertaFormName}</b> berhasil diperbarui.`
+          : `Akun <b>${pesertaFormUsername}</b> berhasil didaftarkan dan dialokasikan ke program asesmen CAT 40 Soal.`,
         timer: 2500,
         showConfirmButton: false
       });
@@ -352,37 +380,6 @@ export default function UserManagement() {
         showConfirmButton: false
       });
     }
-  };
-
-  const handleResetPasswordPeserta = (peserta: PesertaUser) => {
-    Swal.fire({
-      title: 'Reset Kata Sandi Peserta',
-      input: 'text',
-      inputLabel: `Kata sandi baru untuk ${peserta.name}:`,
-      inputValue: 'peserta123',
-      showCancelButton: true,
-      confirmButtonText: 'Simpan Sandi Baru',
-      cancelButtonText: 'Batal',
-      confirmButtonColor: '#1E3A8A',
-      inputValidator: (value) => {
-        if (!value || value.length < 6) {
-          return 'Kata sandi minimal 6 karakter!';
-        }
-      }
-    }).then(async (result) => {
-      if (result.isConfirmed && result.value) {
-        try {
-          const token = localStorage.getItem('adminToken');
-          await axios.put(`/api/admin/portal-users/${peserta.id}`, { password: result.value }, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          await loadPeserta();
-          Swal.fire('Berhasil!', 'Kata sandi peserta telah diperbarui.', 'success');
-        } catch (error: any) {
-          Swal.fire('Gagal', error.response?.data?.error || 'Kata sandi gagal diperbarui.', 'error');
-        }
-      }
-    });
   };
 
   // ──────────────────────────────────────────────
@@ -624,7 +621,7 @@ export default function UserManagement() {
     <div className="space-y-6 font-sans">
       {/* ─── Top Main Tab Bar ─── */}
       <div className="bg-white border border-slate-200/80 rounded-2xl p-2 shadow-xs">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className={`grid grid-cols-1 ${isSuperadmin ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-2`}>
           <button
             onClick={() => setActiveTab('peserta')}
             className={`flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
@@ -663,6 +660,7 @@ export default function UserManagement() {
             </span>
           </button>
 
+          {isSuperadmin && (
           <button
             onClick={() => setActiveTab('admin')}
             className={`flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
@@ -681,6 +679,7 @@ export default function UserManagement() {
               {admins.length}
             </span>
           </button>
+          )}
         </div>
       </div>
 
@@ -918,11 +917,11 @@ export default function UserManagement() {
                           <Button
                             variant="secondary"
                             size="xs"
-                            onClick={() => handleResetPasswordPeserta(p)}
-                            leftIcon={<KeyRound className="w-3 h-3" />}
-                            title="Reset Kata Sandi"
+                            onClick={() => handleEditPeserta(p)}
+                            leftIcon={<Edit2 className="w-3 h-3" />}
+                            title="Edit Data Peserta"
                           >
-                            Reset Sandi
+                            Edit
                           </Button>
                           <Button
                             variant="danger"
@@ -945,9 +944,9 @@ export default function UserManagement() {
           {/* Modal: Daftarkan Akun Peserta Baru */}
           <Modal
             isOpen={showAddPesertaModal}
-            onClose={() => setShowAddPesertaModal(false)}
-            title="Daftarkan Akun Peserta & Alokasikan Asesmen"
-            description="Buat akun login kandidat dan tentukan perusahaan (PT) serta jenis asesmen dengan grade soal yang sesuai."
+            onClose={() => { setShowAddPesertaModal(false); setEditingPesertaId(null); }}
+            title={editingPesertaId ? "Edit Data Peserta & Alokasi Asesmen" : "Daftarkan Akun Peserta & Alokasikan Asesmen"}
+            description={editingPesertaId ? "Perbarui data peserta, perusahaan, program asesmen, dan grade soal." : "Buat akun login kandidat dan tentukan perusahaan (PT) serta jenis asesmen dengan grade soal yang sesuai."}
             size="lg"
           >
             <form onSubmit={handleCreatePeserta} className="space-y-4 font-sans text-xs">
@@ -980,11 +979,13 @@ export default function UserManagement() {
                   <input
                     type="text"
                     required
+                    disabled={Boolean(editingPesertaId)}
                     placeholder="Contoh: rian@kandidat.id"
                     value={pesertaFormUsername}
                     onChange={(e) => setPesertaFormUsername(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy disabled:bg-slate-50 disabled:text-slate-500"
                   />
+                  {editingPesertaId && <span className="text-[10px] text-slate-400 mt-1 block">Email login tidak dapat diubah.</span>}
                 </div>
               </div>
 
@@ -1000,7 +1001,7 @@ export default function UserManagement() {
                     onChange={(e) => setPesertaFormPassword(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy font-mono"
                   />
-                  <span className="text-[10px] text-slate-400 mt-1 block">Default: peserta123</span>
+                  <span className="text-[10px] text-slate-400 mt-1 block">{editingPesertaId ? 'Kosongkan jika tidak ingin mengganti kata sandi.' : 'Default: peserta123'}</span>
                 </div>
 
                 <div>
@@ -1107,12 +1108,12 @@ export default function UserManagement() {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => setShowAddPesertaModal(false)}
+                  onClick={() => { setShowAddPesertaModal(false); setEditingPesertaId(null); }}
                 >
                   Batal
                 </Button>
                 <Button type="submit" variant="primary">
-                  Daftarkan & Terbitkan Akun
+                  {editingPesertaId ? 'Simpan Perubahan' : 'Daftarkan & Terbitkan Akun'}
                 </Button>
               </div>
             </form>

@@ -120,7 +120,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'sistem',
     label: 'SISTEM & KEAMANAN',
     items: [
-      { key: 'users', label: 'Pengguna & Hak Akses', icon: UserCheck, superadminOnly: true },
+      { key: 'users', label: 'Pengguna & Hak Akses', icon: UserCheck },
       { key: 'ai-config', label: 'Konfigurasi Sistem & AI', icon: Sliders, superadminOnly: true },
       { key: 'audit-logs', label: 'Log Audit & Keamanan', icon: Clock, superadminOnly: true },
       { key: 'help', label: 'Pusat Bantuan & Panduan', icon: HelpCircle },

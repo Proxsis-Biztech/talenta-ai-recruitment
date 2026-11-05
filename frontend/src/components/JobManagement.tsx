@@ -3,7 +3,7 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 import { 
   Trash2, Briefcase, Plus, Edit2, AlertCircle, Clock, 
-  Target, Search, RefreshCw, Sparkles, Building2,
+  Target, Search, RefreshCw, Building2,
   BookOpen, Layers, CheckCircle2, Eye, HelpCircle, Check, 
   X, Filter, SlidersHorizontal, ListOrdered, Award, ShieldCheck, 
   ChevronRight, FileText
@@ -117,7 +117,6 @@ export default function JobManagement() {
   const [editingMatId, setEditingMatId] = useState<string | null>(null);
   const [editQSearch, setEditQSearch] = useState('');
 
-  const [syncLoading, setSyncLoading] = useState(false);
 
   // Details Modal State (Soal, Materi, Rubrik)
   const [selectedJobDetail, setSelectedJobDetail] = useState<{
@@ -242,44 +241,6 @@ export default function JobManagement() {
       setLoading(false);
     }
   }, []);
-
-  const handleSyncCatalog = async () => {
-    setSyncLoading(true);
-    try {
-      const token = localStorage.getItem('adminToken');
-      for (const p of DEFAULT_ASSESSMENT_PROGRAMS) {
-        try {
-          await axios.post(
-            '/api/admin/jobs',
-            {
-              title: `${p.title} (${p.companyName})`,
-              description: p.description,
-              status: 'active',
-              interviewDuration: p.durationMinutes,
-              interviewPassingScore: p.passingScore
-            },
-            {
-              headers: { Authorization: `Bearer ${token}` }
-            }
-          );
-        } catch {
-          // ignore duplicate
-        }
-      }
-      Swal.fire({
-        icon: 'success',
-        title: 'Program Asesmen Disinkronkan',
-        text: 'Seluruh 11 formasi lowongan terstandar berhasil dimuat ke database.',
-        timer: 2000,
-        showConfirmButton: false
-      });
-      fetchJobs();
-    } catch {
-      fetchJobs();
-    } finally {
-      setSyncLoading(false);
-    }
-  };
 
   useEffect(() => {
     fetchJobs();
@@ -651,17 +612,7 @@ export default function JobManagement() {
           >
             Segarkan
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSyncCatalog}
-            disabled={syncLoading}
-            title="Sinkronkan seluruh 11 program asesmen default ke database"
-            leftIcon={<Sparkles className={`w-3.5 h-3.5 text-blue-600 ${syncLoading ? 'animate-spin' : ''}`} />}
-            className="text-xs font-semibold"
-          >
-            {syncLoading ? 'Menyinkronkan...' : 'Sinkronkan 11 Program'}
-          </Button>
+          <span className="hidden xl:inline text-[11px] text-slate-500">11 program default tersimpan otomatis di database</span>
           <Button
             variant="primary"
             size="sm"

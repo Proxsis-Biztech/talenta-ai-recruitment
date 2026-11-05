@@ -136,6 +136,29 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
           }
         });
 
+    const candidateUser = await prisma.portalUser.findFirst({
+      where: { candidateCode, role: 'peserta' },
+      select: { id: true, email: true }
+    });
+    if (candidateUser) {
+      await prisma.portalUser.update({
+        where: { id: candidateUser.id },
+        data: {
+          interviewScore: compositeScore,
+          interviewStatus: 'completed',
+          interviewCompletedAt: new Date()
+        }
+      });
+      await prisma.applicant.updateMany({
+        where: { email: candidateUser.email },
+        data: {
+          interviewScore: Math.round(compositeScore),
+          interviewStatus: 'scored',
+          interviewResult: `Rekomendasi asesor: ${recommendation}`
+        }
+      });
+    }
+
     return res.status(existing ? 200 : 201).json({ data: serializeScore(score) });
   } catch (error) {
     console.error('Upsert assessor score error:', error);

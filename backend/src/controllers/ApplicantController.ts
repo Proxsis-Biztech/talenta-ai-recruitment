@@ -3,6 +3,7 @@ import { type AuthRequest } from '../middleware/auth';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '../middleware/auth';
 import { resolveAdminTenantId } from '../middleware/tenant';
+import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import path from 'path';
@@ -155,6 +156,11 @@ export const getApplicants = async (req: Request, res: Response) => {
     const count = await prisma.applicant.count();
     if (count === 0) {
       await bootstrapDatabaseSeed();
+    }
+
+    const portalUserRecords = await prisma.portalUser.findMany({ where: { role: 'peserta' }, select: { id: true } });
+    for (const portalUser of portalUserRecords) {
+      await ensureApplicantForPortalUser(portalUser.id);
     }
 
     const page = parseInt(req.query.page as string) || 1;
@@ -440,6 +446,11 @@ export const saveInterview = async (req: Request, res: Response) => {
     // Limit transcript size to prevent abuse (max ~500KB)
     if (typeof transcript !== 'string' || transcript.length > 500000) {
       return res.status(400).json({ error: 'Transkrip terlalu besar. Maksimal 500KB.' });
+    }
+
+    const portalUser = await prisma.portalUser.findUnique({ where: { email } });
+    if (portalUser) {
+      await ensureApplicantForPortalUser(portalUser.id);
     }
 
     const applicant = await prisma.applicant.findUnique({

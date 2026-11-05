@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { type AuthRequest, getJwtSecret } from '../middleware/auth';
 import { resolveAdminTenantId } from '../middleware/tenant';
+import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
 
 const prisma = new PrismaClient();
 
@@ -180,6 +181,7 @@ export const registerPeserta = async (req: AuthRequest, res: Response) => {
       select: userSelect
     });
 
+    await ensureApplicantForPortalUser(user.id);
     return res.status(201).json({ token: signPortalToken(user), user });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -292,6 +294,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       data,
       select: userSelect
     });
+    await ensureApplicantForPortalUser(user.id);
     return res.json({ user });
   } catch (error) {
     console.error('Update portal profile error:', error);
@@ -371,6 +374,7 @@ export const completeOnboarding = async (req: AuthRequest, res: Response) => {
       select: userSelect
     });
 
+    await ensureApplicantForPortalUser(updated.id);
     return res.json({ user: updated, requiresOnboarding: false });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -569,6 +573,7 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
       },
       select: userSelect
     });
+    if (role === 'peserta') await ensureApplicantForPortalUser(user.id);
     return res.status(201).json({ data: user });
   } catch (error) {
     if (error instanceof z.ZodError) {
