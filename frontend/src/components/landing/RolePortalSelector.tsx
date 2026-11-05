@@ -107,17 +107,10 @@ export default function RolePortalSelector() {
       {/* ─── Top Brand Navbar ─── */}
       <header className="h-20 bg-white border-b border-border-slate px-6 lg:px-12 flex items-center justify-between shadow-2xs sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary-navy flex items-center justify-center text-white font-bold text-xl shadow-2xs font-heading">
-            T
-          </div>
+          <div className="w-10 h-10 rounded-xl bg-primary-navy flex items-center justify-center text-white font-bold text-xl shadow-2xs font-heading">R</div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-heading font-extrabold text-xl text-ink tracking-tight">
-                Talenta
-              </span>
-              <span className="font-heading font-extrabold text-xl text-blue-accent">
-                +
-              </span>
+              <span className="font-heading font-extrabold text-xl text-ink tracking-tight">Right</span>
               <span className="hidden sm:inline text-[10px] font-mono font-semibold uppercase tracking-wider bg-soft-blue text-primary-navy px-2 py-0.5 rounded-full ml-1 border border-accent-border">
                 Assessment Engine
               </span>
@@ -176,7 +169,7 @@ export default function RolePortalSelector() {
                 <span className="text-primary-navy">peran Anda</span>, lanjutkan tanpa friksi.
               </h1>
               <p className="mt-6 text-base sm:text-lg text-muted-slate leading-relaxed max-w-xl">
-                Talenta+ mengintegrasikan ekosistem evaluasi terpadu — peserta, asesor, dan
+                Right mengintegrasikan ekosistem evaluasi terpadu — peserta, asesor, dan
                 administrator berbagi satu pipeline data yang sama, dari pendaftaran hingga
                 rekomendasi akhir.
               </p>
@@ -437,10 +430,10 @@ export default function RolePortalSelector() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-5 max-w-7xl mx-auto">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-primary-navy flex items-center justify-center text-white font-bold text-xs font-heading">
-              T
+R
             </div>
             <p className="text-xs text-muted-slate">
-              © 2026 Talenta+ Assessment Platform. Seluruh hak cipta dilindungi.
+              © 2026 Right Assessment Platform. Seluruh hak cipta dilindungi.
             </p>
           </div>
           <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs">

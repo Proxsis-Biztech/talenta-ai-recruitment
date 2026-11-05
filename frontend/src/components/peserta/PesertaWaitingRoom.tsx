@@ -32,7 +32,7 @@ export default function PesertaWaitingRoom() {
   const [countdown, setCountdown] = useState(0);
   const [scheduledAt, setScheduledAt] = useState<string | null>(null);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
-  const [assessorName, setAssessorName] = useState('Tim Asesor Talenta+');
+  const [assessorName, setAssessorName] = useState('Tim Asesor Right');
   const [isReady, setIsReady] = useState(false);
   const [activeTab, setActiveTab] = useState<'tips' | 'rubrik' | 'perangkat'>('tips');
   const [catEligible, setCatEligible] = useState(false);
@@ -65,7 +65,7 @@ export default function PesertaWaitingRoom() {
             const interview = dashboardResponse.data?.interview;
             setScheduledAt(interview?.scheduledAt || null);
             setQueuePosition(interview?.queuePosition || null);
-            setAssessorName(interview?.assessorName || 'Tim Asesor Talenta+');
+            setAssessorName(interview?.assessorName || 'Tim Asesor Right');
           }
         } catch {
           if (!cancelled) setScheduledAt(null);
@@ -151,7 +151,7 @@ export default function PesertaWaitingRoom() {
       osc.stop(ctx.currentTime + 0.4);
     } catch {}
     return () => {
-      document.title = 'Ruang Tunggu Wawancara | Talenta+';
+      document.title = 'Ruang Tunggu Wawancara | Right';
     };
   }, [queueState?.status]);
 

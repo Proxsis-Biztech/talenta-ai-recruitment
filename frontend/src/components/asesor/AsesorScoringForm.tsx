@@ -315,7 +315,7 @@ export default function AsesorScoringForm() {
 <p><strong>Rekomendasi Dewan Asesor:</strong> ${recommendation}<br/>
 <strong>Skor Komposit (1-5):</strong> ${weightedOverallScore}</p>
 <p class="meta">Diverifikasi oleh: ${assessorName} — ${assessorTitle}<br/>Tanggal: ${formatToday()}<br/>Hash SHA-256: ${lhaHash}</p>
-<p class="meta">Dokumen ini dihasilkan oleh Talenta+ Assessment Center Enterprise.</p>
+<p class="meta">Dokumen ini dihasilkan oleh Right Assessment Center Enterprise.</p>
 </body></html>`;
     const printWindow = window.open('', '_blank');
     if (!printWindow) {

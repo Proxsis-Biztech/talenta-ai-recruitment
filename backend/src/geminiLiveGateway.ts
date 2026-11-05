@@ -205,7 +205,7 @@ export const registerGeminiLiveGateway = (server: HttpServer) => {
               }
             }
           },
-          systemInstruction: `Anda adalah pewawancara AI profesional bernama Ava dari platform asesmen Talenta+.
+          systemInstruction: `Anda adalah pewawancara AI profesional bernama Ava dari platform asesmen Right.
 Format Wawancara: Wawancara interaktif tatap muka 1-on-1 bersama kandidat bernama ${candidateName}.
 - Berbicaralah dalam Bahasa Indonesia yang alami, santun, hangat, dan profesional.
 - Selalu berbicara sebagai orang pertama tunggal "saya", dan sapa kandidat dengan namanya (${candidateName}).

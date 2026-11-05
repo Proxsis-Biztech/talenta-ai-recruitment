@@ -131,9 +131,9 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
             <button
               onClick={toggleCollapse}
               className="w-10 h-10 rounded-xl bg-primary-navy hover:bg-navy-dark flex items-center justify-center text-white font-extrabold text-xl shadow-xs cursor-pointer transition-transform hover:scale-105 group relative font-heading"
-              title="Perluas Sidebar (Talenta+ Asesor)"
+              title="Perluas Sidebar (Right Asesor)"
             >
-              <span>T</span>
+              <span>R</span>
               <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
                 Perluas Sidebar
               </span>
@@ -145,12 +145,12 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                 className="flex items-center gap-3 min-w-0 cursor-pointer group"
               >
                 <div className="w-9 h-9 rounded-xl bg-primary-navy text-white flex items-center justify-center font-extrabold text-lg shadow-xs shrink-0 group-hover:bg-blue-accent transition-colors font-heading">
-                  T
+R
                 </div>
                 <div className="flex flex-col truncate">
                   <div className="flex items-center gap-1.5">
                     <span className="text-base font-bold font-heading tracking-tight text-ink">
-                      Talenta<span className="text-blue-accent">+</span>
+                      Right
                     </span>
                     <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-900 px-1.5 py-0.2 rounded border border-amber-200">
                       Asesor
@@ -328,7 +328,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
 
             {/* Breadcrumb Info */}
             <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-slate truncate">
-              <span className="font-semibold text-slate-500">Talenta+</span>
+              <span className="font-semibold text-slate-500">Right</span>
               <span className="text-slate-300">/</span>
               <span className="text-slate-500">Asesor</span>
               <span className="text-slate-300">/</span>

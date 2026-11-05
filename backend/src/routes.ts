@@ -27,6 +27,7 @@ import { getProctoringReviews, upsertProctoringReview } from './controllers/Proc
 import { getInterviewQuestions } from './controllers/InterviewController';
 import { getWaitingRoomStatus, completeAndCallNext } from './controllers/InterviewQueueController';
 import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
+import { listTenants } from './controllers/TenantController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
 import { uploadExcel, downloadPortalUserTemplate, importPortalUsers } from './controllers/BulkImportController';
 import { runFactSheetMatching } from './services/factSheetService';
@@ -121,16 +122,18 @@ router.get('/admin/access-codes', authenticateToken, listAccessCodes);
 router.post('/admin/access-codes', authenticateToken, createAccessCode);
 router.put('/admin/access-codes/:code', authenticateToken, updateAccessCode);
 
+router.get('/admin/tenants', authenticateToken, listTenants);
+
 // Current admin session
 router.get('/admin/me', authenticateToken, getCurrentAdmin);
 
 // Portal user management (peserta & asesor accounts)
 router.get('/admin/portal-users/template', authenticateToken, requireSuperadmin, downloadPortalUserTemplate);
 router.post('/admin/portal-users/import', authenticateToken, requireSuperadmin, uploadExcel, importPortalUsers);
-router.get('/admin/portal-users', authenticateToken, requireSuperadmin, listPortalUsers);
-router.post('/admin/portal-users', authenticateToken, requireSuperadmin, createPortalUser);
-router.put('/admin/portal-users/:id', authenticateToken, requireSuperadmin, updatePortalUser);
-router.delete('/admin/portal-users/:id', authenticateToken, requireSuperadmin, deletePortalUser);
+router.get('/admin/portal-users', authenticateToken, listPortalUsers);
+router.post('/admin/portal-users', authenticateToken, createPortalUser);
+router.put('/admin/portal-users/:id', authenticateToken, updatePortalUser);
+router.delete('/admin/portal-users/:id', authenticateToken, deletePortalUser);
 
 router.get('/asesor/proctoring/:candidateCode', authenticatePortal, requirePortalRole('asesor'), getProctoringReviews);
 router.put('/asesor/proctoring/:candidateCode/:eventId', authenticatePortal, requirePortalRole('asesor'), upsertProctoringReview);

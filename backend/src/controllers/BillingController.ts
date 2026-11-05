@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
+import { type AuthRequest } from '../middleware/auth';
+import { resolveAdminTenantId } from '../middleware/tenant';
 
 const prisma = new PrismaClient();
 
@@ -241,12 +243,19 @@ const ensureBillingSeeded = async () => {
   }
 };
 
-export const getBillingOverview = async (req: Request, res: Response) => {
+export const getBillingOverview = async (req: AuthRequest, res: Response) => {
   try {
     await ensureBillingSeeded();
+    const scopedTenantId = resolveAdminTenantId(req);
+    const scopedTenant = scopedTenantId
+      ? await prisma.tenant.findUnique({ where: { id: scopedTenantId }, select: { code: true } })
+      : null;
     const tenantId = (req.query.tenantId as string) || 't-cimb';
-    const tenants = await prisma.billingTenant.findMany({ orderBy: { code: 'asc' } });
-    const tenant = tenants.find((item) => item.id === tenantId) || tenants[0];
+    const tenants = await prisma.billingTenant.findMany({
+      where: scopedTenant?.code ? { code: { contains: scopedTenant.code } } : {},
+      orderBy: { code: 'asc' }
+    });
+    const tenant = scopedTenant ? tenants[0] : tenants.find((item) => item.id === tenantId) || tenants[0];
     if (!tenant) return res.status(404).json({ error: 'Tenant billing tidak ditemukan' });
 
     const invoices = await prisma.billingInvoice.findMany({

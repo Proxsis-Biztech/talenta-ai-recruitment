@@ -74,7 +74,7 @@ const Loader = () => (
         T
       </div>
       <div className="w-6 h-6 border-2 border-primary-navy border-t-transparent rounded-full animate-spin" />
-      <span className="text-xs font-mono text-muted-slate">Memuat Talenta+ Engine...</span>
+      <span className="text-xs font-mono text-muted-slate">Memuat Right Engine...</span>
     </div>
   </div>
 );

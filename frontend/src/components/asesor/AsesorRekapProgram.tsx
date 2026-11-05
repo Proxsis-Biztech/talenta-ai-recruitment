@@ -15,11 +15,11 @@ import {
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
 import {
-  CANDIDATE_DIRECTORY,
+  getCandidatesForTenant,
   calculateCompositeScore,
   formatToday
 } from '../../services/asesorScoreService';
-import { getPortalToken } from '../../services/portalAuthService';
+import { getPortalToken, getPortalUser } from '../../services/portalAuthService';
 
 export default function AsesorRekapProgram() {
   const navigate = useNavigate();
@@ -53,7 +53,7 @@ export default function AsesorRekapProgram() {
     };
   }, []);
 
-  const candidates = CANDIDATE_DIRECTORY.map((c) => {
+  const candidates = getCandidatesForTenant(getPortalUser()?.companyName).map((c) => {
     const saved = savedScores[c.code];
     return {
       id: c.code,

@@ -186,7 +186,7 @@ export default function AsesorLiveConsole() {
       <header className="h-16 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold font-heading">
-            T+
+            R
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-tight">

@@ -30,7 +30,7 @@ export const login = async (req: AuthRequest, res: Response) => {
     }
 
     const token = jwt.sign(
-      { id: admin.id, username: admin.username, role: admin.role, type: 'admin' },
+      { id: admin.id, username: admin.username, role: admin.role, tenantId: admin.tenantId, type: 'admin' },
       getJwtSecret(),
       { expiresIn: '1d' }
     );
@@ -59,7 +59,7 @@ export const me = async (req: AuthRequest, res: Response) => {
     }
     const admin = await prisma.admin.findFirst({
       where: { username: req.user.username },
-      select: { id: true, username: true, role: true, createdAt: true }
+      select: { id: true, username: true, role: true, tenantId: true, tenant: { select: { id: true, code: true, name: true } }, createdAt: true }
     });
     if (!admin) {
       return res.status(404).json({ error: 'Akun admin tidak ditemukan' });
@@ -74,7 +74,7 @@ export const me = async (req: AuthRequest, res: Response) => {
 export const getAdmins = async (req: AuthRequest, res: Response) => {
   try {
     const admins = await prisma.admin.findMany({
-      select: { id: true, username: true, role: true, createdAt: true }
+      select: { id: true, username: true, role: true, tenantId: true, tenant: { select: { id: true, code: true, name: true } }, createdAt: true }
     });
     res.json({ data: admins });
   } catch (error) {

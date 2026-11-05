@@ -287,7 +287,7 @@ export default function UserManagement() {
       const url = URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'Template_Import_Peserta_Talenta.xlsx';
+      link.download = 'Template_Import_Peserta_Right.xlsx';
       link.click();
       URL.revokeObjectURL(url);
     } catch {

@@ -81,7 +81,7 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
       {/* Funnel Conversion Ribbon */}
       <Card elevation="flat" className="p-5 border-slate-200">
         <h3 className="text-sm font-heading font-bold text-ink tracking-tight mb-4">
-          Funnel Konversi Talenta (End-to-End Recruitment)
+          Funnel Konversi Bakat (End-to-End Recruitment)
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">

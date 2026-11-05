@@ -108,7 +108,7 @@ interface Applicant {
   compositeEvaluation?: CompositeEvaluation;
 }
 
-// Helpers for Talenta+ Candidate Table representation
+// Helpers for Right Candidate Table representation
 const getCompanyForApplicant = (app: Applicant): string => {
   const experienceCompany = app.experiences?.[0]?.companyName;
   if (experienceCompany) return experienceCompany;
@@ -666,7 +666,7 @@ export default function AdminDashboard() {
 <div class="header-box">
   <div>
     <div class="brand-title">Kinesta <span>HR</span></div>
-    <div style="font-size:12px;color:#475569;margin-top:2px;">Platform Intelijen Rekrutmen & Penilaian Talenta Terakreditasi</div>
+    <div style="font-size:12px;color:#475569;margin-top:2px;">Platform Intelijen Rekrutmen & Penilaian Bakat Terakreditasi</div>
   </div>
   <div style="text-align:right;">
     <div class="security-tag">KLASIFIKASI: RAHASIA // TALENT DOSSIER</div>
@@ -691,7 +691,7 @@ export default function AdminDashboard() {
 
   <div>
     <div style="font-size:13px;font-weight:800;color:#0f172a;margin-bottom:4px;">
-      Ringkasan Keputusan Evaluasi Talenta
+      Ringkasan Keputusan Evaluasi Bakat
     </div>
     <div style="font-size:12px;color:#475569;line-height:1.6;margin-bottom:12px;">
       ${compEval ? escapeHtml(compEval.rationale) : (app.interviewResult ? escapeHtml(app.interviewResult.slice(0, 200)) : 'Evaluasi kandidat berbasis perpaduan analisis CV dan wawancara adaptif multi-dimensi.')}
@@ -855,7 +855,7 @@ ${app.interviewResult ? `
   const navGroups: NavGroup[] = [
     {
       id: 'talent-ops',
-      label: 'Operasional Talenta',
+      label: 'Operasional Right',
       items: [
         { key: 'dashboard', label: 'Dashboard Utama', icon: LayoutDashboard },
         { key: 'pipeline', label: 'Pipeline Seleksi', icon: Layers, badge: 'Kanban' },
@@ -976,7 +976,7 @@ ${app.interviewResult ? `
     },
     help: {
       title: 'Pusat Bantuan & Panduan',
-      subtitle: 'Dokumentasi operasional platform asesmen Talenta+ dan bantuan teknis',
+      subtitle: 'Dokumentasi operasional platform asesmen Right dan bantuan teknis',
       short: 'Bantuan',
       dotColor: 'bg-blue-accent'
     }
@@ -1667,7 +1667,7 @@ ${app.interviewResult ? `
           ) : activeMenu === 'help' ? (
             <div className="animate-fade-in bg-white rounded-xl border border-border-slate p-6 shadow-xs space-y-6">
               <div className="pb-4 border-b border-slate-100">
-                <h2 className="text-lg font-bold text-ink font-heading">Pusat Bantuan & Panduan Talenta+</h2>
+                <h2 className="text-lg font-bold text-ink font-heading">Pusat Bantuan & Panduan Right</h2>
                 <p className="text-xs text-muted-slate mt-0.5">Panduan operasional platform asesmen, integrasi API, dan dukungan tim teknis.</p>
               </div>
 
@@ -1713,7 +1713,7 @@ ${app.interviewResult ? `
                       </li>
                     </ul>
                   </div>
-                  <span className="text-[11px] text-slate-400 mt-5">Versi Sistem: Talenta+ Assessment Platform v2.4.0</span>
+                  <span className="text-[11px] text-slate-400 mt-5">Versi Sistem: Right Assessment Platform v2.4.0</span>
                 </div>
               </div>
             </div>

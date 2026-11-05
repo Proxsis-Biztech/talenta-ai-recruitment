@@ -370,7 +370,7 @@ export default function PesertaDashboard() {
                     DH
                   </div>
                   <div className="text-xs">
-                    <p className="font-bold text-ink">{interview.assessorName || 'Tim Asesor Talenta+'}</p>
+                    <p className="font-bold text-ink">{interview.assessorName || 'Tim Asesor Right'}</p>
                     <p className="text-muted-slate text-[11px]">Asesor Sesi Wawancara</p>
                   </div>
                 </div>

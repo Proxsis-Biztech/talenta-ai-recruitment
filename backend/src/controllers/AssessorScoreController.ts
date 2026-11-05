@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import { type AuthRequest } from '../middleware/auth';
+import { resolveAdminTenantId } from '../middleware/tenant';
 
 const prisma = new PrismaClient();
 
@@ -37,6 +38,17 @@ const serializeScore = (score: {
   signedAt: score.signedAt
 });
 
+const candidateCodesForTenant = async (tenantId: string | null) => {
+  if (!tenantId) return null;
+  const users = await prisma.portalUser.findMany({
+    where: { tenantId, candidateCode: { not: null } },
+    select: { candidateCode: true }
+  });
+  return users.map((user) => user.candidateCode).filter(Boolean) as string[];
+};
+
+const tenantForRequest = (req: AuthRequest) => req.portalUser?.tenantId || resolveAdminTenantId(req);
+
 export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi asesor tidak valid.' });
@@ -63,6 +75,15 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
     }
     if (competencies.length === 0) {
       return res.status(400).json({ error: 'Rubrik kompetensi wajib diisi.' });
+    }
+
+    const tenantId = tenantForRequest(req);
+    const candidate = await prisma.portalUser.findFirst({
+      where: { candidateCode, role: 'peserta' },
+      select: { tenantId: true }
+    });
+    if (tenantId && candidate?.tenantId !== tenantId) {
+      return res.status(403).json({ error: 'Kandidat bukan milik tenant Anda.' });
     }
 
     const signedAt = status === 'signed' ? new Date() : null;
@@ -125,8 +146,13 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
 export const listAssessorScores = async (req: AuthRequest, res: Response) => {
   try {
     const isAdmin = Boolean(req.user);
+    const tenantId = tenantForRequest(req);
+    const candidateCodes = await candidateCodesForTenant(tenantId);
     const scores = await prisma.assessorScore.findMany({
-      where: isAdmin ? {} : { assessorId: req.portalUser?.id },
+      where: {
+        ...(isAdmin ? {} : { assessorId: req.portalUser?.id }),
+        ...(candidateCodes ? { candidateCode: { in: candidateCodes } } : {})
+      },
       orderBy: { updatedAt: 'desc' }
     });
     return res.json({ data: scores.map(serializeScore) });
@@ -140,11 +166,14 @@ export const getAssessorScore = async (req: AuthRequest, res: Response) => {
   try {
     const candidateCode = String(req.params.candidateCode).trim();
     const programTitle = req.query.programTitle ? String(req.query.programTitle) : undefined;
+    const tenantId = tenantForRequest(req);
+    const candidateCodes = await candidateCodesForTenant(tenantId);
     const score = await prisma.assessorScore.findFirst({
       where: {
         candidateCode,
         ...(programTitle ? { programTitle } : {}),
-        ...(req.user ? {} : { assessorId: req.portalUser?.id })
+        ...(req.user ? {} : { assessorId: req.portalUser?.id }),
+        ...(candidateCodes ? { candidateCode: { in: candidateCodes } } : {})
       },
       orderBy: { updatedAt: 'desc' }
     });
@@ -162,8 +191,14 @@ export const getSignedLha = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Akses LHA hanya untuk asesor dan administrator.' });
     }
     const candidateCode = String(req.params.candidateCode).trim();
+    const tenantId = tenantForRequest(req);
+    const candidateCodes = await candidateCodesForTenant(tenantId);
     const score = await prisma.assessorScore.findFirst({
-      where: { candidateCode, status: 'signed' },
+      where: {
+        candidateCode,
+        status: 'signed',
+        ...(candidateCodes ? { candidateCode: { in: candidateCodes } } : {})
+      },
       orderBy: { signedAt: 'desc' }
     });
     if (!score) return res.status(404).json({ error: 'LHA bertanda tangan belum tersedia.' });

@@ -194,17 +194,10 @@ export default function AuthLoginPage() {
             onClick={() => navigate('/')}
             className="inline-flex items-center gap-3 cursor-pointer mb-10 group"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary-navy via-navy-dark to-blue-accent flex items-center justify-center text-white font-bold text-lg shadow-sm font-heading group-hover:scale-105 transition-transform">
-              T
-            </div>
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary-navy via-navy-dark to-blue-accent flex items-center justify-center text-white font-bold text-lg shadow-sm font-heading group-hover:scale-105 transition-transform">R</div>
             <div>
               <div className="flex items-center gap-1 leading-none">
-                <span className="font-heading font-extrabold text-xl text-ink tracking-tight">
-                  Talenta
-                </span>
-                <span className="font-heading font-extrabold text-xl text-blue-accent">
-                  +
-                </span>
+                <span className="font-heading font-extrabold text-xl text-ink tracking-tight">Right</span>
               </div>
               <p className="text-[11px] text-muted-slate font-medium mt-1">Assessment &amp; Hiring Platform</p>
             </div>
@@ -491,7 +484,7 @@ export default function AuthLoginPage() {
         </div>
 
         <div className="mt-8 text-[11px] text-slate-400">
-          © 2026 Talenta+ • Dilindungi enkripsi SSL 256-bit dan Sistem Anti-Cheat AI.
+          © 2026 Right • Dilindungi enkripsi SSL 256-bit dan Sistem Anti-Cheat AI.
         </div>
       </div>
 
@@ -516,7 +509,7 @@ export default function AuthLoginPage() {
         <div className="relative z-10 my-auto py-8 space-y-6">
           <div className="space-y-3">
             <h2 className="text-3xl xl:text-4xl font-extrabold font-heading leading-tight tracking-tight text-white">
-              Platform Asesmen &amp; Seleksi Talenta Berbasis AI
+              Platform Asesmen &amp; Seleksi Right Berbasis AI
             </h2>
             <p className="text-blue-100/90 text-sm xl:text-base leading-relaxed max-w-lg">
               Solusi asesmen terpadu: tes adaptif, pengawasan kamera, dan penilaian asesor dengan LHA terverifikasi.
@@ -596,7 +589,7 @@ export default function AuthLoginPage() {
             <span className="font-semibold text-white/80">Dipercaya oleh:</span>
             <span className="text-white/60">Telkom • Mandiri • CIMB • Astra • Pertamina</span>
           </div>
-          <span className="font-mono text-white/50">Talenta+ v2.0</span>
+          <span className="font-mono text-white/50">Right v2.0</span>
         </div>
       </div>
     </div>

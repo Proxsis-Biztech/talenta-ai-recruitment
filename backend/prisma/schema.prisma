@@ -8,11 +8,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Tenant {
+  id          String       @id @default(uuid())
+  code        String       @unique
+  name        String       @unique
+  industry    String?
+  createdAt   DateTime     @default(now())
+  admins      Admin[]
+  portalUsers PortalUser[]
+  jobs        Job[]
+}
+
 model Admin {
   id        String   @id @default(uuid())
   username  String   @unique
   password  String   // Hashed password
   role      String   @default("admin") // "superadmin" | "admin"
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 }
 
@@ -71,6 +84,8 @@ model Job {
   status               String      @default("active") // "active" | "inactive"
   interviewDuration    Int?        // Durasi wawancara dalam menit
   interviewPassingScore Int?       // Skor kelulusan (0-100) untuk passing threshold
+  tenantId             String?
+  tenant               Tenant?     @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   createdAt            DateTime    @default(now())
   applicants           Applicant[]
 }
@@ -85,6 +100,8 @@ model PortalUser {
   phone           String?
   companyId       String?
   companyName     String?
+  tenantId        String?
+  tenant          Tenant?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   assessmentId    String?
   assessmentTitle String?
   gradeLevel      String?

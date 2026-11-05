@@ -5,12 +5,14 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export interface AuthRequest extends Request {
-  user?: { id: string; username: string; role: string };
+  user?: { id: string; username: string; role: string; tenantId?: string | null };
   portalUser?: {
     id: string;
     email: string;
     name: string;
     role: string;
+    tenantId?: string | null;
+    tenant?: { id: string; code: string; name: string } | null;
     companyId?: string | null;
     companyName?: string | null;
     assessmentId?: string | null;
@@ -50,7 +52,8 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     req.user = {
       id: payloadString(decoded.id),
       username: payloadString(decoded.username),
-      role: payloadString(decoded.role)
+      role: payloadString(decoded.role),
+      tenantId: typeof decoded.tenantId === 'string' ? decoded.tenantId : null
     };
     return next();
   } catch {
@@ -77,6 +80,8 @@ export const authenticatePortal = async (req: AuthRequest, res: Response, next: 
         name: true,
         role: true,
         status: true,
+        tenantId: true,
+        tenant: { select: { id: true, code: true, name: true } },
         companyId: true,
         companyName: true,
         assessmentId: true,

@@ -1422,7 +1422,7 @@ export default function PesertaExamPlayer() {
               Selamat, Jawaban Anda Telah Tersimpan!
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
-              Seluruh jawaban CAT Anda telah disimpan dan diverifikasi oleh sistem Talenta+.
+              Seluruh jawaban CAT Anda telah disimpan dan diverifikasi oleh sistem Right.
             </p>
           </div>
 

@@ -265,7 +265,7 @@ export async function evaluateInterviewWithLangChain(params: {
 
   // Prompt Template with BARS Rubric Standards & Intent Detection
   const barsPrompt = new PromptTemplate({
-    template: `Anda adalah Ava, Pewawancara Asesor AI Profesional Senior di Talenta+ Enterprise.
+    template: `Anda adalah Ava, Pewawancara Asesor AI Profesional Senior di Right Enterprise.
 Anda mengevaluasi kandidat menggunakan rubrik BARS (Behaviorally Anchored Rating Scales) yang terstandarisasi.
 
 === DETAIL WAWANCARA ===

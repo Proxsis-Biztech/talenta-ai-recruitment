@@ -70,7 +70,7 @@ export const getWaitingRoomStatus = async (req: AuthRequest, res: Response) => {
       scheduledAt: user.interviewScheduledAt,
       calledAt,
       deadline: calledAt ? new Date(new Date(calledAt).getTime() + ENTRY_WINDOW_MS) : null,
-      assessorName: user.assessorName || 'Tim Asesor Talenta+',
+      assessorName: user.assessorName || 'Tim Asesor Right',
       canEnter: status === 'called'
     });
   } catch (error) {

@@ -86,6 +86,15 @@ export const CANDIDATE_DIRECTORY: CandidateDirectoryEntry[] = [
   }
 ];
 
+export const getCandidatesForTenant = (tenantName?: string | null): CandidateDirectoryEntry[] => {
+  if (!tenantName) return CANDIDATE_DIRECTORY;
+  const normalized = tenantName.toLowerCase().replace(/\btbk\b/g, '').replace(/\bpersero\b/g, '').trim();
+  return CANDIDATE_DIRECTORY.filter((candidate) => {
+    const pt = candidate.pt.toLowerCase().replace(/\btbk\b/g, '').replace(/\bpersero\b/g, '').trim();
+    return normalized.includes(pt) || pt.includes(normalized);
+  });
+};
+
 export const FALLBACK_CANDIDATE: CandidateDirectoryEntry = CANDIDATE_DIRECTORY[0];
 
 export function getCandidateByCode(code?: string): CandidateDirectoryEntry {

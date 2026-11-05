@@ -70,7 +70,7 @@ export const downloadPortalUserTemplate = async (_req: AuthRequest, res: Respons
 
     const workbook = XLSX.utils.book_new();
     const instructions = XLSX.utils.aoa_to_sheet([
-      ['TEMPLATE IMPORT PESERTA — TALENTA+ ASSESSMENT'],
+      ['TEMPLATE IMPORT PESERTA — RIGHT ASSESSMENT'],
       [''],
       ['Petunjuk:'],
       ['1. Isi sheet "Data Peserta" tanpa mengubah nama kolom.'],
@@ -111,7 +111,7 @@ export const downloadPortalUserTemplate = async (_req: AuthRequest, res: Respons
 
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Peserta_Talenta.xlsx"');
+    res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Peserta_Right.xlsx"');
     return res.send(buffer);
   } catch (error) {
     console.error('Download import template error:', error);

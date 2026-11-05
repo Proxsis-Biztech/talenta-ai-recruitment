@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { type AuthRequest, getJwtSecret } from '../middleware/auth';
+import { resolveAdminTenantId } from '../middleware/tenant';
 
 const prisma = new PrismaClient();
 
@@ -43,9 +44,9 @@ const userSelect = {
   createdAt: true
 } as const;
 
-const signPortalToken = (user: { id: string; email: string; name: string; role: string }) =>
+const signPortalToken = (user: { id: string; email: string; name: string; role: string; tenantId?: string | null }) =>
   jwt.sign(
-    { id: user.id, email: user.email, name: user.name, role: user.role, type: 'portal' },
+    { id: user.id, email: user.email, name: user.name, role: user.role, tenantId: user.tenantId, type: 'portal' },
     getJwtSecret(),
     { expiresIn: '12h' }
   );
@@ -170,6 +171,7 @@ export const registerPeserta = async (req: AuthRequest, res: Response) => {
         phone,
         role: 'peserta',
         profileCompleted: false,
+        tenantId: job?.tenantId || null,
         companyId: req.body.companyId ? String(req.body.companyId) : null,
         companyName: req.body.companyName ? String(req.body.companyName) : null,
         gradeLevel: req.body.gradeLevel ? String(req.body.gradeLevel) : null,
@@ -226,6 +228,7 @@ export const tokenLogin = async (req: AuthRequest, res: Response) => {
           password: await bcrypt.hash(`token-${Date.now()}-${Math.random()}`, 10),
           role: 'peserta',
           profileCompleted: false,
+          tenantId: job.tenantId || null,
           companyId: req.body.companyId ? String(req.body.companyId) : null,
           companyName: req.body.companyName ? String(req.body.companyName) : null,
           gradeLevel: req.body.gradeLevel ? String(req.body.gradeLevel) : null,
@@ -479,7 +482,7 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
       interview: {
         status: user.interviewStatus,
         scheduledAt: user.interviewScheduledAt,
-        assessorName: user.assessorName || assessor?.name || 'Tim Asesor Talenta+',
+        assessorName: user.assessorName || assessor?.name || 'Tim Asesor Right',
         score: user.interviewScore,
         queuePosition
       },
@@ -507,8 +510,10 @@ export const listPortalUsers = async (req: AuthRequest, res: Response) => {
   try {
     const role = req.query.role ? String(req.query.role) : undefined;
     const search = req.query.search ? String(req.query.search).trim() : '';
+    const tenantId = resolveAdminTenantId(req);
     const users = await prisma.portalUser.findMany({
       where: {
+        ...(tenantId ? { tenantId } : {}),
         ...(role ? { role } : {}),
         ...(search
           ? {
@@ -550,6 +555,7 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
         name: String(req.body.name || '').trim(),
         username: req.body.username ? String(req.body.username).trim() : null,
         role,
+        tenantId: resolveAdminTenantId(req) || (req.body.tenantId ? String(req.body.tenantId) : null),
         profileCompleted: role !== 'peserta',
         mustChangePassword: role === 'peserta',
         phone: req.body.phone ? String(req.body.phone) : null,
@@ -580,6 +586,10 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
     if (!existing) {
       return res.status(404).json({ error: 'Pengguna portal tidak ditemukan.' });
     }
+    const tenantId = resolveAdminTenantId(req);
+    if (tenantId && existing.tenantId !== tenantId) {
+      return res.status(403).json({ error: 'Pengguna bukan milik tenant Anda.' });
+    }
 
     const data: Record<string, unknown> = {};
     for (const field of ['name', 'username', 'phone', 'companyId', 'companyName', 'assessmentId', 'assessmentTitle', 'gradeLevel', 'specialization', 'status', 'nik', 'education', 'university', 'city', 'portfolioUrl', 'bio', 'employeeNumber', 'department']) {
@@ -604,6 +614,12 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
 export const deletePortalUser = async (req: AuthRequest, res: Response) => {
   try {
     const id = String(req.params.id);
+    const existing = await prisma.portalUser.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Pengguna portal tidak ditemukan.' });
+    const tenantId = resolveAdminTenantId(req);
+    if (tenantId && existing.tenantId !== tenantId) {
+      return res.status(403).json({ error: 'Pengguna bukan milik tenant Anda.' });
+    }
     await prisma.portalUser.delete({ where: { id } });
     return res.json({ message: 'Pengguna portal berhasil dihapus.' });
   } catch (error) {

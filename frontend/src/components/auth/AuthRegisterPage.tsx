@@ -83,17 +83,10 @@ export default function AuthRegisterPage() {
           onClick={() => navigate('/')}
           className="flex items-center justify-center gap-3 cursor-pointer mb-6"
         >
-          <div className="w-10 h-10 rounded-xl bg-primary-navy flex items-center justify-center text-white font-bold text-xl shadow-xs font-heading">
-            T
-          </div>
+          <div className="w-10 h-10 rounded-xl bg-primary-navy flex items-center justify-center text-white font-bold text-xl shadow-xs font-heading">R</div>
           <div>
             <div className="flex items-center gap-1">
-              <span className="font-heading font-extrabold text-xl text-ink tracking-tight">
-                Talenta
-              </span>
-              <span className="font-heading font-extrabold text-xl text-blue-accent">
-                +
-              </span>
+              <span className="font-heading font-extrabold text-xl text-ink tracking-tight">Right</span>
             </div>
             <p className="text-xs text-muted-slate">Assessment Platform</p>
           </div>
@@ -220,7 +213,7 @@ export default function AuthRegisterPage() {
                 className="mt-1 w-4 h-4 rounded text-primary-navy border-slate-300 focus:ring-primary-navy"
               />
               <label htmlFor="agreeConsent" className="text-xs text-muted-slate leading-relaxed">
-                Saya menyetujui Ketentuan Layanan, Kebijakan Privasi, dan Pakta Integritas Ujian Berbasis AI Proctoring Talenta+.
+                Saya menyetujui Ketentuan Layanan, Kebijakan Privasi, dan Pakta Integritas Ujian Berbasis AI Proctoring Right.
               </label>
             </div>
 

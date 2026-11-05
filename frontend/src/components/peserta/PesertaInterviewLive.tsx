@@ -182,7 +182,7 @@ export default function PesertaInterviewLive() {
     },
     {
       sender: 'Gemini Live',
-      text: `Halo ${sessionUser.name || 'Farhan Pratama'}, selamat datang di sesi wawancara AI Talenta+ untuk ${program.companyName || 'PT Telkom Indonesia Tbk'}. Saya Gemini 2.5 Flash Live Assessor. Mari kita mulai dengan pertanyaan pertama terkait arsitektur sistem.`,
+      text: `Halo ${sessionUser.name || 'Farhan Pratama'}, selamat datang di sesi wawancara AI Right untuk ${program.companyName || 'PT Telkom Indonesia Tbk'}. Saya Gemini 2.5 Flash Live Assessor. Mari kita mulai dengan pertanyaan pertama terkait arsitektur sistem.`,
       time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     }
   ]);

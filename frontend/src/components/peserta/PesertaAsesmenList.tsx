@@ -454,7 +454,7 @@ export default function PesertaAsesmenList() {
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-primary-navy border border-blue-200/60 text-xs font-semibold mb-2">
                   <Sparkles className="w-3.5 h-3.5 text-blue-accent" />
-                  <span>Portal Asesmen Mandiri Talenta+</span>
+                  <span>Portal Asesmen Mandiri Right</span>
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
                   Daftar Asesmen Saya
@@ -501,7 +501,7 @@ export default function PesertaAsesmenList() {
                       </span>
                     </div>
                     <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                      Pelaksanaan asesmen di Talenta+ menggabungkan <strong>Ujian CAT (40 Soal)</strong> dan <strong>Wawancara Live (Asesor / Gemini AI)</strong>. Sesi wawancara dilakukan <strong>SETELAH</strong> Anda selesai mengerjakan ujian CAT. Asesor akan menanyakan alasan dan penalaran di balik keputusan kasus bisnis Anda saat CAT untuk memvalidasi kompetensi perilaku Anda secara nyata.
+                      Pelaksanaan asesmen di Right menggabungkan <strong>Ujian CAT (40 Soal)</strong> dan <strong>Wawancara Live (Asesor / Gemini AI)</strong>. Sesi wawancara dilakukan <strong>SETELAH</strong> Anda selesai mengerjakan ujian CAT. Asesor akan menanyakan alasan dan penalaran di balik keputusan kasus bisnis Anda saat CAT untuk memvalidasi kompetensi perilaku Anda secara nyata.
                     </p>
                     <div className="flex flex-wrap items-center gap-4 pt-1.5 text-xs font-semibold text-primary-navy">
                       <span className="flex items-center gap-1.5">

@@ -17,15 +17,20 @@ import {
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Card, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
-import { CANDIDATE_DIRECTORY } from '../../services/asesorScoreService';
+import { CANDIDATE_DIRECTORY, getCandidatesForTenant } from '../../services/asesorScoreService';
+import { getPortalUser } from '../../services/portalAuthService';
 
 export default function AsesorDashboard() {
   const navigate = useNavigate();
 
   const activeAsesor = useMemo(() => getActiveSessionUser(), []);
 
+  const visibleCandidates = useMemo(
+    () => getCandidatesForTenant(getPortalUser()?.companyName),
+    []
+  );
   const todaySlots = useMemo(() => {
-    return CANDIDATE_DIRECTORY.slice(0, 5).map((c, idx) => ({
+    return visibleCandidates.slice(0, 5).map((c, idx) => ({
       id: `SLOT-${idx + 1}`,
       candidate: c.name,
       code: c.code,
@@ -82,7 +87,7 @@ export default function AsesorDashboard() {
 
               <Button
                 variant="primary"
-                onClick={() => navigate(`/asesor/live-console/${todaySlots[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
+                onClick={() => navigate(`/asesor/live-console/${todaySlots[0]?.code || visibleCandidates[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
                 className="py-2.5 px-5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 <Video className="w-4 h-4 text-blue-100" />
@@ -131,7 +136,7 @@ export default function AsesorDashboard() {
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => navigate(`/asesor/live-console/${todaySlots[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
+                onClick={() => navigate(`/asesor/live-console/${todaySlots[0]?.code || visibleCandidates[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
                 className="w-full py-2 rounded-xl text-primary-navy font-bold flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 border-slate-200 cursor-pointer"
               >
                 <span>Buka Lembar Penilaian BARS</span>
@@ -223,7 +228,7 @@ export default function AsesorDashboard() {
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => navigate(`/asesor/scoring/${todaySlots[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
+                onClick={() => navigate(`/asesor/scoring/${todaySlots[0]?.code || visibleCandidates[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
                 className="w-full text-xs py-2 rounded-lg font-semibold text-amber-800 bg-amber-50/60 hover:bg-amber-100/70 border-amber-200 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>Selesaikan Penilaian</span>

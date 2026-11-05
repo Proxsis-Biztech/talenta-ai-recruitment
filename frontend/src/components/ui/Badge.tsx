@@ -34,7 +34,7 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
 
     const resolvedFormat = variant === 'outline' ? 'outline' : format;
 
-    // Color definitions per Talenta+ tokens
+    // Color definitions per Right tokens
     const styles: Record<string, Record<string, string>> = {
       soft: {
         teal: 'bg-soft-blue text-primary-navy border-accent-border',

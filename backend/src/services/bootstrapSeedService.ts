@@ -128,6 +128,54 @@ export async function bootstrapDatabaseSeed() {
       }
     }
 
+    // 1b. Ensure tenants (PT / client companies) exist
+    const tenantSeed = [
+      { code: 'TELKOM', name: 'PT Telkom Indonesia Tbk', industry: 'Telecommunications' },
+      { code: 'MANDIRI', name: 'PT Bank Mandiri (Persero) Tbk', industry: 'Banking' },
+      { code: 'CIMB', name: 'PT Bank CIMB Niaga Tbk', industry: 'Banking' },
+      { code: 'ASTRA', name: 'PT Astra International Tbk', industry: 'Conglomerate' },
+      { code: 'PERTAMINA', name: 'PT Pertamina Hulu Energi', industry: 'Energy' }
+    ];
+    const tenantsByCode = new Map<string, any>();
+    for (const tenant of tenantSeed) {
+      const record = await prisma.tenant.upsert({
+        where: { code: tenant.code },
+        update: { name: tenant.name, industry: tenant.industry },
+        create: tenant
+      });
+      tenantsByCode.set(tenant.code, record);
+    }
+    const tenantByName = new Map(Array.from(tenantsByCode.values()).map((tenant) => [tenant.name, tenant]));
+    const normalizeCompany = (value: string) =>
+      value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\b(pt|tbk|persero)\b/g, '').replace(/\s+/g, ' ').trim();
+    const findTenantByTitle = (title: string) => {
+      const normalizedTitle = normalizeCompany(title);
+      return Array.from(tenantsByCode.values()).find((tenant) =>
+        normalizedTitle.includes(normalizeCompany(tenant.name))
+      ) || null;
+    };
+    console.log('✅ Tenants synchronized.');
+
+    // 1c. Seed one admin per tenant (superadmin remains cross-tenant)
+    for (const tenant of tenantSeed) {
+      const username = `admin.${tenant.code.toLowerCase()}`;
+      const existingTenantAdmin = await prisma.admin.findUnique({ where: { username } });
+      const tenantRecord = tenantsByCode.get(tenant.code);
+      if (!existingTenantAdmin) {
+        await prisma.admin.create({
+          data: {
+            username,
+            password: await bcrypt.hash('admin123', 10),
+            role: 'admin',
+            tenantId: tenantRecord?.id
+          }
+        });
+      } else if (!existingTenantAdmin.tenantId) {
+        await prisma.admin.update({ where: { id: existingTenantAdmin.id }, data: { tenantId: tenantRecord?.id } });
+      }
+    }
+    console.log('✅ Tenant administrators synchronized.');
+
     // 2. Ensure Assessment Jobs exist (seed only the missing ones, keep catalog order stable)
     console.log('ℹ️ Syncing assessment jobs into database...');
     const existingJobs = await prisma.job.findMany();
@@ -146,18 +194,27 @@ export async function bootstrapDatabaseSeed() {
               description: item.description,
               status: item.status,
               interviewDuration: item.interviewDuration,
-              interviewPassingScore: item.interviewPassingScore
+              interviewPassingScore: item.interviewPassingScore,
+              tenantId: findTenantByTitle(item.title)?.id
             }
           });
           newlySeededJobs += 1;
         } catch (e) {
           // ignore duplicate title if any
         }
-      } else if (!job.code) {
-        try {
-          job = await prisma.job.update({ where: { id: job.id }, data: { code: item.code } });
-        } catch {
-          // keep the existing job when the code is already assigned to another record
+      } else {
+        const updates: any = {};
+        if (!job.code) updates.code = item.code;
+        if (!job.tenantId) {
+          const tenant = findTenantByTitle(item.title);
+          if (tenant) updates.tenantId = tenant.id;
+        }
+        if (Object.keys(updates).length > 0) {
+          try {
+            job = await prisma.job.update({ where: { id: job.id }, data: updates });
+          } catch {
+            // keep the existing job when a unique code is already assigned elsewhere
+          }
         }
       }
       if (job) jobsList.push(job);
@@ -213,6 +270,7 @@ export async function bootstrapDatabaseSeed() {
         phone: '0812-8822-1920',
         companyId: 'PT-TELKOM',
         companyName: 'PT Telkom Indonesia Tbk',
+        tenantCode: 'TELKOM',
         assessmentId: 'SE-402',
         assessmentTitle: 'Software Engineer Specialist Batch IV (PT Telkom Indonesia Tbk)',
         gradeLevel: 'Grade B (Specialist / Mid)'
@@ -226,6 +284,7 @@ export async function bootstrapDatabaseSeed() {
         phone: '0813-7721-4455',
         companyId: 'PT-MANDIRI',
         companyName: 'PT Bank Mandiri (Persero) Tbk',
+        tenantCode: 'MANDIRI',
         assessmentId: 'BMRI-DATA-02',
         assessmentTitle: 'Data Science & Credit Risk Analytics',
         gradeLevel: 'Grade B (Specialist / Mid)'
@@ -236,21 +295,26 @@ export async function bootstrapDatabaseSeed() {
         password: 'asesor123',
         name: 'Dr. Dwi Hartanto, M.Psi., Psikolog',
         role: 'asesor',
-        companyName: 'Solusi Asesmen Indonesia',
+        companyName: 'PT Telkom Indonesia Tbk',
+        tenantCode: 'TELKOM',
         specialization: 'Assessment Center & Behavioral Interview'
       }
     ];
     for (const account of demoPortalUsers) {
       const existing = await prisma.portalUser.findUnique({ where: { email: account.email } });
+      const tenantId = account.tenantCode ? tenantsByCode.get(account.tenantCode)?.id : null;
+      const { tenantCode: _tenantCode, ...accountData } = account;
       if (!existing) {
         await prisma.portalUser.create({
-          data: { ...account, password: await bcrypt.hash(account.password, 10) }
+          data: { ...accountData, tenantId, password: await bcrypt.hash(account.password, 10) }
         });
-      } else if (account.candidateCode && !existing.candidateCode) {
-        await prisma.portalUser.update({
-          where: { id: existing.id },
-          data: { candidateCode: account.candidateCode }
-        });
+      } else {
+        const updates: any = {};
+        if (account.candidateCode && !existing.candidateCode) updates.candidateCode = account.candidateCode;
+        if (tenantId && !existing.tenantId) updates.tenantId = tenantId;
+        if (Object.keys(updates).length > 0) {
+          await prisma.portalUser.update({ where: { id: existing.id }, data: updates });
+        }
       }
     }
     console.log('✅ Portal accounts synchronized.');

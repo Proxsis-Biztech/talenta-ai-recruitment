@@ -1,7 +1,9 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { bootstrapDatabaseSeed } from '../services/bootstrapSeedService';
+import { type AuthRequest } from '../middleware/auth';
+import { resolveAdminTenantId, requireAdminTenantId } from '../middleware/tenant';
 
 const prisma = new PrismaClient();
 
@@ -14,7 +16,7 @@ const jobSchema = z.object({
 });
 
 // Public: Get all active jobs
-export const getActiveJobs = async (req: Request, res: Response) => {
+export const getActiveJobs = async (req: AuthRequest, res: Response) => {
   try {
     const count = await prisma.job.count();
     if (count === 0) {
@@ -33,7 +35,7 @@ export const getActiveJobs = async (req: Request, res: Response) => {
 };
 
 // Admin: Get all jobs
-export const getAdminJobs = async (req: Request, res: Response) => {
+export const getAdminJobs = async (req: AuthRequest, res: Response) => {
   try {
     const count = await prisma.job.count();
     if (count === 0) {
@@ -46,7 +48,9 @@ export const getAdminJobs = async (req: Request, res: Response) => {
     
     const skip = (page - 1) * limit;
     
+    const tenantId = resolveAdminTenantId(req);
     const whereClause: any = {
+      ...(tenantId ? { tenantId } : {}),
       OR: [
         { title: { contains: search } },
         { description: { contains: search } }
@@ -78,7 +82,7 @@ export const getAdminJobs = async (req: Request, res: Response) => {
 };
 
 // Admin: Create job
-export const createJob = async (req: Request, res: Response) => {
+export const createJob = async (req: AuthRequest, res: Response) => {
   try {
     const validatedData = jobSchema.parse(req.body);
     
@@ -91,7 +95,10 @@ export const createJob = async (req: Request, res: Response) => {
     }
     
     const job = await prisma.job.create({
-      data: validatedData
+      data: {
+        ...validatedData,
+        tenantId: resolveAdminTenantId(req) || (req.body.tenantId ? String(req.body.tenantId) : null)
+      }
     });
     
     res.status(201).json({ message: "Lowongan berhasil dibuat", data: job });
@@ -105,7 +112,7 @@ export const createJob = async (req: Request, res: Response) => {
 };
 
 // Admin: Update job
-export const updateJob = async (req: Request, res: Response) => {
+export const updateJob = async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
     const validatedData = jobSchema.parse(req.body);
@@ -121,6 +128,11 @@ export const updateJob = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Judul lowongan sudah ada" });
     }
     
+    const tenantId = resolveAdminTenantId(req);
+    if (tenantId) {
+      const owned = await prisma.job.findFirst({ where: { id, tenantId } });
+      if (!owned) return res.status(403).json({ error: 'Lowongan bukan milik tenant Anda.' });
+    }
     const job = await prisma.job.update({
       where: { id },
       data: validatedData
@@ -137,9 +149,14 @@ export const updateJob = async (req: Request, res: Response) => {
 };
 
 // Admin: Delete job
-export const deleteJob = async (req: Request, res: Response) => {
+export const deleteJob = async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
+    const tenantId = resolveAdminTenantId(req);
+    if (tenantId) {
+      const owned = await prisma.job.findFirst({ where: { id, tenantId } });
+      if (!owned) return res.status(403).json({ error: 'Lowongan bukan milik tenant Anda.' });
+    }
     
     // Check if there are applicants linked to this job
     const applicantsCount = await prisma.applicant.count({

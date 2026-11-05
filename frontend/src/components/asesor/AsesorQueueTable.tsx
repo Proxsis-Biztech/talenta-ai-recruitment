@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Input, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
+import { getCandidatesForTenant } from '../../services/asesorScoreService';
+import { getPortalUser } from '../../services/portalAuthService';
 
 export default function AsesorQueueTable() {
   const navigate = useNavigate();
@@ -81,7 +83,8 @@ export default function AsesorQueueTable() {
     }
   ];
 
-  const filtered = slots.filter((s) =>
+  const visibleCodes = new Set(getCandidatesForTenant(getPortalUser()?.companyName).map((candidate) => candidate.code));
+  const filtered = slots.filter((s) => visibleCodes.has(s.code)).filter((s) =>
     s.candidate.toLowerCase().includes(search.toLowerCase()) ||
     s.code.toLowerCase().includes(search.toLowerCase()) ||
     s.program.toLowerCase().includes(search.toLowerCase())

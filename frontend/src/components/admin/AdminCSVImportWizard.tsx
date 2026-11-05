@@ -103,7 +103,7 @@ export function AdminCSVImportWizard({ isOpen, onClose, onSuccess }: AdminCSVImp
         {step === 2 && (
           <div className="space-y-4 text-xs">
             <p className="text-muted-slate">
-              Cocokkan nama kolom di file CSV Anda dengan atribut data kandidat di database Talenta+:
+              Cocokkan nama kolom di file CSV Anda dengan atribut data kandidat di database Right:
             </p>
 
             <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">

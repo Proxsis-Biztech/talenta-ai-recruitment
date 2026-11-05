@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
+import { type AuthRequest } from '../middleware/auth';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '../middleware/auth';
+import { resolveAdminTenantId } from '../middleware/tenant';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import path from 'path';
@@ -163,7 +165,11 @@ export const getApplicants = async (req: Request, res: Response) => {
 
     const skip = (page - 1) * limit;
 
+    const tenantId = resolveAdminTenantId(req);
     const whereClause: any = {};
+    if (tenantId) {
+      whereClause.job = { tenantId };
+    }
 
     if (search && search.trim() !== "") {
       whereClause.OR = [
@@ -612,13 +618,15 @@ export const getInterviewResultByEmail = async (req: Request, res: Response) => 
 /**
  * Admin ranking — scored applicants with skill matrices, for side-by-side comparison.
  */
-export const getApplicantRanking = async (req: Request, res: Response) => {
+export const getApplicantRanking = async (req: AuthRequest, res: Response) => {
   try {
     const jobId = (req.query.jobId as string) || null;
+    const tenantId = resolveAdminTenantId(req);
 
     const applicants = await prisma.applicant.findMany({
       where: {
         interviewScore: { not: null },
+        ...(tenantId ? { job: { tenantId } } : {}),
         ...(jobId ? { jobId } : {})
       },
       orderBy: { interviewScore: 'desc' },
@@ -1013,7 +1021,7 @@ export const evaluateInterviewTurn = async (req: Request, res: Response) => {
       // Graceful fallback to direct GoogleGenAI if LangChain has a transient error
       const { GoogleGenAI } = await import('@google/genai');
       const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Anda adalah Asesor AI profesional berstandar BARS untuk wawancara teknis di Talenta+.
+      const prompt = `Anda adalah Asesor AI profesional berstandar BARS untuk wawancara teknis di Right.
 Kandidat: ${candidateName || 'Kandidat'}
 Kompetensi: ${competency || 'Kompetensi Teknis'}
 Pertanyaan (${questionNumber || 1}/${totalQuestions || 4}): "${question}"

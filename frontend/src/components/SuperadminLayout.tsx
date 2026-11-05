@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import {
   LayoutDashboard,
   Users,
@@ -152,6 +153,8 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
   });
 
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [tenants, setTenants] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [activeTenantId, setActiveTenantId] = useState<string>(() => localStorage.getItem('activeTenantId') || '');
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Toggle collapse on desktop
@@ -164,6 +167,21 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
   };
 
   // Close dropdown on outside click
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    axios.get('/api/admin/tenants', { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => {
+        const list = response.data?.data || [];
+        setTenants(list);
+        if (userRole !== 'superadmin' && list[0]?.id) {
+          setActiveTenantId(list[0].id);
+          localStorage.setItem('activeTenantId', list[0].id);
+        }
+      })
+      .catch(() => undefined);
+  }, [userRole]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
@@ -206,23 +224,23 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
             <button
               onClick={toggleCollapse}
               className="w-10 h-10 rounded-xl bg-primary-navy hover:bg-navy-dark flex items-center justify-center text-white font-extrabold text-xl shadow-xs cursor-pointer transition-transform hover:scale-105 group relative font-heading"
-              title="Perluas Sidebar (Talenta+)"
+              title="Perluas Sidebar (Right)"
               aria-label="Expand Sidebar"
             >
-              <span>T</span>
+              <span>R</span>
               <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                Perluas Sidebar (Talenta+)
+                Perluas Sidebar (Right)
               </span>
             </button>
           ) : (
             <>
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9.5 h-9.5 rounded-xl bg-primary-navy flex items-center justify-center text-white font-extrabold text-lg shadow-xs shrink-0 font-heading">
-                  T
+R
                 </div>
                 <div className="flex flex-col truncate">
                   <span className="text-lg font-extrabold tracking-tight text-ink leading-snug font-heading flex items-center">
-                    Talenta<span className="text-blue-accent ml-0.5">+</span>
+                    Right
                   </span>
                   <span className="text-[11px] text-muted-slate font-medium tracking-tight">
                     Assessment Platform
@@ -380,7 +398,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-              <span>v2.4.0 • Talenta</span>
+              <span>v2.4.0 • Right</span>
               <button
                 onClick={onLogout}
                 className="flex items-center gap-1 text-slate-500 hover:text-rose-600 font-medium transition-colors cursor-pointer"
@@ -439,7 +457,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
 
                 {/* Breadcrumb */}
                 <div className="flex items-center gap-2 text-sm font-medium">
-                  <span className="text-muted-slate">Talenta+</span>
+                  <span className="text-muted-slate">Right</span>
                   <span className="text-slate-400">/</span>
                   <span className="text-ink font-bold">
                     {title || 'Admin'}
@@ -469,6 +487,29 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
               {/* Right Utilities & Profile */}
               <div className="flex items-center gap-3">
                 {headerRight}
+
+                {tenants.length > 0 && (
+                  <div className="hidden lg:flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-slate-400">Tenant</span>
+                    <select
+                      value={activeTenantId}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setActiveTenantId(value);
+                        if (value) localStorage.setItem('activeTenantId', value);
+                        else localStorage.removeItem('activeTenantId');
+                        window.location.reload();
+                      }}
+                      disabled={userRole !== 'superadmin'}
+                      className="max-w-[190px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 disabled:bg-slate-50 disabled:text-slate-500"
+                    >
+                      {userRole === 'superadmin' && <option value="">Semua tenant</option>}
+                      {tenants.map((tenant) => (
+                        <option key={tenant.id} value={tenant.id}>{tenant.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Notification Bell with Badge */}
                 <button
