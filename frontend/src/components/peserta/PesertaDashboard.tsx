@@ -127,6 +127,7 @@ export default function PesertaDashboard() {
   const completedStages = stages.filter((stage) => stage.status === 'completed').length;
   const assessmentProgress = Math.round((completedStages / stages.length) * 100);
   const activeStage = stages.find((stage) => stage.status === 'active')?.title || 'Selesai';
+  const initials = activeUser.name.split(' ').filter(Boolean).slice(0, 2).map((word) => word[0]).join('').toUpperCase();
 
   return (
     <PesertaLayout activeTab="dashboard">
@@ -145,52 +146,68 @@ export default function PesertaDashboard() {
         {/* ─── Hero Header: Asymmetric 8 / 4 Split (Friendly, Clear Next Step) ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch">
           {/* Sisi Kiri (8 kolom): Salam Personal, Status Tahapan & Aksi Utama */}
-          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col justify-between relative overflow-hidden ">
+          <div className="lg:col-span-8 bg-primary-navy text-white rounded-2xl border border-primary-navy p-6 sm:p-8 shadow-sm flex flex-col justify-between relative overflow-hidden">
+            <div aria-hidden className="absolute -right-20 -top-20 w-64 h-64 rounded-full bg-white/5" />
+            <div aria-hidden className="absolute -right-8 bottom-10 w-36 h-36 rounded-full bg-white/5" />
             <div className="space-y-5 relative">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 text-white flex items-center justify-center font-bold text-sm">{initials || 'P'}</div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-200">Dashboard Peserta</p>
+                    <p className="text-sm font-semibold text-white">ID {dashboard?.user?.candidateCode || activeUser.id.slice(0, 8)}</p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 border border-emerald-300/30 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
+                  Sesi aktif
+                </span>
+              </div>
+
               <div>
-                <h1 className="text-3xl sm:text-4xl font-extrabold font-heading text-ink tracking-tight leading-tight">
+                <h1 className="text-3xl sm:text-4xl font-extrabold font-heading text-white tracking-tight leading-tight">
                   Selamat Datang, {activeUser.name}!
                 </h1>
-                <p className="text-sm sm:text-base text-muted-slate mt-3.5 leading-relaxed max-w-2xl">
+                <p className="text-sm sm:text-base text-blue-100 mt-3.5 leading-relaxed max-w-2xl">
                   {isCatCompleted
                     ? `Selamat, Anda telah menuntaskan lembar CAT untuk ${activeProgram.title}. Seluruh jawaban Anda telah tersimpan dengan aman. Langkah berikutnya adalah sesi Wawancara Tatap Muka bersama Asesor.`
                     : `Sesi evaluasi kompetensi untuk posisi ${activeProgram.title} di ${activeProgram.companyName} telah dibuka. Ikuti tahapan asesmen dengan tenang, seluruh progres Anda tercatat otomatis.`}
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-white/15 bg-white/10 p-4">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-600">Progres tahapan</span>
-                    <span className="font-mono font-bold text-primary-navy">{completedStages} / {stages.length}</span>
+                    <span className="font-semibold text-blue-100">Progres tahapan</span>
+                    <span className="font-mono font-bold text-white">{completedStages} / {stages.length}</span>
                   </div>
-                  <div className="h-2 rounded-full bg-white border border-slate-200 overflow-hidden">
-                    <div className="h-full rounded-full bg-primary-navy" style={{ width: `${assessmentProgress}%` }} />
+                  <div className="h-2 rounded-full bg-white/20 overflow-hidden">
+                    <div className="h-full rounded-full bg-white" style={{ width: `${assessmentProgress}%` }} />
                   </div>
-                  <p className="text-[11px] text-slate-500">Tahap aktif: {activeStage}</p>
+                  <p className="text-[11px] text-blue-200">Tahap aktif: {activeStage}</p>
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-600">Kelengkapan profil</span>
-                    <span className={`font-mono font-bold ${profileFilled === 6 ? 'text-emerald-700' : 'text-amber-700'}`}>{profileFilled} / 6</span>
+                    <span className="font-semibold text-blue-100">Kelengkapan profil</span>
+                    <span className={`font-mono font-bold ${profileFilled === 6 ? 'text-emerald-200' : 'text-amber-200'}`}>{profileFilled} / 6</span>
                   </div>
-                  <div className="h-2 rounded-full bg-white border border-slate-200 overflow-hidden">
-                    <div className={`h-full rounded-full ${profileFilled === 6 ? 'bg-emerald-500' : 'bg-amber-500'}`} style={{ width: `${(profileFilled / 6) * 100}%` }} />
+                  <div className="h-2 rounded-full bg-white/20 overflow-hidden">
+                    <div className={`h-full rounded-full ${profileFilled === 6 ? 'bg-emerald-300' : 'bg-amber-300'}`} style={{ width: `${(profileFilled / 6) * 100}%` }} />
                   </div>
-                  <p className="text-[11px] text-slate-500">{profileFilled === 6 ? 'Profil lengkap' : 'Lengkapi profil agar 6/6'}</p>
+                  <p className="text-[11px] text-blue-200">{profileFilled === 6 ? 'Profil lengkap' : 'Lengkapi profil agar 6/6'}</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-9 pt-7 border-t border-slate-100 flex flex-wrap items-center gap-4 relative">
+            <div className="mt-9 pt-7 border-t border-white/15 flex flex-wrap items-center gap-4 relative">
               {isCatCompleted ? (
                 <>
                   <Button
                     variant="primary"
                     onClick={() => navigate('/peserta/waiting-room')}
-                    className="py-3 px-6 rounded-xl font-bold text-xs sm:text-sm shadow-xs flex items-center gap-2 cursor-pointer"
+                    className="py-3 px-6 rounded-xl font-bold text-xs sm:text-sm bg-white text-primary-navy border-white hover:bg-blue-50 shadow-xs flex items-center gap-2 cursor-pointer"
                   >
-                    <Video className="w-4 h-4 text-blue-100" />
+                    <Video className="w-4 h-4 text-primary-navy" />
                     <span>Masuk Ruang Tunggu Wawancara</span>
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
@@ -198,7 +215,7 @@ export default function PesertaDashboard() {
                     variant="outline"
                     disabled={!dashboard?.lha}
                     onClick={() => navigate('/peserta/hasil')}
-                    className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm text-slate-700 flex items-center gap-2 cursor-pointer"
+                    className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm text-white border-white/30 hover:bg-white/10 flex items-center gap-2 cursor-pointer"
                   >
                     <Award className="w-4 h-4 text-emerald-600" />
                     <span>{dashboard?.lha ? 'Lihat LHA Resmi' : 'Menunggu Penilaian Asesor'}</span>
@@ -212,7 +229,7 @@ export default function PesertaDashboard() {
                     onClick={() => navigate(`/peserta/exam/${activeProgram.id}`)}
                     className="py-3 px-6 rounded-xl font-bold text-xs sm:text-sm shadow-xs flex items-center gap-2 cursor-pointer"
                   >
-                    <PlayCircle className="w-4 h-4 text-blue-100" />
+                    <PlayCircle className="w-4 h-4 text-primary-navy" />
                     <span>{profileComplete ? 'Mulai Ujian CAT Sekarang (40 Soal)' : 'Lengkapi Profil untuk Memulai Ujian'}</span>
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
