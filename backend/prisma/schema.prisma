@@ -123,6 +123,7 @@ model PortalUser {
   interviewStatus String          @default("not_started")
   interviewScore  Float?
   faceVerifiedAt  DateTime?
+  deviceCheckCompletedAt DateTime?
   mustChangePassword Boolean      @default(false)
   profileCompleted   Boolean      @default(true)
   status          String          @default("Aktif") // "Aktif" | "Nonaktif"

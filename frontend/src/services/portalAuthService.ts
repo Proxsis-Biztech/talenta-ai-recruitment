@@ -27,6 +27,7 @@ export interface PortalUser {
   interviewStatus?: string | null;
   interviewScore?: number | null;
   faceVerifiedAt?: string | null;
+  deviceCheckCompletedAt?: string | null;
   mustChangePassword?: boolean;
   profileCompleted?: boolean;
   status?: string;

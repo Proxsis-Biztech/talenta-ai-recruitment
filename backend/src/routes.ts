@@ -15,7 +15,7 @@ const audioUpload = multer({
 });
 import { login, me as getCurrentAdmin, getAdmins, createAdmin, updateAdmin, deleteAdmin } from './controllers/AdminController';
 import {
-  loginPortal, registerPeserta, googleLogin, tokenLogin, me as getPortalMe, updateProfile, changePassword, completeOnboarding, completeDeviceCheck, getPortalDashboard,
+  loginPortal, registerPeserta, googleLogin, tokenLogin, me as getPortalMe, updateProfile, changePassword, completeOnboarding, completeDeviceCheck, completeDeviceCheckSession, getPortalDashboard,
   listPortalUsers, createPortalUser, updatePortalUser, deletePortalUser
 } from './controllers/PortalAuthController';
 import { createInterviewSessionToken } from './controllers/ApplicantController';
@@ -28,6 +28,7 @@ import { getInterviewQuestions } from './controllers/InterviewController';
 import { getWaitingRoomStatus, completeAndCallNext } from './controllers/InterviewQueueController';
 import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
 import { listTenants } from './controllers/TenantController';
+import { syncProgramQuestions } from './controllers/ProgramQuestionController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
 import { uploadExcel, downloadPortalUserTemplate, importPortalUsers } from './controllers/BulkImportController';
 import { runFactSheetMatching } from './services/factSheetService';
@@ -62,6 +63,7 @@ router.put('/portal/profile', authenticatePortal, updateProfile);
 router.put('/portal/password', authenticatePortal, changePassword);
 router.post('/portal/onboarding', authenticatePortal, completeOnboarding);
 router.post('/portal/device-check', authenticatePortal, completeDeviceCheck);
+router.post('/portal/device-check/complete', authenticatePortal, completeDeviceCheckSession);
 router.get('/portal/dashboard', authenticatePortal, getPortalDashboard);
 router.get('/portal/waiting-room', authenticatePortal, requirePortalRole('peserta'), getWaitingRoomStatus);
 router.post('/asesor/interview/:candidateCode/complete-and-call-next', authenticatePortal, requirePortalRole('asesor'), completeAndCallNext);
@@ -122,6 +124,7 @@ router.post('/admin/access-codes', authenticateToken, createAccessCode);
 router.put('/admin/access-codes/:code', authenticateToken, updateAccessCode);
 
 router.get('/admin/tenants', authenticateToken, listTenants);
+router.post('/admin/programs/:programCode/questions/sync', authenticateToken, syncProgramQuestions);
 
 // Current admin session
 router.get('/admin/me', authenticateToken, getCurrentAdmin);

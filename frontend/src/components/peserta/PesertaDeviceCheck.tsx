@@ -295,6 +295,21 @@ export default function PesertaDeviceCheck() {
   // ──────────────────────────────────────────────
   // 5. Proceed to Exam Navigation
   // ──────────────────────────────────────────────
+  const handleFinishDeviceCheck = async () => {
+    const token = getPortalToken();
+    if (token) {
+      try {
+        const response = await axios.post('/api/portal/device-check/complete', {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.data?.user) savePortalSession({ token, user: response.data.user });
+      } catch {
+        // Tetap lanjut; status dapat diselesaikan ulang.
+      }
+    }
+    navigate(getPortalUser()?.faceVerifiedAt ? '/peserta' : '/peserta/profile?tab=biometrik');
+  };
+
   const handleProceedToExam = () => {
     if (!consentGiven) {
       setFaceError('Centang persetujuan biometrik sebelum melanjutkan ke ujian.');
@@ -620,7 +635,7 @@ export default function PesertaDeviceCheck() {
               <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => navigate(getPortalUser()?.faceVerifiedAt ? '/peserta' : '/peserta/profile?tab=biometrik')}
+                  onClick={handleFinishDeviceCheck}
                   className="w-full py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />

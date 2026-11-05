@@ -39,6 +39,7 @@ const userSelect = {
   interviewStatus: true,
   interviewScore: true,
   faceVerifiedAt: true,
+  deviceCheckCompletedAt: true,
   mustChangePassword: true,
   profileCompleted: true,
   status: true,
@@ -393,13 +394,6 @@ export const completeOnboarding = async (req: AuthRequest, res: Response) => {
 export const completeDeviceCheck = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
-    const profile = await prisma.portalUser.findUnique({
-      where: { id: req.portalUser.id },
-      select: { name: true, phone: true, nik: true, employeeNumber: true, education: true, university: true, city: true }
-    });
-    if (!profile?.name || !profile?.phone || !profile?.nik || !profile?.education || !profile?.university || !profile?.city) {
-      return res.status(403).json({ error: 'Lengkapi data profil terlebih dahulu sebelum cek perangkat.' });
-    }
     if (!req.body.faceCaptured) {
       return res.status(400).json({ error: 'Snapshot wajah belum diterima.' });
     }
@@ -412,6 +406,21 @@ export const completeDeviceCheck = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Complete device check error:', error);
     return res.status(500).json({ error: 'Gagal menyimpan verifikasi perangkat.' });
+  }
+};
+
+export const completeDeviceCheckSession = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    const user = await prisma.portalUser.update({
+      where: { id: req.portalUser.id },
+      data: { deviceCheckCompletedAt: new Date() },
+      select: userSelect
+    });
+    return res.json({ user });
+  } catch (error) {
+    console.error('Complete device check session error:', error);
+    return res.status(500).json({ error: 'Gagal menyimpan status cek perangkat.' });
   }
 };
 

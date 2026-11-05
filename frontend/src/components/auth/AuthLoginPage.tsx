@@ -53,7 +53,7 @@ export default function AuthLoginPage() {
       localStorage.removeItem('adminRole');
       localStorage.removeItem('adminUsername');
       savePortalSession(session);
-      navigate(!session.user.faceVerifiedAt ? '/peserta/device-check' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta');
+      navigate(session.requiresOnboarding ? '/peserta/onboarding' : '/peserta');
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal masuk dengan Google.' : 'Gagal masuk dengan Google.');
     } finally {
@@ -129,7 +129,7 @@ export default function AuthLoginPage() {
         const session = await tokenLogin({ programCode: programCode.trim().toUpperCase() });
         savePortalSession(session);
         setSuccessRole('peserta');
-        setTimeout(() => navigate(!session.user.faceVerifiedAt ? '/peserta/device-check' : !session.user.faceVerifiedAt ? '/peserta/device-check' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta'), 300);
+        setTimeout(() => navigate(!session.user.faceVerifiedAt ? '/peserta/device-check' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta'), 300);
         return;
       }
 
@@ -168,7 +168,7 @@ export default function AuthLoginPage() {
       const session = await loginPortal(identifier.trim(), password);
       savePortalSession(session);
       setSuccessRole(session.user.role === 'asesor' ? 'asesor' : 'peserta');
-      setTimeout(() => navigate(session.user.role === 'asesor' ? '/asesor' : !session.user.faceVerifiedAt ? '/peserta/device-check' : !session.user.faceVerifiedAt ? '/peserta/device-check' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta'), 300);
+      setTimeout(() => navigate(session.user.role === 'asesor' ? '/asesor' : !session.user.faceVerifiedAt ? '/peserta/device-check' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta'), 300);
     } catch (err) {
       const message = axios.isAxiosError(err)
         ? err.response?.data?.error ||

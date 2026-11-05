@@ -450,3 +450,57 @@ export function findProgramByTitle(jobTitle: string, jobId?: string): Assessment
     questions: generateProgramQuestions(cleanTitle, companyName, 'Grade B (Specialist / Mid)')
   };
 }
+
+export interface DefaultBankQuestionItem {
+  id: string;
+  type: 'Pilihan Ganda' | 'Multi-Select' | 'Isian Singkat' | 'Esai' | 'Matching';
+  programCode: string;
+  text: string;
+  competency: string;
+  difficulty: 'Mudah' | 'Sedang' | 'Sulit';
+  status: 'Published' | 'Review' | 'Draft' | 'Retired';
+  pValue: number;
+  distractorStats: { label: string; pct: number }[];
+  options: { key: string; text: string; isCorrect: boolean }[];
+  explanation: string;
+}
+
+export function buildDefaultBankSoal(): DefaultBankQuestionItem[] {
+  const result: DefaultBankQuestionItem[] = [];
+  const typeMap: Record<string, DefaultBankQuestionItem['type']> = {
+    single: 'Pilihan Ganda',
+    multi: 'Multi-Select',
+    short: 'Isian Singkat',
+    essay: 'Esai',
+    matching: 'Matching'
+  };
+
+  const programs = getAllPrograms();
+  for (const prog of programs) {
+    (prog.questions || []).forEach((q, idx) => {
+      result.push({
+        id: `SOAL-${prog.id}-${String(idx + 1).padStart(2, '0')}`,
+        type: typeMap[q.type] || 'Pilihan Ganda',
+        programCode: prog.id,
+        text: q.text,
+        competency: q.competency || 'Kompetensi Umum',
+        difficulty: q.difficulty || 'Sedang',
+        status: 'Published',
+        pValue: q.difficulty === 'Mudah' ? 0.85 : q.difficulty === 'Sulit' ? 0.45 : 0.65,
+        distractorStats: [
+          { label: 'A (Kunci)', pct: 60 },
+          { label: 'B', pct: 15 },
+          { label: 'C', pct: 15 },
+          { label: 'D', pct: 10 }
+        ],
+        options: (q.options || []).map((opt) => ({
+          key: opt.key,
+          text: opt.label,
+          isCorrect: Boolean(opt.isCorrect)
+        })),
+        explanation: q.explanation || 'Pembahasan kunci jawaban standar kompetensi.'
+      });
+    });
+  }
+  return result;
+}

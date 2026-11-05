@@ -6,7 +6,7 @@ import {
   Target, Search, RefreshCw, Building2,
   BookOpen, Layers, CheckCircle2, Eye, HelpCircle, Check, 
   X, Filter, SlidersHorizontal, ListOrdered, Award, ShieldCheck, 
-  ChevronRight, FileText
+  ChevronRight, FileText, Download
 } from 'lucide-react';
 import {
   Card,
@@ -25,6 +25,8 @@ import {
   DEFAULT_ASSESSMENT_PROGRAMS, 
   findProgramByTitle, 
   upsertProgram,
+  getAllPrograms,
+  buildDefaultBankSoal,
   type AssessmentProgram, 
   type QuestionItem 
 } from '../services/assessmentCatalog';
@@ -119,6 +121,14 @@ export default function JobManagement() {
   const [editingMatId, setEditingMatId] = useState<string | null>(null);
   const [editQSearch, setEditQSearch] = useState('');
 
+  // Import dari Bank Soal Panel State
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [importSourceProgramId, setImportSourceProgramId] = useState('');
+  const [importTypeFilter, setImportTypeFilter] = useState('ALL');
+  const [importMode, setImportMode] = useState<'append' | 'replace'>('append');
+  const [importFeedback, setImportFeedback] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
+  const allProgramsList = useMemo(() => getAllPrograms(), []);
+
 
   // Details Modal State (Soal, Materi, Rubrik)
   const [selectedJobDetail, setSelectedJobDetail] = useState<{
@@ -133,7 +143,8 @@ export default function JobManagement() {
 
   const getBankQuestionCountForJob = useCallback((job: Job) => {
     const program = findProgramByTitle(job.title, job.id);
-    return bankSoalQuestions.filter((question) => (question.programCode || 'SE-402') === program.id).length;
+    const count = bankSoalQuestions.filter((question) => (question.programCode || 'SE-402') === program.id).length;
+    return count > 0 ? count : (program.questions?.length || 40);
   }, [bankSoalQuestions]);
 
   const getMaterialsForJob = useCallback((job: Job): MasterMateriItem[] => {
@@ -188,9 +199,18 @@ export default function JobManagement() {
   useEffect(() => {
     loadMasterScope<any>('bank-soal')
       .then((data) => {
-        if (Array.isArray(data.questions)) setBankSoalQuestions(data.questions);
+        const defaults = buildDefaultBankSoal();
+        if (Array.isArray(data.questions) && data.questions.length > 0) {
+          const existingCodes = new Set(data.questions.map((q: any) => q.programCode));
+          const missing = defaults.filter((q) => !existingCodes.has(q.programCode));
+          setBankSoalQuestions(missing.length > 0 ? [...data.questions, ...missing] : data.questions);
+        } else {
+          setBankSoalQuestions(defaults);
+        }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        setBankSoalQuestions(buildDefaultBankSoal());
+      });
   }, []);
 
   const mapBankQuestion = (question: any, index: number): QuestionItem => {
@@ -221,9 +241,12 @@ export default function JobManagement() {
 
   const handleOpenDetailModal = (job: Job) => {
     const program = findProgramByTitle(job.title, job.id);
-    const programQuestions = bankSoalQuestions
+    let programQuestions = bankSoalQuestions
       .filter((question) => (question.programCode || 'SE-402') === program.id)
       .map(mapBankQuestion);
+    if (programQuestions.length === 0 && program.questions && program.questions.length > 0) {
+      programQuestions = program.questions;
+    }
     const detailProgram = { ...program, questions: programQuestions };
     const materials = getMaterialsForJob(job);
     setSelectedJobDetail({ job, program: detailProgram, materials });
@@ -352,6 +375,95 @@ export default function JobManagement() {
     setEditingQId(null);
     setEditingMatId(null);
     setEditQSearch('');
+    setShowImportPanel(false);
+    setImportSourceProgramId(program.id);
+    setImportTypeFilter('ALL');
+    setImportMode('append');
+    setImportFeedback(null);
+  };
+
+  const availableBankQuestionsForImport = useMemo(() => {
+    if (!importSourceProgramId) return [];
+    const sourceQuestions = bankSoalQuestions
+      .filter((q) => (q.programCode || 'SE-402') === importSourceProgramId)
+      .map(mapBankQuestion);
+    if (sourceQuestions.length > 0) return sourceQuestions;
+    const fallbackProg = allProgramsList.find((p) => p.id === importSourceProgramId);
+    return fallbackProg?.questions || [];
+  }, [importSourceProgramId, bankSoalQuestions, allProgramsList]);
+
+  const countByImportType = useMemo(() => {
+    const counts: Record<string, number> = { single: 0, multi: 0, short: 0, essay: 0, matching: 0 };
+    availableBankQuestionsForImport.forEach((q) => {
+      if (counts[q.type] !== undefined) counts[q.type]++;
+    });
+    return counts;
+  }, [availableBankQuestionsForImport]);
+
+  const filteredImportQuestions = useMemo(() => {
+    if (importTypeFilter === 'ALL') return availableBankQuestionsForImport;
+    return availableBankQuestionsForImport.filter((q) => q.type === importTypeFilter);
+  }, [availableBankQuestionsForImport, importTypeFilter]);
+
+  const handleExecuteImport = async () => {
+    if (!editingJob || filteredImportQuestions.length === 0) return;
+    const program = findProgramByTitle(editTitle.trim() || editingJob.title, editingJob.id);
+
+    let nextList: QuestionItem[] = [];
+    if (importMode === 'replace') {
+      nextList = filteredImportQuestions.map((q, idx) => ({ ...q, id: idx + 1 }));
+    } else {
+      const existingTexts = new Set(editQuestions.map((q) => q.text.trim().toLowerCase()));
+      const toAdd = filteredImportQuestions.filter((q) => !existingTexts.has(q.text.trim().toLowerCase()));
+      if (toAdd.length === 0) {
+        setImportFeedback({
+          type: 'info',
+          message: `Semua butir soal bertipe "${importTypeFilter === 'ALL' ? 'Semua Tipe' : questionTypeLabel(importTypeFilter as any)}" dari program sumber sudah ada pada formasi ini.`
+        });
+        return;
+      }
+      nextList = [...editQuestions, ...toAdd].map((q, idx) => ({ ...q, id: idx + 1 }));
+    }
+
+    setEditQuestions(nextList);
+    try {
+      await syncQuestionsToServer(program.id, nextList);
+      setImportFeedback({
+        type: 'success',
+        message: `Berhasil mengimpor ${importMode === 'replace' ? nextList.length : (nextList.length - editQuestions.length)} butir soal (${importTypeFilter === 'ALL' ? 'Semua Tipe' : questionTypeLabel(importTypeFilter as any)}). Total ${nextList.length} soal aktif.`
+      });
+      setShowImportPanel(false);
+    } catch {
+      setImportFeedback({
+        type: 'error',
+        message: 'Soal berhasil dimuat ke editor, tetapi sinkronisasi ke server mengalami kendala.'
+      });
+    }
+  };
+
+  const syncQuestionsToServer = async (programCode: string, questions: QuestionItem[]) => {
+    const token = localStorage.getItem('adminToken');
+    const payload = questions.map((question) => {
+      const options = question.options || [];
+      let correctAnswer: unknown = null;
+      if (question.type === 'single') correctAnswer = options.find((option) => option.isCorrect)?.key ?? null;
+      else if (question.type === 'multi') correctAnswer = options.filter((option) => option.isCorrect).map((option) => option.key);
+      else if (question.type === 'short') correctAnswer = options[0]?.label ?? null;
+      else if (question.type === 'matching') correctAnswer = question.matchingPairs || [];
+      return {
+        type: question.type,
+        text: question.text,
+        competency: question.competency,
+        difficulty: question.difficulty,
+        options,
+        matchingPairs: question.matchingPairs || [],
+        correctAnswer,
+        points: 1
+      };
+    });
+    await axios.post(`/api/admin/programs/${programCode}/questions/sync`, { questions: payload }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
   };
 
   const handleUpdateJob = async (e: React.FormEvent) => {
@@ -380,6 +492,7 @@ export default function JobManagement() {
       try {
         const program = findProgramByTitle(editTitle.trim(), editingJob.id);
         upsertProgram({ ...program, questions: editQuestions, totalQuestions: editQuestions.length });
+        await syncQuestionsToServer(program.id, editQuestions);
         const overrides = getJobMateriOverrides();
         overrides[editingJob.id] = editMaterials;
         localStorage.setItem(MATERI_OVERRIDES_KEY, JSON.stringify(overrides));
@@ -1059,7 +1172,48 @@ export default function JobManagement() {
                     </div>
                   </div>
 
+                  {importFeedback && (
+                    <div
+                      className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 animate-in fade-in ${
+                        importFeedback.type === 'success'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                          : importFeedback.type === 'error'
+                          ? 'bg-rose-50 border-rose-200 text-rose-800'
+                          : 'bg-blue-50 border-blue-200 text-blue-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {importFeedback.type === 'success' ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                        )}
+                        <span>{importFeedback.message}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setImportFeedback(null)}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <Button
+                      type="button"
+                      variant={showImportPanel ? 'primary' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setShowImportPanel(!showImportPanel);
+                        setImportFeedback(null);
+                      }}
+                      className="text-xs"
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1.5" />
+                      {showImportPanel ? 'Tutup Panel Import' : 'Import dari Bank Soal CAT'}
+                    </Button>
                     <div className="relative flex-1">
                       <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
@@ -1080,6 +1234,119 @@ export default function JobManagement() {
                       Tambah Soal
                     </Button>
                   </div>
+
+                  {showImportPanel && (
+                    <div className="p-4 bg-slate-50 border border-slate-200/90 rounded-xl space-y-3.5 shadow-2xs animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-soft-blue text-primary-navy flex items-center justify-center font-bold">
+                            <Download className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-ink font-heading">
+                              Panel Import dari Bank Soal CAT
+                            </h4>
+                            <p className="text-[11px] text-muted-slate">
+                              Pilih program sumber dan tipe soal dari Bank Soal CAT untuk diimpor ke formasi ini.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowImportPanel(false)}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {/* 1. Sumber Program */}
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                            1. Program Sumber Bank Soal
+                          </label>
+                          <select
+                            value={importSourceProgramId}
+                            onChange={(e) => setImportSourceProgramId(e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-primary-navy font-medium text-slate-800 cursor-pointer"
+                          >
+                            {allProgramsList.map((prog) => (
+                              <option key={prog.id} value={prog.id}>
+                                [{prog.id}] {prog.title.replace(/\s*\([^)]*\)\s*$/, '')} ({prog.companyName})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* 2. Dropdown Tipe Soal */}
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                            2. Dropdown Tipe Soal di Bank Soal CAT *
+                          </label>
+                          <select
+                            value={importTypeFilter}
+                            onChange={(e) => setImportTypeFilter(e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-primary-navy font-bold text-primary-navy cursor-pointer"
+                          >
+                            <option value="ALL">Semua Tipe Soal ({availableBankQuestionsForImport.length} Butir)</option>
+                            <option value="single">Pilihan Ganda ({countByImportType.single || 0} Butir)</option>
+                            <option value="multi">Multi-Select / Kompleks ({countByImportType.multi || 0} Butir)</option>
+                            <option value="short">Isian Singkat ({countByImportType.short || 0} Butir)</option>
+                            <option value="essay">Studi Kasus / Esai ({countByImportType.essay || 0} Butir)</option>
+                            <option value="matching">Matching / Menjodohkan ({countByImportType.matching || 0} Butir)</option>
+                          </select>
+                        </div>
+
+                        {/* 3. Mode Aksi Impor */}
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                            3. Mode Aksi Impor
+                          </label>
+                          <select
+                            value={importMode}
+                            onChange={(e) => setImportMode(e.target.value as 'append' | 'replace')}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-primary-navy font-medium text-slate-800 cursor-pointer"
+                          >
+                            <option value="append">Tambahkan ke Soal yang Ada (Append)</option>
+                            <option value="replace">Gantikan / Timpa Seluruh Soal (Replace)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Footer Panel Import */}
+                      <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200">
+                        <div className="text-xs text-slate-600">
+                          Ditemukan <strong className="text-primary-navy font-bold">{filteredImportQuestions.length}</strong> butir soal siap diimpor
+                          {importTypeFilter !== 'ALL' && (
+                            <span className="ml-1 text-[11px] text-muted-slate">
+                              (hanya bertipe {questionTypeLabel(importTypeFilter as any)})
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="xs"
+                            onClick={() => setShowImportPanel(false)}
+                          >
+                            Batal
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="xs"
+                            disabled={filteredImportQuestions.length === 0}
+                            onClick={handleExecuteImport}
+                            leftIcon={<Download className="w-3.5 h-3.5" />}
+                          >
+                            Impor {filteredImportQuestions.length} Soal ke Formasi
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-3">
                     {editVisibleQuestions.length === 0 ? (

@@ -794,20 +794,25 @@ export default function PesertaProfile() {
                 <span className="text-xs font-bold text-slate-700">Foto Referensi Wajah Ujian</span>
                 <canvas ref={faceCanvasRef} className="hidden" />
 
-                {faceCameraActive ? (
-                  <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-primary-navy bg-slate-900">
-                    <video ref={faceVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
-                  </div>
-                ) : savedFacePhoto ? (
-                  <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-sm">
-                    <img src={savedFacePhoto} alt="Foto wajah terdaftar" className="w-full h-full object-cover" />
-                  </div>
-                ) : (
-                  <div className="w-40 h-40 rounded-2xl bg-slate-200 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-3 text-slate-500">
-                    <Camera className="w-8 h-8 text-slate-400 mb-1" />
-                    <span className="text-[11px] font-semibold text-center leading-tight">Belum ada foto terdaftar</span>
-                  </div>
-                )}
+                <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-primary-navy bg-slate-900">
+                  <video
+                    ref={faceVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className={faceCameraActive ? 'w-full h-full object-cover scale-x-[-1]' : 'hidden'}
+                  />
+                  {!faceCameraActive && (
+                    savedFacePhoto ? (
+                      <img src={savedFacePhoto} alt="Foto wajah terdaftar" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-slate-200 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-3 text-slate-500">
+                        <Camera className="w-8 h-8 text-slate-400 mb-1" />
+                        <span className="text-[11px] font-semibold text-center leading-tight">Belum ada foto terdaftar</span>
+                      </div>
+                    )
+                  )}
+                </div>
 
                 {faceError && (
                   <p className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">

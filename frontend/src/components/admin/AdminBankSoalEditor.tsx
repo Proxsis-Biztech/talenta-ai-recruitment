@@ -22,7 +22,7 @@ import {
   Layers
 } from 'lucide-react';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
-import { getAllPrograms } from '../../services/assessmentCatalog';
+import { getAllPrograms, buildDefaultBankSoal } from '../../services/assessmentCatalog';
 import {
   Button,
   Badge,
@@ -207,17 +207,22 @@ export function AdminBankSoalEditor() {
     loadMasterScope<any>('bank-soal')
       .then((data: Record<string, any>) => {
         if (cancelled) return;
+        const defaultBank = buildDefaultBankSoal() as BankQuestion[];
         if (Array.isArray(data.questions) && data.questions.length > 0) {
           const normalized = data.questions.map((question: BankQuestion) => ({
             ...question,
             programCode: question.programCode || programs[0]?.id || 'SE-402'
           }));
-          setQuestions(normalized);
-          if (normalized.some((question: BankQuestion, index: number) => question.programCode !== data.questions[index]?.programCode)) {
-            void saveMasterRecord('bank-soal', 'questions', normalized);
+          const existingCodes = new Set(normalized.map((q: BankQuestion) => q.programCode));
+          const missingQuestions = defaultBank.filter((q) => !existingCodes.has(q.programCode));
+          const merged = missingQuestions.length > 0 ? [...normalized, ...missingQuestions] : normalized;
+          setQuestions(merged);
+          if (missingQuestions.length > 0 || normalized.some((question: BankQuestion, index: number) => question.programCode !== data.questions[index]?.programCode)) {
+            void saveMasterRecord('bank-soal', 'questions', merged);
           }
         } else {
-          void saveMasterRecord('bank-soal', 'questions', INITIAL_QUESTIONS);
+          setQuestions(defaultBank);
+          void saveMasterRecord('bank-soal', 'questions', defaultBank);
         }
         if (Array.isArray(data.factsheet) && data.factsheet.length > 0) {
           setFactSheetItems(data.factsheet);
@@ -234,7 +239,7 @@ export function AdminBankSoalEditor() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [programs]);
 
   const [activeQuestion, setActiveQuestion] = useState<BankQuestion>(questions[0]);
   const [isEditingExisting, setIsEditingExisting] = useState(true);
