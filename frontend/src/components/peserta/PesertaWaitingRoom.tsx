@@ -249,33 +249,54 @@ export default function PesertaWaitingRoom() {
           <div className="flex flex-col lg:flex-row items-center justify-between gap-6 border-b border-slate-100 pb-6 relative">
             <div className="flex flex-col items-center lg:items-start text-center lg:text-left">
               <span className="text-xs sm:text-sm text-muted-slate font-medium mb-1.5">
-                Estimasi Waktu Menuju Giliran Anda:
+                Nomor Antrean Anda:
               </span>
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3">
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
                 <div className="font-mono text-3xl sm:text-4xl font-extrabold text-primary-navy bg-soft-blue px-6 py-2.5 rounded-2xl border border-accent-border shadow-2xs tabular-nums ring-1 ring-white/60">
                   {queueState?.status === 'called'
-                    ? formatTime(toastSeconds)
-                    : queueState?.status === 'waiting' || queueState?.status === 'next'
-                      ? 'Menunggu'
-                      : scheduledAt
-                        ? formatTime(countdown)
-                        : '--:--'}
+                    ? 'GILIRAN'
+                    : queueState?.position
+                      ? `#${queueState.position}`
+                      : '--'}
                 </div>
-                {countdown > 0 && (
-                  <button
-                    onClick={() => { setCountdown(0); setIsReady(true); }}
-                    className="text-xs text-blue-accent hover:underline font-semibold cursor-pointer py-1 px-2"
-                  >
-                    Lewati Tunggu (Uji Coba)
-                  </button>
-                )}
+                <div className="text-left">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-slate">
+                    Estimasi Waktu Tunggu
+                  </p>
+                  <p className="text-sm font-bold text-primary-navy">
+                    {queueState?.status === 'called'
+                      ? `Masuk dalam ${formatTime(toastSeconds)}`
+                      : typeof queueState?.estimatedWaitMinutes === 'number'
+                        ? `± ${queueState.estimatedWaitMinutes} menit`
+                        : scheduledAt
+                          ? formatTime(countdown)
+                          : 'Belum dijadwalkan'}
+                  </p>
+                  {queueState?.queueLength ? (
+                    <p className="text-[11px] text-muted-slate">
+                      Posisi {queueState.position} dari {queueState.queueLength} peserta
+                    </p>
+                  ) : null}
+                </div>
               </div>
+              {countdown > 0 && (
+                <button
+                  onClick={() => { setCountdown(0); setIsReady(true); }}
+                  className="text-xs text-blue-accent hover:underline font-semibold cursor-pointer py-1 px-2"
+                >
+                  Lewati Tunggu (Uji Coba)
+                </button>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full lg:w-auto text-xs sm:text-sm text-slate-600">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto text-xs sm:text-sm text-slate-600">
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <Users className="w-4 h-4 text-blue-accent shrink-0" />
-                <span className="truncate">Posisi Antrean: <strong className="text-ink">{queueState?.status === 'called' ? 'Giliran Anda' : queueState?.position ? `#${queueState.position} Peserta Berikutnya` : queuePosition ? `#${queuePosition} Peserta Berikutnya` : 'Belum dijadwalkan'}</strong></span>
+                <span className="truncate">Nomor Antrean: <strong className="text-ink">{queueState?.status === 'called' ? 'Giliran Anda' : queueState?.position ? `#${queueState.position}` : queuePosition ? `#${queuePosition}` : '-'}</strong></span>
+              </div>
+              <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="truncate">Estimasi Tunggu: <strong className="text-ink">{queueState?.status === 'called' ? 'Sekarang' : typeof queueState?.estimatedWaitMinutes === 'number' ? `± ${queueState.estimatedWaitMinutes} menit` : '-'}</strong></span>
               </div>
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />

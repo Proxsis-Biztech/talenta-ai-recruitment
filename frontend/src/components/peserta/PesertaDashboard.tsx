@@ -21,7 +21,8 @@ import {
   Wifi,
   Smile,
   Building2,
-  FileQuestion
+  FileQuestion,
+  Users
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
@@ -497,6 +498,22 @@ export default function PesertaDashboard() {
                   <div className="text-xs">
                     <p className="font-bold text-ink">{interview.assessorName || 'Tim Asesor Right'}</p>
                     <p className="text-muted-slate text-[11px]">Asesor Sesi Wawancara</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-exam-bg border border-slate-200 transition-colors hover:border-accent-border">
+                  <Users className="w-4 h-4 text-blue-accent shrink-0" />
+                  <div className="text-xs">
+                    <p className="font-bold text-ink">
+                      {interview.status === 'called' ? 'Giliran Anda' : interview.queuePosition ? `Nomor Antrean #${interview.queuePosition}` : 'Belum masuk antrean'}
+                    </p>
+                    <p className="text-muted-slate text-[11px]">
+                      {interview.status === 'called'
+                        ? 'Silakan masuk ke ruang tunggu'
+                        : typeof interview.estimatedWaitMinutes === 'number'
+                          ? `Estimasi tunggu ± ${interview.estimatedWaitMinutes} menit`
+                          : 'Menunggu jadwal dari admin'}
+                    </p>
                   </div>
                 </div>
               </div>

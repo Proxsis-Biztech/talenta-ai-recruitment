@@ -170,8 +170,15 @@ export default function AsesorLiveConsole() {
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const next = response.data?.next;
-      window.alert(next ? `Sesi selesai. Peserta berikutnya: ${next.name} (${next.candidateCode || '-'}).` : 'Sesi selesai. Tidak ada peserta berikutnya dalam antrean.');
+      const data = response.data || {};
+      const next = data.next;
+      if (data.alreadyCompleted) {
+        window.alert('Sesi ini sudah diselesaikan sebelumnya.');
+      } else if (data.busy) {
+        window.alert('Sesi selesai. Masih ada peserta lain yang sedang diwawancarai, antrean berikutnya akan dipanggil setelah sesi tersebut selesai.');
+      } else {
+        window.alert(next ? `Sesi selesai. Peserta berikutnya: ${next.name} (${next.candidateCode || '-'}).` : 'Sesi selesai. Tidak ada peserta berikutnya dalam antrean.');
+      }
       navigate('/asesor/interview-queue');
     } catch (error) {
       window.alert(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal memanggil peserta berikutnya.' : 'Gagal memanggil peserta berikutnya.');

@@ -459,16 +459,27 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
         })
       : null;
 
-    let queuePosition = 0;
-    if (user.interviewScheduledAt && programCode) {
-      queuePosition =
-        (await prisma.portalUser.count({
-          where: {
-            assessmentId: programCode,
-            interviewScheduledAt: { lte: user.interviewScheduledAt },
-            interviewStatus: 'not_started'
-          }
-        })) || 1;
+    let queuePosition: number | null = null;
+    let queueLength = 0;
+    let estimatedWaitMinutes: number | null = null;
+    if (programCode) {
+      const queue = await prisma.portalUser.findMany({
+        where: {
+          assessmentId: programCode,
+          role: 'peserta',
+          status: 'Aktif',
+          interviewStatus: { in: ['scheduled', 'waiting', 'called'] }
+        },
+        orderBy: [{ interviewScheduledAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
+        select: { id: true }
+      });
+      const index = queue.findIndex((item) => item.id === user.id);
+      queuePosition = index >= 0 ? index + 1 : null;
+      queueLength = queue.length;
+      if (queuePosition) {
+        estimatedWaitMinutes =
+          user.interviewStatus === 'called' ? 0 : Math.max(0, queuePosition - 1) * 15;
+      }
     }
 
     const assessor = user.assessorName
@@ -502,7 +513,9 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
         scheduledAt: user.interviewScheduledAt,
         assessorName: user.assessorName || assessor?.name || 'Tim Asesor Right',
         score: user.interviewScore,
-        queuePosition
+        queuePosition,
+        queueLength,
+        estimatedWaitMinutes
       },
       lha: lha
         ? {
