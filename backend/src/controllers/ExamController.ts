@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { deductQuotaForExam } from '../services/billingQuotaService';
 import { type AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
@@ -270,6 +271,10 @@ export const submitExam = async (req: AuthRequest, res: Response) => {
       : Math.max(0, 100 - violations.length * 5);
 
     const result = scoreAnswers(program.questions, answers);
+    const existingAttempt = await prisma.examAttempt.findUnique({
+      where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } },
+      select: { status: true }
+    });
 
     const attempt = await prisma.examAttempt.upsert({
       where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } },
@@ -308,6 +313,15 @@ export const submitExam = async (req: AuthRequest, res: Response) => {
         interviewStatus: 'scheduled'
       }
     });
+
+    if (!existingAttempt || existingAttempt.status !== 'submitted') {
+      void deductQuotaForExam({
+        candidateCode: req.portalUser.candidateCode,
+        candidateName: req.portalUser.name,
+        candidateEmail: req.portalUser.email,
+        programCode: program.code
+      });
+    }
 
     return res.json({
       score: attempt.score,

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -17,32 +17,71 @@ import {
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Card, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
-import { CANDIDATE_DIRECTORY, getCandidatesForTenant } from '../../services/asesorScoreService';
-import { getPortalUser } from '../../services/portalAuthService';
+import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
 
 export default function AsesorDashboard() {
   const navigate = useNavigate();
 
   const activeAsesor = useMemo(() => getActiveSessionUser(), []);
+  const [candidates, setCandidates] = useState<AssessorCandidate[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(true);
 
-  const visibleCandidates = useMemo(
-    () => getCandidatesForTenant(getPortalUser()?.companyName),
-    []
-  );
+  useEffect(() => {
+    let cancelled = false;
+    fetchAssessorCandidates()
+      .then((data) => {
+        if (!cancelled) setCandidates(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCandidates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCandidates(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleCandidates = candidates;
   const todaySlots = useMemo(() => {
-    return visibleCandidates.slice(0, 5).map((c, idx) => ({
-      id: `SLOT-${idx + 1}`,
+    return visibleCandidates.slice(0, 5).map((c) => ({
+      id: c.id,
       candidate: c.name,
       code: c.code,
       program: c.program,
-      company: c.pt,
-      time: idx === 0 ? '14:00 - 14:45 WIB' : idx === 1 ? '15:00 - 15:45 WIB' : '16:00 - 16:45 WIB',
-      status: idx === 0 ? 'Sedang Berlangsung' : idx === 1 ? 'Di Ruang Tunggu' : 'Terjadwal',
-      statusVariant: (idx === 0 ? 'teal' : idx === 1 ? 'navy' : 'neutral') as any,
-      catScore: `${c.catScore}/100`,
-      action: idx === 0 ? 'Masuk Live Console' : idx === 1 ? 'Siapkan Rubrik' : 'Lihat Dossier'
+      company: c.company,
+      time: c.scheduledAt
+        ? `${new Date(c.scheduledAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`
+        : 'Belum dijadwalkan',
+      status:
+        c.interviewStatus === 'called'
+          ? 'Dipanggil'
+          : c.interviewStatus === 'completed'
+            ? 'Selesai Dinilai'
+            : c.interviewStatus === 'scheduled'
+              ? 'Terjadwal'
+              : 'Menunggu',
+      statusVariant: (c.interviewStatus === 'called'
+        ? 'teal'
+        : c.interviewStatus === 'completed'
+          ? 'neutral'
+          : 'navy') as any,
+      catScore: c.catScore != null ? `${c.catScore}/100` : '-',
+      action: c.interviewStatus === 'called' ? 'Masuk Live Console' : 'Buka Dossier'
     }));
-  }, []);
+  }, [visibleCandidates]);
+
+  const primaryCode = todaySlots[0]?.code;
+  const openConsole = () => {
+    if (primaryCode) navigate(`/asesor/live-console/${primaryCode}`);
+  };
+  const pendingLha = candidates.filter(
+    (candidate) => candidate.interviewStatus === 'completed' && candidate.lhaStatus !== 'signed'
+  ).length;
+  const proctoringFindings = candidates.filter(
+    (candidate) => candidate.integrityScore != null && candidate.integrityScore < 100
+  ).length;
 
   return (
     <AsesorLayout activeTab="dashboard">
@@ -77,17 +116,17 @@ export default function AsesorDashboard() {
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1.5 text-muted-slate">
                   <Calendar className="w-4 h-4 text-primary-navy" />
-                  <span>Jadwal Hari Ini: <strong className="text-ink">5 Sesi</strong></span>
+                  <span>Jadwal Hari Ini: <strong className="text-ink">{candidates.length} Kandidat</strong></span>
                 </div>
                 <div className="flex items-center gap-1.5 text-muted-slate">
                   <Clock className="w-4 h-4 text-blue-accent" />
-                  <span>Sesi Aktif Sekarang: <strong className="text-emerald-600">Sesi 1 (14:00 WIB)</strong></span>
+                  <span>Antrean Dipanggil: <strong className="text-emerald-600">{candidates.filter((candidate) => candidate.interviewStatus === 'called').length} Kandidat</strong></span>
                 </div>
               </div>
 
               <Button
                 variant="primary"
-                onClick={() => navigate(`/asesor/live-console/${todaySlots[0]?.code || visibleCandidates[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
+                onClick={openConsole}
                 className="py-2.5 px-5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 <Video className="w-4 h-4 text-blue-100" />
@@ -110,16 +149,16 @@ export default function AsesorDashboard() {
               </div>
 
               <h3 className="font-heading font-bold text-base text-ink">
-                {todaySlots[0]?.candidate || 'Muhammad Fakhri Pratama'}
+                {todaySlots[0]?.candidate || (loadingCandidates ? 'Memuat kandidat...' : 'Belum ada kandidat')}
               </h3>
               <p className="font-mono text-xs text-muted-slate mt-0.5">
-                {todaySlots[0]?.code || 'TLN-SE-2026-001'}
+                {todaySlots[0]?.code || '-'}
               </p>
 
               <div className="mt-4 space-y-2 text-xs">
                 <div className="flex justify-between py-1 border-b border-slate-200/60">
                   <span className="text-muted-slate">Skor CAT Teknis</span>
-                  <span className="font-mono font-bold text-emerald-700">{todaySlots[0]?.catScore || '88.5/100'}</span>
+                  <span className="font-mono font-bold text-emerald-700">{todaySlots[0]?.catScore || '-'}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-200/60">
                   <span className="text-muted-slate">Proctoring AI</span>
@@ -136,7 +175,7 @@ export default function AsesorDashboard() {
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => navigate(`/asesor/live-console/${todaySlots[0]?.code || visibleCandidates[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
+                onClick={openConsole}
                 className="w-full py-2 rounded-xl text-primary-navy font-bold flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 border-slate-200 cursor-pointer"
               >
                 <span>Buka Lembar Penilaian BARS</span>
@@ -222,13 +261,13 @@ export default function AsesorDashboard() {
                 </div>
               </div>
               <div>
-                <p className="font-mono text-2xl font-bold text-ink">3 Berkas LHA</p>
+                <p className="font-mono text-2xl font-bold text-ink">{pendingLha} Berkas LHA</p>
                 <p className="text-xs text-muted-slate mt-0.5">Memerlukan finalisasi rekomendasi &amp; e-sign</p>
               </div>
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => navigate(`/asesor/scoring/${todaySlots[0]?.code || visibleCandidates[0]?.code || CANDIDATE_DIRECTORY[0].code}`)}
+                onClick={() => { if (primaryCode) navigate(`/asesor/scoring/${primaryCode}`); }}
                 className="w-full text-xs py-2 rounded-lg font-semibold text-amber-800 bg-amber-50/60 hover:bg-amber-100/70 border-amber-200 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>Selesaikan Penilaian</span>
@@ -247,7 +286,7 @@ export default function AsesorDashboard() {
                 </div>
               </div>
               <div>
-                <p className="font-mono text-2xl font-bold text-ink">7 Temuan AI</p>
+                <p className="font-mono text-2xl font-bold text-ink">{proctoringFindings} Temuan AI</p>
                 <p className="text-xs text-muted-slate mt-0.5">Perlu konfirmasi status valid vs false positive</p>
               </div>
               <Button

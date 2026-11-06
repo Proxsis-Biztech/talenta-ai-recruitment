@@ -212,7 +212,7 @@ const serializeTransaction = (transaction: any) => ({
   timestamp: new Date(transaction.timestamp).toISOString().replace('T', ' ').slice(0, 19)
 });
 
-const ensureBillingSeeded = async () => {
+export const ensureBillingSeeded = async () => {
   for (const tenant of TENANTS) {
     await prisma.billingTenant.upsert({
       where: { id: tenant.id },

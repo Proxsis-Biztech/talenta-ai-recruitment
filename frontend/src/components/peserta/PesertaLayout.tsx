@@ -67,7 +67,11 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
 
   // Check if CAT is completed
   const isCatCompleted = useMemo(() => {
-    return localStorage.getItem('talenta_cat_completed') === 'true';
+    const interviewStatus = String(getPortalUser()?.interviewStatus || '');
+    return (
+      localStorage.getItem('talenta_cat_completed') === 'true' ||
+      ['scheduled', 'called', 'completed'].includes(interviewStatus)
+    );
   }, []);
 
   // Functional interactive modals & dropdowns

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import { loadMasterScope } from '../services/masterDataService';
 import {
   Trash2,
   UserPlus,
@@ -80,6 +81,8 @@ export default function UserManagement() {
   const [pesertaFormPassword, setPesertaFormPassword] = useState('peserta123');
   const [pesertaFormPhone, setPesertaFormPhone] = useState('');
   const [pesertaFormCompanyId, setPesertaFormCompanyId] = useState(COMPANIES_CATALOG[0].id);
+  const [companyOptions, setCompanyOptions] = useState(COMPANIES_CATALOG);
+  const [programOptions, setProgramOptions] = useState(getAllPrograms());
   const [pesertaFormAssessmentId, setPesertaFormAssessmentId] = useState('');
   const [pesertaFormGrade, setPesertaFormGrade] = useState<'Grade C (Junior)' | 'Grade B (Specialist / Mid)' | 'Grade A (Lead / Senior)'>('Grade B (Specialist / Mid)');
   const [pesertaFormDate, setPesertaFormDate] = useState(new Date().toISOString().split('T')[0]);
@@ -87,8 +90,14 @@ export default function UserManagement() {
 
   // Available programs for the selected company in Add Peserta modal
   const availableProgramsForModal = useMemo(() => {
-    return getProgramsByCompany(pesertaFormCompanyId);
-  }, [pesertaFormCompanyId]);
+    const base = getProgramsByCompany(pesertaFormCompanyId);
+    const company = companyOptions.find((item) => item.id === pesertaFormCompanyId);
+    const extra = programOptions.filter(
+      (program) =>
+        program.companyName === company?.name && !base.some((item) => item.id === program.id)
+    );
+    return [...base, ...extra];
+  }, [pesertaFormCompanyId, companyOptions, programOptions]);
 
   // Set default assessment when company changes in modal
   useEffect(() => {
@@ -145,8 +154,14 @@ export default function UserManagement() {
   const [asesorFormError, setAsesorFormError] = useState('');
 
   const availableProgramsForAsesorModal = useMemo(() => {
-    return getProgramsByCompany(asesorFormCompanyId);
-  }, [asesorFormCompanyId]);
+    const base = getProgramsByCompany(asesorFormCompanyId);
+    const company = companyOptions.find((item) => item.id === asesorFormCompanyId);
+    const extra = programOptions.filter(
+      (program) =>
+        program.companyName === company?.name && !base.some((item) => item.id === program.id)
+    );
+    return [...base, ...extra];
+  }, [asesorFormCompanyId, companyOptions, programOptions]);
 
   useEffect(() => {
     if (availableProgramsForAsesorModal.length > 0) {
@@ -229,6 +244,67 @@ export default function UserManagement() {
     fetchAdmins();
   }, [loadPeserta, loadAsesor, fetchAdmins]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const token = localStorage.getItem('adminToken');
+    Promise.allSettled([
+      loadMasterScope<any>('company'),
+      token
+        ? axios.get('/api/admin/jobs', {
+            params: { limit: 100 },
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        : Promise.resolve({ data: { data: [] } })
+    ]).then(([companyResult, jobResult]) => {
+      if (cancelled) return;
+      const mergedCompanies = [...COMPANIES_CATALOG];
+      if (companyResult.status === 'fulfilled') {
+        const matrix = Array.isArray(companyResult.value)
+          ? companyResult.value
+          : companyResult.value?.matrix;
+        if (Array.isArray(matrix)) {
+          for (const item of matrix) {
+            if (item?.id && !mergedCompanies.some((company) => company.id === item.id)) {
+              mergedCompanies.push({
+                id: item.id,
+                name: item.name || item.id,
+                industry: item.industry || '-',
+                logoCode: item.logoCode || item.name?.slice(0, 3)?.toUpperCase() || 'PT',
+                location: item.location || '-'
+              } as any);
+            }
+          }
+        }
+      }
+      setCompanyOptions(mergedCompanies);
+
+      const mergedPrograms = getAllPrograms();
+      if (jobResult.status === 'fulfilled') {
+        for (const job of jobResult.value.data?.data || []) {
+          if (!job.code) continue;
+          if (!mergedPrograms.some((program) => program.id === job.code)) {
+            mergedPrograms.push({
+              id: job.code,
+              title: job.title,
+              companyName: job.title.includes('(')
+                ? job.title.split('(').slice(-1)[0].replace(')', '').trim()
+                : '-',
+              category: 'Program Kustom',
+              description: job.description || '',
+              durationMinutes: job.interviewDuration || 90,
+              passingScore: job.interviewPassingScore || 70,
+              totalQuestions: 0
+            } as any);
+          }
+        }
+      }
+      setProgramOptions(mergedPrograms);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // ──────────────────────────────────────────────
   // Handlers for Peserta
   // ──────────────────────────────────────────────
@@ -238,7 +314,7 @@ export default function UserManagement() {
     setPesertaFormUsername(peserta.username);
     setPesertaFormPassword('');
     setPesertaFormPhone(peserta.phone || '');
-    setPesertaFormCompanyId(peserta.companyId || COMPANIES_CATALOG[0].id);
+    setPesertaFormCompanyId(peserta.companyId || companyOptions[0]?.id || COMPANIES_CATALOG[0].id);
     setPesertaFormAssessmentId(peserta.assessmentId || '');
     setPesertaFormGrade(peserta.gradeLevel as any);
     setPesertaFormDate(peserta.scheduleDate || new Date().toISOString().split('T')[0]);
@@ -255,8 +331,8 @@ export default function UserManagement() {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const program = getAllPrograms().find((item) => item.id === pesertaFormAssessmentId);
-      const company = COMPANIES_CATALOG.find((item) => item.id === pesertaFormCompanyId);
+      const program = programOptions.find((item) => item.id === pesertaFormAssessmentId);
+      const company = companyOptions.find((item) => item.id === pesertaFormCompanyId);
       const payload: Record<string, unknown> = {
         name: pesertaFormName,
         phone: pesertaFormPhone,
@@ -394,7 +470,7 @@ export default function UserManagement() {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const company = COMPANIES_CATALOG.find((item) => item.id === asesorFormCompanyId);
+      const company = companyOptions.find((item) => item.id === asesorFormCompanyId);
       await axios.post('/api/admin/portal-users', {
         name: asesorFormName,
         email: asesorFormUsername,
@@ -710,7 +786,7 @@ export default function UserManagement() {
               </p>
               <div className="mt-2 flex items-baseline justify-between">
                 <span className="text-2xl font-bold font-mono text-primary-navy">
-                  {COMPANIES_CATALOG.length} PT
+                  {companyOptions.length} PT
                 </span>
                 <span className="text-xs text-slate-500">Multi-Company</span>
               </div>
@@ -722,7 +798,7 @@ export default function UserManagement() {
               </p>
               <div className="mt-2 flex items-baseline justify-between">
                 <span className="text-2xl font-bold font-mono text-blue-accent">
-                  {getAllPrograms().length}
+                  {programOptions.length}
                 </span>
                 <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-medium">
                   Grade A / B / C
@@ -766,7 +842,7 @@ export default function UserManagement() {
                 className="h-11 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl shadow-2xs focus:outline-none focus:border-primary-navy cursor-pointer"
               >
                 <option value="ALL">Semua Perusahaan (PT)</option>
-                {COMPANIES_CATALOG.map((c) => (
+                {companyOptions.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
@@ -1034,7 +1110,7 @@ export default function UserManagement() {
                       onChange={(e) => setPesertaFormCompanyId(e.target.value)}
                       className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium text-slate-800 shadow-2xs"
                     >
-                      {COMPANIES_CATALOG.map((c) => (
+                      {companyOptions.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name} ({c.industry})
                         </option>
@@ -1160,7 +1236,7 @@ export default function UserManagement() {
               </p>
               <div className="mt-2 flex items-baseline justify-between">
                 <span className="text-2xl font-bold font-mono text-primary-navy">
-                  {COMPANIES_CATALOG.length} PT
+                  {companyOptions.length} PT
                 </span>
                 <span className="text-xs text-slate-500">BUMN & Multinasional</span>
               </div>
@@ -1202,7 +1278,7 @@ export default function UserManagement() {
                 className="h-11 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl shadow-2xs focus:outline-none focus:border-primary-navy cursor-pointer"
               >
                 <option value="ALL">Semua Instansi PT</option>
-                {COMPANIES_CATALOG.map((c) => (
+                {companyOptions.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
@@ -1392,7 +1468,7 @@ export default function UserManagement() {
                   onChange={(e) => setAsesorFormCompanyId(e.target.value)}
                   className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium text-slate-800 shadow-2xs"
                 >
-                  {COMPANIES_CATALOG.map((c) => (
+                  {companyOptions.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>

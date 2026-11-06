@@ -40,9 +40,9 @@ import { PesertaLayout } from './PesertaLayout';
 import { ProctoringEngine, type ProctoringViolationEvent } from '../../utils/proctoringEngine';
 import { Button, Badge, Modal, Card, CardContent } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
-import { getPortalToken } from '../../services/portalAuthService';
+import { getPortalToken, getPortalUser } from '../../services/portalAuthService';
 import { CameraProctorTile } from './CameraProctorTile';
-import { getProgramById, DEFAULT_ASSESSMENT_PROGRAMS } from '../../services/assessmentCatalog';
+import { getProgramById, type AssessmentProgram } from '../../services/assessmentCatalog';
 
 // Mock 40 questions covering realistic IT & Engineering competencies for CAT mode
 interface Question {
@@ -158,9 +158,23 @@ export default function PesertaExamPlayer() {
   const activeUser = useMemo(() => getActiveSessionUser(), []);
 
   // Retrieve assigned assessment program (or from URL id)
-  const activeProgram = useMemo(() => {
+  const activeProgram: AssessmentProgram = useMemo(() => {
     const targetId = id && id !== 'demo' ? id : (activeUser.assessmentId || 'SE-402');
-    return getProgramById(targetId) || DEFAULT_ASSESSMENT_PROGRAMS[0];
+    const catalogProgram = getProgramById(targetId);
+    if (catalogProgram) return catalogProgram;
+    const portalUser = getPortalUser();
+    return {
+      id: targetId,
+      title: portalUser?.assessmentTitle || targetId,
+      companyName: portalUser?.companyName || '-',
+      category: 'Program Asesmen',
+      description: '',
+      durationMinutes: 90,
+      passingScore: 70,
+      totalQuestions: 0,
+      gradeLevel: 'Grade B (Specialist / Mid)',
+      questions: []
+    } as unknown as AssessmentProgram;
   }, [id, activeUser.assessmentId]);
 
   // Font Size Accessibility Setting: 'normal' (16px), 'large' (18px), 'xlarge' (20px)

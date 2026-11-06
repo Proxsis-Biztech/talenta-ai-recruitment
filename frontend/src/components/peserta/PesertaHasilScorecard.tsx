@@ -47,8 +47,14 @@ export default function PesertaHasilScorecard() {
 
   const activeUser = useMemo(() => getActiveSessionUser(), []);
   const activeProgram = useMemo(
-    () => getProgramById(activeUser.assessmentId || 'SE-402') || DEFAULT_ASSESSMENT_PROGRAMS[0],
-    [activeUser.assessmentId]
+    () =>
+      getProgramById(activeUser.assessmentId || 'SE-402') ||
+      ({
+        id: activeUser.assessmentId || 'SE-402',
+        title: activeUser.assessmentTitle || 'Program Asesmen',
+        companyName: activeUser.companyName || '-'
+      } as any),
+    [activeUser.assessmentId, activeUser.assessmentTitle, activeUser.companyName]
   );
 
   useEffect(() => {

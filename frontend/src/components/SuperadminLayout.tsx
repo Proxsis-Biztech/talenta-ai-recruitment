@@ -94,6 +94,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'ASESMEN & SOAL',
     items: [
       { key: 'jobs', label: 'Program Asesmen', icon: BookOpen },
+      { key: 'access-codes', label: 'Kode Akses Peserta', icon: KeyRound },
       { key: 'materi', label: 'Master Materi & Silabus', icon: FileText },
       { key: 'bank-soal', label: 'Bank Soal CAT', icon: CheckSquare },
     ],

@@ -17,7 +17,8 @@ import {
   FileText
 } from 'lucide-react';
 import { Button, Badge, Card } from '../ui';
-import { getCandidateByCode, calculateCompositeScore } from '../../services/asesorScoreService';
+import { calculateCompositeScore } from '../../services/asesorScoreService';
+import { fetchAssessorCandidate, type AssessorCandidate } from '../../services/assessorService';
 import { getPortalToken } from '../../services/portalAuthService';
 
 interface RubricItem {
@@ -32,7 +33,29 @@ interface RubricItem {
 export default function AsesorLiveConsole() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const candidate = getCandidateByCode(id);
+  const [candidate, setCandidate] = useState<AssessorCandidate | null>(null);
+  const [candidateLoading, setCandidateLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!id) {
+      setCandidateLoading(false);
+      return;
+    }
+    fetchAssessorCandidate(id)
+      .then((data) => {
+        if (!cancelled) setCandidate(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCandidate(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCandidateLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const [isRecording, setIsRecording] = useState(true);
   const [elapsed, setElapsed] = useState(380); // ~6 mins
@@ -138,9 +161,9 @@ export default function AsesorLiveConsole() {
       if (!token) throw new Error('Sesi asesor tidak ditemukan.');
       const interviewScore = Math.round(totalWeightedScore * 10) / 10;
       await axios.post('/api/asesor/scores', {
-        candidateCode: candidate.code,
-        candidateName: candidate.name,
-        programTitle: candidate.program,
+        candidateCode: candidate!.code,
+        candidateName: candidate!.name,
+        programTitle: candidate!.program,
         competencies: rubrics.map((rubric) => ({
           name: rubric.name,
           weight: rubric.weight,
@@ -148,11 +171,11 @@ export default function AsesorLiveConsole() {
           notes: rubric.notes
         })),
         interviewScore,
-        compositeScore: calculateCompositeScore(candidate.catScore, interviewScore),
+        compositeScore: calculateCompositeScore(candidate!.catScore ?? 0, interviewScore),
         recommendation: 'DIPERTIMBANGKAN',
         status: 'draft'
       }, { headers: { Authorization: `Bearer ${token}` } });
-      navigate(`/asesor/scoring/${candidate.code}`);
+      navigate(`/asesor/scoring/${candidate!.code}`);
     } catch (error) {
       window.alert(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal menyimpan catatan sesi.' : 'Gagal menyimpan catatan sesi.');
     } finally {
@@ -166,7 +189,7 @@ export default function AsesorLiveConsole() {
       const token = getPortalToken();
       if (!token) throw new Error('Sesi asesor tidak ditemukan.');
       const response = await axios.post(
-        `/api/asesor/interview/${candidate.code}/complete-and-call-next`,
+        `/api/asesor/interview/${candidate!.code}/complete-and-call-next`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -187,6 +210,21 @@ export default function AsesorLiveConsole() {
     }
   };
 
+  if (candidateLoading) {
+    return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center text-sm">Memuat kandidat...</div>;
+  }
+
+  if (!candidate) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-4">
+        <p className="text-sm font-semibold">Kandidat tidak ditemukan.</p>
+        <Button variant="primary" size="sm" onClick={() => navigate('/asesor/interview-queue')}>
+          Kembali ke Antrean
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col font-sans select-none">
       {/* ─── Topbar Live Console ─── */}
@@ -197,9 +235,9 @@ export default function AsesorLiveConsole() {
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-tight">
-              Live Console Asesor: Sesi {candidate.name} ({candidate.code})
+              Live Console Asesor: Sesi {candidate!.name} ({candidate!.code})
             </h1>
-            <p className="text-[11px] text-slate-400">{candidate.program} • {candidate.pt}</p>
+            <p className="text-[11px] text-slate-400">{candidate!.program} • {candidate!.company}</p>
           </div>
         </div>
 
@@ -245,16 +283,16 @@ export default function AsesorLiveConsole() {
           {/* Video Placeholder */}
           <div className="relative flex-1 flex flex-col items-center justify-center p-8 bg-slate-900">
             <div className="w-28 h-28 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-300 font-heading font-extrabold text-3xl shadow-inner">
-              {candidate.name
+              {candidate!.name
                 .split(' ')
                 .map((n) => n[0])
                 .slice(0, 2)
                 .join('')}
             </div>
             <div className="mt-4 text-center">
-              <p className="font-heading font-bold text-base text-white">{candidate.name}</p>
+              <p className="font-heading font-bold text-base text-white">{candidate!.name}</p>
               <p className="text-xs text-slate-400 font-mono">
-                Skor CAT Teknis: {candidate.catScore}/100 • {candidate.code}
+                Skor CAT Teknis: {candidate!.catScore ?? '-'}/100 • {candidate!.code}
               </p>
             </div>
 

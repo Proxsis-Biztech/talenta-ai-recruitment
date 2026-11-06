@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Clock,
   CheckCircle2,
@@ -44,70 +44,150 @@ export function AdminVerticalTimeline({
     pt: string;
     compositeScore?: number;
     integrityScore?: number;
+    createdAt?: string;
+    screeningStatus?: string;
+    screeningScore?: number | null;
+    interviewStatus?: string;
+    interviewScore?: number | null;
+    examAttempt?: {
+      score?: number | null;
+      integrityScore?: number | null;
+      submittedAt?: string | null;
+      violations?: string | null;
+    } | null;
+    proctorFlags?: string | null;
   };
 }) {
   const [isLocked, setIsLocked] = useState(false);
 
-  const steps: TimelineStep[] = [
-    {
-      time: '28 Okt 2026, 13:50 WIB',
-      duration: '3 menit',
-      icon: UserCheck,
-      title: 'Otorisasi & Device Check Kandidat Berhasil',
-      description: 'Kandidat Farhan Pratama login melalui token program SE-402. Kamera 720p, Mic, dan koneksi internet 38 Mbps lolos verifikasi mandatori.',
-      badge: 'Terverifikasi',
-      badgeVariant: 'teal',
-      notes: 'IP: 180.252.12.8 • User-Agent: Chrome 124.0.0 Win11'
-    },
-    {
-      time: '28 Okt 2026, 14:00 WIB',
-      duration: '0 menit',
-      icon: Clock,
-      title: 'Mulai Pengerjaan Tes Kemampuan Teknis (CAT)',
-      description: 'Kandidat mengaktifkan mode Layar Penuh (Fullscreen Lockdown). OpenCV Face Tracking diinisialisasi pada 30 FPS.',
-      badge: 'Tes Dimulai',
-      badgeVariant: 'navy'
-    },
-    {
-      time: '28 Okt 2026, 14:14 WIB',
-      duration: '3.8 detik',
-      icon: AlertTriangle,
-      title: 'Event Integritas AI: Tab Switching Terdeteksi',
-      description: 'Browser kehilangan fokus selama 3.8 detik (Page Visibility API hidden). Sistem mengeluarkan Strike #1 Peringatan kepada kandidat.',
-      badge: 'Flag Sedang',
-      badgeVariant: 'warning',
-      notes: 'Snapshot bukti kamera terlampir: kandidat tetap di depan layar.'
-    },
-    {
-      time: '28 Okt 2026, 15:28 WIB',
-      duration: '88 menit',
-      icon: CheckCircle2,
-      title: 'Kandidat Menyelesaikan & Mengumpulkan Lembar Ujian',
-      description: 'Seluruh 40 nomor soal terisi. Sistem scoring otomatis mencatat Skor Tes CAT Teknis sebesar 88 / 100.',
-      badge: 'CAT Selesai',
-      badgeVariant: 'teal',
-      notes: 'Jawaban tersimpan dengan cryptographic checksum sha256.'
-    },
-    {
-      time: '28 Okt 2026, 16:00 WIB',
-      duration: '45 menit',
-      icon: Video,
-      title: 'Sesi Live Interview Bersama Asesor Independen',
-      description: 'Dr. Ir. Dwi Hartanto memimpin sesi wawancara berbasis rubrik 4 dimensi kompetensi. Sesi direkam penuh.',
-      badge: 'Interview Selesai',
-      badgeVariant: 'teal',
-      notes: 'Skor Wawancara: 86.25 / 100 • Rekomendasi: Lulus (Lanjut)'
-    },
-    {
-      time: '28 Okt 2026, 16:55 WIB',
-      duration: 'Final',
-      icon: Award,
-      title: 'Kalkulasi Skor Komposit & Penerbitan Rekomendasi',
-      description: 'Skor Akhir: 87.8 / 100. Asesor menetapkan kandidat LULUS dengan kualifikasi Sangat Direkomendasikan.',
-      badge: 'Hasil Ditetapkan',
-      badgeVariant: 'teal'
+  const steps: TimelineStep[] = useMemo(() => {
+    const formatDate = (value?: string | null) => {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '-';
+      return date.toLocaleString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+    const flags = (() => {
+      try {
+        const parsed = JSON.parse(candidate?.proctorFlags || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })();
+    const screeningVariant: TimelineStep['badgeVariant'] =
+      candidate?.screeningStatus === 'success'
+        ? 'teal'
+        : candidate?.screeningStatus === 'failed'
+          ? 'danger'
+          : 'warning';
+    const interviewVariant: TimelineStep['badgeVariant'] =
+      candidate?.interviewStatus === 'completed'
+        ? 'teal'
+        : candidate?.interviewStatus === 'called'
+          ? 'navy'
+          : 'warning';
+    const list: TimelineStep[] = [
+      {
+        time: formatDate(candidate?.createdAt),
+        icon: UserCheck,
+        title: 'Lamaran Kandidat Diterima',
+        description: `Lamaran ${candidate?.name || 'kandidat'} untuk posisi ${candidate?.program || '-'} tercatat di sistem.`,
+        badge: 'Terdaftar',
+        badgeVariant: 'teal',
+        notes: `Email: ${candidate?.email || '-'}`
+      },
+      {
+        time: formatDate(candidate?.createdAt),
+        icon: FileText,
+        title: 'Screening CV & Kecocokan AI',
+        description:
+          candidate?.screeningStatus === 'success'
+            ? `CV berhasil dianalisis AI dengan skor kecocokan ${candidate?.screeningScore ?? '-'} / 100.`
+            : 'Screening CV belum selesai atau belum dijalankan.',
+        badge:
+          candidate?.screeningStatus === 'success'
+            ? 'Screening Selesai'
+            : candidate?.screeningStatus === 'failed'
+              ? 'Gagal'
+              : 'Menunggu',
+        badgeVariant: screeningVariant
+      }
+    ];
+
+    if (candidate?.examAttempt?.submittedAt) {
+      list.push({
+        time: formatDate(candidate.examAttempt.submittedAt),
+        icon: CheckCircle2,
+        title: 'Ujian CAT Diselesaikan',
+        description: `Kandidat menyelesaikan ujian CAT dengan skor ${candidate.examAttempt.score ?? '-'} / 100 dan integritas ${candidate.examAttempt.integrityScore ?? '-'} / 100.`,
+        badge: 'CAT Selesai',
+        badgeVariant: 'teal',
+        notes: flags.length > 0 ? `${flags.length} event integritas tercatat.` : 'Tidak ada event integritas tercatat.'
+      });
+    } else {
+      list.push({
+        time: '-',
+        icon: Clock,
+        title: 'Ujian CAT Belum Diselesaikan',
+        description: 'Kandidat belum menyelesaikan ujian CAT atau belum memulai sesi.',
+        badge: 'Menunggu',
+        badgeVariant: 'warning'
+      });
     }
-  ];
+
+    if (flags.length > 0) {
+      list.push({
+        time: formatDate(candidate?.examAttempt?.submittedAt || candidate?.createdAt),
+        icon: AlertTriangle,
+        title: 'Event Integritas AI Terdeteksi',
+        description: `Sistem mencatat ${flags.length} event proctoring yang perlu ditinjau asesor.`,
+        badge: 'Perlu Review',
+        badgeVariant: 'warning',
+        notes: flags
+          .slice(0, 3)
+          .map((flag: any) => flag.type || flag.description || 'Event integritas')
+          .join(' • ')
+      });
+    }
+
+    list.push({
+      time: candidate?.interviewStatus === 'completed' ? formatDate(candidate?.createdAt) : '-',
+      icon: Video,
+      title: 'Live Interview Asesor',
+      description:
+        candidate?.interviewStatus === 'completed'
+          ? `Wawancara selesai dengan skor ${candidate?.interviewScore ?? '-'} / 100.`
+          : 'Sesi wawancara belum diselesaikan.',
+      badge:
+        candidate?.interviewStatus === 'completed'
+          ? 'Interview Selesai'
+          : candidate?.interviewStatus === 'called'
+            ? 'Sedang Berlangsung'
+            : 'Menunggu',
+      badgeVariant: interviewVariant
+    });
+
+    list.push({
+      time: candidate?.compositeScore ? formatDate(candidate?.createdAt) : '-',
+      icon: Award,
+      title: 'Kalkulasi Skor Komposit & Rekomendasi',
+      description:
+        candidate?.compositeScore != null
+          ? `Skor akhir kandidat ${candidate.compositeScore} / 100 dengan integritas AI ${candidate.integrityScore ?? '-'}%.`
+          : 'Skor komposit belum ditetapkan.',
+      badge: candidate?.compositeScore != null ? 'Hasil Ditetapkan' : 'Menunggu',
+      badgeVariant: candidate?.compositeScore != null ? 'teal' : 'neutral'
+    });
+
+    return list;
+  }, [candidate]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Detail Audit Trail & Timeline Vertikal Asesmen">

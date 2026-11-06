@@ -39,7 +39,16 @@ export default function PesertaDashboard() {
   }, []);
 
   const activeProgram = useMemo(() => {
-    return getProgramById(activeUser.assessmentId || 'SE-402') || getProgramById('SE-402')!;
+    return (
+      getProgramById(activeUser.assessmentId || 'SE-402') ||
+      ({
+        id: activeUser.assessmentId || 'SE-402',
+        title: activeUser.assessmentTitle || 'Program Asesmen',
+        companyName: activeUser.companyName || '-',
+        durationMinutes: 90,
+        gradeLevel: activeUser.gradeLevel || 'Grade B (Specialist / Mid)'
+      } as any)
+    );
   }, [activeUser.assessmentId]);
 
   const [dashboard, setDashboard] = useState<any>(null);

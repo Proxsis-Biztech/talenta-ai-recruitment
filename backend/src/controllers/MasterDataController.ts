@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { type AuthRequest } from '../middleware/auth';
 import { recordAuditLog } from '../services/auditService';
+import { invalidateAiConfigCache } from '../services/aiConfigService';
 
 const prisma = new PrismaClient();
 
@@ -38,6 +39,7 @@ export const putMasterRecord = async (req: AuthRequest, res: Response) => {
       update: { value },
       create: { scope, key, value }
     });
+    if (scope === 'ai-config') invalidateAiConfigCache();
     recordAuditLog({
       actor: req.user?.username || 'admin',
       action: 'MASTER_DATA_UPDATE',
@@ -59,6 +61,7 @@ export const deleteMasterRecord = async (req: AuthRequest, res: Response) => {
     const scope = String(req.params.scope);
     const key = String(req.params.key);
     await prisma.masterRecord.deleteMany({ where: { scope, key } });
+    if (scope === 'ai-config') invalidateAiConfigCache();
     recordAuditLog({
       actor: req.user?.username || 'admin',
       action: 'MASTER_DATA_DELETE',

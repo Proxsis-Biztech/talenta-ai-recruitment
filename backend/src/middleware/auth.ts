@@ -17,6 +17,7 @@ export interface AuthRequest extends Request {
     companyName?: string | null;
     assessmentId?: string | null;
     assessmentTitle?: string | null;
+    candidateCode?: string | null;
     gradeLevel?: string | null;
     specialization?: string | null;
   };
@@ -86,6 +87,7 @@ export const authenticatePortal = async (req: AuthRequest, res: Response, next: 
         companyName: true,
         assessmentId: true,
         assessmentTitle: true,
+        candidateCode: true,
         gradeLevel: true,
         specialization: true
       }

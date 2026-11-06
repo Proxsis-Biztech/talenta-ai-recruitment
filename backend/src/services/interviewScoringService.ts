@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { getAiConfig } from './aiConfigService';
 
 const prisma = new PrismaClient();
 
@@ -38,6 +39,7 @@ export async function runInterviewScoring(applicantId: string): Promise<any> {
   try {
     const { GoogleGenAI } = await import('@google/genai');
     const ai = new GoogleGenAI({ apiKey });
+    const aiConfig = await getAiConfig();
 
     const jobTitle = applicant.job?.title || applicant.appliedPosition || 'General';
     const jobDescription = applicant.job?.description || '';
@@ -86,8 +88,8 @@ Return ONLY valid JSON with this structure (no markdown formatting):
   ]
 }`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+    const requestScoring = (model: string) => ai.models.generateContent({
+      model,
       contents: [{ text: prompt }],
       config: {
         responseMimeType: 'application/json',
@@ -138,6 +140,14 @@ Return ONLY valid JSON with this structure (no markdown formatting):
       }
     });
 
+    let response;
+    try {
+      response = await requestScoring(aiConfig.interviewScoringModel);
+    } catch (primaryError) {
+      console.warn('Primary interview scoring model failed, retrying fallback:', primaryError);
+      response = await requestScoring('gemini-3.5-flash-lite');
+    }
+
     const responseText = response.text;
     if (!responseText) {
       throw new Error('Tidak mendapat respon dari Gemini API');
@@ -164,9 +174,9 @@ Return ONLY valid JSON with this structure (no markdown formatting):
     // If passing score is set and candidate meets/exceeds it → 'scored'
     // If passing score is set but candidate is below → 'completed' (HR can review)
     // If no passing score set → 'scored' anyway
-    const passingThreshold = applicant.job?.interviewPassingScore || 0;
+    const passingThreshold = applicant.job?.interviewPassingScore || aiConfig.passingThreshold;
     const isPassed = passingThreshold > 0 ? overallScore >= passingThreshold : true;
-    const finalStatus = 'scored';
+    const finalStatus = isPassed ? 'scored' : 'completed';
 
     const updatedApplicant = await prisma.applicant.update({
       where: { id: applicantId },

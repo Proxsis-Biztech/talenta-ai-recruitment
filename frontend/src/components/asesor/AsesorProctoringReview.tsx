@@ -16,8 +16,7 @@ import {
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge } from '../ui';
 import { getPortalToken } from '../../services/portalAuthService';
-
-const CANDIDATE_CODE = 'KND-0891';
+import { fetchAssessorCandidates, fetchAssessorProctoring, type AssessorCandidate } from '../../services/assessorService';
 
 interface ProctoringEvent {
   id: string;
@@ -32,83 +31,70 @@ interface ProctoringEvent {
 export default function AsesorProctoringReview() {
   const navigate = useNavigate();
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'high' | 'medium' | 'low'>('all');
-  const [integrityScore, setIntegrityScore] = useState(82);
-
-  const [events, setEvents] = useState<ProctoringEvent[]>([
-    {
-      id: 'EVT-01',
-      time: '14:14:22',
-      type: 'Tab Switching (Page Hidden)',
-      severity: 'high',
-      description: 'Kandidat meninggalkan jendela ujian selama 3.8 detik (Page Visibility API hidden).',
-      status: 'pending',
-      assessorNotes: ''
-    },
-    {
-      id: 'EVT-02',
-      time: '14:28:10',
-      type: 'Multiple Faces Detected',
-      severity: 'high',
-      description: 'OpenCV SSD mendeteksi terdapat 2 wajah pada area kamera selama 4 frame.',
-      status: 'pending',
-      assessorNotes: ''
-    },
-    {
-      id: 'EVT-03',
-      time: '14:35:45',
-      type: 'Screenshot Shortcut Attempt',
-      severity: 'medium',
-      description: 'Pintasan PrintScreen / Snipping Tool terdeteksi dan berhasil diblokir.',
-      status: 'pending',
-      assessorNotes: ''
-    },
-    {
-      id: 'EVT-04',
-      time: '14:41:02',
-      type: 'Right-Click Context Menu',
-      severity: 'low',
-      description: 'Kandidat menekan tombol klik kanan pada teks soal nomor 18.',
-      status: 'false_positive',
-      assessorNotes: 'Ketidaksengajaan klik mouse touchpad.'
-    }
-  ]);
+  const [integrityScore, setIntegrityScore] = useState(100);
+  const [candidates, setCandidates] = useState<AssessorCandidate[]>([]);
+  const [selectedCode, setSelectedCode] = useState('');
+  const [events, setEvents] = useState<ProctoringEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      const token = getPortalToken();
-      if (!token) return;
-      try {
-        const response = await axios.get(`/api/asesor/proctoring/${CANDIDATE_CODE}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+    fetchAssessorCandidates()
+      .then((data) => {
         if (cancelled) return;
-        const reviews = response.data.data || [];
-        setEvents((prev) => prev.map((event) => {
-          const review = reviews.find((item: any) => item.eventId === event.id);
-          return review ? { ...event, status: review.status, assessorNotes: review.notes || event.assessorNotes } : event;
-        }));
-      } catch {
-        // Keep local defaults when the review endpoint is unavailable.
-      }
-    };
-    void load();
+        setCandidates(data);
+        if (data.length > 0) setSelectedCode(data[0].candidateCode || data[0].id);
+      })
+      .catch(() => {
+        if (!cancelled) setCandidates([]);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    if (!selectedCode) {
+      setEvents([]);
+      return;
+    }
+    setLoadingEvents(true);
+    fetchAssessorProctoring(selectedCode)
+      .then((data) => {
+        if (!cancelled) setEvents(data);
+      })
+      .catch(() => {
+        if (!cancelled) setEvents([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingEvents(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCode]);
+
+  useEffect(() => {
     const validCount = events.filter((event) => event.status === 'valid').length;
     setIntegrityScore(Math.max(0, 100 - validCount * 6));
   }, [events]);
+
+  const selectedCandidate = candidates.find(
+    (candidate) => (candidate.candidateCode || candidate.id) === selectedCode
+  );
+  const severityCounts = {
+    high: events.filter((event) => event.severity === 'high').length,
+    medium: events.filter((event) => event.severity === 'medium').length,
+    low: events.filter((event) => event.severity === 'low').length
+  };
 
   const persistReview = async (id: string, status: 'pending' | 'valid' | 'false_positive', notes: string) => {
     if (status === 'pending') return;
     const token = getPortalToken();
     if (!token) return;
     try {
-      await axios.put(`/api/asesor/proctoring/${CANDIDATE_CODE}/${id}`, { status, notes }, {
+      await axios.put(`/api/asesor/proctoring/${selectedCode}/${id}`, { status, notes }, {
         headers: { Authorization: `Bearer ${token}` }
       });
     } catch {
@@ -150,7 +136,7 @@ export default function AsesorProctoringReview() {
             <Badge variant="danger" format="soft" className="uppercase font-semibold text-xs">
               PROCTORING AUDIT
             </Badge>
-            <Badge variant="navy" className="text-xs">{`Kandidat: Farhan Pratama (SE-402)`}</Badge>
+            <Badge variant="navy" className="text-xs">{`Kandidat: ${selectedCandidate?.name || '-'} (${selectedCandidate?.programCode || '-'})`}</Badge>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
             Review Temuan Integritas & Flag Proctoring AI
@@ -158,6 +144,24 @@ export default function AsesorProctoringReview() {
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Audit rekaman snapshot kejadian mencurigakan yang ditangkap otomatis oleh mesin OpenCV & Browser Integrity Guard.
           </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="text-xs font-semibold text-slate-600">Pilih Kandidat</label>
+            <select
+              value={selectedCode}
+              onChange={(event) => setSelectedCode(event.target.value)}
+              className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-ink focus:outline-none focus:border-primary-navy"
+            >
+              {candidates.length === 0 ? (
+                <option value="">Belum ada kandidat</option>
+              ) : (
+                candidates.map((candidate) => (
+                  <option key={candidate.id} value={candidate.candidateCode || candidate.id}>
+                    {candidate.name} ({candidate.code})
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
         </div>
 
         {/* ─── Top Split: Integrity Score Gauge + Diagnostic Summary ─── */}
@@ -209,21 +213,21 @@ export default function AsesorProctoringReview() {
                 Ringkasan Rekomendasi Integritas AI
               </h3>
               <p className="text-xs text-muted-slate mb-4">
-                Terdapat 4 flag otomatis yang tercatat selama durasi ujian 90 menit. Silakan konfirmasi status keabsahan setiap event di bawah.
+                Terdapat {events.length} flag otomatis yang tercatat untuk kandidat ini. Silakan konfirmasi status keabsahan setiap event di bawah.
               </p>
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
                   <p className="text-[11px] text-red-700 font-bold">Severity Tinggi</p>
-                  <p className="font-mono text-xl font-extrabold text-red-900 mt-1">2 Flag</p>
+                  <p className="font-mono text-xl font-extrabold text-red-900 mt-1">{severityCounts.high} Flag</p>
                 </div>
                 <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
                   <p className="text-[11px] text-amber-800 font-bold">Severity Sedang</p>
-                  <p className="font-mono text-xl font-extrabold text-amber-900 mt-1">1 Flag</p>
+                  <p className="font-mono text-xl font-extrabold text-amber-900 mt-1">{severityCounts.medium} Flag</p>
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
                   <p className="text-[11px] text-slate-600 font-bold">Severity Rendah</p>
-                  <p className="font-mono text-xl font-extrabold text-slate-800 mt-1">1 Flag</p>
+                  <p className="font-mono text-xl font-extrabold text-slate-800 mt-1">{severityCounts.low} Flag</p>
                 </div>
               </div>
             </div>
@@ -255,7 +259,11 @@ export default function AsesorProctoringReview() {
 
         {/* ─── Event Timeline & Thumbnail Evidence Grid ─── */}
         <div className="space-y-4">
-          {filtered.map((evt) => (
+          {loadingEvents ? (
+            <div className="p-6 text-center text-xs text-slate-500 bg-white rounded-2xl border border-slate-200">Memuat event proctoring...</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-6 text-center text-xs text-slate-500 bg-white rounded-2xl border border-slate-200">Belum ada event proctoring untuk kandidat ini.</div>
+          ) : filtered.map((evt) => (
             <div
               key={evt.id}
               className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs flex flex-col lg:flex-row gap-6 items-start"

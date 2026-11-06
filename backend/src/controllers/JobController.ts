@@ -8,6 +8,7 @@ import { resolveAdminTenantId, requireAdminTenantId } from '../middleware/tenant
 const prisma = new PrismaClient();
 
 const jobSchema = z.object({
+  code: z.string().trim().toUpperCase().optional().nullable(),
   title: z.string().min(1, "Judul lowongan wajib diisi"),
   description: z.string().min(1, "Job deskripsi wajib diisi"),
   status: z.enum(["active", "inactive"]).default("active"),
@@ -93,6 +94,12 @@ export const createJob = async (req: AuthRequest, res: Response) => {
     if (existingJob) {
       return res.status(400).json({ error: "Judul lowongan sudah ada" });
     }
+    if (validatedData.code) {
+      const existingCode = await prisma.job.findUnique({ where: { code: validatedData.code } });
+      if (existingCode) {
+        return res.status(400).json({ error: "Kode program sudah digunakan" });
+      }
+    }
     
     const job = await prisma.job.create({
       data: {
@@ -126,6 +133,14 @@ export const updateJob = async (req: AuthRequest, res: Response) => {
     
     if (existingJob) {
       return res.status(400).json({ error: "Judul lowongan sudah ada" });
+    }
+    if (validatedData.code) {
+      const existingCode = await prisma.job.findFirst({
+        where: { code: validatedData.code, NOT: { id } }
+      });
+      if (existingCode) {
+        return res.status(400).json({ error: "Kode program sudah digunakan" });
+      }
     }
     
     const tenantId = resolveAdminTenantId(req);

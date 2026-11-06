@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
 import { google } from 'googleapis';
+import { getAiConfig } from './aiConfigService';
 
 const prisma = new PrismaClient();
 
@@ -54,6 +55,7 @@ export async function runCvScreening(applicantId: string): Promise<any> {
 
   try {
     const pdfBuffer = await getCvBuffer(applicant);
+    const aiConfig = await getAiConfig();
     const { GoogleGenAI } = await import('@google/genai');
     const ai = new GoogleGenAI({ apiKey });
     
@@ -96,7 +98,7 @@ Kembalikan jawaban Anda HANYA dalam format JSON dengan struktur berikut (jangan 
     let response;
     try {
       response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: aiConfig.cvScreeningModel,
         contents: [
           {
             inlineData: {

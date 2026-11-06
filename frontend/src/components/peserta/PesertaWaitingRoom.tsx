@@ -42,7 +42,11 @@ export default function PesertaWaitingRoom() {
   const [toastSeconds, setToastSeconds] = useState(0);
 
   const activeUser = getActiveSessionUser();
-  const activeProgram = getProgramById(activeUser.assessmentId || 'BMRI-DATA-02') || getProgramById('SE-402')!;
+  const activeProgram = getProgramById(activeUser.assessmentId || 'BMRI-DATA-02') || ({
+    id: activeUser.assessmentId || 'BMRI-DATA-02',
+    title: activeUser.assessmentTitle || 'Program Asesmen',
+    companyName: activeUser.companyName || '-'
+  } as any);
 
   useEffect(() => {
     let cancelled = false;

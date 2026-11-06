@@ -24,6 +24,7 @@ import { AdminCSVImportWizard } from './admin/AdminCSVImportWizard';
 import { AdminVerticalTimeline } from './admin/AdminVerticalTimeline';
 import { AdminMasterMateriTree } from './admin/AdminMasterMateriTree';
 import { AdminBankSoalEditor } from './admin/AdminBankSoalEditor';
+import { AdminAccessCodes } from './admin/AdminAccessCodes';
 import { AdminCompanyMatrix } from './admin/AdminCompanyMatrix';
 import AdminBillingCredit from './admin/AdminBillingCredit';
 import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
@@ -195,7 +196,15 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeMenu, setActiveMenu] = useState<AdminMenuKey>('dashboard');
+  const [activeMenu, setActiveMenu] = useState<AdminMenuKey>(() => {
+    const menu = new URLSearchParams(window.location.search).get('menu');
+    const allowed: AdminMenuKey[] = [
+      'dashboard', 'peserta', 'pipeline', 'jobs', 'ranking', 'proctoring', 'users',
+      'ai-config', 'audit-logs', 'analytics', 'materi', 'bank-soal', 'perusahaan',
+      'billing', 'access-codes', 'help'
+    ];
+    return menu && allowed.includes(menu as AdminMenuKey) ? (menu as AdminMenuKey) : 'dashboard';
+  });
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [editingApplicant, setEditingApplicant] = useState<Applicant | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -227,7 +236,9 @@ export default function AdminDashboard() {
   const [importWizardOpen, setImportWizardOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [timelineCandidate, setTimelineCandidate] = useState<any>(null);
-  const [showProgramBuilder, setShowProgramBuilder] = useState(false);
+  const [showProgramBuilder, setShowProgramBuilder] = useState(
+    () => new URLSearchParams(window.location.search).get('builder') === '1'
+  );
 
   const fetchApplicants = useCallback(async () => {
     setLoading(true);
@@ -906,6 +917,12 @@ ${app.interviewResult ? `
       short: 'Program',
       dotColor: 'bg-primary-navy'
     },
+    'access-codes': {
+      title: 'Kode Akses Peserta',
+      subtitle: 'Terbitkan dan kelola token akses program asesmen untuk kandidat',
+      short: 'Akses',
+      dotColor: 'bg-primary-navy'
+    },
     materi: {
       title: 'Master Materi & Kurikulum',
       subtitle: 'Repositori materi evaluasi, silabus kompetensi, dan panduan asesmen',
@@ -1461,8 +1478,16 @@ ${app.interviewResult ? `
                                     email: app.email,
                                     program: getProgramForApplicant(app),
                                     pt: getCompanyForApplicant(app),
-                                    compositeScore: app.interviewScore || 85,
-                                    integrityScore: 98
+                                    compositeScore:
+                                      app.compositeEvaluation?.compositeScore ?? app.interviewScore ?? null,
+                                    integrityScore: (app.compositeEvaluation as any)?.integrityScore ?? null,
+                                    createdAt: app.createdAt,
+                                    screeningStatus: app.screeningStatus,
+                                    screeningScore: app.screeningScore,
+                                    interviewStatus: app.interviewStatus,
+                                    interviewScore: app.interviewScore,
+                                    examAttempt: (app as any).examAttempt,
+                                    proctorFlags: app.proctorFlags
                                   });
                                   setTimelineOpen(true);
                                 }}
@@ -1630,6 +1655,10 @@ ${app.interviewResult ? `
           ) : activeMenu === 'materi' ? (
             <div className="animate-fade-in">
               <AdminMasterMateriTree />
+            </div>
+          ) : activeMenu === 'access-codes' ? (
+            <div className="animate-fade-in">
+              <AdminAccessCodes />
             </div>
           ) : activeMenu === 'bank-soal' ? (
             <div className="animate-fade-in">

@@ -48,7 +48,7 @@ export default function RolePortalSelector() {
       ],
       quickLinks: [
         { label: 'Device Check', path: '/peserta/device-check' },
-        { label: 'Exam Player (40 Soal)', path: '/peserta/exam/demo' },
+        { label: 'Masuk Portal Peserta', path: '/login' },
         { label: 'Hasil Scorecard', path: '/peserta/hasil' }
       ]
     },
@@ -72,7 +72,7 @@ export default function RolePortalSelector() {
       ],
       quickLinks: [
         { label: 'Antrean Interview', path: '/asesor/interview-queue' },
-        { label: 'Live Console', path: '/asesor/live-console/demo' },
+        { label: 'Live Console', path: '/asesor/interview-queue' },
         { label: 'Review Proctoring', path: '/asesor/proctoring' }
       ]
     },
@@ -135,7 +135,7 @@ export default function RolePortalSelector() {
             Masuk Akun
           </button>
           <button
-            onClick={() => navigate('/peserta/exam/demo')}
+            onClick={() => navigate('/login')}
             className="hidden sm:flex px-4 py-2 text-sm font-semibold text-white bg-primary-navy hover:bg-navy-dark rounded-lg shadow-2xs transition-all items-center gap-2 cursor-pointer btn-press"
           >
             <Sparkles className="w-4 h-4 text-blue-200" />
@@ -443,7 +443,7 @@ R
             <button onClick={() => navigate('/login')} className="text-muted-slate hover:text-primary-navy transition-colors cursor-pointer">
               Masuk
             </button>
-            <button onClick={() => navigate('/register')} className="text-muted-slate hover:text-primary-navy transition-colors cursor-pointer">
+            <button onClick={() => navigate('/apply')} className="text-muted-slate hover:text-primary-navy transition-colors cursor-pointer">
               Pendaftaran
             </button>
             <button onClick={() => navigate('/apply')} className="text-muted-slate hover:text-primary-navy transition-colors cursor-pointer">

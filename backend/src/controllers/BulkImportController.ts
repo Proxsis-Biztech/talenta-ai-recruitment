@@ -5,6 +5,7 @@ import multer from 'multer';
 import * as XLSX from 'xlsx';
 import { type AuthRequest } from '../middleware/auth';
 import { recordAuditLog } from '../services/auditService';
+import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
 
 const prisma = new PrismaClient();
 
@@ -188,7 +189,7 @@ export const importPortalUsers = async (req: AuthRequest, res: Response) => {
 
       const companyFromTitle = job.title.match(/\(([^)]+)\)\s*$/)?.[1] || '';
       try {
-        await prisma.portalUser.create({
+        const createdUser = await prisma.portalUser.create({
           data: {
             name: data.name,
             email: data.email,
@@ -203,6 +204,7 @@ export const importPortalUsers = async (req: AuthRequest, res: Response) => {
             gradeLevel: data.gradeLevel || 'Grade B (Specialist / Mid)'
           }
         });
+        await ensureApplicantForPortalUser(createdUser.id);
         existingEmails.add(data.email);
         created += 1;
       } catch {

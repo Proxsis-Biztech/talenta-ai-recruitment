@@ -38,6 +38,7 @@ import { loadMasterScope } from '../services/masterDataService';
 
 interface Job {
   id: string;
+  code: string | null;
   title: string;
   description: string;
   status: string;
@@ -93,6 +94,7 @@ export default function JobManagement() {
 
   // Add Job Modal State
   const [showAddModal, setShowAddModal] = useState(false);
+  const [newCode, setNewCode] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newStatus, setNewStatus] = useState<'active' | 'inactive'>('active');
@@ -103,6 +105,7 @@ export default function JobManagement() {
 
   // Edit Job Modal State
   const [editingJob, setEditingJob] = useState<Job | null>(null);
+  const [editCode, setEditCode] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
@@ -137,6 +140,7 @@ export default function JobManagement() {
     materials: MasterMateriItem[];
   } | null>(null);
   const [detailTab, setDetailTab] = useState<'soal' | 'materi' | 'rubrik'>('soal');
+  const [serverMateri, setServerMateri] = useState<MasterMateriItem[]>([]);
   const [qSearch, setQSearch] = useState('');
   const [qTypeFilter, setQTypeFilter] = useState('ALL');
   const [qDiffFilter, setQDiffFilter] = useState('ALL');
@@ -154,7 +158,7 @@ export default function JobManagement() {
 
     // 2) Master materi yang tersimpan — termasuk hasil edit di menu Master Materi,
     //    supaya kedua menu selalu menampilkan data yang sama (use case tersambung).
-    const masterList = getPersistedMasterMateri();
+    const masterList = serverMateri.length > 0 ? serverMateri : getPersistedMasterMateri();
     const titleLower = job.title.toLowerCase();
     const matched = masterList.filter(m => {
       if (titleLower.includes('telkom') && m.companyId === 'PT-TELKOM') return true;
@@ -194,7 +198,7 @@ export default function JobManagement() {
         updatedAt: '2026-11-02'
       }
     ];
-  }, []);
+  }, [serverMateri]);
 
   useEffect(() => {
     loadMasterScope<any>('bank-soal')
@@ -284,6 +288,7 @@ export default function JobManagement() {
         // Resilient fallback to DEFAULT_ASSESSMENT_PROGRAMS from catalog
         const fallbackJobs: Job[] = DEFAULT_ASSESSMENT_PROGRAMS.map((p) => ({
           id: p.id,
+          code: p.id,
           title: `${p.title} (${p.companyName})`,
           description: p.description,
           status: 'active',
@@ -297,6 +302,7 @@ export default function JobManagement() {
       // Fallback on network or auth error so admin is never left with an empty screen
       const fallbackJobs: Job[] = DEFAULT_ASSESSMENT_PROGRAMS.map((p) => ({
         id: p.id,
+        code: p.id,
         title: `${p.title} (${p.companyName})`,
         description: p.description,
         status: 'active',
@@ -325,6 +331,7 @@ export default function JobManagement() {
     try {
       const token = localStorage.getItem('adminToken');
       await axios.post('/api/admin/jobs', {
+        code: newCode.trim() ? newCode.trim().toUpperCase() : null,
         title: newTitle.trim(),
         description: newDescription.trim(),
         status: newStatus,
@@ -335,6 +342,7 @@ export default function JobManagement() {
       });
 
       setShowAddModal(false);
+      setNewCode('');
       setNewTitle('');
       setNewDescription('');
       setNewStatus('active');
@@ -357,6 +365,7 @@ export default function JobManagement() {
 
   const openEditModal = (job: Job) => {
     setEditingJob(job);
+    setEditCode(job.code || '');
     setEditTitle(job.title);
     setEditDescription(job.description || '');
     setEditStatus((job.status as 'active' | 'inactive') || 'active');
@@ -478,6 +487,7 @@ export default function JobManagement() {
     try {
       const token = localStorage.getItem('adminToken');
       await axios.put(`/api/admin/jobs/${editingJob.id}`, {
+        code: editCode.trim() ? editCode.trim().toUpperCase() : null,
         title: editTitle.trim(),
         description: editDescription.trim(),
         status: editStatus,
@@ -491,8 +501,9 @@ export default function JobManagement() {
       // peserta & menu Lihat Soal & Materi) dan materi ke override per formasi.
       try {
         const program = findProgramByTitle(editTitle.trim(), editingJob.id);
-        upsertProgram({ ...program, questions: editQuestions, totalQuestions: editQuestions.length });
-        await syncQuestionsToServer(program.id, editQuestions);
+        const programCode = editingJob.code || program.id;
+        upsertProgram({ ...program, id: programCode, questions: editQuestions, totalQuestions: editQuestions.length });
+        await syncQuestionsToServer(programCode, editQuestions);
         const overrides = getJobMateriOverrides();
         overrides[editingJob.id] = editMaterials;
         localStorage.setItem(MATERI_OVERRIDES_KEY, JSON.stringify(overrides));
@@ -828,8 +839,8 @@ export default function JobManagement() {
                   {(idx + 1).toString().padStart(2, '0')}
                 </TableCell>
                 <TableCell className="max-w-sm">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-soft-blue border border-accent-border flex items-center justify-center text-primary-navy shrink-0 mt-0.5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-soft-blue border border-accent-border flex items-center justify-center text-primary-navy shrink-0">
                       <Briefcase className="w-4 h-4" />
                     </div>
                     <div>
@@ -953,6 +964,20 @@ export default function JobManagement() {
               placeholder="e.g. Senior Backend Engineer"
               className="w-full px-3.5 py-2.5 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy transition-colors"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-800 mb-1.5">
+              Kode Program Asesmen (opsional)
+            </label>
+            <input
+              type="text"
+              value={newCode}
+              onChange={(e) => setNewCode(e.target.value.toUpperCase())}
+              placeholder="e.g. SE-402"
+              className="w-full px-3.5 py-2.5 text-sm font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy transition-colors"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">Isi kode agar formasi ini dapat dipakai sebagai program CAT, access code, dan penugasan peserta.</p>
           </div>
 
           <div>
@@ -1094,6 +1119,17 @@ export default function JobManagement() {
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     className="w-full px-3.5 py-2.5 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-800 mb-1.5">Kode Program Asesmen</label>
+                  <input
+                    type="text"
+                    value={editCode}
+                    onChange={(e) => setEditCode(e.target.value.toUpperCase())}
+                    placeholder="e.g. SE-402"
+                    className="w-full px-3.5 py-2.5 text-sm font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                   />
                 </div>
 

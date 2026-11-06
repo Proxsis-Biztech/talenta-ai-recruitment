@@ -5,6 +5,7 @@ import { EdgeTTS } from 'node-edge-tts';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { getAiConfig } from './aiConfigService';
 
 export interface BarsEvaluationResult {
   score: number;
@@ -156,7 +157,8 @@ export async function transcribeInterviewAudio(
 
   const { GoogleGenAI } = await import('@google/genai');
   const ai = new GoogleGenAI({ apiKey });
-  const modelName = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+  const aiConfig = await getAiConfig();
+  const modelName = aiConfig.transcriptionModel || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 
   const normalizedMime = mimeType.includes('wav')
     ? 'audio/wav'
@@ -256,12 +258,14 @@ export async function evaluateInterviewWithLangChain(params: {
   }
 
   // Initialize LangChain LLM with multi-model fallback (gemini-flash-lite-latest -> gemini-3.5-flash-lite)
-  const modelsToTry = [
+  const aiConfig = await getAiConfig();
+  const modelsToTry = Array.from(new Set([
+    aiConfig.interviewScoringModel,
     process.env.GEMINI_MODEL || 'gemini-flash-lite-latest',
     'gemini-3.5-flash-lite',
     'gemini-3.1-flash-lite',
     'gemini-3-flash-preview'
-  ];
+  ]));
 
   // Prompt Template with BARS Rubric Standards & Intent Detection
   const barsPrompt = new PromptTemplate({

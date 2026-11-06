@@ -274,3 +274,17 @@ model BillingTransaction {
   type           String
   description    String
 }
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  timestamp DateTime @default(now())
+  actor     String
+  action    String
+  category  String
+  ip        String
+  target    String?
+  details   String
+  status    String
+
+  @@index([timestamp])
+}

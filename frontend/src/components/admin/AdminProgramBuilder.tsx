@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import {
   BookOpen,
   Plus,
@@ -158,15 +159,38 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (totalWeight !== 100) {
       alert(`Peringatan: Total bobot tahapan adalah ${totalWeight}%. Harus bernilai tepat 100% sebelum dipublish.`);
       return;
     }
-    const updated = { ...programInfo, status: 'Published' };
-    setProgramInfo(updated);
-    void saveMasterRecord('program', updated.code, { ...updated, stages, id: updated.code });
-    showToast(`Program Asesmen "${programInfo.name}" (${programInfo.code}) berhasil dipublikasikan dan aktif!`);
+    const token = localStorage.getItem('adminToken');
+    const catStage = stages.find((stage) => stage.type === 'CAT_TEST');
+    try {
+      const response = await axios.post(
+        `/api/admin/programs/${programInfo.code}/publish`,
+        {
+          title: `${programInfo.name} (${programInfo.pt})`,
+          description: programInfo.name,
+          durationMinutes: catStage?.durationMin || 90,
+          passingScore: programInfo.passingGrade,
+          status: 'active'
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const updated = { ...programInfo, status: 'Published' };
+      setProgramInfo(updated);
+      void saveMasterRecord('program', updated.code, { ...updated, stages, id: updated.code });
+      showToast(
+        `Program "${programInfo.name}" (${programInfo.code}) aktif dengan ${response.data?.data?.questionCount ?? 0} soal tersinkron.`
+      );
+    } catch (error) {
+      alert(
+        axios.isAxiosError(error)
+          ? error.response?.data?.error || 'Gagal mempublikasikan program.'
+          : 'Gagal mempublikasikan program.'
+      );
+    }
   };
 
   const handleSaveDraft = () => {

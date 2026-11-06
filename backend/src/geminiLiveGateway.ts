@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from './middleware/auth';
+import { getAiConfig } from './services/aiConfigService';
 
 const prisma = new PrismaClient();
 const model = process.env.GEMINI_LIVE_MODEL || 'gemini-2.5-flash-native-audio-latest';
@@ -81,7 +82,7 @@ export const registerGeminiLiveGateway = (server: HttpServer) => {
       return;
     }
 
-    const queryVoice = parsedUrl.searchParams.get('voice') || voices[0];
+    const queryVoice = parsedUrl.searchParams.get('voice') || '';
     const queryLanguage = parsedUrl.searchParams.get('language') || 'Indonesian';
     const queryJobTitle = parsedUrl.searchParams.get('jobTitle') || '';
     const queryJobDescription = parsedUrl.searchParams.get('jobDescription') || '';
@@ -188,6 +189,7 @@ export const registerGeminiLiveGateway = (server: HttpServer) => {
       const ai = new GoogleGenAI({ apiKey });
 
       // Inject CV screening context into the system prompt
+      const aiConfig = await getAiConfig();
       const screeningContext = await getScreeningContext(queryEmail || null);
 
       const jobContext = queryJobTitle
@@ -195,13 +197,13 @@ export const registerGeminiLiveGateway = (server: HttpServer) => {
         : '';
 
       session = await ai.live.connect({
-        model,
+        model: aiConfig.liveAudioModel || model,
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: queryVoice
+                voiceName: queryVoice || aiConfig.voicePersona || voices[0]
               }
             }
           },

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { Badge, Modal, Button } from '../ui';
 import { getActiveSessionUser, clearActiveSession } from '../../services/userRegistryService';
-import { CANDIDATE_DIRECTORY } from '../../services/asesorScoreService';
+import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
 
 interface AsesorLayoutProps {
   children: React.ReactNode;
@@ -59,6 +59,26 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
   const [barsModalOpen, setBarsModalOpen] = useState(false);
   const [factsheetModalOpen, setFactsheetModalOpen] = useState(false);
   const [notifModalOpen, setNotifModalOpen] = useState(false);
+  const [notifCandidates, setNotifCandidates] = useState<AssessorCandidate[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAssessorCandidates()
+      .then((data) => {
+        if (!cancelled) setNotifCandidates(data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const proctoringAlerts = notifCandidates.filter(
+    (candidate) => candidate.integrityScore != null && candidate.integrityScore < 100
+  );
+  const calledCandidates = notifCandidates.filter(
+    (candidate) => candidate.interviewStatus === 'called'
+  );
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   const toggleCollapse = () => {
@@ -341,7 +361,7 @@ R
             {/* Pending Reviews Telemetry */}
             <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-amber-900 text-xs sm:text-sm font-semibold">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              <span>5 Antrean Menunggu Review</span>
+              <span>{calledCandidates.length} Antrean Menunggu Review</span>
             </div>
 
             {/* Notification Bell */}
@@ -542,8 +562,8 @@ R
           <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
             <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-amber-950">7 Event Pelanggaran Proctoring Menunggu Verifikasi</p>
-              <p className="text-amber-800 text-[11px] mt-0.5">Terdapat indikasi tab switch pada kandidat Farhan Pratama & Amanda Nurul.</p>
+              <p className="font-bold text-amber-950">{proctoringAlerts.length} Event Pelanggaran Proctoring Menunggu Verifikasi</p>
+              <p className="text-amber-800 text-[11px] mt-0.5">{proctoringAlerts.length > 0 ? `Terdapat indikasi pelanggaran pada ${proctoringAlerts.slice(0, 3).map((candidate) => candidate.name).join(', ')}.` : 'Tidak ada pelanggaran integritas yang menunggu verifikasi.'}</p>
               <button
                 onClick={() => {
                   setNotifModalOpen(false);
@@ -560,7 +580,7 @@ R
             <Users className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-bold text-blue-950">Jadwal Sesi Live Interview Berikutnya</p>
-              <p className="text-blue-800 text-[11px] mt-0.5">Kandidat Amanda Nurul (KND-0892) telah bersiap di waiting room.</p>
+              <p className="text-blue-800 text-[11px] mt-0.5">{calledCandidates.length > 0 ? `Kandidat ${calledCandidates[0].name} (${calledCandidates[0].code}) telah bersiap di waiting room.` : 'Belum ada kandidat yang dipanggil ke waiting room.'}</p>
               <button
                 onClick={() => {
                   setNotifModalOpen(false);

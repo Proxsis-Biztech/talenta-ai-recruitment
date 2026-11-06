@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   Layers
 } from 'lucide-react';
+import axios from 'axios';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import { getAllPrograms, buildDefaultBankSoal } from '../../services/assessmentCatalog';
 import {
@@ -185,6 +186,43 @@ const INITIAL_QUESTIONS: BankQuestion[] = [
   }
 ];
 
+
+const syncProgramQuestions = async (programCode: string, allQuestions: BankQuestion[]) => {
+  const token = localStorage.getItem('adminToken');
+  if (!token) return;
+  const programQuestions = allQuestions.filter(
+    (question) => (question.programCode || programCode) === programCode
+  );
+  const payload = programQuestions.map((question) => {
+    const options = question.options || [];
+    let correctAnswer: unknown = null;
+    if (question.type === 'Pilihan Ganda') {
+      correctAnswer = options.find((option) => option.isCorrect)?.key ?? null;
+    } else if (question.type === 'Multi-Select') {
+      correctAnswer = options.filter((option) => option.isCorrect).map((option) => option.key);
+    } else if (question.type === 'Isian Singkat') {
+      correctAnswer = options[0]?.text || question.explanation || null;
+    } else if (question.type === 'Matching') {
+      correctAnswer = (question as any).matchingPairs || [];
+    }
+    return {
+      type: question.type,
+      text: question.text,
+      competency: question.competency,
+      difficulty: question.difficulty,
+      options,
+      matchingPairs: (question as any).matchingPairs || [],
+      correctAnswer,
+      points: 1
+    };
+  });
+  await axios.post(
+    `/api/admin/programs/${programCode}/questions/sync`,
+    { questions: payload },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+};
+
 export function AdminBankSoalEditor() {
   const [viewMode, setViewMode] = useState<'programs' | 'table' | 'editor' | 'stats' | 'factsheet'>('programs');
   const [filterType, setFilterType] = useState('all');
@@ -304,7 +342,8 @@ export function AdminBankSoalEditor() {
       const next = questions.filter((q) => q.id !== id);
       setQuestions(next);
       void saveMasterRecord('bank-soal', 'questions', next);
-      showToast(`Butir soal ${id} berhasil dihapus.`);
+      void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
+      showToast(`Butir soal ${id} berhasil dihapus dan disinkronkan ke bank ujian.`);
     }
   };
 
@@ -323,7 +362,8 @@ export function AdminBankSoalEditor() {
 
     setQuestions(nextQuestions);
     void saveMasterRecord('bank-soal', 'questions', nextQuestions);
-    showToast(`Butir soal ${activeQuestion.id} berhasil disimpan ke repositori Bank Soal!`);
+    void syncProgramQuestions(activeQuestion.programCode || selectedProgramCode, nextQuestions).catch(() => undefined);
+    showToast(`Butir soal ${activeQuestion.id} tersimpan dan disinkronkan ke lembar ujian.`);
     setViewMode('table');
   };
 

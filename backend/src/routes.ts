@@ -25,10 +25,15 @@ import { startExam, saveAnswers, submitExam, getExamResult } from './controllers
 import { upsertAssessorScore, listAssessorScores, getAssessorScore, getSignedLha } from './controllers/AssessorScoreController';
 import { getProctoringReviews, upsertProctoringReview } from './controllers/ProctoringController';
 import { getInterviewQuestions } from './controllers/InterviewController';
+import {
+  listAssessorCandidates,
+  getAssessorCandidate,
+  getAssessorCandidateProctoring
+} from './controllers/AssessorCandidateController';
 import { getWaitingRoomStatus, completeAndCallNext } from './controllers/InterviewQueueController';
 import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
 import { listTenants } from './controllers/TenantController';
-import { syncProgramQuestions } from './controllers/ProgramQuestionController';
+import { syncProgramQuestions, publishProgram } from './controllers/ProgramQuestionController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
 import { uploadExcel, downloadPortalUserTemplate, importPortalUsers } from './controllers/BulkImportController';
 import { runFactSheetMatching } from './services/factSheetService';
@@ -125,6 +130,7 @@ router.put('/admin/access-codes/:code', authenticateToken, updateAccessCode);
 
 router.get('/admin/tenants', authenticateToken, listTenants);
 router.post('/admin/programs/:programCode/questions/sync', authenticateToken, syncProgramQuestions);
+router.post('/admin/programs/:programCode/publish', authenticateToken, publishProgram);
 
 // Current admin session
 router.get('/admin/me', authenticateToken, getCurrentAdmin);
@@ -136,6 +142,10 @@ router.get('/admin/portal-users', authenticateToken, listPortalUsers);
 router.post('/admin/portal-users', authenticateToken, createPortalUser);
 router.put('/admin/portal-users/:id', authenticateToken, updatePortalUser);
 router.delete('/admin/portal-users/:id', authenticateToken, deletePortalUser);
+
+router.get('/asesor/candidates', authenticatePortal, requirePortalRole('asesor'), listAssessorCandidates);
+router.get('/asesor/candidates/:candidateCode', authenticatePortal, requirePortalRole('asesor'), getAssessorCandidate);
+router.get('/asesor/candidates/:candidateCode/proctoring', authenticatePortal, requirePortalRole('asesor'), getAssessorCandidateProctoring);
 
 router.get('/asesor/proctoring/:candidateCode', authenticatePortal, requirePortalRole('asesor'), getProctoringReviews);
 router.put('/asesor/proctoring/:candidateCode/:eventId', authenticatePortal, requirePortalRole('asesor'), upsertProctoringReview);

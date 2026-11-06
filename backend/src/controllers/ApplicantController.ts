@@ -941,7 +941,7 @@ export const getAuditLogsHandler = async (req: Request, res: Response) => {
     const category = (req.query.category as string) || 'ALL';
     const search = (req.query.search as string) || '';
     const limit = parseInt(req.query.limit as string) || 100;
-    const logs = getAuditLogs({ category, search, limit });
+    const logs = await getAuditLogs({ category, search, limit });
     res.json({ data: logs });
   } catch (error: any) {
     res.status(500).json({ error: 'Gagal mengambil log audit' });

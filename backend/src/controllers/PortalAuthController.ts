@@ -250,6 +250,7 @@ export const tokenLogin = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    await ensureApplicantForPortalUser(user.id);
     const safeUser = await prisma.portalUser.findUnique({ where: { id: user.id }, select: userSelect });
     return res.json({ token: signPortalToken(user), user: safeUser });
   } catch (error) {

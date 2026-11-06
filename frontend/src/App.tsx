@@ -125,6 +125,8 @@ function App() {
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<RequireRole roles={['admin', 'superadmin']}><AdminDashboard /></RequireRole>} />
             <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/programs" element={<Navigate to="/admin/dashboard?menu=jobs&builder=1" replace />} />
+            <Route path="/admin/bank-soal" element={<Navigate to="/admin/dashboard?menu=bank-soal" replace />} />
 
             {/* Public Recruitment Funnel */}
             <Route path="/apply" element={<ApplicantForm />} />

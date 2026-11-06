@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FileCheck2,
@@ -30,6 +31,7 @@ import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById, getAllPrograms } from '../../services/assessmentCatalog';
+import { getPortalToken } from '../../services/portalAuthService';
 
 interface AsesmenItem {
   id: string;
@@ -67,14 +69,52 @@ export default function PesertaAsesmenList() {
 
   const activeUser = useMemo(() => getActiveSessionUser(), []);
   const activeProg = useMemo(() => {
-    return getProgramById(activeUser.assessmentId || 'BMRI-DATA-02') || getProgramById('BMRI-DATA-02') || getProgramById('SE-402')!;
+    return (
+      getProgramById(activeUser.assessmentId || 'BMRI-DATA-02') ||
+      ({
+        id: activeUser.assessmentId || 'BMRI-DATA-02',
+        title: activeUser.assessmentTitle || 'Program Asesmen',
+        companyName: activeUser.companyName || '-',
+        category: 'Program Asesmen',
+        description: '',
+        durationMinutes: 90,
+        passingScore: 70,
+        totalQuestions: 0,
+        gradeLevel: activeUser.gradeLevel || 'Grade B (Specialist / Mid)'
+      } as any)
+    );
   }, [activeUser.assessmentId]);
 
 
-  // Check if candidate has completed CAT exam in current session
-  const isCatCompleted = useMemo(() => {
-    return localStorage.getItem('talenta_cat_completed') === 'true';
+  const [serverExam, setServerExam] = useState<{ status?: string; score?: number | null } | null>(null);
+  const [serverInterview, setServerInterview] = useState<{ status?: string; score?: number | null } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const token = getPortalToken();
+    if (!token) return;
+    axios
+      .get('/api/portal/dashboard', { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => {
+        if (cancelled) return;
+        setServerExam(response.data?.exam || null);
+        setServerInterview(response.data?.interview || null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const isCatCompleted = useMemo(() => {
+    return (
+      ['submitted', 'graded', 'completed'].includes(String(serverExam?.status || '')) ||
+      ['scheduled', 'called', 'completed'].includes(String(serverInterview?.status || '')) ||
+      localStorage.getItem('talenta_cat_completed') === 'true'
+    );
+  }, [serverExam?.status, serverInterview?.status]);
+
+  const isInterviewCompleted = serverInterview?.status === 'completed';
 
   const programs: AsesmenItem[] = useMemo(() => {
     return [
@@ -83,15 +123,20 @@ export default function PesertaAsesmenList() {
         title: activeProg.title,
         pt: activeProg.companyName,
         category: activeProg.category,
-        status: isCatCompleted ? 'berjalan' : 'belum',
-        badgeStatus: isCatCompleted ? 'CAT Selesai • Menuju Wawancara' : 'Belum Dikerjakan • Sesi Aktif',
-        badgeVariant: isCatCompleted ? 'navy' : 'warning',
+        status: isInterviewCompleted ? 'selesai' : isCatCompleted ? 'berjalan' : 'belum',
+        badgeStatus: isInterviewCompleted
+          ? 'Selesai • Hasil Wawancara Tersedia'
+          : isCatCompleted
+            ? 'CAT Selesai • Menuju Wawancara'
+            : 'Belum Dikerjakan • Sesi Aktif',
+        badgeVariant: isInterviewCompleted ? 'teal' : isCatCompleted ? 'navy' : 'warning',
         duration: `${activeProg.durationMinutes} Menit`,
         questions: `${activeProg.totalQuestions} Soal CAT`,
         passingScore: activeProg.passingScore,
         deadline: 'Hari ini, 23:59 WIB',
-        progress: isCatCompleted ? 60 : 10,
-        currentStageNumber: isCatCompleted ? 3 : 2,
+        progress: isInterviewCompleted ? 100 : isCatCompleted ? 60 : 10,
+        currentStageNumber: isInterviewCompleted ? 4 : isCatCompleted ? 3 : 2,
+        score: serverInterview?.score ?? serverExam?.score ?? undefined,
         description: activeProg.description,
         interviewInfo: {
           assessorName: 'Dr. Ir. Dwi Hartanto, M.Kom / Gemini AI Live',
@@ -102,7 +147,7 @@ export default function PesertaAsesmenList() {
         }
       },
     ];
-  }, [activeProg, isCatCompleted]);
+  }, [activeProg, isCatCompleted, isInterviewCompleted, serverInterview?.score, serverExam?.score]);
 
   // Selected Program for Detail View
   const selectedItem = useMemo(() => {

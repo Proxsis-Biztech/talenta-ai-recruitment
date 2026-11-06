@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import questionBank from '../data/question-bank.json';
+import { backfillCandidateCodes } from './candidateCodeService';
 
 const prisma = new PrismaClient();
 
@@ -530,6 +531,8 @@ export async function bootstrapDatabaseSeed() {
         console.log(`✅ Seeded ${seededApplicants} missing realistic applicants.`);
       }
     }
+    const backfilled = await backfillCandidateCodes();
+    if (backfilled > 0) console.log(`✅ Generated ${backfilled} candidate codes.`);
   } catch (err) {
     console.warn('Bootstrap seed error:', err);
   } finally {

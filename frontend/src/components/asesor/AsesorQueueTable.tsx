@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -13,78 +13,62 @@ import {
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Input, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
-import { getCandidatesForTenant } from '../../services/asesorScoreService';
-import { getPortalUser } from '../../services/portalAuthService';
+import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
 
 export default function AsesorQueueTable() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
 
-  const slots = [
-    {
-      id: 'SLOT-01',
-      candidate: 'Farhan Pratama',
-      email: 'farhan.pratama@gmail.com',
-      code: 'KND-0891',
-      program: 'Software Engineer Specialist Batch IV',
-      time: '14:00 - 14:45 WIB',
-      room: 'Room-A1',
-      status: 'Sedang Berlangsung',
-      statusVariant: 'teal' as const,
-      catScore: 88
-    },
-    {
-      id: 'SLOT-02',
-      candidate: 'Amanda Nurul',
-      email: 'amanda.nurul@outlook.com',
-      code: 'KND-0892',
-      program: 'Software Engineer Specialist Batch IV',
-      time: '15:00 - 15:45 WIB',
-      room: 'Room-A1',
-      status: 'Di Ruang Tunggu',
-      statusVariant: 'navy' as const,
-      catScore: 79
-    },
-    {
-      id: 'SLOT-03',
-      candidate: 'Reza Fauzi',
-      email: 'reza.fauzi@corp.id',
-      code: 'KND-0893',
-      program: 'Data Architecture Specialist',
-      time: '16:00 - 16:45 WIB',
-      room: 'Room-A1',
-      status: 'Terjadwal',
-      statusVariant: 'neutral' as const,
-      catScore: 84
-    },
-    {
-      id: 'SLOT-04',
-      candidate: 'Dewi Lestari',
-      email: 'dewi.lestari@tech.co',
-      code: 'KND-0894',
-      program: 'Product Management Fellow',
-      time: '17:00 - 17:45 WIB',
-      room: 'Room-A1',
-      status: 'Terjadwal',
-      statusVariant: 'neutral' as const,
-      catScore: 91
-    },
-    {
-      id: 'SLOT-05',
-      candidate: 'Budi Santoso',
-      email: 'budi.santoso@example.com',
-      code: 'KND-0895',
-      program: 'Software Engineer Specialist Batch IV',
-      time: '10:00 - 10:45 WIB',
-      room: 'Room-A1',
-      status: 'Selesai Dinilai',
-      statusVariant: 'teal' as const,
-      catScore: 92
-    }
-  ];
+  const [candidates, setCandidates] = useState<AssessorCandidate[]>([]);
 
-  const visibleCodes = new Set(getCandidatesForTenant(getPortalUser()?.companyName).map((candidate) => candidate.code));
-  const filtered = slots.filter((s) => visibleCodes.has(s.code)).filter((s) =>
+  useEffect(() => {
+    let cancelled = false;
+    fetchAssessorCandidates()
+      .then((data) => {
+        if (!cancelled) setCandidates(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCandidates([]);
+      })
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const slots = useMemo(
+    () =>
+      candidates.map((candidate, index) => ({
+        id: `SLOT-${String(index + 1).padStart(2, '0')}`,
+        candidate: candidate.name,
+        email: candidate.email,
+        code: candidate.code,
+        program: candidate.program,
+        time: candidate.scheduledAt
+          ? `${new Date(candidate.scheduledAt).toLocaleTimeString('id-ID', {
+              hour: '2-digit',
+              minute: '2-digit'
+            })} WIB`
+          : 'Belum dijadwalkan',
+        room: 'Room-A1',
+        status:
+          candidate.interviewStatus === 'called'
+            ? 'Sedang Berlangsung'
+            : candidate.interviewStatus === 'completed'
+              ? 'Selesai Dinilai'
+              : candidate.interviewStatus === 'scheduled'
+                ? 'Terjadwal'
+                : 'Di Ruang Tunggu',
+        statusVariant: (candidate.interviewStatus === 'called'
+          ? 'teal'
+          : candidate.interviewStatus === 'completed'
+            ? 'neutral'
+            : 'navy') as 'teal' | 'neutral' | 'navy',
+        catScore: candidate.catScore
+      })),
+    [candidates]
+  );
+
+  const filtered = slots.filter((s) =>
     s.candidate.toLowerCase().includes(search.toLowerCase()) ||
     s.code.toLowerCase().includes(search.toLowerCase()) ||
     s.program.toLowerCase().includes(search.toLowerCase())
@@ -144,7 +128,7 @@ export default function AsesorQueueTable() {
                   <TableCell className="text-slate-600 font-sans">{s.program}</TableCell>
                   <TableCell className="font-mono font-medium text-primary-navy">{s.time}</TableCell>
                   <TableCell className="font-mono text-slate-500">{s.room}</TableCell>
-                  <TableCell className="font-mono font-bold text-emerald-700">{s.catScore}/100</TableCell>
+                  <TableCell className="font-mono font-bold text-emerald-700">{s.catScore != null ? `${s.catScore}/100` : '-'}</TableCell>
                   <TableCell>
                     <Badge variant={s.statusVariant} format="soft">{s.status}</Badge>
                   </TableCell>

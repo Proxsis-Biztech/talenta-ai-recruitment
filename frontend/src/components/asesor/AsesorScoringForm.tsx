@@ -23,12 +23,12 @@ import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, Modal } from '../ui';
 import axios from 'axios';
 import {
-  getCandidateByCode,
   calculateCompositeScore,
   formatToday,
   ASSESSOR_NAME,
   ASSESSOR_TITLE
 } from '../../services/asesorScoreService';
+import { fetchAssessorCandidate, type AssessorCandidate } from '../../services/assessorService';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getPortalToken } from '../../services/portalAuthService';
 
@@ -95,8 +95,30 @@ const DEFAULT_7_COMPETENCIES: CompetencyItem[] = [
 export default function AsesorScoringForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const candidate = getCandidateByCode(id);
+  const [candidate, setCandidate] = useState<AssessorCandidate | null>(null);
+  const [candidateLoading, setCandidateLoading] = useState(true);
   const activeAssessor = getActiveSessionUser();
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!id) {
+      setCandidateLoading(false);
+      return;
+    }
+    fetchAssessorCandidate(id)
+      .then((data) => {
+        if (!cancelled) setCandidate(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCandidate(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCandidateLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   // Mode: In-Basket Fact Sheet Simulation vs Interview
   const [assessmentType, setAssessmentType] = useState<'inbasket' | 'interview'>('inbasket');
@@ -141,11 +163,12 @@ export default function AsesorScoringForm() {
   useEffect(() => {
     let cancelled = false;
     const loadScore = async () => {
+      if (!candidate) return;
       const token = getPortalToken();
       if (!token) return;
       try {
-        const response = await axios.get(`/api/asesor/scores/${candidate.code}`, {
-          params: { programTitle: candidate.program },
+        const response = await axios.get(`/api/asesor/scores/${candidate!.code}`, {
+          params: { programTitle: candidate!.program },
           headers: { Authorization: `Bearer ${token}` }
         });
         if (cancelled || !response.data?.data) return;
@@ -176,7 +199,7 @@ export default function AsesorScoringForm() {
     return () => {
       cancelled = true;
     };
-  }, [candidate.code, candidate.program]);
+  }, [candidate?.code, candidate?.program]);
 
   // Calculate Weighted Score (1 - 5 Scale)
   const weightedOverallScore = competencies
@@ -190,8 +213,8 @@ export default function AsesorScoringForm() {
     try {
       const res = await axios.post('/api/admin/ai/fact-sheet-match', {
         submission: {
-          candidateName: candidate.name,
-          programTitle: `${candidate.program} (${candidate.pt})`,
+          candidateName: candidate!.name,
+          programTitle: `${candidate!.program} (${candidate!.company})`,
           caseStudyTitle: 'In-Basket Simulation PT Anjak (OTP, CSI & OPEX)',
           ...writtenAnswers
         }
@@ -263,9 +286,9 @@ export default function AsesorScoringForm() {
     const response = await axios.post(
       '/api/asesor/scores',
       {
-        candidateCode: candidate.code,
-        candidateName: candidate.name,
-        programTitle: candidate.program,
+        candidateCode: candidate!.code,
+        candidateName: candidate!.name,
+        programTitle: candidate!.program,
         competencies: competencies.map((c) => ({
           name: c.name,
           weight: c.weight,
@@ -273,7 +296,7 @@ export default function AsesorScoringForm() {
           notes: c.notes
         })),
         interviewScore,
-        compositeScore: calculateCompositeScore(candidate.catScore, interviewScore),
+        compositeScore: calculateCompositeScore(candidate!.catScore ?? 0, interviewScore),
         recommendation,
         status
       },
@@ -298,18 +321,18 @@ export default function AsesorScoringForm() {
           `<tr><td>${c.name}</td><td style="text-align:center">${c.weight}%</td><td style="text-align:center">${c.score.toFixed(1)}</td><td>${c.notes.replace(/</g, '&lt;')}</td></tr>`
       )
       .join('');
-    const html = `<!doctype html><html lang="id"><head><meta charset="utf-8" /><title>LHA ${candidate.code}</title>
+    const html = `<!doctype html><html lang="id"><head><meta charset="utf-8" /><title>LHA ${candidate!.code}</title>
 <style>body{font-family:Georgia,serif;margin:40px;color:#111}h1{font-size:18px;margin:0}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}th,td{border:1px solid #ccc;padding:6px 8px;vertical-align:top}th{background:#f1f5f9;text-align:left}.meta{font-size:12px;color:#555}</style>
 </head><body>
 <h1>SOLUSI ASESMEN INDONESIA</h1>
 <p class="meta">Proxsis Talent Force • Assessment Center Enterprise<br/>NO: ${lhaNumber} • STATUS: CERTIFIED FINAL</p>
 <hr/>
-<p><strong>Nama Kandidat:</strong> ${candidate.name}<br/>
-<strong>ID Kandidat:</strong> ${candidate.code}<br/>
-<strong>Program:</strong> ${candidate.program} (${candidate.pt})<br/>
-<strong>Skor CAT:</strong> ${candidate.catScore}/100<br/>
+<p><strong>Nama Kandidat:</strong> ${candidate!.name}<br/>
+<strong>ID Kandidat:</strong> ${candidate!.code}<br/>
+<strong>Program:</strong> ${candidate!.program} (${candidate!.company})<br/>
+<strong>Skor CAT:</strong> ${candidate!.catScore ?? '-'}/100<br/>
 <strong>Skor Wawancara:</strong> ${Math.round(Number(weightedOverallScore) * 20 * 10) / 10}/100<br/>
-<strong>Skor Komposit:</strong> ${calculateCompositeScore(candidate.catScore, Math.round(Number(weightedOverallScore) * 20 * 10) / 10)}</p>
+<strong>Skor Komposit:</strong> ${calculateCompositeScore(candidate!.catScore ?? 0, Math.round(Number(weightedOverallScore) * 20 * 10) / 10)}</p>
 <h2 style="font-size:14px">Matriks 7 Indikator Perilaku Terstandar</h2>
 <table><thead><tr><th>KOMPETENSI</th><th>BOBOT</th><th>SKOR (1-5)</th><th>EVIDENCE CATATAN PERILAKU</th></tr></thead><tbody>${rows}</tbody></table>
 <p><strong>Rekomendasi Dewan Asesor:</strong> ${recommendation}<br/>
@@ -334,7 +357,7 @@ export default function AsesorScoringForm() {
     setSaveMessage('');
     try {
       await persistScore('signed');
-      setSaveMessage(`Penilaian ${candidate.name} (${candidate.code}) berhasil ditandatangani dan LHA diterbitkan.`);
+      setSaveMessage(`Penilaian ${candidate!.name} (${candidate!.code}) berhasil ditandatangani dan LHA diterbitkan.`);
       setLhaModalOpen(true);
     } catch (err) {
       console.error('Finalize scoring error:', err);
@@ -343,6 +366,27 @@ export default function AsesorScoringForm() {
       setIsSubmitting(false);
     }
   };
+
+  if (candidateLoading) {
+    return (
+      <AsesorLayout activeTab="scoring">
+        <div className="p-10 text-center text-sm text-slate-500">Memuat data kandidat...</div>
+      </AsesorLayout>
+    );
+  }
+
+  if (!candidate) {
+    return (
+      <AsesorLayout activeTab="scoring">
+        <div className="p-10 text-center space-y-3">
+          <p className="text-sm font-semibold text-ink">Kandidat tidak ditemukan.</p>
+          <Button variant="primary" size="sm" onClick={() => navigate('/asesor/interview-queue')}>
+            Kembali ke Antrean
+          </Button>
+        </div>
+      </AsesorLayout>
+    );
+  }
 
   return (
     <AsesorLayout activeTab="scoring">
@@ -360,7 +404,7 @@ export default function AsesorScoringForm() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 font-bold text-lg flex items-center justify-center font-heading shrink-0 border border-blue-100">
-              {candidate.name
+              {candidate!.name
                 .split(' ')
                 .map((n) => n[0])
                 .slice(0, 2)
@@ -369,14 +413,14 @@ export default function AsesorScoringForm() {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-slate-900 tracking-tight">
-                  {candidate.name}
+                  {candidate!.name}
                 </h1>
                 <Badge variant="navy" className="text-xs sm:text-sm font-bold">
-                  {candidate.pt}
+                  {candidate!.company}
                 </Badge>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-1 font-mono">
-                {candidate.code} • {candidate.program} (CAT {candidate.catScore}/100)
+                {candidate!.code} • {candidate!.program} (CAT {candidate!.catScore ?? '-'}/100)
               </p>
             </div>
           </div>
@@ -681,7 +725,7 @@ export default function AsesorScoringForm() {
                 onClick={async () => {
                   try {
                     await persistScore('draft');
-                    setSaveMessage(`Draft penilaian ${candidate.name} (${candidate.code}) tersimpan di server.`);
+                    setSaveMessage(`Draft penilaian ${candidate!.name} (${candidate!.code}) tersimpan di server.`);
                   } catch (err) {
                     setSaveMessage(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal menyimpan draft.' : 'Gagal menyimpan draft.');
                   }
@@ -731,13 +775,13 @@ export default function AsesorScoringForm() {
             <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
               <div>
                 <span className="text-slate-400 block font-semibold">Nama Kandidat:</span>
-                <span className="font-bold text-slate-900 text-sm">{candidate.name}</span>
-                <span className="text-slate-500 block">ID: {candidate.code}</span>
+                <span className="font-bold text-slate-900 text-sm">{candidate!.name}</span>
+                <span className="text-slate-500 block">ID: {candidate!.code}</span>
               </div>
               <div className="text-right">
                 <span className="text-slate-400 block font-semibold">Program Asesmen:</span>
-                <span className="font-bold text-slate-900">{candidate.program}</span>
-                <span className="text-slate-500 block">{candidate.pt}</span>
+                <span className="font-bold text-slate-900">{candidate!.program}</span>
+                <span className="text-slate-500 block">{candidate!.company}</span>
               </div>
             </div>
 

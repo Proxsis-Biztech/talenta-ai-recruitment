@@ -1,3 +1,5 @@
+import { getAiConfig } from './aiConfigService';
+
 export interface FactSheetItem {
   id: string;
   category: string;
@@ -84,6 +86,7 @@ export async function runFactSheetMatching(
     try {
       const { GoogleGenAI } = await import('@google/genai');
       const ai = new GoogleGenAI({ apiKey });
+      const aiConfig = await getAiConfig();
       const prompt = `Anda adalah Lead Assessor psikologi industri dan manajerial dari Solusi Asesmen Indonesia (SAI) & Proxsis Talent Force.
 Tugas Anda adalah mengevaluasi respon studi kasus (In-Basket Assessment) kandidat berdasarkan daftar Fakta Kunci (Fact Sheet) skenario bisnis.
 
@@ -146,7 +149,7 @@ KEMBALIKAN HANYA JSON VALID DENGAN FORMAT BERIKUT (TANPA MARKDOWN FENCE MAUPUN T
 }`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: aiConfig.factSheetModel,
         contents: prompt
       });
 

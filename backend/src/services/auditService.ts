@@ -1,5 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+const LEGACY_AUDIT_FILE = path.join(__dirname, '../../audit_logs.json');
 
 export interface AuditLogEntry {
   id: string;
@@ -12,8 +16,6 @@ export interface AuditLogEntry {
   details: string;
   status: 'SUCCESS' | 'WARNING' | 'FAILED';
 }
-
-const AUDIT_FILE = path.join(__dirname, '../../audit_logs.json');
 
 const INITIAL_LOGS: AuditLogEntry[] = [
   {
@@ -73,54 +75,111 @@ const INITIAL_LOGS: AuditLogEntry[] = [
   }
 ];
 
-function loadLogs(): AuditLogEntry[] {
+function loadLegacyLogs(): AuditLogEntry[] {
   try {
-    if (fs.existsSync(AUDIT_FILE)) {
-      const data = fs.readFileSync(AUDIT_FILE, 'utf-8');
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (err) {
-    console.warn('Failed reading audit logs file, using default seed:', err);
+    if (!fs.existsSync(LEGACY_AUDIT_FILE)) return [];
+    const parsed = JSON.parse(fs.readFileSync(LEGACY_AUDIT_FILE, 'utf-8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
-  return [...INITIAL_LOGS];
 }
 
-function saveLogs(logs: AuditLogEntry[]) {
-  try {
-    fs.writeFileSync(AUDIT_FILE, JSON.stringify(logs.slice(-500), null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Failed saving audit logs to disk:', err);
-  }
+let seedPromise: Promise<void> | null = null;
+
+async function ensureSeeded() {
+  if (seedPromise) return seedPromise;
+  seedPromise = (async () => {
+    const count = await prisma.auditLog.count();
+    if (count > 0) return;
+    const legacy = loadLegacyLogs();
+    const merged = [...legacy, ...INITIAL_LOGS];
+    const seen = new Set<string>();
+    const data = merged
+      .filter((entry) => {
+        if (seen.has(entry.id)) return false;
+        seen.add(entry.id);
+        return true;
+      })
+      .map((entry) => ({
+        id: entry.id,
+        timestamp: new Date(entry.timestamp),
+        actor: entry.actor,
+        action: entry.action,
+        category: entry.category,
+        ip: entry.ip,
+        target: entry.target || null,
+        details: entry.details,
+        status: entry.status
+      }));
+    if (data.length > 0) {
+      await prisma.auditLog.createMany({ data, skipDuplicates: true });
+    }
+  })().catch((error) => {
+    console.error('Failed seeding audit logs:', error);
+  });
+  return seedPromise;
 }
 
 export function recordAuditLog(entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) {
-  const currentLogs = loadLogs();
   const newEntry: AuditLogEntry = {
     id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     timestamp: new Date().toISOString(),
     ...entry
   };
-  currentLogs.unshift(newEntry);
-  saveLogs(currentLogs);
+  void prisma.auditLog
+    .create({
+      data: {
+        id: newEntry.id,
+        timestamp: new Date(newEntry.timestamp),
+        actor: newEntry.actor,
+        action: newEntry.action,
+        category: newEntry.category,
+        ip: newEntry.ip,
+        target: newEntry.target || null,
+        details: newEntry.details,
+        status: newEntry.status
+      }
+    })
+    .catch((error) => {
+      console.error('Failed writing audit log:', error);
+    });
   return newEntry;
 }
 
-export function getAuditLogs(filter?: { category?: string; search?: string; limit?: number }): AuditLogEntry[] {
-  let logs = loadLogs();
+export async function getAuditLogs(filter?: {
+  category?: string;
+  search?: string;
+  limit?: number;
+}): Promise<AuditLogEntry[]> {
+  await ensureSeeded();
+  const where: any = {};
   if (filter?.category && filter.category !== 'ALL') {
-    logs = logs.filter(l => l.category === filter.category);
+    where.category = filter.category;
   }
   if (filter?.search) {
     const q = filter.search.toLowerCase();
-    logs = logs.filter(l => 
-      l.action.toLowerCase().includes(q) || 
-      l.actor.toLowerCase().includes(q) || 
-      l.details.toLowerCase().includes(q) ||
-      (l.target && l.target.toLowerCase().includes(q))
-    );
+    where.OR = [
+      { action: { contains: q, mode: 'insensitive' } },
+      { actor: { contains: q, mode: 'insensitive' } },
+      { details: { contains: q, mode: 'insensitive' } },
+      { target: { contains: q, mode: 'insensitive' } }
+    ];
   }
-  return logs.slice(0, filter?.limit || 100);
+  const logs = await prisma.auditLog.findMany({
+    where,
+    orderBy: { timestamp: 'desc' },
+    take: filter?.limit || 100
+  });
+  return logs.map((log) => ({
+    id: log.id,
+    timestamp: log.timestamp.toISOString(),
+    actor: log.actor,
+    action: log.action,
+    category: log.category as AuditLogEntry['category'],
+    ip: log.ip,
+    target: log.target || undefined,
+    details: log.details,
+    status: log.status as AuditLogEntry['status']
+  }));
 }

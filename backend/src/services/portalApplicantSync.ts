@@ -1,10 +1,12 @@
 import { PrismaClient } from '@prisma/client';
+import { ensureCandidateCode } from './candidateCodeService';
 
 const prisma = new PrismaClient();
 
 export async function ensureApplicantForPortalUser(userId: string) {
   const user = await prisma.portalUser.findUnique({ where: { id: userId } });
   if (!user || user.role !== 'peserta') return null;
+  await ensureCandidateCode(user.id);
 
   const job = user.assessmentId
     ? await prisma.job.findFirst({ where: { code: user.assessmentId } })

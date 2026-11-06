@@ -14,12 +14,9 @@ import {
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
-import {
-  getCandidatesForTenant,
-  calculateCompositeScore,
-  formatToday
-} from '../../services/asesorScoreService';
-import { getPortalToken, getPortalUser } from '../../services/portalAuthService';
+import { formatToday } from '../../services/asesorScoreService';
+import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
+import { getPortalToken } from '../../services/portalAuthService';
 
 export default function AsesorRekapProgram() {
   const navigate = useNavigate();
@@ -27,46 +24,60 @@ export default function AsesorRekapProgram() {
   const [filterRec, setFilterRec] = useState<string>('all');
 
   const [savedScores, setSavedScores] = useState<Record<string, any>>({});
+  const [candidateList, setCandidateList] = useState<AssessorCandidate[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    const loadScores = async () => {
+    const loadData = async () => {
       const token = getPortalToken();
-      if (!token) return;
-      try {
-        const response = await axios.get('/api/asesor/scores', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (cancelled) return;
+      const [candidateResult, scoreResult] = await Promise.allSettled([
+        fetchAssessorCandidates(),
+        token
+          ? axios.get('/api/asesor/scores', {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+          : Promise.resolve({ data: { data: [] } })
+      ]);
+      if (cancelled) return;
+      if (candidateResult.status === 'fulfilled') {
+        setCandidateList(candidateResult.value);
+      } else {
+        setCandidateList([]);
+      }
+      if (scoreResult.status === 'fulfilled') {
         const map: Record<string, any> = {};
-        for (const score of response.data.data || []) {
+        for (const score of scoreResult.value.data?.data || []) {
           map[score.candidateCode] = score;
         }
         setSavedScores(map);
-      } catch {
-        if (!cancelled) setSavedScores({});
+      } else {
+        setSavedScores({});
       }
     };
-    void loadScores();
+    void loadData();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const candidates = getCandidatesForTenant(getPortalUser()?.companyName).map((c) => {
-    const saved = savedScores[c.code];
+  const candidates = candidateList.map((c) => {
+    const saved = savedScores[c.candidateCode || c.code];
     return {
       id: c.code,
       name: c.name,
-      pt: c.pt,
+      pt: c.company,
       program: c.program,
       catScore: c.catScore,
-      interviewScore: saved ? saved.interviewScore : null,
-      compositeScore: saved ? saved.compositeScore : null,
-      recommendation: saved ? saved.recommendation : null,
-      assessor: saved ? saved.assessor?.name || 'Asesor' : null,
-      verifiedDate: saved?.signedAt ? new Date(saved.signedAt).toLocaleDateString('id-ID') : null,
-      isSaved: Boolean(saved)
+      interviewScore: saved?.interviewScore ?? c.interviewScore ?? null,
+      compositeScore: saved?.compositeScore ?? null,
+      recommendation: saved?.recommendation ?? c.recommendation ?? null,
+      assessor: saved?.assessor?.name || 'Asesor',
+      verifiedDate: saved?.signedAt
+        ? new Date(saved.signedAt).toLocaleDateString('id-ID')
+        : c.signedAt
+          ? new Date(c.signedAt).toLocaleDateString('id-ID')
+          : null,
+      isSaved: Boolean(saved) || c.lhaStatus === 'signed'
     };
   });
 
