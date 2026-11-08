@@ -28,6 +28,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
+import axios from 'axios';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import { getAllPrograms } from '../../services/assessmentCatalog';
 import { Button, Badge, Card, CardContent, Modal } from '../ui';
@@ -453,7 +454,46 @@ export function AdminMasterMateriTree() {
   }, []);
 
   // Filters
-  const programs = useMemo(() => getAllPrograms(), []);
+  const [programs, setPrograms] = useState(() => getAllPrograms());
+
+  useEffect(() => {
+    let cancelled = false;
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    axios
+      .get('/api/admin/jobs', {
+        params: { limit: 100 },
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then((response) => {
+        if (cancelled) return;
+        const merged = getAllPrograms();
+        for (const job of response.data?.data || []) {
+          if (!job.code) continue;
+          if (!merged.some((program) => program.id === job.code)) {
+            merged.push({
+              id: job.code,
+              title: job.title,
+              companyName: job.title.includes('(')
+                ? job.title.split('(').slice(-1)[0].replace(')', '').trim()
+                : '-',
+              category: 'Program Kustom',
+              description: job.description || '',
+              durationMinutes: job.interviewDuration || 90,
+              passingScore: job.interviewPassingScore || 70,
+              totalQuestions: 0,
+              gradeLevel: 'Grade B (Specialist / Mid)',
+              questions: []
+            } as any);
+          }
+        }
+        setPrograms(merged);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [selectedProgramCode, setSelectedProgramCode] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'companies' | 'modules'>('companies');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('ALL');

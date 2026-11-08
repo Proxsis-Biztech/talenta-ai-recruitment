@@ -19,6 +19,7 @@ const { Error403Page, Error404Page, OfflinePage } = {
 const PesertaDashboard = lazy(() => import('./components/peserta/PesertaDashboard'));
 const PesertaAsesmenList = lazy(() => import('./components/peserta/PesertaAsesmenList'));
 const PesertaDetailAsesmen = lazy(() => import('./components/peserta/PesertaDetailAsesmen'));
+const PesertaMateri = lazy(() => import('./components/peserta/PesertaMateri'));
 const PesertaDeviceCheck = lazy(() => import('./components/peserta/PesertaDeviceCheck'));
 const PesertaExamPlayer = lazy(() => import('./components/peserta/PesertaExamPlayer'));
 const PesertaWaitingRoom = lazy(() => import('./components/peserta/PesertaWaitingRoom'));
@@ -100,6 +101,7 @@ function App() {
             <Route path="/peserta" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaDashboard /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/dashboard" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaDashboard /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/asesmen" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaAsesmenList /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/materi" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaMateri /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/detail/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaDetailAsesmen /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/device-check" element={<RequireRole roles={['peserta']}><PesertaDeviceCheck /></RequireRole>} />
             <Route path="/peserta/exam/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireFaceVerified><PesertaExamPlayer /></RequireFaceVerified></RequireProfileComplete></RequireOnboarding></RequireRole>} />

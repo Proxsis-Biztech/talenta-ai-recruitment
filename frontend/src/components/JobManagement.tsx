@@ -34,7 +34,7 @@ import {
   INITIAL_MATERI_LIST, 
   type MasterMateriItem 
 } from './admin/AdminMasterMateriTree';
-import { loadMasterScope } from '../services/masterDataService';
+import { loadMasterScope, saveMasterRecord } from '../services/masterDataService';
 
 interface Job {
   id: string;
@@ -141,19 +141,20 @@ export default function JobManagement() {
   } | null>(null);
   const [detailTab, setDetailTab] = useState<'soal' | 'materi' | 'rubrik'>('soal');
   const [serverMateri, setServerMateri] = useState<MasterMateriItem[]>([]);
+  const [serverMateriOverrides, setServerMateriOverrides] = useState<Record<string, MasterMateriItem[]>>({});
   const [qSearch, setQSearch] = useState('');
   const [qTypeFilter, setQTypeFilter] = useState('ALL');
   const [qDiffFilter, setQDiffFilter] = useState('ALL');
 
   const getBankQuestionCountForJob = useCallback((job: Job) => {
-    const program = findProgramByTitle(job.title, job.id);
-    const count = bankSoalQuestions.filter((question) => (question.programCode || 'SE-402') === program.id).length;
-    return count > 0 ? count : (program.questions?.length || 40);
+    const programCode = job.code || findProgramByTitle(job.title, job.id).id;
+    const count = bankSoalQuestions.filter((question) => (question.programCode || 'SE-402') === programCode).length;
+    return count > 0 ? count : 40;
   }, [bankSoalQuestions]);
 
   const getMaterialsForJob = useCallback((job: Job): MasterMateriItem[] => {
     // 1) Edit khusus per formasi (dari modal Ubah) selalu menang
-    const overrides = getJobMateriOverrides();
+    const overrides = { ...serverMateriOverrides, ...getJobMateriOverrides() };
     if (overrides[job.id]?.length) return overrides[job.id];
 
     // 2) Master materi yang tersimpan — termasuk hasil edit di menu Master Materi,
@@ -198,7 +199,7 @@ export default function JobManagement() {
         updatedAt: '2026-11-02'
       }
     ];
-  }, [serverMateri]);
+  }, [serverMateri, serverMateriOverrides]);
 
   useEffect(() => {
     loadMasterScope<any>('bank-soal')
@@ -507,6 +508,7 @@ export default function JobManagement() {
         const overrides = getJobMateriOverrides();
         overrides[editingJob.id] = editMaterials;
         localStorage.setItem(MATERI_OVERRIDES_KEY, JSON.stringify(overrides));
+        void saveMasterRecord('job-materi', editingJob.id, editMaterials);
       } catch (persistErr) {
         console.warn('Gagal menyimpan edit soal/materi formasi:', persistErr);
       }

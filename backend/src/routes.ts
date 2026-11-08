@@ -31,6 +31,7 @@ import {
   getAssessorCandidateProctoring
 } from './controllers/AssessorCandidateController';
 import { getWaitingRoomStatus, completeAndCallNext } from './controllers/InterviewQueueController';
+import { getPortalMaterials } from './controllers/PortalMaterialController';
 import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
 import { listTenants } from './controllers/TenantController';
 import { syncProgramQuestions, publishProgram } from './controllers/ProgramQuestionController';
@@ -71,6 +72,7 @@ router.post('/portal/device-check', authenticatePortal, completeDeviceCheck);
 router.post('/portal/device-check/complete', authenticatePortal, completeDeviceCheckSession);
 router.get('/portal/dashboard', authenticatePortal, getPortalDashboard);
 router.get('/portal/waiting-room', authenticatePortal, requirePortalRole('peserta'), getWaitingRoomStatus);
+router.get('/portal/materials', authenticatePortal, requirePortalRole('peserta'), getPortalMaterials);
 router.post('/asesor/interview/:candidateCode/complete-and-call-next', authenticatePortal, requirePortalRole('asesor'), completeAndCallNext);
 
 router.get('/interview/questions', authenticatePortal, requirePortalRole('peserta'), getInterviewQuestions);

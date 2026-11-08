@@ -106,6 +106,16 @@ interface Applicant {
   interviewPhaseScores: string | null;
   proctorFlags: string | null;
   compositeEvaluation?: CompositeEvaluation;
+  candidateCode?: string | null;
+  examAttempt?: {
+    score?: number | null;
+    integrityScore?: number | null;
+    submittedAt?: string | null;
+    status?: string;
+    totalAnswered?: number;
+    totalQuestions?: number;
+    answers?: string | null;
+  } | null;
 }
 
 // Helpers for Right Candidate Table representation
@@ -124,6 +134,9 @@ const getStageForApplicant = (app: Applicant): string => {
     return 'Selesai';
   }
   if (app.interviewStatus === 'in_progress') {
+    return 'Wawancara';
+  }
+  if (app.examAttempt?.status === 'submitted' || app.examAttempt?.status === 'graded') {
     return 'Wawancara';
   }
   if (app.screeningStatus === 'success') {
@@ -240,8 +253,8 @@ export default function AdminDashboard() {
     () => new URLSearchParams(window.location.search).get('builder') === '1'
   );
 
-  const fetchApplicants = useCallback(async () => {
-    setLoading(true);
+  const fetchApplicants = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const token = localStorage.getItem('adminToken');
       if (!token) {
@@ -261,7 +274,7 @@ export default function AdminDashboard() {
         navigate('/admin/login');
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [page, search, educationFilter, interviewStatusFilter, navigate]);
 
@@ -284,6 +297,14 @@ export default function AdminDashboard() {
       fetchApplicants();
       fetchAllApplicants();
     }, 0);
+  }, [fetchApplicants, fetchAllApplicants]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void fetchApplicants(true);
+      void fetchAllApplicants();
+    }, 15000);
+    return () => window.clearInterval(interval);
   }, [fetchApplicants, fetchAllApplicants]);
 
   const handleLogout = () => {
@@ -1315,6 +1336,10 @@ ${app.interviewResult ? `
             </div>
 
             {/* Candidate Table */}
+            <div className="flex items-center justify-end gap-2 pb-2 text-[11px] text-slate-500">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Live • hasil ujian diperbarui otomatis setiap 15 detik</span>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1332,6 +1357,7 @@ ${app.interviewResult ? `
                   <TableHead>Peserta</TableHead>
                   <TableHead>Perusahaan</TableHead>
                   <TableHead>Program</TableHead>
+                  <TableHead>Skor CAT</TableHead>
                   <TableHead>Tahap</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Tanggal Daftar</TableHead>
@@ -1341,14 +1367,14 @@ ${app.interviewResult ? `
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-12 text-center text-slate-400">
+                    <TableCell colSpan={9} className="py-12 text-center text-slate-400">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary-navy" />
                       <span>Memuat data peserta...</span>
                     </TableCell>
                   </TableRow>
                 ) : applicants.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-12 text-center text-slate-400">
+                    <TableCell colSpan={9} className="py-12 text-center text-slate-400">
                       <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                       <p className="font-semibold text-slate-600">Belum ada data peserta</p>
                       <p className="text-xs text-slate-400 mt-1">Data pendaftaran asesmen akan muncul di sini.</p>
@@ -1435,6 +1461,23 @@ ${app.interviewResult ? `
                             <span className="block max-w-[240px] truncate" title={getProgramForApplicant(app)}>
                               {getProgramForApplicant(app).replace(/\s*\([^)]*\)\s*$/, '')}
                             </span>
+                          </TableCell>
+
+                          {/* Skor CAT */}
+                          <TableCell>
+                            {app.examAttempt?.score != null ? (
+                              <div className="flex flex-col">
+                                <span className="font-mono text-sm font-bold text-emerald-700">
+                                  {app.examAttempt.score}
+                                  <span className="text-[10px] font-normal text-slate-400">/100</span>
+                                </span>
+                                <span className="text-[10px] text-slate-500">
+                                  {app.examAttempt.status === 'submitted' ? 'Terkumpul' : app.examAttempt.status || 'CAT'}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400">Belum</span>
+                            )}
                           </TableCell>
 
                           {/* Tahap */}
@@ -1848,6 +1891,51 @@ ${app.interviewResult ? `
                   </div>
                 </div>
               )}
+
+              {/* Hasil CAT */}
+              <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-xs">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hasil Pengerjaan CAT</p>
+                  <Badge variant={selectedApplicant.examAttempt ? 'success' : 'neutral'} format="soft">
+                    {selectedApplicant.examAttempt ? 'Sudah Dikerjakan' : 'Belum Dikerjakan'}
+                  </Badge>
+                </div>
+                {selectedApplicant.examAttempt ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                      <p className="text-[10px] text-slate-500 uppercase font-semibold">Skor CAT</p>
+                      <p className="font-mono text-lg font-bold text-emerald-700">
+                        {selectedApplicant.examAttempt.score ?? '-'}
+                        <span className="text-[10px] font-normal text-slate-400">/100</span>
+                      </p>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                      <p className="text-[10px] text-slate-500 uppercase font-semibold">Integritas</p>
+                      <p className="font-mono text-lg font-bold text-primary-navy">
+                        {selectedApplicant.examAttempt.integrityScore ?? '-'}
+                        <span className="text-[10px] font-normal text-slate-400">/100</span>
+                      </p>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                      <p className="text-[10px] text-slate-500 uppercase font-semibold">Jawaban</p>
+                      <p className="font-mono text-lg font-bold text-slate-800">
+                        {selectedApplicant.examAttempt.totalAnswered ?? '-'}
+                        {selectedApplicant.examAttempt.totalQuestions ? `/${selectedApplicant.examAttempt.totalQuestions}` : ''}
+                      </p>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                      <p className="text-[10px] text-slate-500 uppercase font-semibold">Dikumpulkan</p>
+                      <p className="text-xs font-semibold text-slate-800 mt-1">
+                        {selectedApplicant.examAttempt.submittedAt
+                          ? new Date(selectedApplicant.examAttempt.submittedAt).toLocaleString('id-ID')
+                          : '-'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">Kandidat belum menyelesaikan ujian CAT untuk program ini.</p>
+                )}
+              </div>
 
               {/* Quick Info Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

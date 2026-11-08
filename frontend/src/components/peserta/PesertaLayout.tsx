@@ -27,7 +27,8 @@ import {
   MapPin,
   Compass,
   Video,
-  Laptop
+  Laptop,
+  BookOpen
 } from 'lucide-react';
 import { Badge, Modal, Button } from '../ui';
 import { getActiveSessionUser, clearActiveSession } from '../../services/userRegistryService';
@@ -108,6 +109,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
       items: [
         { id: 'dashboard', label: 'Dashboard Peserta', path: '/peserta', icon: LayoutDashboard },
         { id: 'asesmen', label: 'Asesmen Saya', path: '/peserta/asesmen', icon: FileCheck2, badge: '1 Aktif' },
+        { id: 'materi', label: 'Materi & Silabus', path: '/peserta/materi', icon: BookOpen },
         { id: 'waiting-room', label: 'Ruang Wawancara', path: '/peserta/waiting-room', icon: Video, badge: interviewCalled ? 'Giliran Anda' : isCatCompleted && faceVerified ? 'Siap' : 'Terkunci' },
         { id: 'hasil', label: 'Hasil Nilai & LHA', path: '/peserta/hasil', icon: CheckCircle2 },
         { id: 'profile', label: 'Profil & Dokumen', path: '/peserta/profile', icon: User },
@@ -130,6 +132,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
     '/peserta/hasil': 'Hasil & Nilai Akhir',
     '/peserta/profile': 'Profil Saya',
     '/peserta/asesmen': 'Asesmen Saya',
+    '/peserta/materi': 'Materi & Silabus',
     '/peserta': 'Dashboard Peserta',
   };
 

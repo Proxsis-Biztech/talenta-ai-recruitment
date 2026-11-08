@@ -220,6 +220,7 @@ export const getApplicants = async (req: Request, res: Response) => {
                 score: true,
                 integrityScore: true,
                 violations: true,
+                answers: true,
                 submittedAt: true
               }
             }
@@ -245,11 +246,25 @@ export const getApplicants = async (req: Request, res: Response) => {
           mergedFlags = attempt.violations;
         }
       }
+      let totalAnswered = 0;
+      if (attempt?.answers) {
+        try {
+          const parsedAnswers = JSON.parse(attempt.answers);
+          totalAnswered = Object.values(parsedAnswers || {}).filter((value) => {
+            if (value === null || value === undefined || value === '') return false;
+            if (Array.isArray(value)) return value.length > 0;
+            if (typeof value === 'object') return Object.values(value as Record<string, unknown>).some(Boolean);
+            return true;
+          }).length;
+        } catch {
+          totalAnswered = 0;
+        }
+      }
       return {
         ...app,
         proctorFlags: mergedFlags,
         candidateCode: portal?.candidateCode || null,
-        examAttempt: attempt || null,
+        examAttempt: attempt ? { ...attempt, totalAnswered } : null,
         compositeEvaluation: computeCompositeEvaluation(app.screeningScore, app.interviewScore, mergedFlags)
       };
     });

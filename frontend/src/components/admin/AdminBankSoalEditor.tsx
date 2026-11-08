@@ -236,8 +236,47 @@ export function AdminBankSoalEditor() {
   const [factSheetItems, setFactSheetItems] = useState<FactSheetItem[]>(INITIAL_FACT_SHEET);
 
   // Questions state
-  const programs = useMemo(() => getAllPrograms(), []);
+  const [programs, setPrograms] = useState(() => getAllPrograms());
   const [selectedProgramCode, setSelectedProgramCode] = useState(programs[0]?.id || 'SE-402');
+
+  useEffect(() => {
+    let cancelled = false;
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    axios
+      .get('/api/admin/jobs', {
+        params: { limit: 100 },
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then((response) => {
+        if (cancelled) return;
+        const merged = getAllPrograms();
+        for (const job of response.data?.data || []) {
+          if (!job.code) continue;
+          if (!merged.some((program) => program.id === job.code)) {
+            merged.push({
+              id: job.code,
+              title: job.title,
+              companyName: job.title.includes('(')
+                ? job.title.split('(').slice(-1)[0].replace(')', '').trim()
+                : '-',
+              category: 'Program Kustom',
+              description: job.description || '',
+              durationMinutes: job.interviewDuration || 90,
+              passingScore: job.interviewPassingScore || 70,
+              totalQuestions: 0,
+              gradeLevel: 'Grade B (Specialist / Mid)',
+              questions: []
+            } as any);
+          }
+        }
+        setPrograms(merged);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [questions, setQuestions] = useState<BankQuestion[]>(INITIAL_QUESTIONS);
 
   useEffect(() => {
