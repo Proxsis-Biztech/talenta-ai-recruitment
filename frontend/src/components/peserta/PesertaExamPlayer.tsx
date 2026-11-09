@@ -243,6 +243,13 @@ export default function PesertaExamPlayer() {
   const proctoringRef = useRef<ProctoringEngine | null>(null);
 
   useEffect(() => {
+    document.body.classList.add('exam-in-progress');
+    return () => {
+      document.body.classList.remove('exam-in-progress');
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const loadAttempt = async () => {
       const token = getPortalToken();
