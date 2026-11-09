@@ -133,7 +133,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           SIDEBAR NAVIGATION (ROLE ASESOR)
       ═══════════════════════════════════════════════════════════ */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 lg:z-30 bg-white border-r border-border-slate flex flex-col transition-all duration-200 select-none ${
+        className={`fixed top-0 bottom-0 left-0 z-50 lg:z-30 bg-white border-r border-border-slate flex flex-col transition-all duration-200 select-none print:hidden ${
           isCollapsed ? 'w-20' : 'w-68'
         } ${
           mobileDrawerOpen
@@ -319,12 +319,12 @@ R
           MAIN WRAPPER & TOPBAR (OFFSET)
       ═══════════════════════════════════════════════════════════ */}
       <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-200 print:ml-0 print:p-0 ${
           isCollapsed ? 'lg:ml-20' : 'lg:ml-68'
         }`}
       >
         {/* Topbar */}
-        <header className="h-18 bg-white border-b border-border-slate px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+        <header className="h-18 bg-white border-b border-border-slate px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs print:hidden">
           <div className="flex items-center gap-3 min-w-0">
             {/* Mobile Hamburger Button */}
             <button

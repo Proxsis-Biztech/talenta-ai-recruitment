@@ -169,7 +169,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           USER-FRIENDLY SIDEBAR NAVIGATION (PESERTA)
       ═══════════════════════════════════════════════════════════ */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 lg:z-30 bg-white border-r border-slate-200/80 flex flex-col transition-all duration-200 select-none shadow-xs ${
+        className={`fixed top-0 bottom-0 left-0 z-50 lg:z-30 bg-white border-r border-slate-200/80 flex flex-col transition-all duration-200 select-none shadow-xs print:hidden ${
           isCollapsed ? 'w-20' : 'w-72'
         } ${
           mobileDrawerOpen
@@ -344,12 +344,12 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           MAIN WRAPPER & TOPBAR (OFFSET)
       ═══════════════════════════════════════════════════════════ */}
       <div
-        className={`relative flex-1 flex flex-col min-w-0 transition-all duration-200 ${
+        className={`relative flex-1 flex flex-col min-w-0 transition-all duration-200 print:ml-0 print:p-0 ${
           isCollapsed ? 'lg:ml-20' : 'lg:ml-72'
         }`}
       >
         {/* ─── Topbar ─── */}
-        <header className="h-20 bg-white border-b border-slate-200/70 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+        <header className="h-20 bg-white border-b border-slate-200/70 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs print:hidden">
           {/* Left Topbar Content */}
           <div className="flex items-center gap-3 min-w-0">
             {/* Mobile Hamburger Button */}
