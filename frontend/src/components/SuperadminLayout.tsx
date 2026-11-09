@@ -218,10 +218,9 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
 
   return (
     <div id="superadmin-root" className="min-h-screen bg-[#F1F5F9] text-slate-900 flex font-sans">
-      {/* ─── SIDEBAR CONTAINER (EXECUTIVE DARK MIDNIGHT THEME) ─── */}
+      {/* ─── SIDEBAR CONTAINER (CLEAN WHITE THEME) ─── */}
       <aside
-        style={{ backgroundColor: '#0B132B' }}
-        className={`admin-sidebar fixed inset-y-0 left-0 z-30 flex flex-col border-r border-slate-800/90 transition-all duration-300 shadow-xl ${
+        className={`fixed inset-y-0 left-0 z-30 flex flex-col bg-white border-r border-slate-200/90 transition-all duration-300 shadow-[1px_0_4px_rgba(15,23,42,0.03)] ${
           isCollapsed ? 'w-20 overflow-visible' : 'w-72'
         } ${
           mobileDrawerOpen
@@ -230,16 +229,16 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
         }`}
       >
         {/* Brand & Sidebar Collapse / Expand */}
-        <div className={`h-20 flex items-center border-b border-slate-800/80 shrink-0 transition-all ${isCollapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
+        <div className={`h-20 flex items-center border-b border-slate-100 shrink-0 transition-all ${isCollapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
           {!isCollapsed ? (
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center font-extrabold text-xl shadow-lg shadow-blue-500/25 shrink-0">
+              <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center font-extrabold text-xl shadow-md shadow-blue-500/20 shrink-0">
                 R
               </div>
               <div className="flex flex-col truncate">
                 <div className="flex items-center gap-2">
-                  <span className="font-heading font-extrabold text-base tracking-tight text-white">Right</span>
-                  <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 font-mono">
+                  <span className="font-heading font-extrabold text-base tracking-tight text-slate-900">Right</span>
+                  <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono">
                     Admin
                   </span>
                 </div>
@@ -249,13 +248,13 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
               </div>
             </div>
           ) : (
-            <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center font-extrabold text-xl shadow-lg shadow-blue-500/25 shrink-0">
+            <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center font-extrabold text-xl shadow-md shadow-blue-500/20 shrink-0">
               R
             </div>
           )}
           <button
             onClick={toggleCollapse}
-            className="w-8 h-8 rounded-lg border border-slate-700/80 bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-700/80 flex items-center justify-center cursor-pointer transition-colors"
+            className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50 flex items-center justify-center cursor-pointer transition-colors shadow-2xs"
             title={isCollapsed ? 'Perluas Sidebar' : 'Ciutkan Sidebar'}
             aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
@@ -271,13 +270,13 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                 key={group.id}
                 className={`${
                   groupIndex > 0 && !isCollapsed
-                    ? 'pt-3 mt-3 border-t border-slate-800/60'
+                    ? 'pt-3 mt-3 border-t border-slate-100'
                     : ''
                 }`}
               >
                 {/* Collapsed Divider */}
                 {isCollapsed && groupIndex > 0 && (
-                  <div className="w-6 h-px bg-slate-800 mx-auto my-2" />
+                  <div className="w-6 h-px bg-slate-200 mx-auto my-2" />
                 )}
 
                 {/* Group Header (Expanded) */}
@@ -285,11 +284,11 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.id)}
-                    className="w-full min-w-0 px-3.5 pt-1 pb-2 text-[10px] font-extrabold tracking-wider text-slate-400 uppercase flex items-center justify-between gap-2 cursor-pointer hover:text-slate-200 transition-colors"
+                    className="w-full min-w-0 px-3.5 pt-1 pb-2 text-[10px] font-extrabold tracking-wider text-slate-400 uppercase flex items-center justify-between gap-2 cursor-pointer hover:text-slate-700 transition-colors"
                     aria-expanded={!collapsedGroups[group.id]}
                   >
                     <span className="truncate whitespace-nowrap">{group.label}</span>
-                    {collapsedGroups[group.id] ? <ChevronRight className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+                    {collapsedGroups[group.id] ? <ChevronRight className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
                   </button>
                 )}
 
@@ -301,7 +300,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                       return isCollapsed ? (
                         <div key={item.key} className="relative group sidebar-item-group flex justify-center py-0.5">
                           {isActive && (
-                            <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-blue-500 rounded-r-md shadow-xs shadow-blue-400" />
+                            <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-blue-600 rounded-r-md" />
                           )}
                           <button
                             onClick={() => {
@@ -310,17 +309,17 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                             }}
                             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                               isActive
-                                ? 'admin-nav-item-active font-semibold'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800/70'
+                                ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
+                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                             }`}
                             aria-label={item.label}
                           >
-                            <item.icon className="w-5 h-5" />
+                            <item.icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-slate-500'}`} />
                           </button>
 
                           {/* Floating Tooltip */}
-                          <div className="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 border border-slate-700/80 text-white text-xs font-medium rounded-xl shadow-xl pointer-events-none whitespace-nowrap z-50 flex flex-col gap-1">
-                            <span className="text-[9.5px] uppercase tracking-wider text-blue-300 font-bold">
+                          <div className="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 border border-slate-700 text-white text-xs font-medium rounded-xl shadow-xl pointer-events-none whitespace-nowrap z-50 flex flex-col gap-1">
+                            <span className="text-[9.5px] uppercase tracking-wider text-slate-400 font-bold">
                               {group.label}
                             </span>
                             <div className="flex items-center gap-2">
@@ -342,13 +341,13 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                           }}
                           className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium group text-left cursor-pointer ${
                             isActive
-                              ? 'admin-nav-item-active font-bold pl-3'
-                              : 'admin-nav-item-inactive'
+                              ? 'bg-blue-50 text-blue-700 font-bold border-l-3 border-blue-600 pl-3 shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                           }`}
                         >
                           <item.icon
                             className={`w-4.5 h-4.5 shrink-0 transition-colors ${
-                              isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'
+                              isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-700'
                             }`}
                           />
                           <span className="truncate whitespace-nowrap flex-1">{item.label}</span>
@@ -356,8 +355,8 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                             <span
                               className={`text-[10px] px-2 py-0.5 rounded-full font-bold font-mono transition-colors ${
                                 isActive
-                                  ? 'bg-white/20 text-white'
-                                  : 'bg-blue-500/20 text-blue-300 border border-blue-400/30'
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  : 'bg-slate-100 text-slate-600'
                               }`}
                             >
                               {item.badge}
@@ -374,34 +373,34 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
 
         {/* Sidebar Footer */}
         {isCollapsed ? (
-          <div className="p-2 border-t border-slate-800/80 flex flex-col items-center gap-2">
+          <div className="p-2 border-t border-slate-100 flex flex-col items-center gap-2">
             <button
               onClick={onLogout}
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition-colors cursor-pointer group relative"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer group relative"
               title="Keluar Sesi"
             >
               <LogOut className="w-4.5 h-4.5" />
-              <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 border border-slate-700 text-white text-xs rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
                 Keluar Sesi
               </span>
             </button>
           </div>
         ) : (
-          <div className="p-3.5 border-t border-slate-800/80 space-y-3">
+          <div className="p-3.5 border-t border-slate-100 space-y-3">
             {/* Live AI Status Card */}
-            <div className="p-3 rounded-xl bg-gradient-to-br from-slate-800/90 to-slate-900/90 border border-slate-700/60 flex flex-col gap-1.5 shadow-sm">
+            <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200/60 flex flex-col gap-1.5 shadow-2xs">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-blue-300 font-bold text-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
                   <span>AI Proctoring Engine</span>
                 </div>
-                <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400 font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-600 font-bold bg-white/80 px-1.5 py-0.5 rounded border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   LIVE
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-tight">
-                Right Enterprise siap melayani ujian & wawancara terstandar.
+              <p className="text-[11px] text-slate-600 leading-tight">
+                Right Enterprise siap melayani ujian &amp; wawancara terstandar.
               </p>
             </div>
 
@@ -409,7 +408,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
               <span className="font-mono text-slate-400">v2.4.0 • Enterprise</span>
               <button
                 onClick={onLogout}
-                className="flex items-center gap-1 text-slate-400 hover:text-rose-400 font-semibold transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-slate-500 hover:text-rose-600 font-semibold transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Keluar</span>

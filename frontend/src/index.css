@@ -180,32 +180,6 @@ html {
     border-radius: 4px;
   }
 
-  /* Executive Admin Console Custom CSS (Immune to Tailwind arbitrary purge) */
-  .admin-sidebar {
-    background-color: #0B132B !important;
-    color: #F8FAFC !important;
-  }
-
-  .admin-sidebar-header {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-  }
-
-  .admin-nav-item-active {
-    background: linear-gradient(135deg, #2563EB 0%, #4F46E5 100%) !important;
-    color: #FFFFFF !important;
-    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
-    border-left: 3px solid #60A5FA !important;
-  }
-
-  .admin-nav-item-inactive {
-    color: #94A3B8 !important;
-  }
-
-  .admin-nav-item-inactive:hover {
-    background-color: rgba(255, 255, 255, 0.08) !important;
-    color: #FFFFFF !important;
-  }
-
   .admin-hero-banner {
     background: linear-gradient(135deg, #0B132B 0%, #152238 45%, #1E3A8A 100%) !important;
     color: #FFFFFF !important;
