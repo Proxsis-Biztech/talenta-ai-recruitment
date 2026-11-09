@@ -217,66 +217,47 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
     .toUpperCase();
 
   return (
-    <div id="superadmin-root" className="min-h-screen bg-[#F1F5F9] text-slate-900 flex font-sans">
-      {/* ─── SIDEBAR CONTAINER (EXECUTIVE DARK MIDNIGHT THEME) ─── */}
+    <div id="superadmin-root" className="min-h-screen bg-page-bg text-ink flex font-sans">
+      {/* ─── SIDEBAR CONTAINER ─── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex flex-col bg-[#0B132B] border-r border-slate-800/90 transition-all duration-300 shadow-xl ${
-          isCollapsed ? 'w-20 overflow-visible' : 'w-72'
+        className={`fixed inset-y-0 left-0 z-30 flex flex-col bg-white border-r border-border-slate transition-all duration-300 shadow-[1px_0_4px_rgba(15,23,42,0.03)] ${
+          isCollapsed ? 'w-18 overflow-visible' : 'w-68'
         } ${
           mobileDrawerOpen
-            ? 'translate-x-0 !w-72 shadow-2xl'
+            ? 'translate-x-0 !w-68'
             : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        {/* Brand & Sidebar Collapse / Expand */}
-        <div className={`h-20 flex items-center border-b border-slate-800/80 shrink-0 transition-all ${isCollapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
-          {!isCollapsed ? (
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 text-white flex items-center justify-center font-extrabold text-xl shadow-lg shadow-blue-500/25 shrink-0">
-                R
-              </div>
-              <div className="flex flex-col truncate">
-                <div className="flex items-center gap-2">
-                  <span className="font-heading font-extrabold text-base tracking-tight text-white">Right</span>
-                  <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 font-mono">
-                    Admin
-                  </span>
-                </div>
-                <span className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
-                  Enterprise Console
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-extrabold text-xl shadow-lg shadow-blue-500/25 shrink-0">
-              R
-            </div>
+        {/* Sidebar Collapse / Expand */}
+        <div className={`h-18 flex items-center border-b border-border-slate shrink-0 ${isCollapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
+          {!isCollapsed && (
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Menu Admin</span>
           )}
           <button
             onClick={toggleCollapse}
-            className="w-8 h-8 rounded-lg border border-slate-700/80 bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-700/80 flex items-center justify-center cursor-pointer transition-colors"
+            className="w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-primary-navy hover:bg-slate-50 flex items-center justify-center cursor-pointer"
             title={isCollapsed ? 'Perluas Sidebar' : 'Ciutkan Sidebar'}
             aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
-            {isCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+            {isCollapsed ? <PanelLeftOpen className="w-4.5 h-4.5" /> : <PanelLeftClose className="w-4.5 h-4.5" />}
           </button>
         </div>
 
         {/* Navigation Items */}
-        <nav className={`flex-1 ${isCollapsed ? 'overflow-visible py-4 px-2 space-y-3' : 'overflow-y-auto py-4 px-3 space-y-4'}`}>
+        <nav className={`flex-1 ${isCollapsed ? 'overflow-visible py-3 px-2 space-y-3' : 'overflow-y-auto py-3 px-3 space-y-4'}`}>
           {NAV_GROUPS.filter((group) => !group.superadminOnly || userRole === 'superadmin').map(
             (group, groupIndex) => (
               <div
                 key={group.id}
                 className={`${
                   groupIndex > 0 && !isCollapsed
-                    ? 'pt-3 mt-3 border-t border-slate-800/60'
+                    ? 'pt-2.5 mt-2.5 border-t border-slate-100'
                     : ''
                 }`}
               >
                 {/* Collapsed Divider */}
                 {isCollapsed && groupIndex > 0 && (
-                  <div className="w-6 h-px bg-slate-800 mx-auto my-2" />
+                  <div className="w-6 h-px bg-slate-200/80 mx-auto my-2" />
                 )}
 
                 {/* Group Header (Expanded) */}
@@ -284,15 +265,15 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.id)}
-                    className="w-full min-w-0 px-3.5 pt-1 pb-2 text-[10px] font-extrabold tracking-wider text-slate-400 uppercase flex items-center justify-between gap-2 cursor-pointer hover:text-slate-200 transition-colors"
+                    className="w-full min-w-0 px-3.5 pt-1.5 pb-2 text-[11px] font-bold tracking-wider text-slate-400 uppercase flex items-center justify-between gap-2 cursor-pointer hover:text-slate-600"
                     aria-expanded={!collapsedGroups[group.id]}
                   >
                     <span className="truncate whitespace-nowrap">{group.label}</span>
-                    {collapsedGroups[group.id] ? <ChevronRight className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+                    {collapsedGroups[group.id] ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
                 )}
 
-                <div className={`space-y-1 ${collapsedGroups[group.id] && !isCollapsed ? 'hidden' : ''}`}>
+                <div className={`space-y-0.5 ${collapsedGroups[group.id] && !isCollapsed ? 'hidden' : ''}`}>
                   {group.items
                     .filter((item) => !item.superadminOnly || userRole === 'superadmin')
                     .map((item) => {
@@ -300,7 +281,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                       return isCollapsed ? (
                         <div key={item.key} className="relative group sidebar-item-group flex justify-center py-0.5">
                           {isActive && (
-                            <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-blue-500 rounded-r-md shadow-xs shadow-blue-400" />
+                            <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-primary-navy rounded-r-md" />
                           )}
                           <button
                             onClick={() => {
@@ -309,23 +290,23 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                             }}
                             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                               isActive
-                                ? 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-semibold shadow-md shadow-blue-500/30'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800/70'
+                                ? 'bg-soft-blue text-primary-navy font-semibold shadow-xs'
+                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                             }`}
                             aria-label={item.label}
                           >
-                            <item.icon className="w-5 h-5" />
+                            <item.icon className={`w-5 h-5 ${isActive ? 'text-primary-navy' : 'text-slate-500'}`} />
                           </button>
 
                           {/* Floating Tooltip */}
-                          <div className="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 border border-slate-700/80 text-white text-xs font-medium rounded-xl shadow-xl pointer-events-none whitespace-nowrap z-50 flex flex-col gap-1">
-                            <span className="text-[9.5px] uppercase tracking-wider text-blue-300 font-bold">
+                          <div className="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 flex flex-col gap-0.5">
+                            <span className="text-[9.5px] uppercase tracking-wider text-slate-400 font-semibold">
                               {group.label}
                             </span>
                             <div className="flex items-center gap-2">
-                              <span className="font-semibold">{item.label}</span>
+                              <span>{item.label}</span>
                               {item.badge && (
-                                <span className="text-[10px] px-1.5 py-0.2 bg-blue-600 text-white rounded font-mono font-bold">
+                                <span className="text-[10px] px-1.5 py-0.2 bg-blue-accent text-white rounded font-mono">
                                   {item.badge}
                                 </span>
                               )}
@@ -339,28 +320,25 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                             setActiveMenu(item.key);
                             if (window.innerWidth < 1024) setMobileDrawerOpen(false);
                           }}
-                          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium group text-left cursor-pointer ${
+                          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-[15px] font-medium group text-left cursor-pointer ${
                             isActive
-                              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-md shadow-blue-600/25 border-l-3 border-white pl-3'
-                              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                              ? 'bg-soft-blue text-primary-navy font-bold shadow-2xs border-l-2 border-primary-navy pl-2.5'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                           }`}
                         >
                           <item.icon
                             className={`w-4.5 h-4.5 shrink-0 transition-colors ${
-                              isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'
+                              isActive ? 'text-primary-navy' : 'text-slate-400 group-hover:text-slate-700'
                             }`}
                           />
                           <span className="truncate whitespace-nowrap flex-1">{item.label}</span>
                           {item.badge && (
-                            <span
-                              className={`text-[10px] px-2 py-0.5 rounded-full font-bold font-mono transition-colors ${
-                                isActive
-                                  ? 'bg-white/20 text-white'
-                                  : 'bg-blue-500/20 text-blue-300 border border-blue-400/30'
-                              }`}
+                            <Badge
+                              variant={isActive ? 'navy' : 'neutral'}
+                              className="text-[10px] px-1.5 py-0 font-medium"
                             >
                               {item.badge}
-                            </span>
+                            </Badge>
                           )}
                         </button>
                       );
@@ -373,42 +351,43 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
 
         {/* Sidebar Footer */}
         {isCollapsed ? (
-          <div className="p-2 border-t border-slate-800/80 flex flex-col items-center gap-2">
+          <div className="p-2 border-t border-border-slate flex flex-col items-center gap-2">
             <button
               onClick={onLogout}
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition-colors cursor-pointer group relative"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer group relative"
               title="Keluar Sesi"
             >
               <LogOut className="w-4.5 h-4.5" />
-              <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 border border-slate-700 text-white text-xs rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
                 Keluar Sesi
               </span>
             </button>
           </div>
         ) : (
-          <div className="p-3.5 border-t border-slate-800/80 space-y-3">
-            {/* Live AI Status Card */}
-            <div className="p-3 rounded-xl bg-gradient-to-br from-slate-800/90 to-slate-900/90 border border-slate-700/60 flex flex-col gap-1.5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-blue-300 font-bold text-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                  <span>AI Proctoring Engine</span>
-                </div>
-                <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400 font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  LIVE
-                </span>
+          <div className="p-3.5 border-t border-border-slate space-y-3">
+            {/* Help Card */}
+            <div className="p-3 rounded-xl bg-soft-blue border border-accent-border/70 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 text-primary-navy font-semibold text-xs">
+                <Sparkles className="w-3.5 h-3.5 text-blue-accent" />
+                <span>Butuh bantuan?</span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-tight">
-                Right Enterprise siap melayani ujian & wawancara terstandar.
+              <p className="text-[11px] text-muted-slate leading-tight">
+                Hubungi tim support atau buka{' '}
+                <button
+                  onClick={() => setActiveMenu('help')}
+                  className="text-blue-accent hover:underline font-semibold cursor-pointer"
+                >
+                  dokumentasi
+                </button>
+                .
               </p>
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-              <span className="font-mono text-slate-400">v2.4.0 • Enterprise</span>
+              <span>v2.4.0 • Right</span>
               <button
                 onClick={onLogout}
-                className="flex items-center gap-1 text-slate-400 hover:text-rose-400 font-semibold transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-slate-500 hover:text-rose-600 font-medium transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Keluar</span>
@@ -421,7 +400,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
       {/* Mobile Drawer Backdrop */}
       {mobileDrawerOpen && (
         <div
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-20 lg:hidden animate-in fade-in duration-150"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-20 lg:hidden animate-in fade-in duration-150"
           onClick={() => setMobileDrawerOpen(false)}
           aria-hidden="true"
         />
@@ -430,13 +409,13 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
       {/* ─── MAIN CONTENT CONTAINER ─── */}
       <div
         className={`flex-1 flex flex-col min-h-screen min-w-0 w-full transition-all duration-300 ${
-          isCollapsed ? 'lg:ml-20' : 'lg:ml-72'
+          isCollapsed ? 'lg:ml-18' : 'lg:ml-68'
         }`}
       >
         {/* Sticky Topbar */}
-        <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-20 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
+        <header className="bg-white/95 backdrop-blur-md border-b border-border-slate sticky top-0 z-10">
           <div className="px-5 sm:px-8">
-            <div className="flex items-center justify-between h-20 gap-4">
+            <div className="flex items-center justify-between h-18 gap-4">
               {/* Left Breadcrumb & Toggles */}
               <div className="flex items-center gap-3">
                 {/* Mobile Drawer Toggle */}
@@ -518,12 +497,6 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                   </div>
                 )}
 
-                {/* Live System Status Pill */}
-                <div className="hidden xl:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold shadow-xs border border-slate-700/80">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-mono text-[11px] tracking-wide text-slate-200">Proxsis Infra Live</span>
-                </div>
-
                 {/* Notification Bell with Badge */}
                 <button
                   className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
@@ -531,7 +504,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                   aria-label="Notifikasi"
                 >
                   <Bell className="w-5 h-5" />
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center font-mono shadow-xs">
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-error-red text-white text-[10px] font-bold rounded-full flex items-center justify-center font-mono">
                     3
                   </span>
                 </button>
@@ -540,18 +513,18 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                 <div className="relative" ref={userMenuRef}>
                   <button
                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                    className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer select-none border border-slate-200/80 bg-white shadow-2xs"
+                    className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer select-none"
                     aria-label="User Menu"
                   >
-                    <div className="w-8.5 h-8.5 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-extrabold text-xs shadow-md shadow-blue-500/20">
+                    <div className="w-8.5 h-8.5 rounded-full bg-primary-navy flex items-center justify-center text-white font-bold text-xs shadow-xs">
                       {initials}
                     </div>
                     <div className="hidden xl:flex flex-col text-left">
-                      <span className="text-xs font-bold text-slate-900 leading-tight">
+                      <span className="text-xs font-bold text-ink leading-tight">
                         {displayName}
                       </span>
-                      <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider font-semibold">
-                        {userRole}
+                      <span className="text-[11px] text-muted-slate">
+                        admin@talenta.id
                       </span>
                     </div>
                     <ChevronDown className="w-4 h-4 text-slate-400 hidden xl:block" />
