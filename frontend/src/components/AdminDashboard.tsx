@@ -1028,7 +1028,10 @@ ${app.interviewResult ? `
           {activeMenu === 'dashboard' && (
             <>
               {/* Executive Command Center Hero Banner */}
-              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#0B1528] via-[#111F3E] to-[#1E3A8A] p-6 sm:p-8 text-white shadow-xl border border-slate-800">
+              <div
+                style={{ background: 'linear-gradient(135deg, #0B132B 0%, #152238 45%, #1E3A8A 100%)' }}
+                className="relative overflow-hidden rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-slate-800"
+              >
                 <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
                 <div className="absolute right-36 -top-12 w-48 h-48 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -1083,8 +1086,7 @@ ${app.interviewResult ? `
                     value: total,
                     hint: 'Total kandidat terdaftar',
                     icon: Users,
-                    gradient: 'from-blue-600 to-indigo-600',
-                    shadow: 'shadow-blue-500/20',
+                    style: { background: 'linear-gradient(135deg, #2563EB 0%, #4F46E5 100%)' },
                     badge: 'Real-time',
                     badgeColor: 'bg-blue-50 text-blue-700 border-blue-200'
                   },
@@ -1093,8 +1095,7 @@ ${app.interviewResult ? `
                     value: activeProgramCount,
                     hint: 'Program aktif di katalog',
                     icon: BookOpen,
-                    gradient: 'from-emerald-600 to-teal-500',
-                    shadow: 'shadow-emerald-500/20',
+                    style: { background: 'linear-gradient(135deg, #059669 0%, #14B8A6 100%)' },
                     badge: '100% Published',
                     badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   },
@@ -1103,8 +1104,7 @@ ${app.interviewResult ? `
                     value: completedInterviewCount,
                     hint: 'Sesi telah dinilai asesor',
                     icon: Brain,
-                    gradient: 'from-purple-600 to-violet-500',
-                    shadow: 'shadow-purple-500/20',
+                    style: { background: 'linear-gradient(135deg, #9333EA 0%, #8B5CF6 100%)' },
                     badge: 'BARS Scored',
                     badgeColor: 'bg-purple-50 text-purple-700 border-purple-200'
                   },
@@ -1113,8 +1113,7 @@ ${app.interviewResult ? `
                     value: pendingReviewCount,
                     hint: 'Perlu verifikasi admin',
                     icon: Clock,
-                    gradient: 'from-amber-500 to-orange-500',
-                    shadow: 'shadow-amber-500/20',
+                    style: { background: 'linear-gradient(135deg, #F59E0B 0%, #EA580C 100%)' },
                     badge: 'Prioritas',
                     badgeColor: 'bg-amber-50 text-amber-700 border-amber-200'
                   },
@@ -1135,8 +1134,11 @@ ${app.interviewResult ? `
                           </p>
                           <p className="mt-1 text-xs text-slate-400 font-medium">{metric.hint}</p>
                         </div>
-                        <div className={`w-11 h-11 rounded-xl bg-gradient-to-tr ${metric.gradient} flex items-center justify-center text-white shrink-0 shadow-md ${metric.shadow} transition-transform group-hover:scale-105`}>
-                          <Icon className="w-5 h-5" />
+                        <div
+                          style={metric.style}
+                          className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md shadow-slate-900/10 transition-transform group-hover:scale-105"
+                        >
+                          <Icon className="w-5 h-5 text-white" />
                         </div>
                       </div>
                     </Card>
