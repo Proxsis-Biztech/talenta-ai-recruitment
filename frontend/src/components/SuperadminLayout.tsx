@@ -231,25 +231,19 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
         {/* Brand & Sidebar Collapse / Expand */}
         <div className={`h-20 flex items-center border-b border-slate-100 shrink-0 transition-all ${isCollapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
           {!isCollapsed ? (
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center font-extrabold text-xl shadow-md shadow-blue-500/20 shrink-0">
-                R
-              </div>
-              <div className="flex flex-col truncate">
-                <div className="flex items-center gap-2">
-                  <span className="font-heading font-extrabold text-base tracking-tight text-slate-900">Right</span>
-                  <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono">
-                    Admin
-                  </span>
-                </div>
-                <span className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
-                  Enterprise Console
-                </span>
-              </div>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src="/img/logoRIght.jpeg"
+                alt="RIGHT Assessment Platform"
+                className="h-9 w-auto max-w-[170px] object-contain"
+              />
+              <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono shrink-0">
+                Admin
+              </span>
             </div>
           ) : (
-            <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center font-extrabold text-xl shadow-md shadow-blue-500/20 shrink-0">
-              R
+            <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1.5 overflow-hidden shadow-2xs" title="RIGHT Assessment Platform">
+              <img src="/img/logo-symbol.png" alt="RIGHT" className="h-full w-full object-contain" />
             </div>
           )}
           <button

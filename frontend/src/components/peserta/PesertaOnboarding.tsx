@@ -78,9 +78,12 @@ export default function PesertaOnboarding() {
     <div className="min-h-screen bg-slate-50 px-4 py-10 sm:py-16">
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary-navy text-white flex items-center justify-center font-bold">R</div>
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Right Assessment</p>
+          <img
+            src="/img/logoRIght.jpeg"
+            alt="RIGHT Assessment Platform"
+            className="h-10 w-auto max-w-[200px] object-contain"
+          />
+          <div className="border-l border-slate-300 pl-3">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Lengkapi Akun Peserta</h1>
           </div>
         </div>

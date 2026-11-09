@@ -180,16 +180,16 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
         {/* Brand Header */}
         <div
           className={`h-20 flex items-center border-b border-slate-100 shrink-0 transition-all ${
-            isCollapsed ? 'justify-center px-2' : 'justify-between px-6'
+            isCollapsed ? 'justify-center px-2' : 'justify-between px-5'
           }`}
         >
           {isCollapsed ? (
             <button
               onClick={toggleCollapse}
-              className="w-11 h-11 rounded-2xl bg-primary-navy hover:bg-slate-900 flex items-center justify-center text-white font-extrabold text-xl shadow-sm cursor-pointer transition-transform hover:scale-105 group relative"
+              className="w-11 h-11 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 flex items-center justify-center p-2 shadow-2xs cursor-pointer transition-transform hover:scale-105 group relative overflow-hidden"
               title="Perluas Menu Sidebar"
             >
-              <span>R</span>
+              <img src="/img/logo-symbol.png" alt="RIGHT" className="h-full w-full object-contain" />
               <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900 text-white text-xs rounded-lg shadow-xl pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
                 Perluas Menu
               </span>
@@ -198,22 +198,16 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
             <>
               <div
                 onClick={() => navigate('/')}
-                className="flex items-center gap-3 min-w-0 cursor-pointer group"
+                className="flex items-center gap-2.5 min-w-0 cursor-pointer group"
               >
-                <div className="w-10 h-10 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-extrabold text-xl shadow-xs shrink-0 group-hover:scale-105 transition-transform">R</div>
-                <div className="flex flex-col truncate">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-lg font-bold tracking-tight text-slate-900 font-heading">
-                      Right
-                    </span>
-                    <span className="text-xs font-semibold bg-blue-50 text-primary-navy px-2 py-0.5 rounded-full border border-blue-200/60">
-                      Peserta
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-500 font-medium truncate mt-0.5">
-                    Ruang Asesmen Mandiri
-                  </span>
-                </div>
+                <img
+                  src="/img/logoRIght.jpeg"
+                  alt="RIGHT Assessment Platform"
+                  className="h-9 w-auto max-w-[165px] object-contain group-hover:opacity-90 transition-opacity"
+                />
+                <span className="text-xs font-semibold bg-blue-50 text-primary-navy px-2 py-0.5 rounded-full border border-blue-200/60 shrink-0">
+                  Peserta
+                </span>
               </div>
 
               <button

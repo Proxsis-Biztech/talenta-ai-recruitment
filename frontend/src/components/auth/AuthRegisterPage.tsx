@@ -81,15 +81,13 @@ export default function AuthRegisterPage() {
         {/* Brand Header */}
         <div
           onClick={() => navigate('/')}
-          className="flex items-center justify-center gap-3 cursor-pointer mb-6"
+          className="flex items-center justify-center cursor-pointer mb-6 group"
         >
-          <div className="w-10 h-10 rounded-xl bg-primary-navy flex items-center justify-center text-white font-bold text-xl shadow-xs font-heading">R</div>
-          <div>
-            <div className="flex items-center gap-1">
-              <span className="font-heading font-extrabold text-xl text-ink tracking-tight">Right</span>
-            </div>
-            <p className="text-xs text-muted-slate">Assessment Platform</p>
-          </div>
+          <img
+            src="/img/logoRIght.jpeg"
+            alt="RIGHT Assessment Platform"
+            className="h-11 sm:h-12 w-auto max-w-[260px] object-contain group-hover:opacity-90 transition-opacity"
+          />
         </div>
 
         <div className="text-center">

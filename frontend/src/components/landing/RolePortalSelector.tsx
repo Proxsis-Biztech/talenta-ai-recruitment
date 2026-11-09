@@ -107,18 +107,14 @@ export default function RolePortalSelector() {
       {/* ─── Top Brand Navbar ─── */}
       <header className="h-20 bg-white border-b border-border-slate px-6 lg:px-12 flex items-center justify-between shadow-2xs sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary-navy flex items-center justify-center text-white font-bold text-xl shadow-2xs font-heading">R</div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-heading font-extrabold text-xl text-ink tracking-tight">Right</span>
-              <span className="hidden sm:inline text-[10px] font-mono font-semibold uppercase tracking-wider bg-soft-blue text-primary-navy px-2 py-0.5 rounded-full ml-1 border border-accent-border">
-                Assessment Engine
-              </span>
-            </div>
-            <p className="text-xs text-muted-slate -mt-0.5">
-              Enterprise Talent Assessment & Evaluation System
-            </p>
-          </div>
+          <img
+            src="/img/logoRIght.jpeg"
+            alt="RIGHT Assessment Platform"
+            className="h-10 w-auto max-w-[210px] object-contain"
+          />
+          <span className="hidden sm:inline text-[10px] font-mono font-semibold uppercase tracking-wider bg-soft-blue text-primary-navy px-2 py-0.5 rounded-full ml-1 border border-accent-border">
+            Assessment Engine
+          </span>
         </div>
 
         <div className="flex items-center gap-3">

@@ -192,15 +192,13 @@ export default function AuthLoginPage() {
           {/* Brand header */}
           <div
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-3 cursor-pointer mb-10 group"
+            className="inline-flex items-center gap-3 cursor-pointer mb-8 group"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary-navy via-navy-dark to-blue-accent flex items-center justify-center text-white font-bold text-lg shadow-sm font-heading group-hover:scale-105 transition-transform">R</div>
-            <div>
-              <div className="flex items-center gap-1 leading-none">
-                <span className="font-heading font-extrabold text-xl text-ink tracking-tight">Right</span>
-              </div>
-              <p className="text-[11px] text-muted-slate font-medium mt-1">Assessment &amp; Hiring Platform</p>
-            </div>
+            <img
+              src="/img/logoRIght.jpeg"
+              alt="RIGHT Assessment Platform"
+              className="h-11 sm:h-12 w-auto max-w-[260px] object-contain group-hover:opacity-90 transition-opacity"
+            />
           </div>
 
           <div className="max-w-md">
