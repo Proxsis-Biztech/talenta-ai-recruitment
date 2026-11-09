@@ -597,6 +597,7 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
         assessmentTitle: req.body.assessmentTitle ? String(req.body.assessmentTitle) : null,
         gradeLevel: req.body.gradeLevel ? String(req.body.gradeLevel) : null,
         specialization: req.body.specialization ? String(req.body.specialization) : null,
+        interviewScheduledAt: req.body.interviewScheduledAt ? new Date(req.body.interviewScheduledAt) : req.body.scheduleDate ? new Date(req.body.scheduleDate) : null,
         status: req.body.status === 'Nonaktif' ? 'Nonaktif' : 'Aktif'
       },
       select: userSelect
@@ -627,6 +628,10 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
     const data: Record<string, unknown> = {};
     for (const field of ['name', 'username', 'phone', 'companyId', 'companyName', 'assessmentId', 'assessmentTitle', 'gradeLevel', 'specialization', 'status', 'nik', 'education', 'university', 'city', 'portfolioUrl', 'bio', 'employeeNumber', 'department']) {
       if (req.body[field] !== undefined) data[field] = req.body[field] === null ? null : String(req.body[field]);
+    }
+    if (req.body.interviewScheduledAt !== undefined || req.body.scheduleDate !== undefined) {
+      const rawDate = req.body.interviewScheduledAt || req.body.scheduleDate;
+      data.interviewScheduledAt = rawDate ? new Date(rawDate) : null;
     }
     if (req.body.role && ['peserta', 'asesor'].includes(req.body.role)) data.role = req.body.role;
     if (req.body.password) {

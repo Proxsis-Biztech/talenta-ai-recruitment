@@ -114,21 +114,28 @@ export default function UserManagement() {
         params: { role: 'peserta' },
         headers: { Authorization: `Bearer ${token}` }
       });
-      const list = (response.data.data || []).map((user: any): PesertaUser => ({
-        id: user.id,
-        name: user.name,
-        username: user.email,
-        password: '',
-        phone: user.phone || '',
-        companyId: user.companyId || '',
-        companyName: user.companyName || '',
-        assessmentId: user.assessmentId || '',
-        assessmentTitle: user.assessmentTitle || '',
-        gradeLevel: user.gradeLevel || 'Grade B (Specialist / Mid)',
-        scheduleDate: '',
-        status: user.status === 'Nonaktif' ? 'Selesai' : 'Siap Ujian',
-        createdAt: user.createdAt
-      }));
+      const list = (response.data.data || []).map((user: any): PesertaUser => {
+        const rawDate = user.interviewScheduledAt || user.createdAt;
+        const scheduleDateStr = rawDate
+          ? new Date(rawDate).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0];
+
+        return {
+          id: user.id,
+          name: user.name,
+          username: user.email,
+          password: '',
+          phone: user.phone || '',
+          companyId: user.companyId || '',
+          companyName: user.companyName || '',
+          assessmentId: user.assessmentId || '',
+          assessmentTitle: user.assessmentTitle || '',
+          gradeLevel: user.gradeLevel || 'Grade B (Specialist / Mid)',
+          scheduleDate: scheduleDateStr,
+          status: user.status === 'Nonaktif' ? 'Selesai' : 'Siap Ujian',
+          createdAt: user.createdAt
+        };
+      });
       setPesertaList(list);
     } catch {
       setPesertaList([]);
@@ -322,6 +329,22 @@ export default function UserManagement() {
     setShowAddPesertaModal(true);
   };
 
+  const handleOpenAddPeserta = () => {
+    setEditingPesertaId(null);
+    setPesertaFormName('');
+    setPesertaFormUsername('');
+    setPesertaFormPassword('peserta123');
+    setPesertaFormPhone('');
+    setPesertaFormCompanyId(companyOptions[0]?.id || COMPANIES_CATALOG[0].id);
+    if (availableProgramsForModal.length > 0) {
+      setPesertaFormAssessmentId(availableProgramsForModal[0].id);
+      setPesertaFormGrade(availableProgramsForModal[0].gradeLevel);
+    }
+    setPesertaFormDate(new Date().toISOString().split('T')[0]);
+    setPesertaFormError('');
+    setShowAddPesertaModal(true);
+  };
+
   const handleCreatePeserta = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pesertaFormName.trim() || !pesertaFormUsername.trim()) {
@@ -340,7 +363,9 @@ export default function UserManagement() {
         companyName: company?.name,
         assessmentId: pesertaFormAssessmentId,
         assessmentTitle: program?.title,
-        gradeLevel: pesertaFormGrade
+        gradeLevel: pesertaFormGrade,
+        scheduleDate: pesertaFormDate,
+        interviewScheduledAt: pesertaFormDate ? new Date(`${pesertaFormDate}T09:00:00.000Z`).toISOString() : null
       };
       if (pesertaFormPassword.trim()) payload.password = pesertaFormPassword;
       if (editingPesertaId) {
@@ -766,57 +791,83 @@ export default function UserManagement() {
         <div className="space-y-6">
           {/* Telemetry Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Total Akun Peserta
-              </p>
-              <div className="mt-2 flex items-baseline justify-between">
-                <span className="text-2xl font-bold font-mono text-ink">
-                  {pesertaList.length}
-                </span>
-                <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-medium">
+            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-blue-400 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold border border-emerald-200/60">
                   Terdaftar
                 </span>
               </div>
-            </Card>
-
-            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Perusahaan (PT) Terhubung
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
+                Total Akun Peserta
               </p>
-              <div className="mt-2 flex items-baseline justify-between">
-                <span className="text-2xl font-bold font-mono text-primary-navy">
-                  {companyOptions.length} PT
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
+                  {pesertaList.length}
                 </span>
-                <span className="text-xs text-slate-500">Multi-Company</span>
+                <span className="text-[11px] text-slate-400 font-mono">100% Siap Ujian</span>
               </div>
             </Card>
 
-            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Program Asesmen Aktif
-              </p>
-              <div className="mt-2 flex items-baseline justify-between">
-                <span className="text-2xl font-bold font-mono text-blue-accent">
-                  {programOptions.length}
+            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-indigo-400 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <span className="text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md font-semibold border border-indigo-200/60">
+                  Multi-Company
                 </span>
-                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-medium">
+              </div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
+                Perusahaan (PT) Terhubung
+              </p>
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-2xl font-black font-mono text-indigo-950 tracking-tight">
+                  {companyOptions.length} PT
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">Multi-Tenant</span>
+              </div>
+            </Card>
+
+            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-blue-400 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-cyan-500/20">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-semibold border border-blue-200/60">
                   Grade A / B / C
                 </span>
               </div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
+                Program Asesmen Aktif
+              </p>
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-2xl font-black font-mono text-blue-900 tracking-tight">
+                  {programOptions.length}
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">Syllabus Sync</span>
+              </div>
             </Card>
 
-            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Model Ujian Standard
-              </p>
-              <div className="mt-2 flex items-baseline justify-between">
-                <span className="text-2xl font-bold font-mono text-slate-900">
-                  40 Soal CAT
-                </span>
-                <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-medium">
+            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-amber-400 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-semibold border border-amber-200/60">
                   AI Proctoring
                 </span>
+              </div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
+                Model Ujian Standard
+              </p>
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
+                  40 Soal CAT
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">Real-time Anti-Cheat</span>
               </div>
             </Card>
           </div>
@@ -883,7 +934,7 @@ export default function UserManagement() {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => setShowAddPesertaModal(true)}
+                onClick={handleOpenAddPeserta}
                 leftIcon={<UserPlus className="w-4 h-4" />}
               >
                 + Daftarkan Akun Peserta Baru
@@ -979,13 +1030,32 @@ export default function UserManagement() {
                       </TableCell>
 
                       <TableCell>
-                        <div className="text-xs text-slate-600 flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{p.scheduleDate}</span>
+                        <div className="space-y-1">
+                          <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span className="font-semibold text-slate-900 font-mono">
+                              {(() => {
+                                const raw = p.scheduleDate || p.createdAt;
+                                const d = raw ? new Date(raw) : new Date();
+                                return isNaN(d.getTime())
+                                  ? new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+                                  : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+                              })()}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono pl-5">
+                            09:00 - 11:30 WIB
+                          </div>
+                          <div className="pl-5">
+                            <Badge
+                              variant={p.status === 'Selesai' ? 'neutral' : 'teal'}
+                              format="soft"
+                              className="text-[10px] font-semibold"
+                            >
+                              {p.status}
+                            </Badge>
+                          </div>
                         </div>
-                        <Badge variant="teal" format="soft" className="mt-1 text-[10px]">
-                          {p.status}
-                        </Badge>
                       </TableCell>
 
                       <TableCell className="text-right">
@@ -1204,55 +1274,83 @@ export default function UserManagement() {
         <div className="space-y-6">
           {/* Telemetry Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Total Akun Asesor
-              </p>
-              <div className="mt-2 flex items-baseline justify-between">
-                <span className="text-2xl font-bold font-mono text-ink">
-                  {asesorList.length}
-                </span>
-                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-medium">
+            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-blue-400 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                  <Scale className="w-5 h-5" />
+                </div>
+                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-semibold border border-blue-200/60">
                   Penguji Terverifikasi
                 </span>
               </div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
+                Total Akun Asesor
+              </p>
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
+                  {asesorList.length}
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">Assessor Pool</span>
+              </div>
             </Card>
 
-            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-emerald-400 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold border border-emerald-200/60">
+                  Siap Sidang
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
                 Status Asesor Aktif
               </p>
-              <div className="mt-2 flex items-baseline justify-between">
-                <span className="text-2xl font-bold font-mono text-emerald-700">
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-2xl font-black font-mono text-emerald-800 tracking-tight">
                   {asesorList.filter((a) => a.status === 'Aktif').length}
                 </span>
-                <span className="text-xs text-slate-500">Standby Rubrik</span>
+                <span className="text-[11px] text-slate-400 font-mono">Standby Rubrik</span>
               </div>
             </Card>
 
-            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-indigo-400 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <span className="text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md font-semibold border border-indigo-200/60">
+                  BUMN & Multi
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
                 Instansi Mitra Penugasan
               </p>
-              <div className="mt-2 flex items-baseline justify-between">
-                <span className="text-2xl font-bold font-mono text-primary-navy">
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-2xl font-black font-mono text-indigo-950 tracking-tight">
                   {companyOptions.length} PT
                 </span>
-                <span className="text-xs text-slate-500">BUMN & Multinasional</span>
+                <span className="text-[11px] text-slate-400 font-mono">Multi-Tenant</span>
               </div>
             </Card>
 
-            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-purple-400 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md font-semibold border border-purple-200/60">
+                  ISO 10667
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
                 Sistem Penilaian Terpadu
               </p>
-              <div className="mt-2 flex items-baseline justify-between">
-                <span className="text-2xl font-bold font-mono text-slate-900">
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
                   LHA & Rubrik
                 </span>
-                <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md font-medium">
-                  BSN / ISO 10667
-                </span>
+                <span className="text-[11px] text-slate-400 font-mono">BSN Standard</span>
               </div>
             </Card>
           </div>
@@ -1544,51 +1642,83 @@ export default function UserManagement() {
             <>
               {/* Telemetry Summary Ribbon */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-blue-400 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                      <Shield className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md font-semibold border border-slate-200">
+                      Terdaftar
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
                     Total Akun Admin
                   </p>
-                  <div className="mt-2 flex items-baseline justify-between">
-                    <span className="text-2xl font-bold font-mono text-ink">
+                  <div className="mt-1 flex items-baseline justify-between">
+                    <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
                       {admins.length}
                     </span>
-                    <span className="text-xs text-muted-slate">Terdaftar</span>
+                    <span className="text-[11px] text-slate-400 font-mono">Control Access</span>
                   </div>
                 </Card>
 
-                <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-emerald-400 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold border border-emerald-200/60">
+                      Otoritas Penuh
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
                     Akses Superadmin
                   </p>
-                  <div className="mt-2 flex items-baseline justify-between">
-                    <span className="text-2xl font-bold font-mono text-primary-navy">
+                  <div className="mt-1 flex items-baseline justify-between">
+                    <span className="text-2xl font-black font-mono text-emerald-800 tracking-tight">
                       {admins.filter((a) => a.role === 'superadmin').length}
                     </span>
-                    <span className="text-xs text-emerald-700 font-medium">Otoritas Penuh</span>
+                    <span className="text-[11px] text-slate-400 font-mono">Root Admin</span>
                   </div>
                 </Card>
 
-                <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-indigo-400 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md font-semibold border border-indigo-200/60">
+                      Pengelola Ujian
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
                     Administrator Operasional
                   </p>
-                  <div className="mt-2 flex items-baseline justify-between">
-                    <span className="text-2xl font-bold font-mono text-slate-800">
+                  <div className="mt-1 flex items-baseline justify-between">
+                    <span className="text-2xl font-black font-mono text-indigo-950 tracking-tight">
                       {admins.filter((a) => a.role !== 'superadmin').length}
                     </span>
-                    <span className="text-xs text-blue-700 font-medium">Pengelola Ujian</span>
+                    <span className="text-[11px] text-slate-400 font-mono">Operations</span>
                   </div>
                 </Card>
 
-                <Card elevation="flat" className="p-4.5 bg-white border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <Card elevation="flat" className="p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-amber-400 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-semibold border border-amber-200/60">
+                      Bcrypt Salted
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
                     Keamanan Autentikasi
                   </p>
-                  <div className="mt-2 flex items-baseline justify-between">
-                    <span className="text-2xl font-bold font-mono text-emerald-700">
+                  <div className="mt-1 flex items-baseline justify-between">
+                    <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
                       JWT 256
                     </span>
-                    <span className="text-xs text-slate-500">Bcrypt Salted</span>
+                    <span className="text-[11px] text-slate-400 font-mono">Encrypted Session</span>
                   </div>
                 </Card>
               </div>

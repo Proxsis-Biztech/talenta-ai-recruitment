@@ -54,7 +54,14 @@ export default function PesertaProfile() {
       assessmentId: sessionUser.assessmentId || 'SE-402',
       assessmentTitle: sessionUser.assessmentTitle || '',
       gradeLevel: sessionUser.gradeLevel || 'Grade B (Specialist / Mid)',
-      scheduleDate: '',
+      scheduleDate: (() => {
+        const raw = portal?.interviewScheduledAt || portal?.createdAt;
+        if (!raw) return '09 Nov 2026, 09:00 WIB';
+        const d = new Date(raw);
+        return isNaN(d.getTime())
+          ? '09 Nov 2026, 09:00 WIB'
+          : `${d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}, 09:00 WIB`;
+      })(),
       status: 'Siap Ujian' as const,
       catScore: 0,
       createdAt: ''

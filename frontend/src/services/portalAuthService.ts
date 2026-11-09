@@ -31,6 +31,7 @@ export interface PortalUser {
   mustChangePassword?: boolean;
   profileCompleted?: boolean;
   status?: string;
+  createdAt?: string | null;
 }
 
 export interface PortalSession {

@@ -1027,55 +1027,116 @@ ${app.interviewResult ? `
         <div className="animate-fade-in space-y-6">
           {activeMenu === 'dashboard' && (
             <>
-              {/* Header: Date + Title + Subtitle */}
-              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-                <div>
-                  <span className="text-xs font-medium text-muted-slate block mb-1">
-                    {new Date().toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </span>
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-ink tracking-tight font-heading">
-                    Dashboard Admin
-                  </h1>
-                  <p className="text-sm text-muted-slate mt-1 font-normal">
-                    Kelola seluruh aktivitas asesmen dalam satu tampilan.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={handleExportCSV}
-                    leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
-                  >
-                    Export
-                  </Button>
+              {/* Executive Command Center Hero Banner */}
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#0B1528] via-[#111F3E] to-[#1E3A8A] p-6 sm:p-8 text-white shadow-xl border border-slate-800">
+                <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute right-36 -top-12 w-48 h-48 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="space-y-2.5 max-w-2xl">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-blue-200 text-xs font-bold backdrop-blur-xs">
+                      <Sparkles className="w-3.5 h-3.5 text-blue-300" />
+                      <span>Pusat Kendali Asesmen Enterprise</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-1" />
+                      <span className="text-[10px] text-emerald-300 font-mono font-bold tracking-wider">SYSTEM LIVE</span>
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight font-heading text-white">
+                      Dashboard Administrator &amp; Monitoring Seleksi
+                    </h1>
+                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                      Kelola siklus asesmen terpadu: Program Seleksi, Bank Soal CAT, Pengawasan AI Multi-Faktor, Live Interview Asesor, hingga Sertifikasi LHA Ber-hash SHA-256.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                    <Button
+                      variant="outline"
+                      onClick={() => setActiveMenu('jobs')}
+                      className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs font-bold px-4 py-2.5 rounded-xl backdrop-blur-xs cursor-pointer shadow-xs transition-transform hover:scale-[1.02]"
+                    >
+                      <BookOpen className="w-4 h-4 mr-1.5" />
+                      Kelola Program
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={() => setActiveMenu('bank-soal')}
+                      className="bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/30 text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer transition-transform hover:scale-[1.02]"
+                    >
+                      <CheckSquare className="w-4 h-4 mr-1.5" />
+                      Bank Soal CAT
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={handleExportCSV}
+                      className="bg-slate-800/80 hover:bg-slate-700 text-white border border-slate-700 text-xs font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1" />
+                      Export CSV
+                    </Button>
+                  </div>
                 </div>
               </div>
 
+              {/* 4 High-Impact KPI Metric Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: 'Peserta aktif', value: total, hint: 'Total kandidat terdaftar', icon: Users },
-                  { label: 'Program dengan pelamar', value: activeProgramCount, hint: 'Program memiliki kandidat', icon: BookOpen },
-                  { label: 'Wawancara selesai', value: completedInterviewCount, hint: 'Sesi telah dinilai', icon: Brain },
-                  { label: 'Menunggu review', value: pendingReviewCount, hint: 'Perlu tindakan admin', icon: Clock },
+                  {
+                    label: 'Peserta aktif',
+                    value: total,
+                    hint: 'Total kandidat terdaftar',
+                    icon: Users,
+                    gradient: 'from-blue-600 to-indigo-600',
+                    shadow: 'shadow-blue-500/20',
+                    badge: 'Real-time',
+                    badgeColor: 'bg-blue-50 text-blue-700 border-blue-200'
+                  },
+                  {
+                    label: 'Program asesmen',
+                    value: activeProgramCount,
+                    hint: 'Program aktif di katalog',
+                    icon: BookOpen,
+                    gradient: 'from-emerald-600 to-teal-500',
+                    shadow: 'shadow-emerald-500/20',
+                    badge: '100% Published',
+                    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  },
+                  {
+                    label: 'Wawancara selesai',
+                    value: completedInterviewCount,
+                    hint: 'Sesi telah dinilai asesor',
+                    icon: Brain,
+                    gradient: 'from-purple-600 to-violet-500',
+                    shadow: 'shadow-purple-500/20',
+                    badge: 'BARS Scored',
+                    badgeColor: 'bg-purple-50 text-purple-700 border-purple-200'
+                  },
+                  {
+                    label: 'Menunggu review',
+                    value: pendingReviewCount,
+                    hint: 'Perlu verifikasi admin',
+                    icon: Clock,
+                    gradient: 'from-amber-500 to-orange-500',
+                    shadow: 'shadow-amber-500/20',
+                    badge: 'Prioritas',
+                    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200'
+                  },
                 ].map((metric) => {
                   const Icon = metric.icon;
                   return (
-                    <Card key={metric.label} elevation="flat" className="p-5">
+                    <Card key={metric.label} elevation="flat" className="p-5.5 rounded-2xl border border-slate-200/90 bg-white shadow-xs hover:shadow-md transition-all duration-200 relative overflow-hidden group">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-500">{metric.label}</p>
-                          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 tabular-nums">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{metric.label}</p>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border font-mono ${metric.badgeColor}`}>
+                              {metric.badge}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 tabular-nums font-heading">
                             {metric.value.toLocaleString('id-ID')}
                           </p>
-                          <p className="mt-1 text-xs text-slate-400">{metric.hint}</p>
+                          <p className="mt-1 text-xs text-slate-400 font-medium">{metric.hint}</p>
                         </div>
-                        <div className="w-9 h-9 rounded-lg bg-soft-blue border border-accent-border flex items-center justify-center text-primary-navy shrink-0">
-                          <Icon className="w-4 h-4" />
+                        <div className={`w-11 h-11 rounded-xl bg-gradient-to-tr ${metric.gradient} flex items-center justify-center text-white shrink-0 shadow-md ${metric.shadow} transition-transform group-hover:scale-105`}>
+                          <Icon className="w-5 h-5" />
                         </div>
                       </div>
                     </Card>
@@ -1086,17 +1147,22 @@ ${app.interviewResult ? `
               {/* Split Section: Spline Area Chart (8) + Priority Actions (4) */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
                 {/* Span 8: Tren Peserta Asesmen Area Wave Chart */}
-                <Card elevation="flat" className="lg:col-span-8 p-5 sm:p-6 flex flex-col justify-between">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <Card elevation="flat" className="lg:col-span-8 p-6 rounded-3xl border border-slate-200/90 bg-white shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
                     <div>
-                      <h3 className="text-base font-bold text-ink font-heading">
-                        Tren peserta asesmen
-                      </h3>
-                      <p className="text-xs text-muted-slate mt-0.5">
-                        Pendaftaran 6 bulan terakhir
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-extrabold text-slate-900 font-heading">
+                          Tren Peserta Asesmen
+                        </h3>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono">
+                          Live Analytics
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Statistik volume pendaftaran &amp; pengerjaan ujian CAT 6 bulan terakhir
                       </p>
                     </div>
-                    <span className="text-xs font-medium text-slate-400">6 bulan</span>
+                    <span className="text-xs font-bold text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-lg">6 Bulan</span>
                   </div>
 
                   {/* SVG Spline Area Wave Chart */}
@@ -1124,12 +1190,18 @@ ${app.interviewResult ? `
                         preserveAspectRatio="none"
                         className="w-full h-full overflow-visible"
                       >
+                        <defs>
+                          <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#2563EB" stopOpacity="0.25" />
+                            <stop offset="100%" stopColor="#2563EB" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
 
                         {/* Spline Area Fill */}
                         <path
                           className="chart-area"
                           d={trendAreaPath}
-                          fill="#2563EB" fillOpacity="0.10"
+                          fill="url(#trendGradient)"
                         />
 
                         {/* Spline Stroke Line */}
@@ -1137,8 +1209,8 @@ ${app.interviewResult ? `
                           className="chart-line"
                           d={trendLinePath}
                           fill="none"
-                          stroke="#1E3A8A"
-                          strokeWidth="2.5"
+                          stroke="#2563EB"
+                          strokeWidth="3"
                           strokeLinecap="round"
                         />
 
@@ -1149,17 +1221,17 @@ ${app.interviewResult ? `
                             className="chart-dot"
                             cx={point.x}
                             cy={point.y}
-                            r="4"
+                            r="4.5"
                             fill="#FFFFFF"
-                            stroke="#1E3A8A"
-                            strokeWidth="2.5"
+                            stroke="#1D4ED8"
+                            strokeWidth="3"
                             style={{ animationDelay: `${index * 100}ms` }}
                           />
                         ))}
                       </svg>
                     </div>
                   </div>
-                  <div className="flex justify-between pl-10 pr-1 pt-2 text-[11px] font-mono text-slate-400">
+                  <div className="flex justify-between pl-10 pr-1 pt-2 text-[11px] font-mono text-slate-500 font-medium">
                     {trendMonths.map((month) => (
                       <span key={month.key}>{month.label}</span>
                     ))}
@@ -1167,18 +1239,18 @@ ${app.interviewResult ? `
                 </Card>
 
                 {/* Span 4: Perlu Tindakan Priority Items */}
-                <Card elevation="flat" className="lg:col-span-4 p-5 sm:p-6 flex flex-col justify-between">
+                <Card elevation="flat" className="lg:col-span-4 p-6 rounded-3xl border border-slate-200/90 bg-white shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
                   <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
                       <div>
-                        <h3 className="text-base font-bold text-ink font-heading">
-                          Perlu tindakan
+                        <h3 className="text-base font-extrabold text-slate-900 font-heading">
+                          Perlu Tindakan
                         </h3>
-                        <p className="text-xs text-muted-slate mt-0.5">
-                          Prioritas yang perlu Anda periksa
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Tugas prioritas yang butuh perhatian admin
                         </p>
                       </div>
-                      <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-warning-amber">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-300/40 flex items-center justify-center text-amber-700">
                         <AlertTriangle className="w-4.5 h-4.5" />
                       </div>
                     </div>
@@ -1187,64 +1259,64 @@ ${app.interviewResult ? `
                       {/* Priority Item 1: Approval bank soal */}
                       <button
                         onClick={() => setActiveMenu('jobs')}
-                        className="w-full p-3 rounded-xl border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50/80 transition-all flex items-center justify-between text-left group cursor-pointer"
+                        className="w-full p-3.5 rounded-2xl border border-amber-100 hover:border-amber-300 bg-amber-50/40 hover:bg-amber-50/80 transition-all flex items-center justify-between text-left group cursor-pointer shadow-2xs"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-[#D97706] shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-amber-500/25">
                             <CheckSquare className="w-4.5 h-4.5" />
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-ink group-hover:text-blue-accent transition-colors">
-                              Approval bank soal
+                            <p className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
+                              Approval Bank Soal
                             </p>
-                            <p className="text-xs text-muted-slate">
+                            <p className="text-xs text-slate-500">
                               12 soal menunggu review
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-4.5 h-4.5 text-slate-300 group-hover:text-slate-600 transition-colors" />
+                        <ChevronRight className="w-4.5 h-4.5 text-slate-300 group-hover:text-amber-600 transition-colors" />
                       </button>
 
                       {/* Priority Item 2: Flag integritas */}
                       <button
                         onClick={() => setActiveMenu('proctoring')}
-                        className="w-full p-3 rounded-xl border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50/80 transition-all flex items-center justify-between text-left group cursor-pointer"
+                        className="w-full p-3.5 rounded-2xl border border-rose-100 hover:border-rose-300 bg-rose-50/40 hover:bg-rose-50/80 transition-all flex items-center justify-between text-left group cursor-pointer shadow-2xs"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-rose-50 flex items-center justify-center text-error-red shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-rose-500/25">
                             <ShieldAlert className="w-4.5 h-4.5" />
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-ink group-hover:text-blue-accent transition-colors">
-                              Flag integritas
+                            <p className="text-sm font-bold text-slate-900 group-hover:text-rose-700 transition-colors">
+                              Flag Integritas Proctoring
                             </p>
-                            <p className="text-xs text-muted-slate">
-                              6 event perlu diperiksa
+                            <p className="text-xs text-slate-500">
+                              6 event perlu diverifikasi
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-4.5 h-4.5 text-slate-300 group-hover:text-slate-600 transition-colors" />
+                        <ChevronRight className="w-4.5 h-4.5 text-slate-300 group-hover:text-rose-600 transition-colors" />
                       </button>
 
                       {/* Priority Item 3: Interview belum dinilai */}
                       <button
                         onClick={() => setActiveMenu('pipeline')}
-                        className="w-full p-3 rounded-xl border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50/80 transition-all flex items-center justify-between text-left group cursor-pointer"
+                        className="w-full p-3.5 rounded-2xl border border-blue-100 hover:border-blue-300 bg-blue-50/40 hover:bg-blue-50/80 transition-all flex items-center justify-between text-left group cursor-pointer shadow-2xs"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-accent shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-blue-500/25">
                             <Video className="w-4.5 h-4.5" />
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-ink group-hover:text-blue-accent transition-colors">
-                              Interview belum dinilai
+                            <p className="text-sm font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
+                              Wawancara Belum Dinilai
                             </p>
-                            <p className="text-xs text-muted-slate">
+                            <p className="text-xs text-slate-500">
                               14 sesi selesai hari ini
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-4.5 h-4.5 text-slate-300 group-hover:text-slate-600 transition-colors" />
+                        <ChevronRight className="w-4.5 h-4.5 text-slate-300 group-hover:text-blue-600 transition-colors" />
                       </button>
                     </div>
                   </div>

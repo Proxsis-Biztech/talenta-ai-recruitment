@@ -201,7 +201,8 @@ export const importPortalUsers = async (req: AuthRequest, res: Response) => {
             companyName: data.companyName || companyFromTitle || null,
             assessmentId: job.code,
             assessmentTitle: job.title,
-            gradeLevel: data.gradeLevel || 'Grade B (Specialist / Mid)'
+            gradeLevel: data.gradeLevel || 'Grade B (Specialist / Mid)',
+            interviewScheduledAt: new Date()
           }
         });
         await ensureApplicantForPortalUser(createdUser.id);
