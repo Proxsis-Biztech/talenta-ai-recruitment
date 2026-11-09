@@ -129,33 +129,63 @@ export default function PipelineView({
     <div className="space-y-6">
       {/* Telemetry Summary Ribbon */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card elevation="flat" className="p-4 border-slate-200">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+        <Card elevation="flat" className="admin-card-accent-blue p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+              <User className="w-5 h-5" />
+            </div>
+            <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200/60">
+              Pipeline Total
+            </span>
+          </div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
             Total di Pipeline
           </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900">{filtered.length}</span>
-            <span className="text-xs text-slate-500">Kandidat</span>
+          <div className="mt-1 flex items-baseline justify-between">
+            <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
+              {filtered.length} <span className="text-xs font-bold text-slate-400 font-sans">Kandidat</span>
+            </span>
+            <span className="text-[11px] text-slate-400 font-mono">Pelamar Aktif</span>
           </div>
         </Card>
 
-        <Card elevation="flat" className="p-4 border-slate-200">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+        <Card elevation="flat" className="admin-card-accent-emerald p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 rounded-xl admin-icon-emerald text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+              <Brain className="w-5 h-5" />
+            </div>
+            <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold border border-emerald-200/60">
+              Live Gateway
+            </span>
+          </div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
             Wawancara Berjalan / Siap
           </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-blue-600">{stageInterview.length + stageNeedsScoring.length}</span>
-            <span className="text-xs text-slate-500">Fase Wawancara</span>
+          <div className="mt-1 flex items-baseline justify-between">
+            <span className="text-2xl font-black font-mono text-emerald-700 tracking-tight">
+              {stageInterview.length + stageNeedsScoring.length} <span className="text-xs font-bold text-slate-400 font-sans">Sesi</span>
+            </span>
+            <span className="text-[11px] text-emerald-600 font-semibold font-mono">Fase Wawancara</span>
           </div>
         </Card>
 
-        <Card elevation="flat" className="p-4 border-slate-200">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+        <Card elevation="flat" className="admin-card-accent-purple p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 rounded-xl admin-icon-purple text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+              <Award className="w-5 h-5" />
+            </div>
+            <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full font-semibold border border-purple-200/60">
+              BARS Evaluated
+            </span>
+          </div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
             Keputusan Siap Rilis
           </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-primary-navy">{stageDecisionReady.length}</span>
-            <span className="text-xs text-primary-navy font-semibold">Evaluasi Final</span>
+          <div className="mt-1 flex items-baseline justify-between">
+            <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
+              {stageDecisionReady.length} <span className="text-xs font-bold text-slate-400 font-sans">Berkas</span>
+            </span>
+            <span className="text-[11px] text-purple-700 font-semibold font-mono">Evaluasi Final</span>
           </div>
         </Card>
       </div>

@@ -180,6 +180,78 @@ html {
     border-radius: 4px;
   }
 
+  /* Executive Admin Console Custom CSS (Immune to Tailwind arbitrary purge) */
+  .admin-sidebar {
+    background-color: #0B132B !important;
+    color: #F8FAFC !important;
+  }
+
+  .admin-sidebar-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+
+  .admin-nav-item-active {
+    background: linear-gradient(135deg, #2563EB 0%, #4F46E5 100%) !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
+    border-left: 3px solid #60A5FA !important;
+  }
+
+  .admin-nav-item-inactive {
+    color: #94A3B8 !important;
+  }
+
+  .admin-nav-item-inactive:hover {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    color: #FFFFFF !important;
+  }
+
+  .admin-hero-banner {
+    background: linear-gradient(135deg, #0B132B 0%, #152238 45%, #1E3A8A 100%) !important;
+    color: #FFFFFF !important;
+    border: 1px solid #1E293B !important;
+  }
+
+  /* Executive Badge & Icon Container Styles (Bulletproof High-Contrast) */
+  .admin-icon-blue {
+    background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%) !important;
+    color: #FFFFFF !important;
+  }
+  .admin-icon-emerald {
+    background: linear-gradient(135deg, #059669 0%, #10B981 100%) !important;
+    color: #FFFFFF !important;
+  }
+  .admin-icon-purple {
+    background: linear-gradient(135deg, #7C3AED 0%, #8B5CF6 100%) !important;
+    color: #FFFFFF !important;
+  }
+  .admin-icon-amber {
+    background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%) !important;
+    color: #FFFFFF !important;
+  }
+  .admin-icon-rose {
+    background: linear-gradient(135deg, #E11D48 0%, #F43F5E 100%) !important;
+    color: #FFFFFF !important;
+  }
+  .admin-icon-cyan {
+    background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%) !important;
+    color: #FFFFFF !important;
+  }
+
+  /* Executive Card Top Accents */
+  .admin-card-accent-blue {
+    border-top: 4px solid #2563EB !important;
+  }
+  .admin-card-accent-emerald {
+    border-top: 4px solid #059669 !important;
+  }
+  .admin-card-accent-purple {
+    border-top: 4px solid #7C3AED !important;
+  }
+  .admin-card-accent-amber {
+    border-top: 4px solid #D97706 !important;
+  }
+
   /* Remove default focus ring for mouse users */
   :focus:not(:focus-visible) {
     outline: none;

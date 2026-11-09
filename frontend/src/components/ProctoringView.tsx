@@ -145,55 +145,83 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
     <div className="space-y-6">
       {/* Telemetry Metric Ribbon */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card elevation="flat" className="p-4 border-slate-200">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-sans">
+        <Card elevation="flat" className="admin-card-accent-blue p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+              <Eye className="w-5 h-5" />
+            </div>
+            <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200/60">
+              Real-time
+            </span>
+          </div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-sans mt-3">
             Total Sesi Terpantau
           </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-900">
-              {telemetry.totalSessions}
+          <div className="mt-1 flex items-baseline justify-between">
+            <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
+              {telemetry.totalSessions} <span className="text-xs font-bold text-slate-400 font-sans">Sesi</span>
             </span>
-            <span className="text-xs text-slate-500">Kandidat Wawancara</span>
+            <span className="text-[11px] text-slate-400 font-mono">Kandidat Wawancara</span>
           </div>
         </Card>
 
-        <Card elevation="flat" className="p-4 border-slate-200">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-sans">
+        <Card elevation="flat" className="admin-card-accent-emerald p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 rounded-xl admin-icon-emerald text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold border border-emerald-200/60">
+              Audit AI
+            </span>
+          </div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-sans mt-3">
             Tingkat Kepatuhan Integritas
           </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-primary-navy">
+          <div className="mt-1 flex items-baseline justify-between">
+            <span className="text-2xl font-black font-mono text-emerald-700 tracking-tight">
               {telemetry.complianceRate}%
             </span>
-            <span className="text-xs text-emerald-600 font-semibold">
-              Bebas Pelanggaran
-            </span>
+            <span className="text-[11px] text-emerald-600 font-semibold">Bebas Pelanggaran</span>
           </div>
         </Card>
 
-        <Card elevation="flat" className="p-4 border-slate-200">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-sans">
+        <Card elevation="flat" className="admin-card-accent-amber p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 rounded-xl admin-icon-amber text-white flex items-center justify-center shadow-md shadow-amber-500/20">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-semibold border border-amber-200/60">
+              Minor Anomaly
+            </span>
+          </div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-sans mt-3">
             Total Pelanggaran Deteksi
           </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-amber-600">
-              {telemetry.totalViolations}
+          <div className="mt-1 flex items-baseline justify-between">
+            <span className="text-2xl font-black font-mono text-amber-700 tracking-tight">
+              {telemetry.totalViolations} <span className="text-xs font-bold text-slate-400 font-sans">Event</span>
             </span>
-            <span className="text-xs text-slate-500">Tab Switch / Blur</span>
+            <span className="text-[11px] text-slate-400 font-mono">Tab Switch / Blur</span>
           </div>
         </Card>
 
-        <Card elevation="flat" className="p-4 border-slate-200">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-sans">
+        <Card elevation="flat" className="admin-card-accent-rose p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 rounded-xl admin-icon-rose text-white flex items-center justify-center shadow-md shadow-rose-500/20">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+            <span className="text-xs text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full font-semibold border border-rose-200/60">
+              Prioritas Investigasi
+            </span>
+          </div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-sans mt-3">
             Sesi Risiko Tinggi
           </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-rose-600">
-              {telemetry.highRiskSessions}
+          <div className="mt-1 flex items-baseline justify-between">
+            <span className="text-2xl font-black font-mono text-rose-700 tracking-tight">
+              {telemetry.highRiskSessions} <span className="text-xs font-bold text-slate-400 font-sans">Kandidat</span>
             </span>
-            <span className="text-xs text-rose-600 font-semibold">
-              Flag &gt;= 3x
-            </span>
+            <span className="text-[11px] text-rose-600 font-semibold font-mono">Flag &gt;= 3x</span>
           </div>
         </Card>
       </div>
