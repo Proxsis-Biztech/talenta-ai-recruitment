@@ -518,12 +518,6 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                   </div>
                 )}
 
-                {/* Live System Status Pill */}
-                <div className="hidden xl:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold shadow-xs border border-slate-700/80">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-mono text-[11px] tracking-wide text-slate-200">Proxsis Infra Live</span>
-                </div>
-
                 {/* Notification Bell with Badge */}
                 <button
                   className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
