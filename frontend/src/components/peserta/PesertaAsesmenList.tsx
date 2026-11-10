@@ -85,9 +85,6 @@ export default function PesertaAsesmenList() {
     return 'materi';
   });
 
-  // Inner sub-section inside Ujian Teknis: CAT (40 Soal) vs Live Coding (Judge0)
-  // Strictly gates: Live Coding will only unlock after CAT is completed
-  const [technicalSubSection, setTechnicalSubSection] = useState<'cat' | 'coding'>('cat');
 
   const [filter, setFilter] = useState<'semua' | 'aktif' | 'selesai'>('semua');
   const [searchQuery, setSearchQuery] = useState('');
@@ -212,28 +209,13 @@ export default function PesertaAsesmenList() {
       setActiveLmsTab(urlTab as any);
     } else if (urlTab === 'coding') {
       setActiveLmsTab('ujian');
-      if (isCatCompleted) {
-        setTechnicalSubSection('coding');
-      } else {
-        setTechnicalSubSection('cat');
-      }
     }
-  }, [urlTab, isCatCompleted]);
-
-  // Keep technicalSubSection locked to 'cat' if CAT is not completed
-  useEffect(() => {
-    if (!isCatCompleted) {
-      setTechnicalSubSection('cat');
-    }
-  }, [isCatCompleted]);
+  }, [urlTab]);
 
   const handleTabChange = (tab: 'materi' | 'ujian' | 'wawancara') => {
     setActiveLmsTab(tab);
     searchParams.set('tab', tab);
     setSearchParams(searchParams, { replace: true });
-    if (tab === 'ujian' && !isCatCompleted) {
-      setTechnicalSubSection('cat');
-    }
   };
 
   // Comprehensive list of assessment cards ASSIGNED specifically to this candidate
@@ -534,7 +516,7 @@ export default function PesertaAsesmenList() {
                           : 'bg-blue-50 text-blue-700'
                       }`}
                     >
-                      {isCatCompleted ? '✓ CAT Selesai' : 'CAT + Judge0'}
+                      {isCatCompleted ? '⚡ Live Coding' : 'Soal CAT'}
                     </span>
                   </button>
 
@@ -769,31 +751,16 @@ export default function PesertaAsesmenList() {
                           </span>
 
                           <div className="flex items-center gap-2">
-                            {isCatCompleted ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  handleTabChange('ujian');
-                                  setTechnicalSubSection('coding');
-                                }}
-                                leftIcon={<Code2 className="w-3.5 h-3.5 text-blue-600" />}
-                                className="text-xs cursor-pointer font-semibold"
-                              >
-                                Live Coding Test (Judge0)
-                              </Button>
-                            ) : null}
                             <Button
                               variant="primary"
                               size="sm"
                               onClick={() => {
                                 handleTabChange('ujian');
-                                setTechnicalSubSection('cat');
                               }}
                               rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
                               className="text-xs font-bold cursor-pointer"
                             >
-                              {isCatCompleted ? 'Buka Ujian Teknis (Tahap 2)' : 'Lanjut ke Tahap 2: Soal Ujian CAT'}
+                              {isCatCompleted ? 'Buka Ujian Teknis (Live Coding)' : 'Lanjut ke Tahap 2: Soal Ujian CAT'}
                             </Button>
                           </div>
                         </div>
@@ -814,65 +781,7 @@ export default function PesertaAsesmenList() {
             ═══════════════════════════════════════════════════════════ */}
             {activeLmsTab === 'ujian' && (
               <div className="space-y-6 animate-fadeIn">
-                {/* Sub-Navigation Switcher between CAT & Live Coding */}
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-2.5 sm:p-3 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => setTechnicalSubSection('cat')}
-                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                        technicalSubSection === 'cat'
-                          ? 'bg-primary-navy text-white shadow-xs'
-                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/70'
-                      }`}
-                    >
-                      <FileCheck2 className="w-4 h-4" />
-                      <span>Langkah 1: Soal Ujian CAT (40 Butir)</span>
-                      {isCatCompleted ? (
-                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
-                          ✓ Selesai
-                        </span>
-                      ) : (
-                        <span className="text-[10px] bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded-full font-bold">
-                          ⚡ Langkah Sekarang
-                        </span>
-                      )}
-                    </button>
-
-                    {isCatCompleted ? (
-                      <button
-                        onClick={() => setTechnicalSubSection('coding')}
-                        className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                          technicalSubSection === 'coding'
-                            ? 'bg-primary-navy text-white shadow-xs'
-                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
-                        }`}
-                      >
-                        <Code2 className="w-4 h-4 text-emerald-600" />
-                        <span>Langkah 2: Live Coding Test (Judge0)</span>
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                          ⚡ Langkah Sekarang
-                        </span>
-                      </button>
-                    ) : (
-                      <div
-                        className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium bg-slate-100/80 text-slate-400 border border-dashed border-slate-300 flex items-center gap-2 cursor-not-allowed select-none"
-                        title="Selesaikan Soal Ujian CAT (40 Butir) terlebih dahulu untuk membuka sesi Live Coding"
-                      >
-                        <Lock className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Langkah 2: Live Coding Test (Judge0)</span>
-                        <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-semibold">
-                          🔒 Terkunci (Selesaikan CAT Dahulu)
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <span className="text-xs text-slate-500 font-medium px-2 hidden sm:inline">
-                    Alur Teknis: CAT 40 Soal → Live Coding Judge0 → Sesi Wawancara
-                  </span>
-                </div>
-
-                {technicalSubSection === 'cat' ? (
+                {!isCatCompleted ? (
                   <div className="space-y-6">
                 {/* Main Detail Assessment Card */}
                 <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
@@ -1071,25 +980,6 @@ export default function PesertaAsesmenList() {
                             <ArrowRight className="w-4 h-4" />
                           </Button>
                         </>
-                      ) : isCatCompleted ? (
-                        <>
-                          <Button
-                            variant="outline"
-                            onClick={() => navigate('/peserta/hasil')}
-                            className="text-xs sm:text-sm py-2.5 px-3.5 rounded-xl cursor-pointer"
-                          >
-                            Skor CAT ({currentProgram.score ? `${currentProgram.score}/100` : 'Tersimpan'})
-                          </Button>
-                          <Button
-                            variant="primary"
-                            onClick={() => setTechnicalSubSection('coding')}
-                            className="text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 font-bold shadow-sm bg-primary-navy hover:bg-slate-800 text-white cursor-pointer"
-                          >
-                            <Code2 className="w-4 h-4 text-blue-300" />
-                            <span>Lanjut ke Langkah 2: Live Coding</span>
-                            <ArrowRight className="w-4 h-4" />
-                          </Button>
-                        </>
                       ) : (
                         <>
                           <Button
@@ -1148,148 +1038,92 @@ export default function PesertaAsesmenList() {
                 </div>
 
                 {/* Bottom Step Progression Banner */}
-                {!isCatCompleted ? (
-                  <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <h4 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-2">
-                        <Lock className="w-4 h-4 text-amber-600" />
-                        <span>Langkah Selanjutnya: Live Coding Test (Judge0)</span>
-                        <span className="text-[11px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded-full">
-                          🔒 Terkunci
-                        </span>
-                      </h4>
-                      <p className="text-xs text-slate-600">
-                        Selesaikan dan kumpulkan 40 butir Soal Ujian CAT di atas terlebih dahulu. Sesi Live Coding akan terbuka secara otomatis segera setelah hasil CAT Anda tersimpan.
-                      </p>
-                    </div>
-                    <Button
-                      variant="primary"
-                      onClick={() => navigate(`/peserta/exam/${currentProgram.id}`)}
-                      className="text-xs font-bold shrink-0 flex items-center gap-2 rounded-xl cursor-pointer shadow-xs"
-                    >
-                      <PlayCircle className="w-4 h-4" />
-                      <span>Mulai Kerjakan Soal CAT Sekarang</span>
-                    </Button>
+                <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h4 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-2">
+                      <Code2 className="w-4 h-4 text-slate-500" />
+                      <span>Tahap Selanjutnya: Live Coding Test (Judge0)</span>
+                      <span className="text-[11px] bg-slate-200 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
+                        🔒 Terkunci (Selesaikan CAT Dahulu)
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-600">
+                      Selesaikan dan kumpulkan 40 butir Soal Ujian CAT di atas terlebih dahulu. Sesi Live Coding akan terbuka secara otomatis segera setelah hasil CAT Anda tersimpan.
+                    </p>
                   </div>
-                ) : (
-                  <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/90 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
-                    <div className="space-y-1">
-                      <h4 className="font-heading font-bold text-sm text-emerald-950 flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Soal Ujian CAT Selesai Dikumpulkan!</span>
-                        <span className="text-[11px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">
-                          Langkah 1 Selesai
-                        </span>
-                      </h4>
-                      <p className="text-xs text-emerald-900/80">
-                        Langkah berikutnya: Uji praktik live coding menggunakan compiler Judge0 sebelum lanjut ke sesi wawancara tatap muka.
-                      </p>
-                    </div>
-                    <Button
-                      variant="primary"
-                      onClick={() => setTechnicalSubSection('coding')}
-                      className="text-xs font-bold shrink-0 flex items-center gap-2 rounded-xl bg-primary-navy hover:bg-slate-800 cursor-pointer text-white shadow-xs"
-                    >
-                      <Code2 className="w-4 h-4 text-blue-300" />
-                      <span>Masuk ke Live Coding Sekarang</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                )}
+                  <Button
+                    variant="primary"
+                    onClick={() => navigate(`/peserta/exam/${currentProgram.id}`)}
+                    className="text-xs font-bold shrink-0 flex items-center gap-2 rounded-xl cursor-pointer shadow-xs"
+                  >
+                    <PlayCircle className="w-4 h-4" />
+                    <span>Mulai Kerjakan Soal CAT Sekarang</span>
+                  </Button>
+                </div>
               </div>
             ) : (
-                /* Section 2: Live Coding Test */
-                !isCatCompleted ? (
-                  <div className="bg-white rounded-3xl border border-slate-200/90 p-8 sm:p-12 text-center space-y-5 shadow-xs max-w-xl mx-auto my-6">
-                    <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center border border-amber-200/80 shadow-2xs">
-                      <Lock className="w-8 h-8" />
+              /* Section 2: Live Coding Test (Directly displayed when CAT is completed) */
+              <div className="space-y-4">
+                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        JUDGE0 SANDBOX
+                      </span>
+                      <Badge variant="teal" format="soft">Prototype Evaluation Engine</Badge>
+                      <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Ujian CAT Selesai
+                      </span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold">
-                        <span>Tahap 2: Langkah 2</span>
-                        <span>•</span>
-                        <span>Prasyarat Belum Selesai</span>
-                      </div>
-                      <h2 className="font-heading font-extrabold text-lg sm:text-xl text-slate-900">
-                        Live Coding Test Masih Terkunci
-                      </h2>
-                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
-                        Untuk menjaga integritas dan urutan asesmen terstruktur, Anda wajib menyelesaikan dan mengumpulkan <strong>Soal Ujian CAT (40 Butir)</strong> terlebih dahulu sebelum mengerjakan live coding di sandbox Judge0.
-                      </p>
-                    </div>
-                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-                      <Button
-                        variant="primary"
-                        onClick={() => setTechnicalSubSection('cat')}
-                        className="w-full sm:w-auto text-xs font-bold rounded-xl cursor-pointer flex items-center justify-center gap-2 shadow-xs"
-                      >
-                        <FileCheck2 className="w-4 h-4" />
-                        <span>Kembali ke Soal Ujian CAT</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => navigate(`/peserta/exam/${currentProgram.id}`)}
-                        className="w-full sm:w-auto text-xs font-bold rounded-xl cursor-pointer flex items-center justify-center gap-2"
-                      >
-                        <PlayCircle className="w-4 h-4 text-emerald-600" />
-                        <span>Mulai Kerjakan CAT Sekarang</span>
-                      </Button>
-                    </div>
+                    <h2 className="font-heading font-extrabold text-base sm:text-lg text-slate-900">
+                      Uji Praktik Pemrograman (Live Coding Test)
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Uji kemampuan problem solving, data structures, dan arsitektur kode secara interaktif dengan engine Judge0.
+                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                            JUDGE0 SANDBOX
-                          </span>
-                          <Badge variant="teal" format="soft">Prototype Evaluation Engine</Badge>
-                          <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> CAT Selesai
-                          </span>
-                        </div>
-                        <h2 className="font-heading font-extrabold text-base sm:text-lg text-slate-900">
-                          Langkah 2: Live Coding &amp; Algorithmic Assessment
-                        </h2>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Uji kemampuan problem solving, data structures, dan arsitektur kode secara interaktif dengan engine Judge0.
-                        </p>
-                      </div>
 
-                      <div className="flex items-center gap-3 text-xs text-slate-600 font-mono">
-                        <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                          <Cpu className="w-3.5 h-3.5 text-slate-500" />
-                          Isolated Container
-                        </span>
-                      </div>
-                    </div>
-
-                    <PesertaLiveCodingJudge0 programTitle={currentProgram.title} />
-
-                    {/* Bottom CTA to go to Stage 3 (Wawancara) */}
-                    <div className="mt-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
-                      <div className="space-y-1">
-                        <h4 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                          <Video className="w-4 h-4 text-amber-600" />
-                          <span>Langkah Selanjutnya: Sesi Wawancara Tatap Muka (Tahap 3)</span>
-                        </h4>
-                        <p className="text-xs text-slate-600">
-                          Dewan Asesor akan memvalidasi penalaran hasil CAT dan arsitektur kode Anda pada sesi Wawancara Kompetensi BARS.
-                        </p>
-                      </div>
-                      <Button
-                        variant="primary"
-                        onClick={() => handleTabChange('wawancara')}
-                        className="text-xs font-bold shrink-0 flex items-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 cursor-pointer text-white shadow-xs"
-                      >
-                        <span>Lanjut ke Tahap 3: Sesi Wawancara</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
-                    </div>
+                  <div className="flex items-center gap-2.5 text-xs text-slate-600 font-mono">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate('/peserta/hasil')}
+                      className="text-xs font-semibold rounded-xl cursor-pointer"
+                    >
+                      <Award className="w-3.5 h-3.5 text-emerald-600 mr-1" />
+                      <span>Skor CAT ({currentProgram.score ? `${currentProgram.score}/100` : 'Tersimpan'})</span>
+                    </Button>
+                    <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                      <Cpu className="w-3.5 h-3.5 text-slate-500" />
+                      Isolated Container
+                    </span>
                   </div>
-                )
-              )}
+                </div>
+
+                <PesertaLiveCodingJudge0 programTitle={currentProgram.title} />
+
+                {/* Bottom CTA to go to Stage 3 (Wawancara) */}
+                <div className="mt-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                  <div className="space-y-1">
+                    <h4 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                      <Video className="w-4 h-4 text-amber-600" />
+                      <span>Langkah Selanjutnya: Sesi Wawancara Tatap Muka (Tahap 3)</span>
+                    </h4>
+                    <p className="text-xs text-slate-600">
+                      Dewan Asesor akan memvalidasi penalaran hasil CAT dan arsitektur kode Anda pada sesi Wawancara Kompetensi BARS.
+                    </p>
+                  </div>
+                  <Button
+                    variant="primary"
+                    onClick={() => handleTabChange('wawancara')}
+                    className="text-xs font-bold shrink-0 flex items-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 cursor-pointer text-white shadow-xs"
+                  >
+                    <span>Lanjut ke Tahap 3: Sesi Wawancara</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
             </div>
           )}
 
@@ -1439,7 +1273,6 @@ export default function PesertaAsesmenList() {
                         variant="primary"
                         onClick={() => {
                           handleTabChange('ujian');
-                          setTechnicalSubSection('cat');
                         }}
                         className="text-xs font-bold shrink-0 rounded-xl cursor-pointer shadow-xs bg-amber-600 hover:bg-amber-700 text-white"
                       >
