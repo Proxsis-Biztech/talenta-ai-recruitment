@@ -193,6 +193,7 @@ export default function PesertaDashboard() {
     }
     const rect = e.currentTarget.getBoundingClientRect();
     const modalWidth = 420;
+    const estimatedHeight = 460;
     let left = rect.left;
     if (typeof window !== 'undefined') {
       if (left + modalWidth > window.innerWidth - 16) {
@@ -202,8 +203,14 @@ export default function PesertaDashboard() {
     }
 
     let top = rect.bottom + 8;
-    if (typeof window !== 'undefined' && top + 420 > window.innerHeight && rect.top > 420) {
-      top = Math.max(16, rect.top - 430);
+    if (typeof window !== 'undefined') {
+      if (top + estimatedHeight > window.innerHeight - 16) {
+        if (rect.top >= estimatedHeight + 16) {
+          top = rect.top - estimatedHeight - 8;
+        } else {
+          top = Math.max(16, window.innerHeight - estimatedHeight - 16);
+        }
+      }
     }
     setPopupPos({ top, left });
     setActivePopup(type);
@@ -820,14 +827,14 @@ export default function PesertaDashboard() {
                       position: 'fixed',
                       top: `${popupPos.top}px`,
                       left: `${popupPos.left}px`,
-                      maxHeight: 'calc(100vh - 40px)'
+                      maxHeight: 'min(500px, calc(100vh - 32px))'
                     }
                   : {
                       position: 'relative',
-                      maxHeight: '85vh'
+                      maxHeight: 'min(520px, 85vh)'
                     }
               }
-              className="relative z-50 w-[92vw] sm:w-[420px] max-w-[440px] bg-[#0f172a] text-white rounded-2xl shadow-2xl border border-slate-700/80 p-5 overflow-hidden animate-in fade-in-50 zoom-in-95 ring-1 ring-white/10"
+              className="relative z-50 w-[92vw] sm:w-[420px] max-w-[440px] flex flex-col bg-[#0f172a] text-white rounded-2xl shadow-2xl border border-slate-700/80 p-5 overflow-hidden animate-in fade-in-50 zoom-in-95 ring-1 ring-white/10"
             >
               {/* Decorative top accent glow */}
               <div
@@ -883,7 +890,7 @@ export default function PesertaDashboard() {
                   </div>
 
                   {/* List of 5 Stages */}
-                  <div className="space-y-2 my-3 max-h-[46vh] overflow-y-auto pr-1">
+                  <div className="flex-1 space-y-2 my-2.5 overflow-y-auto pr-1">
                     {stages.map((st, idx) => {
                       const isDone = st.status === 'completed';
                       const isActive = st.status === 'active';
@@ -1029,7 +1036,7 @@ export default function PesertaDashboard() {
                   </div>
 
                   {/* List of 6 Profile Points */}
-                  <div className="space-y-2 my-3 max-h-[46vh] overflow-y-auto pr-1">
+                  <div className="flex-1 space-y-2 my-2.5 overflow-y-auto pr-1">
                     {profilePoints.map((item, idx) => {
                       const isDone = item.isFilled;
                       return (
