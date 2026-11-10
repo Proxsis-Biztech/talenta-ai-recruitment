@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -22,7 +22,12 @@ import {
   Smile,
   Building2,
   FileQuestion,
-  Users
+  Users,
+  Eye,
+  ListChecks,
+  UserCheck,
+  X,
+  ExternalLink
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
@@ -98,45 +103,136 @@ export default function PesertaDashboard() {
       : 'Belum dijadwalkan';
 
   const stages = [
-    { title: 'Pendaftaran & Berkas', status: 'completed', date: formatDate(dashboard?.user?.createdAt), desc: 'Terverifikasi' },
     {
-      title: 'Verifikasi Device Check',
+      title: 'Pendaftaran & Berkas Administrasi',
+      status: 'completed',
+      date: formatDate(dashboard?.user?.createdAt),
+      desc: 'Berkas administrasi dan data registrasi akun terverifikasi'
+    },
+    {
+      title: 'Verifikasi Device Check & Kamera',
       status: faceVerified ? 'completed' : 'active',
       date: faceVerified ? formatDate(dashboard?.user?.faceVerifiedAt) : 'Belum dilakukan',
-      desc: faceVerified ? 'Wajah terverifikasi' : 'Perlu verifikasi perangkat'
+      desc: faceVerified ? 'Wajah dan perangkat kamera terverifikasi valid' : 'Wajib verifikasi webcam & mikrofon sebelum tes'
     },
     {
-      title: 'Tes Kemampuan Teknis (CAT)',
+      title: 'Ujian Teknis (CAT & Live Coding)',
       status: isCatCompleted ? 'completed' : 'active',
       date: isCatCompleted ? formatDate(dashboard?.exam?.submittedAt) : 'Siap dimulai',
-      desc: isCatCompleted ? 'Jawaban tersimpan' : 'Paket soal • Siap Dimulai'
+      desc: isCatCompleted ? 'Lembar CAT selesai dan jawaban tersimpan di server' : 'Paket soal kompetensi teknis & live code test'
     },
     {
-      title: 'Live Interview & Rubrik Asesor',
+      title: 'Sesi Wawancara Tatap Muka Asesor',
       status: interview.status === 'completed' ? 'completed' : isCatCompleted ? 'active' : 'upcoming',
       date: interview.scheduledAt ? formatDate(interview.scheduledAt) : 'Belum dijadwalkan',
-      desc: interview.assessorName || 'Menunggu asesor'
+      desc: interview.assessorName ? `Asesor: ${interview.assessorName}` : 'Sesi tatap muka daring bersama Asesor'
     },
     {
-      title: 'Pengumuman & Rekap Hasil',
+      title: 'Pengumuman & Rekap Hasil LHA',
       status: lha?.signed ? 'completed' : 'upcoming',
       date: lha?.signedAt ? formatDate(lha.signedAt) : 'Menunggu LHA',
-      desc: lha?.signed ? 'LHA telah terbit' : 'Setelah penilaian asesor'
+      desc: lha?.signed ? 'Laporan Hasil Asesmen (LHA) resmi telah diterbitkan' : 'Rekapitulasi nilai dan rekomendasi kompetensi'
     }
   ];
 
-  const profileFilled = [
-    dashboard?.user?.name,
-    dashboard?.user?.phone,
-    dashboard?.user?.nik,
-    dashboard?.user?.education,
-    dashboard?.user?.university,
-    dashboard?.user?.city
-  ].filter(Boolean).length;
+  const profilePoints = [
+    {
+      key: 'name',
+      label: 'Nama Lengkap Peserta',
+      value: dashboard?.user?.name || activeUser.name || '',
+      isFilled: Boolean(dashboard?.user?.name || activeUser.name)
+    },
+    {
+      key: 'phone',
+      label: 'Nomor WhatsApp / Kontak',
+      value: dashboard?.user?.phone || (activeUser as any).phone || '',
+      isFilled: Boolean(dashboard?.user?.phone || (activeUser as any).phone)
+    },
+    {
+      key: 'nik',
+      label: 'Nomor Induk Kependudukan (NIK)',
+      value: dashboard?.user?.nik || '',
+      isFilled: Boolean(dashboard?.user?.nik)
+    },
+    {
+      key: 'education',
+      label: 'Jenjang Pendidikan Terakhir',
+      value: dashboard?.user?.education || '',
+      isFilled: Boolean(dashboard?.user?.education)
+    },
+    {
+      key: 'university',
+      label: 'Universitas / Institusi Pendidikan',
+      value: dashboard?.user?.university || '',
+      isFilled: Boolean(dashboard?.user?.university)
+    },
+    {
+      key: 'city',
+      label: 'Kota Domisili Saat Ini',
+      value: dashboard?.user?.city || '',
+      isFilled: Boolean(dashboard?.user?.city)
+    }
+  ];
+
+  const profileFilled = profilePoints.filter((p) => p.isFilled).length;
   const completedStages = stages.filter((stage) => stage.status === 'completed').length;
   const assessmentProgress = Math.round((completedStages / stages.length) * 100);
   const activeStage = stages.find((stage) => stage.status === 'active')?.title || 'Selesai';
   const initials = activeUser.name.split(' ').filter(Boolean).slice(0, 2).map((word) => word[0]).join('').toUpperCase();
+
+  // Floating Pop-up Modal State for Progress & Profile breakdown
+  const [activePopup, setActivePopup] = useState<'stages' | 'profile' | null>(null);
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleOpenPopup = (type: 'stages' | 'profile', e: React.MouseEvent<HTMLElement>) => {
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const modalWidth = 420;
+    let left = rect.left;
+    if (typeof window !== 'undefined') {
+      if (left + modalWidth > window.innerWidth - 16) {
+        left = Math.max(16, window.innerWidth - modalWidth - 16);
+      }
+      if (left < 16) left = 16;
+    }
+
+    let top = rect.bottom + 8;
+    if (typeof window !== 'undefined' && top + 420 > window.innerHeight && rect.top > 420) {
+      top = Math.max(16, rect.top - 430);
+    }
+    setPopupPos({ top, left });
+    setActivePopup(type);
+  };
+
+  const handleScheduleClose = () => {
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    closeTimeoutRef.current = setTimeout(() => {
+      setActivePopup(null);
+    }, 220);
+  };
+
+  const handleCancelClose = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
+
+  const handleTogglePopup = (type: 'stages' | 'profile', e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation();
+    if (activePopup === type) {
+      setActivePopup(null);
+    } else {
+      handleOpenPopup(type, e);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
 
   return (
     <PesertaLayout activeTab="dashboard">
@@ -203,15 +299,29 @@ export default function PesertaDashboard() {
 
               {/* Dual Progress Glass Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-xl p-3.5 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-blue-100 flex items-center gap-1.5">
+                {/* Card 1: Progres Tahapan */}
+                <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-xl p-3.5 space-y-2 relative group/card transition-all hover:bg-white/[0.13]">
+                  <div className="flex items-center justify-between text-xs gap-2">
+                    <span className="font-medium text-blue-100 flex items-center gap-1.5 shrink-0">
                       <CheckCircle2 className="w-3.5 h-3.5 text-sky-300" />
                       Progres Tahapan
                     </span>
-                    <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded-md text-[11px]">
-                      {completedStages} / {stages.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onMouseEnter={(e) => handleOpenPopup('stages', e)}
+                        onMouseLeave={handleScheduleClose}
+                        onClick={(e) => handleTogglePopup('stages', e)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-sky-200 hover:text-white bg-sky-500/20 hover:bg-sky-500/35 border border-sky-300/35 rounded-lg transition-all cursor-pointer shadow-xs active:scale-95 group/btn"
+                        title="Klik atau arahkan mouse untuk melihat rincian tahapan yang sudah selesai & belum"
+                      >
+                        <Eye className="w-3 h-3 text-sky-300 group-hover/btn:scale-110 transition-transform" />
+                        <span>Detail Poin</span>
+                      </button>
+                      <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded-md text-[11px] shrink-0">
+                        {completedStages} / {stages.length}
+                      </span>
+                    </div>
                   </div>
                   <div className="h-2 rounded-full bg-black/20 overflow-hidden p-0.5">
                     <div
@@ -219,24 +329,43 @@ export default function PesertaDashboard() {
                       style={{ width: `${assessmentProgress}%` }}
                     />
                   </div>
-                  <p className="text-[11px] text-blue-200/90 font-medium truncate">
-                    Tahap aktif: <span className="text-white font-semibold">{activeStage}</span>
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-blue-200/90 font-medium truncate">
+                      Tahap aktif: <span className="text-white font-semibold">{activeStage}</span>
+                    </p>
+                    <span className="text-[10px] text-blue-200/70 font-mono hidden sm:inline">
+                      {assessmentProgress}%
+                    </span>
+                  </div>
                 </div>
 
-                <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-xl p-3.5 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-blue-100 flex items-center gap-1.5">
+                {/* Card 2: Kelengkapan Profil */}
+                <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-xl p-3.5 space-y-2 relative group/card transition-all hover:bg-white/[0.13]">
+                  <div className="flex items-center justify-between text-xs gap-2">
+                    <span className="font-medium text-blue-100 flex items-center gap-1.5 shrink-0">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
                       Kelengkapan Profil
                     </span>
-                    <span
-                      className={`font-mono font-bold px-2 py-0.5 rounded-md text-[11px] ${
-                        profileFilled === 6 ? 'bg-emerald-400/20 text-emerald-200' : 'bg-amber-400/20 text-amber-200'
-                      }`}
-                    >
-                      {profileFilled} / 6
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onMouseEnter={(e) => handleOpenPopup('profile', e)}
+                        onMouseLeave={handleScheduleClose}
+                        onClick={(e) => handleTogglePopup('profile', e)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-emerald-200 hover:text-white bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-300/35 rounded-lg transition-all cursor-pointer shadow-xs active:scale-95 group/btn"
+                        title="Klik atau arahkan mouse untuk melihat rincian 6 poin data profil yang sudah diisi & belum"
+                      >
+                        <Eye className="w-3 h-3 text-emerald-300 group-hover/btn:scale-110 transition-transform" />
+                        <span>Detail Poin</span>
+                      </button>
+                      <span
+                        className={`font-mono font-bold px-2 py-0.5 rounded-md text-[11px] shrink-0 ${
+                          profileFilled === 6 ? 'bg-emerald-400/20 text-emerald-200' : 'bg-amber-400/20 text-amber-200'
+                        }`}
+                      >
+                        {profileFilled} / 6
+                      </span>
+                    </div>
                   </div>
                   <div className="h-2 rounded-full bg-black/20 overflow-hidden p-0.5">
                     <div
@@ -248,15 +377,20 @@ export default function PesertaDashboard() {
                       style={{ width: `${(profileFilled / 6) * 100}%` }}
                     />
                   </div>
-                  <p className="text-[11px] text-blue-200/90 font-medium">
-                    {profileFilled === 6 ? (
-                      <span className="text-emerald-200 font-semibold flex items-center gap-1">
-                        <Check className="w-3 h-3" /> Data profil terverifikasi lengkap
-                      </span>
-                    ) : (
-                      <span className="text-amber-200">Lengkapi profil Anda agar 6/6</span>
-                    )}
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-blue-200/90 font-medium truncate">
+                      {profileFilled === 6 ? (
+                        <span className="text-emerald-200 font-semibold flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Data profil terverifikasi lengkap
+                        </span>
+                      ) : (
+                        <span className="text-amber-200">Lengkapi profil Anda agar 6/6</span>
+                      )}
+                    </p>
+                    <span className="text-[10px] text-blue-200/70 font-mono hidden sm:inline">
+                      {Math.round((profileFilled / 6) * 100)}%
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -646,6 +780,318 @@ export default function PesertaDashboard() {
             </div>
           </div>
         </div>
+
+        {/* ─── Floating Pop-up Modal Detail Poin (Hover & Click) ─── */}
+        {activePopup && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center sm:block"
+            onClick={() => setActivePopup(null)}
+          >
+            {/* Backdrop: dim on mobile, transparent click-catcher on desktop */}
+            <div className="fixed inset-0 bg-slate-950/60 sm:bg-black/20 backdrop-blur-[2px] sm:backdrop-blur-none transition-opacity" />
+
+            <div
+              onClick={(e) => e.stopPropagation()}
+              onMouseEnter={handleCancelClose}
+              onMouseLeave={handleScheduleClose}
+              style={
+                typeof window !== 'undefined' && window.innerWidth >= 640 && popupPos
+                  ? {
+                      position: 'fixed',
+                      top: `${popupPos.top}px`,
+                      left: `${popupPos.left}px`,
+                      maxHeight: 'calc(100vh - 40px)'
+                    }
+                  : {
+                      position: 'relative',
+                      maxHeight: '85vh'
+                    }
+              }
+              className="relative z-50 w-[92vw] sm:w-[420px] max-w-[440px] bg-[#0f172a] text-white rounded-2xl shadow-2xl border border-slate-700/80 p-5 overflow-hidden animate-in fade-in-50 zoom-in-95 ring-1 ring-white/10"
+            >
+              {/* Decorative top accent glow */}
+              <div
+                className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${
+                  activePopup === 'stages'
+                    ? 'from-sky-400 via-blue-500 to-indigo-500'
+                    : 'from-emerald-400 via-teal-500 to-emerald-600'
+                }`}
+              />
+
+              {activePopup === 'stages' ? (
+                <>
+                  {/* Modal Header */}
+                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-300 shrink-0">
+                        <ListChecks className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                          Detail Poin Tahapan
+                          <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                            {completedStages}/{stages.length}
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Status kelulusan dan penyelesaian tiap fase seleksi
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActivePopup(null)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Tutup"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Mini progress bar */}
+                  <div className="mt-3.5 mb-2 bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50">
+                    <div className="flex items-center justify-between text-[11px] mb-1.5">
+                      <span className="text-slate-300 font-medium">Total Progres Seleksi</span>
+                      <span className="font-mono font-bold text-sky-400">{assessmentProgress}% Selesai</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-900 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-sky-400 to-blue-500 transition-all duration-300"
+                        style={{ width: `${assessmentProgress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* List of 5 Stages */}
+                  <div className="space-y-2 my-3 max-h-[46vh] overflow-y-auto pr-1">
+                    {stages.map((st, idx) => {
+                      const isDone = st.status === 'completed';
+                      const isActive = st.status === 'active';
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-3 rounded-xl border transition-all ${
+                            isDone
+                              ? 'bg-emerald-950/20 border-emerald-500/30'
+                              : isActive
+                              ? 'bg-sky-950/30 border-sky-400/40 ring-1 ring-sky-400/20'
+                              : 'bg-slate-850/40 border-slate-800 opacity-70'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="flex items-start gap-2.5 min-w-0">
+                              <div className="mt-0.5 shrink-0">
+                                {isDone ? (
+                                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400">
+                                    <Check className="w-3 h-3 stroke-[3]" />
+                                  </div>
+                                ) : isActive ? (
+                                  <div className="w-5 h-5 rounded-full bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 animate-pulse">
+                                    <span className="w-2 h-2 rounded-full bg-sky-400" />
+                                  </div>
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500 text-[10px] font-mono">
+                                    {idx + 1}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p
+                                  className={`text-xs font-bold leading-snug ${
+                                    isDone ? 'text-emerald-200' : isActive ? 'text-sky-200' : 'text-slate-300'
+                                  }`}
+                                >
+                                  {idx + 1}. {st.title}
+                                </p>
+                                <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                                  {st.desc}
+                                </p>
+                                {st.date && st.date !== '-' && (
+                                  <p className="text-[10px] text-slate-500 mt-1 font-mono">
+                                    Tanggal: {st.date}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <span
+                              className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                isDone
+                                  ? 'bg-emerald-400/15 text-emerald-300 border border-emerald-400/30'
+                                  : isActive
+                                  ? 'bg-sky-400/15 text-sky-200 border border-sky-400/30'
+                                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+                              }`}
+                            >
+                              {isDone ? '✓ Selesai' : isActive ? '⚡ Berjalan' : '⏳ Belum'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-400">
+                      Tahap aktif: <strong className="text-white">{activeStage}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePopup(null);
+                        navigate('/peserta/asesmen');
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-400 text-slate-950 transition-colors shadow-xs cursor-pointer"
+                    >
+                      <span>Buka Asesmen</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Kelengkapan Profil Modal */}
+                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
+                        <UserCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                          Detail Kelengkapan Profil
+                          <span
+                            className={`font-mono text-xs px-2 py-0.5 rounded-full border ${
+                              profileFilled === 6
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                                : 'bg-amber-500/20 text-amber-300 border-amber-400/30'
+                            }`}
+                          >
+                            {profileFilled}/6 Poin
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          6 data pokok peserta untuk verifikasi identitas resmi
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActivePopup(null)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Tutup"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Mini progress bar */}
+                  <div className="mt-3.5 mb-2 bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50">
+                    <div className="flex items-center justify-between text-[11px] mb-1.5">
+                      <span className="text-slate-300 font-medium">Status Pengisian Data</span>
+                      <span
+                        className={`font-mono font-bold ${
+                          profileFilled === 6 ? 'text-emerald-400' : 'text-amber-400'
+                        }`}
+                      >
+                        {Math.round((profileFilled / 6) * 100)}% Lengkap
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-900 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          profileFilled === 6
+                            ? 'bg-gradient-to-r from-emerald-400 to-teal-400'
+                            : 'bg-gradient-to-r from-amber-400 to-yellow-400'
+                        }`}
+                        style={{ width: `${(profileFilled / 6) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* List of 6 Profile Points */}
+                  <div className="space-y-2 my-3 max-h-[46vh] overflow-y-auto pr-1">
+                    {profilePoints.map((item, idx) => {
+                      const isDone = item.isFilled;
+                      return (
+                        <div
+                          key={item.key}
+                          className={`p-3 rounded-xl border transition-all ${
+                            isDone
+                              ? 'bg-emerald-950/20 border-emerald-500/30'
+                              : 'bg-amber-950/20 border-amber-500/30 ring-1 ring-amber-500/20'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="flex items-start gap-2.5 min-w-0">
+                              <div className="mt-0.5 shrink-0">
+                                {isDone ? (
+                                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400">
+                                    <Check className="w-3 h-3 stroke-[3]" />
+                                  </div>
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
+                                    <AlertTriangle className="w-3 h-3" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p
+                                  className={`text-xs font-bold leading-snug ${
+                                    isDone ? 'text-emerald-200' : 'text-amber-200'
+                                  }`}
+                                >
+                                  {idx + 1}. {item.label}
+                                </p>
+                                <p className="text-[11px] text-slate-300 mt-0.5 truncate">
+                                  {isDone ? (
+                                    <span className="text-slate-200 font-medium">{String(item.value)}</span>
+                                  ) : (
+                                    <span className="text-amber-300/80 italic">Belum diisi / belum lengkap</span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            <span
+                              className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                isDone
+                                  ? 'bg-emerald-400/15 text-emerald-300 border border-emerald-400/30'
+                                  : 'bg-amber-400/15 text-amber-200 border border-amber-400/30'
+                              }`}
+                            >
+                              {isDone ? '✓ Lengkap' : '✗ Belum Diisi'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-400">
+                      {profileFilled === 6 ? (
+                        <span className="text-emerald-300 font-medium">✓ Siap mengikuti seluruh ujian</span>
+                      ) : (
+                        <span className="text-amber-300">Wajib diisi sebelum mulai</span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePopup(null);
+                        navigate('/peserta/profile');
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors shadow-xs cursor-pointer"
+                    >
+                      <span>Perbarui Profil</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </PesertaLayout>
   );
