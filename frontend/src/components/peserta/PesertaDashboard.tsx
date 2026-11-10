@@ -182,11 +182,15 @@ export default function PesertaDashboard() {
 
   // Floating Pop-up Modal State for Progress & Profile breakdown
   const [activePopup, setActivePopup] = useState<'stages' | 'profile' | null>(null);
+  const [isPinned, setIsPinned] = useState(false);
   const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleOpenPopup = (type: 'stages' | 'profile', e: React.MouseEvent<HTMLElement>) => {
-    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
     const rect = e.currentTarget.getBoundingClientRect();
     const modalWidth = 420;
     let left = rect.left;
@@ -206,10 +210,11 @@ export default function PesertaDashboard() {
   };
 
   const handleScheduleClose = () => {
+    if (isPinned) return; // Retain modal if user pinned it via click
     if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     closeTimeoutRef.current = setTimeout(() => {
       setActivePopup(null);
-    }, 220);
+    }, 350);
   };
 
   const handleCancelClose = () => {
@@ -219,13 +224,28 @@ export default function PesertaDashboard() {
     }
   };
 
-  const handleTogglePopup = (type: 'stages' | 'profile', e: React.MouseEvent<HTMLElement>) => {
+  const handleToggleClick = (type: 'stages' | 'profile', e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation();
-    if (activePopup === type) {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    if (activePopup === type && isPinned) {
       setActivePopup(null);
+      setIsPinned(false);
     } else {
       handleOpenPopup(type, e);
+      setIsPinned(true);
     }
+  };
+
+  const handleCloseModal = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setActivePopup(null);
+    setIsPinned(false);
   };
 
   useEffect(() => {
@@ -311,7 +331,7 @@ export default function PesertaDashboard() {
                         type="button"
                         onMouseEnter={(e) => handleOpenPopup('stages', e)}
                         onMouseLeave={handleScheduleClose}
-                        onClick={(e) => handleTogglePopup('stages', e)}
+                        onClick={(e) => handleToggleClick('stages', e)}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-sky-200 hover:text-white bg-sky-500/20 hover:bg-sky-500/35 border border-sky-300/35 rounded-lg transition-all cursor-pointer shadow-xs active:scale-95 group/btn"
                         title="Klik atau arahkan mouse untuk melihat rincian tahapan yang sudah selesai & belum"
                       >
@@ -351,7 +371,7 @@ export default function PesertaDashboard() {
                         type="button"
                         onMouseEnter={(e) => handleOpenPopup('profile', e)}
                         onMouseLeave={handleScheduleClose}
-                        onClick={(e) => handleTogglePopup('profile', e)}
+                        onClick={(e) => handleToggleClick('profile', e)}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-emerald-200 hover:text-white bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-300/35 rounded-lg transition-all cursor-pointer shadow-xs active:scale-95 group/btn"
                         title="Klik atau arahkan mouse untuk melihat rincian 6 poin data profil yang sudah diisi & belum"
                       >
@@ -785,7 +805,7 @@ export default function PesertaDashboard() {
         {activePopup && (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center sm:block"
-            onClick={() => setActivePopup(null)}
+            onClick={handleCloseModal}
           >
             {/* Backdrop: dim on mobile, transparent click-catcher on desktop */}
             <div className="fixed inset-0 bg-slate-950/60 sm:bg-black/20 backdrop-blur-[2px] sm:backdrop-blur-none transition-opacity" />
@@ -840,7 +860,7 @@ export default function PesertaDashboard() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setActivePopup(null)}
+                      onClick={handleCloseModal}
                       className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
                       title="Tutup"
                     >
@@ -938,7 +958,7 @@ export default function PesertaDashboard() {
                     <button
                       type="button"
                       onClick={() => {
-                        setActivePopup(null);
+                        handleCloseModal();
                         navigate('/peserta/asesmen');
                       }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-400 text-slate-950 transition-colors shadow-xs cursor-pointer"
@@ -976,7 +996,7 @@ export default function PesertaDashboard() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setActivePopup(null)}
+                      onClick={handleCloseModal}
                       className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
                       title="Tutup"
                     >
@@ -1078,7 +1098,7 @@ export default function PesertaDashboard() {
                     <button
                       type="button"
                       onClick={() => {
-                        setActivePopup(null);
+                        handleCloseModal();
                         navigate('/peserta/profile');
                       }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors shadow-xs cursor-pointer"
