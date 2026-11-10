@@ -59,6 +59,7 @@ interface AsesmenItem {
   currentStageNumber: number; // 1: Cek Perangkat, 2: CAT, 3: Wawancara, 4: Selesai
   score?: number;
   description: string;
+  isAssigned?: boolean;
   interviewInfo: {
     assessorName: string;
     mode: string;
@@ -79,8 +80,7 @@ export default function PesertaAsesmenList() {
     urlTab === 'coding' ? 'coding' : urlTab === 'materi' ? 'materi' : 'materi'
   );
 
-  const [viewMode, setViewMode] = useState<'lms' | 'catalog'>('lms');
-  const [filter, setFilter] = useState<'semua' | 'belum' | 'selesai'>('semua');
+  const [filter, setFilter] = useState<'semua' | 'aktif' | 'selesai'>('semua');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Course materials state for LMS view
@@ -210,39 +210,76 @@ export default function PesertaAsesmenList() {
 
   const isInterviewCompleted = serverInterview?.status === 'completed';
 
+  // Comprehensive list of assessment cards
   const programs: AsesmenItem[] = useMemo(() => {
-    return [
-      {
-        id: activeProg.id,
-        title: activeProg.title,
-        pt: activeProg.companyName,
-        category: activeProg.category,
-        status: isInterviewCompleted ? 'selesai' : isCatCompleted ? 'berjalan' : 'belum',
-        badgeStatus: isInterviewCompleted
-          ? 'Selesai • Hasil Wawancara Tersedia'
-          : isCatCompleted
-          ? 'CAT Selesai • Menuju Wawancara'
-          : 'Belum Dikerjakan • Sesi Aktif',
-        badgeVariant: isInterviewCompleted ? 'teal' : isCatCompleted ? 'navy' : 'warning',
-        duration: `${activeProg.durationMinutes} Menit`,
-        questions: `${activeProg.totalQuestions} Soal CAT`,
-        passingScore: activeProg.passingScore,
-        deadline: 'Hari ini, 23:59 WIB',
-        progress: isInterviewCompleted ? 100 : isCatCompleted ? 60 : 15,
-        currentStageNumber: isInterviewCompleted ? 4 : isCatCompleted ? 3 : 2,
-        score: serverInterview?.score ?? serverExam?.score ?? undefined,
-        description: activeProg.description,
-        interviewInfo: {
-          assessorName: 'Dr. Ir. Dwi Hartanto, M.Kom / Gemini AI Live',
-          mode: 'Live Video & Audio Interaktif',
-          duration: '45 Menit',
-          timing: 'Dilakukan setelah lulus/submit ujian CAT 40 soal',
-          correlationNote:
-            'Asesor akan memvalidasi penalaran studi kasus yang Anda jawab di lembar CAT serta mengukur kompetensi perilaku (BARS).'
-        }
+    // 1. Primary assigned program for active user
+    const primaryItem: AsesmenItem = {
+      id: activeProg.id,
+      title: activeProg.title,
+      pt: activeProg.companyName,
+      category: activeProg.category,
+      status: isInterviewCompleted ? 'selesai' : isCatCompleted ? 'berjalan' : 'belum',
+      badgeStatus: isInterviewCompleted
+        ? 'Selesai • Hasil Wawancara Tersedia'
+        : isCatCompleted
+        ? 'CAT Selesai • Menuju Wawancara'
+        : 'Sesi Aktif • Siap Dimulai',
+      badgeVariant: isInterviewCompleted ? 'teal' : isCatCompleted ? 'navy' : 'warning',
+      duration: `${activeProg.durationMinutes} Menit`,
+      questions: `${activeProg.totalQuestions} Soal CAT`,
+      passingScore: activeProg.passingScore,
+      deadline: 'Hari ini, 23:59 WIB',
+      progress: isInterviewCompleted ? 100 : isCatCompleted ? 60 : 25,
+      currentStageNumber: isInterviewCompleted ? 4 : isCatCompleted ? 3 : 2,
+      score: serverInterview?.score ?? serverExam?.score ?? undefined,
+      description: activeProg.description,
+      isAssigned: true,
+      interviewInfo: {
+        assessorName: 'Dr. Ir. Dwi Hartanto, M.Kom / Gemini AI Live',
+        mode: 'Live Video & Audio Interaktif',
+        duration: '45 Menit',
+        timing: 'Dilakukan setelah lulus/submit ujian CAT 40 soal',
+        correlationNote:
+          'Asesor akan memvalidasi penalaran studi kasus yang Anda jawab di lembar CAT serta mengukur kompetensi perilaku (BARS).'
       }
-    ];
+    };
+
+    // 2. All other assessment programs from the catalog
+    const allCatalog = getAllPrograms();
+    const otherItems: AsesmenItem[] = allCatalog
+      .filter((p) => p.id !== activeProg.id)
+      .map((p) => {
+        return {
+          id: p.id,
+          title: p.title,
+          pt: p.companyName,
+          category: p.category,
+          status: 'belum' as const,
+          badgeStatus: 'Terdaftar • Siap Dimulai',
+          badgeVariant: 'warning' as const,
+          duration: `${p.durationMinutes} Menit`,
+          questions: `${p.totalQuestions} Soal CAT`,
+          passingScore: p.passingScore,
+          deadline: 'Periode Aktif 2026',
+          progress: 0,
+          currentStageNumber: 1,
+          description: p.description,
+          isAssigned: false,
+          interviewInfo: {
+            assessorName: 'Dewan Asesor & Gemini AI Live',
+            mode: 'Live Video & Audio Interaktif',
+            duration: '45 Menit',
+            timing: 'Tahap 3 setelah ujian CAT',
+            correlationNote: 'Validasi pemahaman silabus, kompetensi BARS, dan kesesuaian formasi.'
+          }
+        };
+      });
+
+    return [primaryItem, ...otherItems];
   }, [activeProg, isCatCompleted, isInterviewCompleted, serverInterview?.score, serverExam?.score]);
+
+  // View state: if an ID is present in URL, view that program's LMS room; otherwise, view the Cards Grid!
+  const isViewingLmsRoom = Boolean(selectedProgramId);
 
   const currentProgram = useMemo(() => {
     if (selectedProgramId) {
@@ -250,6 +287,35 @@ export default function PesertaAsesmenList() {
     }
     return programs[0];
   }, [selectedProgramId, programs]);
+
+  const handleSelectProgram = (programId: string) => {
+    searchParams.set('id', programId);
+    setSearchParams(searchParams);
+  };
+
+  const handleBackToCards = () => {
+    searchParams.delete('id');
+    searchParams.delete('tab');
+    setSearchParams(searchParams);
+  };
+
+  const filteredPrograms = useMemo(() => {
+    return programs.filter((p) => {
+      if (filter === 'aktif' && p.status === 'selesai') return false;
+      if (filter === 'selesai' && p.status !== 'selesai') return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const match =
+          p.title.toLowerCase().includes(q) ||
+          p.id.toLowerCase().includes(q) ||
+          p.pt.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [programs, filter, searchQuery]);
 
   const filteredMaterials = useMemo(() => {
     const q = materiSearch.trim().toLowerCase();
@@ -279,10 +345,36 @@ export default function PesertaAsesmenList() {
     <PesertaLayout activeTab="asesmen">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 space-y-6 antialiased">
         {/* ═══════════════════════════════════════════════════════════
-            LMS MOODLE-STYLE COURSE ROOM
+            TAMPILAN 1: LMS MOODLE-STYLE COURSE ROOM (JIKA PROGRAM DIPILIH)
         ═══════════════════════════════════════════════════════════ */}
-        {viewMode === 'lms' && currentProgram ? (
+        {isViewingLmsRoom && currentProgram ? (
           <div className="space-y-6 animate-fadeIn">
+            {/* ─── Top Navigation Toolbar & Back to Cards ─── */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 sm:px-5 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <button
+                onClick={handleBackToCards}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-primary-navy text-xs sm:text-sm font-bold transition shadow-2xs cursor-pointer group"
+              >
+                <ArrowLeft className="w-4 h-4 text-primary-navy group-hover:-translate-x-1 transition-transform" />
+                <span>← Kembali ke Daftar Kartu Asesmen</span>
+              </button>
+
+              <div className="flex items-center gap-2.5 text-xs">
+                <span className="text-slate-500 hidden md:inline">Pindah Program Asesmen:</span>
+                <select
+                  value={currentProgram.id}
+                  onChange={(e) => handleSelectProgram(e.target.value)}
+                  className="bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-1.5 font-medium outline-hidden focus:border-primary-navy cursor-pointer shadow-2xs"
+                >
+                  {programs.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.id} — {p.title.length > 40 ? p.title.slice(0, 40) + '...' : p.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {/* ─── LMS Top Course Banner (Moodle Inspired) ─── */}
             <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
               <div className="bg-gradient-to-r from-primary-navy via-slate-900 to-primary-navy p-6 sm:p-8 text-white relative">
@@ -419,13 +511,13 @@ export default function PesertaAsesmenList() {
                   </button>
                 </div>
 
-                {/* Quick Action / Catalog Switcher */}
+                {/* Quick Action / Return to Cards View */}
                 <button
-                  onClick={() => setViewMode('catalog')}
+                  onClick={handleBackToCards}
                   className="text-xs font-semibold text-slate-500 hover:text-primary-navy py-2 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span>Lihat Katalog Semua Program</span>
+                  <span>Lihat Semua Kartu Asesmen ({programs.length})</span>
                 </button>
               </div>
             </div>
@@ -970,76 +1062,209 @@ export default function PesertaAsesmenList() {
             )}
           </div>
         ) : (
-          <div className="space-y-7 animate-fadeIn">
-            {/* ─── Header Title & Description ─── */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-primary-navy border border-blue-200/60 text-xs font-semibold mb-2">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-accent" />
-                  <span>Katalog Program Asesmen Right</span>
+          /* ═══════════════════════════════════════════════════════════
+              TAMPILAN 2: DAFTAR KARTU ASESMEN SAYA (CARDS VIEW)
+          ═══════════════════════════════════════════════════════════ */
+          <div className="space-y-6 animate-fadeIn">
+            {/* ─── Hero Header Asesmen Saya ─── */}
+            <div className="bg-gradient-to-r from-primary-navy via-slate-900 to-primary-navy rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xs">
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-semibold backdrop-blur-xs text-blue-100">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-300" />
+                    <span>Portal Peserta Seleksi &amp; Uji Kompetensi</span>
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold font-heading leading-tight tracking-tight">
+                    Asesmen Saya
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+                    Pilih kartu program asesmen di bawah untuk masuk ke ruang belajar terpadu (LMS), membaca master silabus, mengerjakan ujian soal CAT, dan live coding test.
+                  </p>
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
-                  Katalog Asesmen Enterprise
-                </h1>
-                <p className="text-sm text-muted-slate mt-1 max-w-2xl">
-                  Pilih program untuk membuka ruang LMS interaktif, membaca master silabus, mengerjakan soal CAT, dan live coding test.
-                </p>
-              </div>
 
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="primary"
-                  onClick={() => setViewMode('lms')}
-                  leftIcon={<BookOpen className="w-4 h-4" />}
-                  className="text-xs sm:text-sm font-bold"
-                >
-                  Buka Ruang Belajar LMS
-                </Button>
+                {/* Quick Stats Banner */}
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:p-5 shrink-0 min-w-[240px] space-y-2">
+                  <p className="text-xs font-bold text-blue-200">Total Program Terdaftar</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold text-white font-heading">{programs.length}</span>
+                    <span className="text-xs text-blue-200">Program Asesmen</span>
+                  </div>
+                  <div className="pt-2 border-t border-white/15 flex items-center justify-between text-[11px] text-blue-100">
+                    <span>{programs.filter((p) => p.status === 'selesai').length} Selesai</span>
+                    <span>•</span>
+                    <span className="text-emerald-300 font-semibold">
+                      {programs.filter((p) => p.status !== 'selesai').length} Aktif / Tersedia
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Catalog Grid Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {programs.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs hover:shadow-md hover:border-accent-border transition-all space-y-4 flex flex-col justify-between"
+            {/* ─── Search & Status Filter Bar ─── */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari judul program, kode (SE-402, BMRI...), instansi, atau topik..."
+                  className="w-full pl-10 pr-8 py-2.5 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 focus:border-primary-navy rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 transition outline-hidden focus:ring-2 focus:ring-primary-navy/20"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 shrink-0">
+                {[
+                  { key: 'semua', label: 'Semua Program', count: programs.length },
+                  { key: 'aktif', label: 'Aktif / Berjalan', count: programs.filter((p) => p.status !== 'selesai').length },
+                  { key: 'selesai', label: 'Selesai', count: programs.filter((p) => p.status === 'selesai').length }
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setFilter(tab.key as any)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                      filter === tab.key
+                        ? 'bg-primary-navy text-white shadow-xs'
+                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/70'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                        filter === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ─── Grid Kartu Asesmen ─── */}
+            {filteredPrograms.length === 0 ? (
+              <div className="bg-white rounded-3xl border border-slate-200/90 p-12 text-center space-y-3">
+                <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
+                  <Search className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-slate-800 text-sm">Tidak Ada Program Asesmen yang Cocok</h3>
+                <p className="text-xs text-slate-500">Coba ubah kata kunci pencarian atau ganti filter status di atas.</p>
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setFilter('semua');
+                  }}
+                  className="text-xs font-bold text-primary-navy hover:underline pt-2 cursor-pointer"
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-2.5 py-1 rounded-lg border border-accent-border">
-                        {item.id}
-                      </span>
-                      <Badge variant={item.badgeVariant}>{item.badgeStatus}</Badge>
+                  Reset Filter &amp; Pencarian
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredPrograms.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleSelectProgram(item.id)}
+                    className="group bg-white rounded-3xl border border-slate-200/90 hover:border-primary-navy/40 p-6 shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col justify-between cursor-pointer relative overflow-hidden"
+                  >
+                    {item.isAssigned && (
+                      <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-amber-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-2xs flex items-center gap-1">
+                        <span>★ Ditugaskan</span>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      {/* Header Badges */}
+                      <div className="flex items-center justify-between gap-2 pr-16">
+                        <span className="font-mono text-xs font-bold text-primary-navy bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200/60">
+                          {item.id}
+                        </span>
+                        <Badge variant={item.badgeVariant}>{item.badgeStatus}</Badge>
+                      </div>
+
+                      {/* Company & Title */}
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{item.pt}</span>
+                        </p>
+                        <h3 className="font-heading font-extrabold text-base text-slate-900 group-hover:text-primary-navy transition-colors mt-1.5 line-clamp-2 leading-snug">
+                          {item.title}
+                        </h3>
+                      </div>
+
+                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                        {item.description}
+                      </p>
+
+                      {/* Feature Component Badges */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div className="bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200/70 text-[11px] font-medium text-slate-700 flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="truncate">Silabus &amp; BARS</span>
+                        </div>
+                        <div className="bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200/70 text-[11px] font-medium text-slate-700 flex items-center gap-1.5">
+                          <FileCheck2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="truncate">{item.questions}</span>
+                        </div>
+                        <div className="bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200/70 text-[11px] font-medium text-slate-700 flex items-center gap-1.5">
+                          <Code2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span className="truncate">Judge0 IDE</span>
+                        </div>
+                        <div className="bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200/70 text-[11px] font-medium text-slate-700 flex items-center gap-1.5">
+                          <Video className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span className="truncate">Wawancara AI</span>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="space-y-1.5 pt-2">
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                          <span>Progres Asesmen</span>
+                          <span className="font-mono font-bold text-slate-800">{item.progress}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-primary-navy to-blue-500 rounded-full transition-all"
+                            style={{ width: `${item.progress}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
 
-                    <h3 className="font-heading font-bold text-base text-ink line-clamp-2">
-                      {item.title}
-                    </h3>
-
-                    <p className="text-xs text-slate-500 line-clamp-2">
-                      {item.description}
-                    </p>
+                    {/* Card Footer */}
+                    <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+                      <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        {item.duration}
+                      </span>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectProgram(item.id);
+                        }}
+                        className="text-xs font-bold rounded-xl py-2 px-3.5 flex items-center gap-1.5 group-hover:bg-slate-800 cursor-pointer shadow-xs"
+                      >
+                        <span>Masuk ke Ruang Asesmen</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                      </Button>
+                    </div>
                   </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-600">{item.pt}</span>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => {
-                        searchParams.set('id', item.id);
-                        setSearchParams(searchParams);
-                        setViewMode('lms');
-                      }}
-                      className="text-xs font-bold"
-                    >
-                      Buka Ruang LMS →
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
