@@ -56,7 +56,6 @@ app.use(
   express.static(path.join(frontendDist, 'assets'), {
     maxAge: '1y',
     immutable: true,
-    fallthrough: false, // If an asset is missing, do NOT fall through to SPA HTML fallback!
   })
 );
 
@@ -152,8 +151,12 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
 
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+  const statusCode = err.status || err.statusCode || 500;
+  if (statusCode === 404) {
+    return res.status(404).setHeader('Cache-Control', 'no-cache, no-store, must-revalidate').send('File not found');
+  }
+  console.error(err.stack || err);
+  res.status(statusCode).json({ error: err.message || 'Terjadi kesalahan pada server' });
 });
 
 server.listen(port, () => {
