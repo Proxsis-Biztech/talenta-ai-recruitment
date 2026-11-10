@@ -14,6 +14,7 @@ export interface PesertaUser {
   companyName: string;
   assessmentId: string;
   assessmentTitle: string;
+  assignedProgramIds?: string[];
   gradeLevel: 'Grade C (Junior)' | 'Grade B (Specialist / Mid)' | 'Grade A (Lead / Senior)';
   scheduleDate: string;
   status: 'Belum Mulai' | 'Siap Ujian' | 'Sedang Mengerjakan' | 'Selesai';
@@ -43,6 +44,7 @@ export interface AuthSessionUser {
   companyId?: string;
   companyName?: string;
   assessmentId?: string;
+  assignedProgramIds?: string[];
   assessmentTitle?: string;
   gradeLevel?: string;
   specialization?: string;
@@ -536,6 +538,7 @@ export function getActiveSessionUser(): AuthSessionUser {
         companyName: portal.companyName || undefined,
         assessmentId: portal.assessmentId || undefined,
         assessmentTitle: portal.assessmentTitle || undefined,
+        assignedProgramIds: portal.assignedProgramIds || (portal.assessmentId ? [portal.assessmentId] : undefined),
         gradeLevel: portal.gradeLevel || undefined,
         specialization: portal.specialization || undefined
       };

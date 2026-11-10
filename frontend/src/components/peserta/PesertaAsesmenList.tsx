@@ -33,11 +33,14 @@ import {
   Download,
   ListChecks,
   Eye,
-  GraduationCap
+  GraduationCap,
+  FileCode,
+  Camera,
+  UserCheck
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge, Card } from '../ui';
-import { getActiveSessionUser } from '../../services/userRegistryService';
+import { getActiveSessionUser, getAllPesertaUsers } from '../../services/userRegistryService';
 import { getProgramById, getAllPrograms } from '../../services/assessmentCatalog';
 import { getPortalToken } from '../../services/portalAuthService';
 import { INITIAL_MATERI_LIST, type MasterMateriItem } from '../admin/AdminMasterMateriTree';
@@ -75,10 +78,17 @@ export default function PesertaAsesmenList() {
   const selectedProgramId = searchParams.get('id');
   const urlTab = searchParams.get('tab') as 'materi' | 'ujian' | 'coding' | null;
 
-  // Active LMS tab (materi, ujian CAT, live coding test)
-  const [activeLmsTab, setActiveLmsTab] = useState<'materi' | 'ujian' | 'coding'>(
-    urlTab === 'coding' ? 'coding' : urlTab === 'materi' ? 'materi' : 'materi'
-  );
+  // Active LMS tab: 1. Materi & Silabus, 2. Ujian Teknis (CAT & Code), 3. Wawancara Asesor
+  const [activeLmsTab, setActiveLmsTab] = useState<'materi' | 'ujian' | 'wawancara'>(() => {
+    if (urlTab === 'ujian' || (urlTab as any) === 'wawancara') return urlTab as any;
+    if (urlTab === 'coding') return 'ujian';
+    return 'materi';
+  });
+
+  // Inner sub-section inside Ujian Teknis: CAT (40 Soal) vs Live Coding (Judge0)
+  const [technicalSubSection, setTechnicalSubSection] = useState<'cat' | 'coding'>(() => {
+    return urlTab === 'coding' ? 'coding' : 'cat';
+  });
 
   const [filter, setFilter] = useState<'semua' | 'aktif' | 'selesai'>('semua');
   const [searchQuery, setSearchQuery] = useState('');
@@ -189,12 +199,15 @@ export default function PesertaAsesmenList() {
 
   // Sync tab with URL
   useEffect(() => {
-    if (urlTab && ['materi', 'ujian', 'coding'].includes(urlTab)) {
-      setActiveLmsTab(urlTab);
+    if (urlTab && ['materi', 'ujian', 'wawancara'].includes(urlTab)) {
+      setActiveLmsTab(urlTab as any);
+    } else if (urlTab === 'coding') {
+      setActiveLmsTab('ujian');
+      setTechnicalSubSection('coding');
     }
   }, [urlTab]);
 
-  const handleTabChange = (tab: 'materi' | 'ujian' | 'coding') => {
+  const handleTabChange = (tab: 'materi' | 'ujian' | 'wawancara') => {
     setActiveLmsTab(tab);
     searchParams.set('tab', tab);
     setSearchParams(searchParams, { replace: true });
@@ -210,73 +223,95 @@ export default function PesertaAsesmenList() {
 
   const isInterviewCompleted = serverInterview?.status === 'completed';
 
-  // Comprehensive list of assessment cards
+  // Comprehensive list of assessment cards ASSIGNED specifically to this candidate
   const programs: AsesmenItem[] = useMemo(() => {
-    // 1. Primary assigned program for active user
-    const primaryItem: AsesmenItem = {
-      id: activeProg.id,
-      title: activeProg.title,
-      pt: activeProg.companyName,
-      category: activeProg.category,
-      status: isInterviewCompleted ? 'selesai' : isCatCompleted ? 'berjalan' : 'belum',
-      badgeStatus: isInterviewCompleted
-        ? 'Selesai • Hasil Wawancara Tersedia'
-        : isCatCompleted
-        ? 'CAT Selesai • Menuju Wawancara'
-        : 'Sesi Aktif • Siap Dimulai',
-      badgeVariant: isInterviewCompleted ? 'teal' : isCatCompleted ? 'navy' : 'warning',
-      duration: `${activeProg.durationMinutes} Menit`,
-      questions: `${activeProg.totalQuestions} Soal CAT`,
-      passingScore: activeProg.passingScore,
-      deadline: 'Hari ini, 23:59 WIB',
-      progress: isInterviewCompleted ? 100 : isCatCompleted ? 60 : 25,
-      currentStageNumber: isInterviewCompleted ? 4 : isCatCompleted ? 3 : 2,
-      score: serverInterview?.score ?? serverExam?.score ?? undefined,
-      description: activeProg.description,
-      isAssigned: true,
-      interviewInfo: {
-        assessorName: 'Dr. Ir. Dwi Hartanto, M.Kom / Gemini AI Live',
-        mode: 'Live Video & Audio Interaktif',
-        duration: '45 Menit',
-        timing: 'Dilakukan setelah lulus/submit ujian CAT 40 soal',
-        correlationNote:
-          'Asesor akan memvalidasi penalaran studi kasus yang Anda jawab di lembar CAT serta mengukur kompetensi perilaku (BARS).'
-      }
-    };
+    // 1. Find all program IDs assigned to the active candidate
+    const allPeserta = getAllPesertaUsers();
+    const currentPeserta = allPeserta.find(
+      (p) =>
+        (activeUser.id && p.id === activeUser.id) ||
+        (activeUser.username && p.username.toLowerCase() === activeUser.username.toLowerCase())
+    );
 
-    // 2. All other assessment programs from the catalog
+    const assignedIds = new Set<string>();
+    if (activeProg?.id) assignedIds.add(activeProg.id);
+    if (activeUser?.assessmentId) assignedIds.add(activeUser.assessmentId);
+    if (activeUser?.assignedProgramIds && Array.isArray(activeUser.assignedProgramIds)) {
+      activeUser.assignedProgramIds.forEach((id) => assignedIds.add(id));
+    }
+    if (currentPeserta?.assessmentId) assignedIds.add(currentPeserta.assessmentId);
+    if (currentPeserta?.assignedProgramIds && Array.isArray(currentPeserta.assignedProgramIds)) {
+      currentPeserta.assignedProgramIds.forEach((id) => assignedIds.add(id));
+    }
+
     const allCatalog = getAllPrograms();
-    const otherItems: AsesmenItem[] = allCatalog
-      .filter((p) => p.id !== activeProg.id)
-      .map((p) => {
-        return {
-          id: p.id,
-          title: p.title,
-          pt: p.companyName,
-          category: p.category,
-          status: 'belum' as const,
+    const items: AsesmenItem[] = [];
+
+    assignedIds.forEach((pId) => {
+      const isPrimary = pId === activeProg.id;
+      const catalogData = allCatalog.find((c) => c.id === pId);
+
+      if (isPrimary) {
+        items.push({
+          id: activeProg.id,
+          title: activeProg.title,
+          pt: activeProg.companyName,
+          category: activeProg.category,
+          status: isInterviewCompleted ? 'selesai' : isCatCompleted ? 'berjalan' : 'belum',
+          badgeStatus: isInterviewCompleted
+            ? 'Selesai • Hasil Wawancara Tersedia'
+            : isCatCompleted
+            ? 'CAT Selesai • Menuju Wawancara'
+            : 'Sesi Aktif • Siap Dimulai',
+          badgeVariant: isInterviewCompleted ? 'teal' : isCatCompleted ? 'navy' : 'warning',
+          duration: `${activeProg.durationMinutes} Menit`,
+          questions: `${activeProg.totalQuestions} Soal CAT`,
+          passingScore: activeProg.passingScore,
+          deadline: 'Hari ini, 23:59 WIB',
+          progress: isInterviewCompleted ? 100 : isCatCompleted ? 60 : 25,
+          currentStageNumber: isInterviewCompleted ? 4 : isCatCompleted ? 3 : 2,
+          score: serverInterview?.score ?? serverExam?.score ?? undefined,
+          description: activeProg.description,
+          isAssigned: true,
+          interviewInfo: {
+            assessorName: 'Dr. Ir. Dwi Hartanto, M.Kom / Gemini AI Live',
+            mode: 'Live Video & Audio Interaktif',
+            duration: '45 Menit',
+            timing: 'Dilakukan setelah lulus/submit ujian CAT & Live Coding',
+            correlationNote:
+              'Asesor akan memvalidasi penalaran studi kasus yang Anda jawab di lembar CAT serta menguji arsitektur kode di live coding.'
+          }
+        });
+      } else if (catalogData) {
+        items.push({
+          id: catalogData.id,
+          title: catalogData.title,
+          pt: catalogData.companyName,
+          category: catalogData.category,
+          status: 'belum',
           badgeStatus: 'Terdaftar • Siap Dimulai',
-          badgeVariant: 'warning' as const,
-          duration: `${p.durationMinutes} Menit`,
-          questions: `${p.totalQuestions} Soal CAT`,
-          passingScore: p.passingScore,
+          badgeVariant: 'warning',
+          duration: `${catalogData.durationMinutes} Menit`,
+          questions: `${catalogData.totalQuestions} Soal CAT`,
+          passingScore: catalogData.passingScore,
           deadline: 'Periode Aktif 2026',
           progress: 0,
           currentStageNumber: 1,
-          description: p.description,
-          isAssigned: false,
+          description: catalogData.description,
+          isAssigned: true,
           interviewInfo: {
-            assessorName: 'Dewan Asesor & Gemini AI Live',
+            assessorName: 'Dewan Asesor Terakreditasi',
             mode: 'Live Video & Audio Interaktif',
             duration: '45 Menit',
-            timing: 'Tahap 3 setelah ujian CAT',
+            timing: 'Tahap 3 setelah ujian teknis',
             correlationNote: 'Validasi pemahaman silabus, kompetensi BARS, dan kesesuaian formasi.'
           }
-        };
-      });
+        });
+      }
+    });
 
-    return [primaryItem, ...otherItems];
-  }, [activeProg, isCatCompleted, isInterviewCompleted, serverInterview?.score, serverExam?.score]);
+    return items;
+  }, [activeProg, activeUser, isCatCompleted, isInterviewCompleted, serverInterview?.score, serverExam?.score]);
 
   // View state: if an ID is present in URL, view that program's LMS room; otherwise, view the Cards Grid!
   const isViewingLmsRoom = Boolean(selectedProgramId);
@@ -431,19 +466,19 @@ export default function PesertaAsesmenList() {
                         <span>Materi</span>
                       </div>
                       <div className="bg-white/5 py-1 px-1.5 rounded-lg border border-white/10">
-                        <span className="block font-bold text-white">{isCatCompleted ? 'Lulus' : 'Siap'}</span>
-                        <span>Ujian CAT</span>
+                        <span className="block font-bold text-white">{isCatCompleted ? 'Lulus' : 'Uji CAT & Code'}</span>
+                        <span>Tes Teknis</span>
                       </div>
                       <div className="bg-white/5 py-1 px-1.5 rounded-lg border border-white/10">
-                        <span className="block font-bold text-white">Online</span>
-                        <span>Live Code</span>
+                        <span className="block font-bold text-white">{isInterviewCompleted ? 'Selesai' : 'Tahap 3'}</span>
+                        <span>Wawancara</span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* ─── LMS Main Navigation Tabs (Moodle Course Hub) ─── */}
+              {/* ─── LMS Main Navigation Tabs (3-Stage LMS Hub) ─── */}
               <div className="bg-slate-50/90 px-6 sm:px-8 border-b border-slate-200/90 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2 py-3">
                   {/* Tab 1: Materi & Master Silabus */}
@@ -466,7 +501,7 @@ export default function PesertaAsesmenList() {
                     </span>
                   </button>
 
-                  {/* Tab 2: Ujian Soal CAT */}
+                  {/* Tab 2: Ujian Teknis (CAT & Live Code) */}
                   <button
                     onClick={() => handleTabChange('ujian')}
                     className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
@@ -475,38 +510,42 @@ export default function PesertaAsesmenList() {
                         : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                     }`}
                   >
-                    <FileCheck2 className="w-4 h-4" />
-                    <span>2. Ujian Soal CAT (40 Soal)</span>
+                    <FileCode className="w-4 h-4" />
+                    <span>2. Ujian Teknis (CAT &amp; Live Code)</span>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                         activeLmsTab === 'ujian'
                           ? 'bg-white/20 text-white'
                           : isCatCompleted
                           ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-slate-100 text-slate-600'
+                          : 'bg-blue-50 text-blue-700'
                       }`}
                     >
-                      {isCatCompleted ? '✓ Selesai' : 'Siap Mulai'}
+                      {isCatCompleted ? '✓ CAT Selesai' : 'CAT + Judge0'}
                     </span>
                   </button>
 
-                  {/* Tab 3: Live Coding Test (Judge0 Prototype) */}
+                  {/* Tab 3: Sesi Wawancara (Asesor & AI) */}
                   <button
-                    onClick={() => handleTabChange('coding')}
+                    onClick={() => handleTabChange('wawancara')}
                     className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                      activeLmsTab === 'coding'
+                      activeLmsTab === 'wawancara'
                         ? 'bg-primary-navy text-white shadow-xs'
                         : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                     }`}
                   >
-                    <Code2 className="w-4 h-4" />
-                    <span>3. Live Coding Test</span>
+                    <Video className="w-4 h-4" />
+                    <span>3. Sesi Wawancara (Asesor &amp; AI)</span>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        activeLmsTab === 'coding' ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        activeLmsTab === 'wawancara'
+                          ? 'bg-white/20 text-white'
+                          : isInterviewCompleted
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-amber-50 text-amber-700'
                       }`}
                     >
-                      Judge0 IDE
+                      {isInterviewCompleted ? '✓ Selesai' : 'Live Asesor'}
                     </span>
                   </button>
                 </div>
@@ -517,7 +556,7 @@ export default function PesertaAsesmenList() {
                   className="text-xs font-semibold text-slate-500 hover:text-primary-navy py-2 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span>Lihat Semua Kartu Asesmen ({programs.length})</span>
+                  <span>Kembali ke Kartu Asesmen</span>
                 </button>
               </div>
             </div>
@@ -720,20 +759,26 @@ export default function PesertaAsesmenList() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleTabChange('coding')}
+                              onClick={() => {
+                                handleTabChange('ujian');
+                                setTechnicalSubSection('coding');
+                              }}
                               leftIcon={<Code2 className="w-3.5 h-3.5" />}
-                              className="text-xs"
+                              className="text-xs cursor-pointer"
                             >
                               Live Coding Test
                             </Button>
                             <Button
                               variant="primary"
                               size="sm"
-                              onClick={() => handleTabChange('ujian')}
+                              onClick={() => {
+                                handleTabChange('ujian');
+                                setTechnicalSubSection('cat');
+                              }}
                               rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                              className="text-xs font-bold"
+                              className="text-xs font-bold cursor-pointer"
                             >
-                              Lanjut ke Ujian CAT
+                              Lanjut ke Ujian Teknis (CAT &amp; Code)
                             </Button>
                           </div>
                         </div>
@@ -750,10 +795,53 @@ export default function PesertaAsesmenList() {
             )}
 
             {/* ═══════════════════════════════════════════════════════════
-                TAB 2: UJIAN SOAL CAT (Computer Adaptive Test)
+                TAB 2: UJIAN TEKNIS (CAT 40 SOAL & LIVE CODING JUDGE0)
             ═══════════════════════════════════════════════════════════ */}
             {activeLmsTab === 'ujian' && (
               <div className="space-y-6 animate-fadeIn">
+                {/* Sub-Navigation Switcher between CAT & Live Coding */}
+                <div className="bg-white rounded-2xl border border-slate-200/90 p-2.5 sm:p-3 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setTechnicalSubSection('cat')}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                        technicalSubSection === 'cat'
+                          ? 'bg-primary-navy text-white shadow-xs'
+                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/70'
+                      }`}
+                    >
+                      <FileCheck2 className="w-4 h-4" />
+                      <span>Bagian 1: Soal Ujian CAT (40 Butir)</span>
+                      {isCatCompleted && (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-bold">
+                          ✓ Selesai
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setTechnicalSubSection('coding')}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                        technicalSubSection === 'coding'
+                          ? 'bg-primary-navy text-white shadow-xs'
+                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/70'
+                      }`}
+                    >
+                      <Code2 className="w-4 h-4" />
+                      <span>Bagian 2: Live Coding Test (Judge0)</span>
+                      <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-mono font-bold">
+                        IDE
+                      </span>
+                    </button>
+                  </div>
+
+                  <span className="text-xs text-slate-500 font-medium px-2 hidden sm:inline">
+                    Tahap 2: Evaluasi Kompetensi Hard Skills Terpadu
+                  </span>
+                </div>
+
+                {technicalSubSection === 'cat' ? (
+                  <div className="space-y-6">
                 {/* Main Detail Assessment Card */}
                 <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
                   {/* Top Row: Meta, Company, Status Badge */}
@@ -1021,45 +1109,251 @@ export default function PesertaAsesmenList() {
                     </div>
                     <h4 className="text-xs sm:text-sm font-bold text-slate-900">Validasi Wawancara Langsung</h4>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      Setelah submit CAT, Anda akan langsung diarahkan ke antrean wawancara bersama asesor atau Gemini AI Live.
+                      Setelah submit CAT &amp; Coding, Anda akan langsung diarahkan ke antrean wawancara bersama dewan asesor.
                     </p>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* ═══════════════════════════════════════════════════════════
-                TAB 3: LIVE CODING TEST (PROTOTYPE JUDGE0)
-            ═══════════════════════════════════════════════════════════ */}
-            {activeLmsTab === 'coding' && (
-              <div className="space-y-4 animate-fadeIn">
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        JUDGE0 SANDBOX
-                      </span>
-                      <Badge variant="teal" format="soft">Prototype Evaluation Engine</Badge>
+                {/* Bottom Next Step Bar to Live Coding */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h4 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                      <Code2 className="w-4 h-4 text-blue-600" />
+                      <span>Lanjut ke Bagian 2: Uji Praktik Pemrograman (Live Coding Test)</span>
+                    </h4>
+                    <p className="text-xs text-slate-600">
+                      Uji kemampuan algoritma, problem solving terapan, dan struktur kode interaktif menggunakan compiler Judge0.
+                    </p>
+                  </div>
+                  <Button
+                    variant="primary"
+                    onClick={() => setTechnicalSubSection('coding')}
+                    className="text-xs font-bold shrink-0 flex items-center gap-1.5 rounded-xl cursor-pointer"
+                  >
+                    <span>Buka Live Coding (Judge0)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+                /* Section 2: Live Coding Test */
+                <div className="space-y-4">
+                  <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                          JUDGE0 SANDBOX
+                        </span>
+                        <Badge variant="teal" format="soft">Prototype Evaluation Engine</Badge>
+                      </div>
+                      <h2 className="font-heading font-extrabold text-base sm:text-lg text-slate-900">
+                        Bagian 2: Live Coding &amp; Algorithmic Assessment
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Uji kemampuan problem solving, data structures, dan arsitektur kode secara interaktif dengan engine Judge0.
+                      </p>
                     </div>
-                    <h2 className="font-heading font-extrabold text-base sm:text-lg text-slate-900">
-                      Live Coding &amp; Algorithmic Assessment
+
+                    <div className="flex items-center gap-3 text-xs text-slate-600 font-mono">
+                      <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                        <Cpu className="w-3.5 h-3.5 text-slate-500" />
+                        Isolated Container
+                      </span>
+                    </div>
+                  </div>
+
+                  <PesertaLiveCodingJudge0 programTitle={currentProgram.title} />
+
+                  {/* Bottom CTA to go to Stage 3 (Wawancara) */}
+                  <div className="mt-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <h4 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                        <Video className="w-4 h-4 text-amber-600" />
+                        <span>Ujian Teknis Selesai? Lanjut ke Tahap 3: Wawancara Tatap Muka</span>
+                      </h4>
+                      <p className="text-xs text-slate-600">
+                        Dewan Asesor akan memvalidasi penalaran hasil CAT dan arsitektur kode Anda pada sesi Wawancara Kompetensi BARS.
+                      </p>
+                    </div>
+                    <Button
+                      variant="primary"
+                      onClick={() => handleTabChange('wawancara')}
+                      className="text-xs font-bold shrink-0 flex items-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 cursor-pointer text-white"
+                    >
+                      <span>Lanjut ke Tahap 3: Wawancara</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════
+              TAB 3: SESI WAWANCARA (ASESOR & AI LIVE)
+          ═══════════════════════════════════════════════════════════ */}
+          {activeLmsTab === 'wawancara' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
+                {/* Top Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs font-bold text-amber-800 mb-2">
+                      <Video className="w-3.5 h-3.5" />
+                      <span>Tahap 3: Wawancara Kompetensi &amp; Perilaku (BARS)</span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-extrabold font-heading text-slate-900">
+                      Sesi Wawancara Tatap Muka Asesor
                     </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Uji kemampuan problem solving, data structures, dan arsitektur kode secara interaktif dengan engine Judge0.
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                      Pada tahap ini, Dewan Asesor akan menggali lebih dalam penalaran teknis yang telah Anda selesaikan pada lembar CAT dan Live Coding, serta menilai kompetensi perilaku dan kepemimpinan.
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3 text-xs text-slate-600 font-mono">
-                    <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                      <Cpu className="w-3.5 h-3.5 text-slate-500" />
-                      Isolated Container
-                    </span>
+                  {/* Status Pill */}
+                  <div className="shrink-0">
+                    {isInterviewCompleted ? (
+                      <div className="bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-2xl text-center">
+                        <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5 justify-center">
+                          <CheckCircle2 className="w-4 h-4" /> Sesi Wawancara Selesai
+                        </span>
+                        <p className="text-[11px] text-emerald-600 mt-0.5">Hasil telah tercatat dalam LHA</p>
+                      </div>
+                    ) : isCatCompleted ? (
+                      <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-2xl text-center">
+                        <span className="text-xs font-bold text-primary-navy flex items-center gap-1.5 justify-center">
+                          <Sparkles className="w-4 h-4 text-blue-600" /> Siap Masuk Ruang Wawancara
+                        </span>
+                        <p className="text-[11px] text-blue-600 mt-0.5">Asesor siap di ruang live</p>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50 border border-amber-200 px-4 py-2 rounded-2xl text-center">
+                        <span className="text-xs font-bold text-amber-800 flex items-center gap-1.5 justify-center">
+                          <Clock className="w-4 h-4" /> Menunggu Ujian Teknis
+                        </span>
+                        <p className="text-[11px] text-amber-600 mt-0.5">Selesaikan CAT &amp; Coding dahulu</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <PesertaLiveCodingJudge0 programTitle={currentProgram.title} />
+                {/* Grid Info Asesor & Jadwal */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/70 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                        AS
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Dewan Asesor Penguji</p>
+                        <h4 className="font-heading font-extrabold text-sm text-slate-900">
+                          {currentProgram.interviewInfo?.assessorName || 'Dr. Ir. Dwi Hartanto, M.Kom'}
+                        </h4>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Lead Evaluator &amp; Asesor Kompetensi Nasional tersertifikasi BARS.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/70 space-y-3">
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Format &amp; Durasi</p>
+                      <h4 className="font-heading font-extrabold text-sm text-slate-900 mt-0.5">
+                        Live Video, Audio &amp; Screen Share
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <Clock className="w-4 h-4 text-slate-400" />
+                      <span>Alokasi Durasi: <strong>45 Menit</strong></span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/70 space-y-3">
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pengawasan &amp; Integritas</p>
+                      <h4 className="font-heading font-extrabold text-sm text-slate-900 mt-0.5">
+                        AI Proctoring &amp; UU PDP
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>Enkripsi TLS 1.3 &amp; Rekaman Aman</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rubrik BARS & Pokok Bahasan */}
+                <div className="bg-blue-50/50 rounded-2xl p-5 sm:p-6 border border-blue-100 space-y-4">
+                  <div className="flex items-center gap-2 text-primary-navy font-heading font-bold text-sm">
+                    <BookOpen className="w-4 h-4" />
+                    <span>Fokus Rubrik Penilaian Wawancara (Standar BARS 1-5):</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-700">
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-200/50 flex items-start gap-2.5">
+                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">1</span>
+                      <div>
+                        <strong className="text-slate-900">Validasi Arsitektur &amp; Jawaban CAT:</strong>
+                        <p className="text-slate-500 mt-0.5">Asesor memverifikasi kedalaman logika dan alasan pemilihan solusi pada lembar ujian Anda.</p>
+                      </div>
+                    </div>
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-200/50 flex items-start gap-2.5">
+                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">2</span>
+                      <div>
+                        <strong className="text-slate-900">Pembahasan Code Live (Judge0):</strong>
+                        <p className="text-slate-500 mt-0.5">Penjelasan kompleksitas Big-O, edge cases, error handling, dan struktur kode yang dibuat.</p>
+                      </div>
+                    </div>
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-200/50 flex items-start gap-2.5">
+                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">3</span>
+                      <div>
+                        <strong className="text-slate-900">Kompetensi Perilaku &amp; Problem Solving:</strong>
+                        <p className="text-slate-500 mt-0.5">Penilaian kemampuan menghadapi insiden krisis produksi, kolaborasi tim, dan adaptabilitas.</p>
+                      </div>
+                    </div>
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-200/50 flex items-start gap-2.5">
+                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">4</span>
+                      <div>
+                        <strong className="text-slate-900">Integritas &amp; Kepatuhan Standar:</strong>
+                        <p className="text-slate-500 mt-0.5">Kesesuaian dengan pakta integritas dan standar etika profesional institusi penguji.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100">
+                  <button
+                    onClick={() => navigate('/peserta/device-check')}
+                    className="text-xs font-semibold text-slate-600 hover:text-primary-navy flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4 text-slate-400" />
+                    <span>Uji Kesiapan Kamera &amp; Mikrofon (Device Check)</span>
+                  </button>
+
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate(`/peserta/waiting-room?id=${currentProgram.id}`)}
+                      className="w-full sm:w-auto text-xs font-bold rounded-xl cursor-pointer"
+                    >
+                      Masuk Ruang Tunggu (Waiting Room)
+                    </Button>
+
+                    <Button
+                      variant="primary"
+                      onClick={() => navigate(`/peserta/wawancara?id=${currentProgram.id}`)}
+                      className="w-full sm:w-auto text-xs font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                    >
+                      <Video className="w-4 h-4" />
+                      <span>Mulai Wawancara Tatap Muka</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
+          )}
           </div>
         ) : (
           /* ═══════════════════════════════════════════════════════════
@@ -1078,7 +1372,7 @@ export default function PesertaAsesmenList() {
                     Asesmen Saya
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-                    Pilih kartu program asesmen di bawah untuk masuk ke ruang belajar terpadu (LMS), membaca master silabus, mengerjakan ujian soal CAT, dan live coding test.
+                    Daftar program asesmen resmi yang ditugaskan khusus kepada Anda. Masuk ke ruang asesmen untuk membaca master silabus, mengikuti ujian teknis (CAT &amp; Live Coding), dan sesi wawancara tatap muka bersama asesor.
                   </p>
                 </div>
 
