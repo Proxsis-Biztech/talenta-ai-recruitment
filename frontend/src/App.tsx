@@ -6,62 +6,175 @@ import { RequireProfileComplete } from './components/auth/RequireProfileComplete
 import { RequireDeviceCheck } from './components/auth/RequireDeviceCheck';
 import { RequireFaceVerified } from './components/auth/RequireFaceVerified';
 
+/**
+ * Wraps dynamic React component imports with automatic chunk reload retry.
+ * When a deployment replaces chunks on Coolify, an open tab navigating to a route
+ * with an outdated chunk hash will automatically refresh to fetch the latest bundle.
+ */
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  componentFactory: () => Promise<{ default: T }>,
+  keyName: string
+): React.LazyExoticComponent<T> {
+  return lazy(async () => {
+    const storageKey = `right_chunk_retry_${keyName}`;
+    try {
+      const module = await componentFactory();
+      sessionStorage.removeItem(storageKey);
+      return module;
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error || '');
+      const isChunkError =
+        errorMsg.includes('Failed to fetch dynamically imported module') ||
+        errorMsg.includes('error loading dynamically imported module') ||
+        errorMsg.includes('Importing a module script failed') ||
+        errorMsg.includes('Loading chunk') ||
+        errorMsg.includes('SyntaxError: Unexpected token');
+
+      const alreadyRetried = sessionStorage.getItem(storageKey);
+      if (isChunkError && !alreadyRetried) {
+        sessionStorage.setItem(storageKey, 'true');
+        console.warn(`[LazyRetry] Dynamic chunk expired for ${keyName}, reloading to latest build...`);
+        window.location.reload();
+        // Return a never-resolving promise so React doesn't crash during page reload
+        return new Promise<{ default: T }>(() => {});
+      }
+      throw error;
+    }
+  });
+}
+
 // Landing & Auth
-const RolePortalSelector = lazy(() => import('./components/landing/RolePortalSelector'));
-const AuthLoginPage = lazy(() => import('./components/auth/AuthLoginPage'));
+const RolePortalSelector = lazyWithRetry(() => import('./components/landing/RolePortalSelector'), 'RolePortalSelector');
+const AuthLoginPage = lazyWithRetry(() => import('./components/auth/AuthLoginPage'), 'AuthLoginPage');
 const { Error403Page, Error404Page, OfflinePage } = {
-  Error403Page: lazy(() => import('./components/auth/StatePages').then(m => ({ default: m.Error403Page }))),
-  Error404Page: lazy(() => import('./components/auth/StatePages').then(m => ({ default: m.Error404Page }))),
-  OfflinePage: lazy(() => import('./components/auth/StatePages').then(m => ({ default: m.OfflinePage }))),
+  Error403Page: lazyWithRetry(() => import('./components/auth/StatePages').then(m => ({ default: m.Error403Page })), 'Error403Page'),
+  Error404Page: lazyWithRetry(() => import('./components/auth/StatePages').then(m => ({ default: m.Error404Page })), 'Error404Page'),
+  OfflinePage: lazyWithRetry(() => import('./components/auth/StatePages').then(m => ({ default: m.OfflinePage })), 'OfflinePage'),
 };
 
 // Portal Peserta
-const PesertaDashboard = lazy(() => import('./components/peserta/PesertaDashboard'));
-const PesertaAsesmenList = lazy(() => import('./components/peserta/PesertaAsesmenList'));
-const PesertaDetailAsesmen = lazy(() => import('./components/peserta/PesertaDetailAsesmen'));
-const PesertaMateri = lazy(() => import('./components/peserta/PesertaMateri'));
-const PesertaDeviceCheck = lazy(() => import('./components/peserta/PesertaDeviceCheck'));
-const PesertaExamPlayer = lazy(() => import('./components/peserta/PesertaExamPlayer'));
-const PesertaWaitingRoom = lazy(() => import('./components/peserta/PesertaWaitingRoom'));
-const PesertaInterviewLive = lazy(() => import('./components/peserta/PesertaInterviewLive'));
-const PesertaHasilScorecard = lazy(() => import('./components/peserta/PesertaHasilScorecard'));
-const PesertaProfile = lazy(() => import('./components/peserta/PesertaProfile'));
-const PesertaOnboarding = lazy(() => import('./components/peserta/PesertaOnboarding'));
+const PesertaDashboard = lazyWithRetry(() => import('./components/peserta/PesertaDashboard'), 'PesertaDashboard');
+const PesertaAsesmenList = lazyWithRetry(() => import('./components/peserta/PesertaAsesmenList'), 'PesertaAsesmenList');
+const PesertaDetailAsesmen = lazyWithRetry(() => import('./components/peserta/PesertaDetailAsesmen'), 'PesertaDetailAsesmen');
+const PesertaMateri = lazyWithRetry(() => import('./components/peserta/PesertaMateri'), 'PesertaMateri');
+const PesertaDeviceCheck = lazyWithRetry(() => import('./components/peserta/PesertaDeviceCheck'), 'PesertaDeviceCheck');
+const PesertaExamPlayer = lazyWithRetry(() => import('./components/peserta/PesertaExamPlayer'), 'PesertaExamPlayer');
+const PesertaWaitingRoom = lazyWithRetry(() => import('./components/peserta/PesertaWaitingRoom'), 'PesertaWaitingRoom');
+const PesertaInterviewLive = lazyWithRetry(() => import('./components/peserta/PesertaInterviewLive'), 'PesertaInterviewLive');
+const PesertaHasilScorecard = lazyWithRetry(() => import('./components/peserta/PesertaHasilScorecard'), 'PesertaHasilScorecard');
+const PesertaProfile = lazyWithRetry(() => import('./components/peserta/PesertaProfile'), 'PesertaProfile');
+const PesertaOnboarding = lazyWithRetry(() => import('./components/peserta/PesertaOnboarding'), 'PesertaOnboarding');
 
 // Portal Asesor
-const AsesorDashboard = lazy(() => import('./components/asesor/AsesorDashboard'));
-const AsesorQueueTable = lazy(() => import('./components/asesor/AsesorQueueTable'));
-const AsesorLiveConsole = lazy(() => import('./components/asesor/AsesorLiveConsole'));
-const AsesorProctoringReview = lazy(() => import('./components/asesor/AsesorProctoringReview'));
-const AsesorScoringForm = lazy(() => import('./components/asesor/AsesorScoringForm'));
-const AsesorRekapProgram = lazy(() => import('./components/asesor/AsesorRekapProgram'));
+const AsesorDashboard = lazyWithRetry(() => import('./components/asesor/AsesorDashboard'), 'AsesorDashboard');
+const AsesorQueueTable = lazyWithRetry(() => import('./components/asesor/AsesorQueueTable'), 'AsesorQueueTable');
+const AsesorLiveConsole = lazyWithRetry(() => import('./components/asesor/AsesorLiveConsole'), 'AsesorLiveConsole');
+const AsesorProctoringReview = lazyWithRetry(() => import('./components/asesor/AsesorProctoringReview'), 'AsesorProctoringReview');
+const AsesorScoringForm = lazyWithRetry(() => import('./components/asesor/AsesorScoringForm'), 'AsesorScoringForm');
+const AsesorRekapProgram = lazyWithRetry(() => import('./components/asesor/AsesorRekapProgram'), 'AsesorRekapProgram');
 
 // Portal Admin
-const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
-const AdminLogin = lazy(() => import('./components/AdminLogin'));
+const AdminDashboard = lazyWithRetry(() => import('./components/AdminDashboard'), 'AdminDashboard');
+const AdminLogin = lazyWithRetry(() => import('./components/AdminLogin'), 'AdminLogin');
 
 // Public Recruitment Funnel (Lamaran & Wawancara AI Publik)
-const ApplicantForm = lazy(() => import('./components/ApplicantForm'));
-const InterviewLive = lazy(() => import('./components/InterviewLive'));
+const ApplicantForm = lazyWithRetry(() => import('./components/ApplicantForm'), 'ApplicantForm');
+const InterviewLive = lazyWithRetry(() => import('./components/InterviewLive'), 'InterviewLive');
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null; isChunkError: boolean }
+> {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, isChunkError: false };
   }
+
   static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
+    const msg = error?.message || '';
+    const isChunk =
+      msg.includes('Failed to fetch dynamically imported module') ||
+      msg.includes('error loading dynamically imported module') ||
+      msg.includes('Importing a module script failed') ||
+      msg.includes('Loading chunk') ||
+      msg.includes('SyntaxError: Unexpected token');
+    return { hasError: true, error, isChunkError: isChunk };
   }
+
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught error:', error, errorInfo);
+    if (this.state.isChunkError) {
+      const reloadKey = 'right_app_chunk_reload';
+      const lastReload = sessionStorage.getItem(reloadKey);
+      const now = Date.now();
+      if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+        sessionStorage.setItem(reloadKey, now.toString());
+        setTimeout(() => {
+          window.location.reload();
+        }, 300);
+      }
+    }
   }
+
+  handleReload = () => {
+    window.location.reload();
+  };
+
   render() {
-    if (this.state.hasError && this.state.error) {
+    if (this.state.hasError) {
+      if (this.state.isChunkError) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+            <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center space-y-4">
+              <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-slate-800">Pembaruan Sistem Tersedia</h2>
+              <p className="text-sm text-slate-500 leading-relaxed">
+                Versi terbaru dari sistem telah siap. Kami sedang memuat ulang halaman secara otomatis untuk memperbarui sesi Anda...
+              </p>
+              <div className="pt-2">
+                <button
+                  onClick={this.handleReload}
+                  className="w-full py-2.5 px-4 bg-primary-navy hover:bg-slate-800 text-white rounded-xl font-medium text-sm transition shadow-sm cursor-pointer"
+                >
+                  Muat Ulang Sekarang
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       return (
-        <div style={{ padding: 24, color: '#dc2626', background: '#fee2e2', fontFamily: 'monospace' }}>
-          <h2>Frontend Error Captured:</h2>
-          <pre>{this.state.error.message}</pre>
-          <pre>{this.state.error.stack}</pre>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+          <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center space-y-4">
+            <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto">
+              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-slate-800">Terjadi Kendala pada Sesi Ini</h2>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              Sistem mendeteksi kendala pada antarmuka. Anda dapat memuat ulang halaman untuk memulihkan sesi Anda secara normal.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={this.handleReload}
+                className="flex-1 py-2.5 px-4 bg-primary-navy hover:bg-slate-800 text-white rounded-xl font-medium text-sm transition shadow-sm cursor-pointer"
+              >
+                Muat Ulang Halaman
+              </button>
+              <button
+                onClick={() => { window.location.href = '/'; }}
+                className="py-2.5 px-4 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl font-medium text-sm transition cursor-pointer"
+              >
+                Kembali ke Beranda
+              </button>
+            </div>
+          </div>
         </div>
       );
     }

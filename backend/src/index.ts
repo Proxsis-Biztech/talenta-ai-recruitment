@@ -48,7 +48,37 @@ app.set('trust proxy', 1);
 // NOTE: /uploads is NOT served statically — CV files are only accessible
 // via the authenticated download endpoint (/admin/applicants/cv/:fileName)
 const rootDir = process.cwd();
-app.use(express.static(path.join(rootDir, '../frontend/dist')));
+const frontendDist = path.join(rootDir, '../frontend/dist');
+
+// 1. Hashed immutable Vite assets (/assets/*) -> Cache for 1 year
+app.use(
+  '/assets',
+  express.static(path.join(frontendDist, 'assets'), {
+    maxAge: '1y',
+    immutable: true,
+    fallthrough: false, // If an asset is missing, do NOT fall through to SPA HTML fallback!
+  })
+);
+
+// Fallback for missing /assets/* chunks (returns clean 404 so browsers know it's missing rather than parsing HTML as JS)
+app.use('/assets', (_req: express.Request, res: express.Response) => {
+  res.status(404).setHeader('Cache-Control', 'no-cache, no-store, must-revalidate').send('Asset chunk not found');
+});
+
+// 2. Root static files (favicon, logos, manifest, etc.)
+app.use(
+  express.static(frontendDist, {
+    maxAge: '1h',
+    setHeaders: (res, filePath) => {
+      // index.html must NEVER be cached by browser or reverse proxy
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    },
+  })
+);
 
 // CORS — allow configured origins, wildcard, and same-origin API calls.
 const corsOrigins = process.env.CORS_ORIGIN
@@ -102,11 +132,22 @@ app.use('/api', apiLimiter, apiRoutes);
 
 // SPA fallback - serve index.html for non-API routes (WITHOUT rate limiting)
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(rootDir, '../frontend/dist/index.html'));
-  } else {
-    next();
+  if (req.path.startsWith('/api')) {
+    return next();
   }
+
+  // Guard: if request is for a missing static file/asset (e.g. *.js, *.css, *.map, *.png), return 404, NEVER index.html!
+  if (/\.(js|css|map|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(req.path)) {
+    return res
+      .status(404)
+      .setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+      .send('File not found');
+  }
+
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(frontendDist, 'index.html'));
 });
 
 // Error handler
