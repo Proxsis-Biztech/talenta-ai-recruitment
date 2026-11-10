@@ -752,3 +752,245 @@ html {
 #superadmin-root main table td button {
   min-height: 2rem;
 }
+
+/* ============================================================ */
+/* ENTERPRISE DROPDOWN & DROPDOWN ITEM DESIGN SYSTEM */
+/* ============================================================ */
+
+/* Global Native Select Controls */
+select,
+.form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: #ffffff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%230f4c81' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.875rem center;
+  background-size: 1.125rem 1.125rem;
+  padding-right: 2.75rem !important;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.625rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+}
+
+/* Select element hover & active */
+select:hover:not(:disabled),
+.form-select:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background-color: #fcfdfe;
+  box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.08);
+}
+
+select:focus,
+.form-select:focus {
+  outline: none;
+  border-color: #0f4c81 !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 0 0 3.5px rgba(15, 76, 129, 0.14), 0 1px 2px 0 rgba(15, 23, 42, 0.05) !important;
+}
+
+select:disabled,
+.form-select:disabled {
+  background-color: #f1f5f9 !important;
+  color: #94a3b8 !important;
+  cursor: not-allowed !important;
+  border-color: #e2e8f0 !important;
+  opacity: 0.75;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+/* Suppress background icon when component provides its own custom icon */
+select[data-has-custom-icon="true"],
+select.no-custom-arrow {
+  background-image: none !important;
+}
+
+/* ============================================================ */
+/* NATIVE DROPDOWN ITEMS (OPTIONS & OPTGROUPS) */
+/* ============================================================ */
+
+/* Dropdown options typography & comfortable spacing */
+select option,
+datalist option {
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1e293b;
+  background-color: #ffffff;
+  padding: 10px 14px;
+  margin: 2px 0;
+  min-height: 2.25rem;
+  line-height: 1.5;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+/* Placeholder option */
+select option[value=""]:first-child,
+select option:disabled {
+  color: #94a3b8 !important;
+  background-color: #f8fafc !important;
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Selected option highlight */
+select option:checked,
+select option[selected] {
+  background-color: #0f4c81 !important;
+  background: linear-gradient(135deg, #0f4c81 0%, #173b6c 100%) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+}
+
+/* Option Hover / Focus (browser supported) */
+select option:hover,
+select option:focus {
+  background-color: #f0f7ff !important;
+  color: #0f4c81 !important;
+  font-weight: 600;
+}
+
+/* Optgroup styling */
+select optgroup {
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  background-color: #f1f5f9;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin: 6px 0 2px 0;
+}
+
+/* ============================================================ */
+/* CUSTOM FLOATING DROPDOWN MENUS & INTERACTIVE ITEMS */
+/* ============================================================ */
+
+.dropdown-menu,
+[data-dropdown-menu],
+[role="listbox"] {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 0.875rem;
+  box-shadow:
+    0 10px 25px -5px rgba(15, 23, 42, 0.10),
+    0 8px 10px -6px rgba(15, 23, 42, 0.05),
+    0 0 0 1px rgba(15, 23, 42, 0.02);
+  padding: 0.375rem;
+  z-index: 50;
+  overflow: hidden;
+  animation: dropdown-pop 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropdown-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Universal Dropdown Item styling */
+.dropdown-item,
+[data-dropdown-item],
+[role="menuitem"],
+[role="option"] {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.5625rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #334155;
+  border-radius: 0.5625rem;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  position: relative;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus,
+[data-dropdown-item]:hover,
+[data-dropdown-item]:focus,
+[role="menuitem"]:hover,
+[role="menuitem"]:focus,
+[role="option"]:hover,
+[role="option"]:focus {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  transform: translateX(2px);
+}
+
+/* Active or selected dropdown item */
+.dropdown-item.active,
+.dropdown-item[aria-selected="true"],
+[data-dropdown-item].active,
+[role="option"][aria-selected="true"] {
+  background-color: #eff6ff !important;
+  color: #0f4c81 !important;
+  font-weight: 600;
+}
+
+.dropdown-item.active::before,
+.dropdown-item[aria-selected="true"]::before,
+[role="option"][aria-selected="true"]::before {
+  content: '';
+  position: absolute;
+  left: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 9999px;
+  background-color: #0f4c81;
+}
+
+/* Dropdown Danger / Logout Item */
+.dropdown-item.danger,
+.dropdown-item-danger,
+[data-dropdown-item-danger] {
+  color: #e11d48;
+}
+
+.dropdown-item.danger:hover,
+.dropdown-item-danger:hover,
+[data-dropdown-item-danger]:hover {
+  background-color: #fff1f2 !important;
+  color: #be123c !important;
+}
+
+/* Dropdown Section Separator */
+.dropdown-divider {
+  height: 1px;
+  margin: 0.375rem 0;
+  background-color: #f1f5f9;
+}
+
+/* Dropdown Header Label */
+.dropdown-header {
+  padding: 0.5rem 0.875rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}

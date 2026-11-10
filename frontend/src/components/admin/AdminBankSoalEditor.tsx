@@ -482,14 +482,18 @@ export function AdminBankSoalEditor() {
             <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded border border-accent-border">
               BANK SOAL AI
             </span>
-            <Badge variant="navy">{filtered.length} Butir Soal • {selectedProgramCode}</Badge>
+            <Badge variant="navy">
+              {viewMode === 'programs'
+                ? `${programRows.reduce((sum, p) => sum + p.total, 0)} Total Soal • ${programRows.length} Program`
+                : `${filtered.length} Butir Soal • ${selectedProgramCode}`}
+            </Badge>
           </div>
           <h2 className="text-xl font-extrabold font-heading text-ink tracking-tight mt-1">
             Repositori Bank Soal &amp; Item Analytics
           </h2>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <Button
             variant={viewMode === 'programs' ? 'primary' : 'outline'}
             size="sm"
@@ -498,41 +502,6 @@ export function AdminBankSoalEditor() {
           >
             <Layers className="w-3.5 h-3.5" />
             <span>Semua Program</span>
-          </Button>
-          <Button
-            variant={viewMode === 'table' ? 'primary' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('table')}
-            className="text-xs cursor-pointer"
-          >
-            Daftar Soal
-          </Button>
-          <Button
-            variant={viewMode === 'editor' ? 'primary' : 'outline'}
-            size="sm"
-            onClick={() => handleCreateNew()}
-            className="text-xs flex items-center gap-1.5 cursor-pointer"
-          >
-            <Edit className="w-3.5 h-3.5" />
-            <span>Editor Soal</span>
-          </Button>
-          <Button
-            variant={viewMode === 'stats' ? 'primary' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('stats')}
-            className="text-xs flex items-center gap-1.5 cursor-pointer"
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>Statistik &amp; Distraktor</span>
-          </Button>
-          <Button
-            variant={viewMode === 'factsheet' ? 'primary' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('factsheet')}
-            className="text-xs flex items-center gap-1.5 cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5 text-blue-accent" />
-            <span>Fact Sheet In-Basket (BR-FS-04)</span>
           </Button>
         </div>
       </div>

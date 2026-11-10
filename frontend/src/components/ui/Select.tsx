@@ -53,6 +53,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             id={selectId}
             ref={ref}
             disabled={disabled}
+            data-has-custom-icon="true"
             className={cn(
               'w-full h-10 sm:h-10.5 rounded-lg bg-white border text-sm text-slate-800 transition-colors appearance-none pr-9',
               'border-slate-200/90 hover:border-slate-300',
@@ -66,7 +67,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           >
             {options
               ? options.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
+                  <option key={opt.value} value={opt.value} className="py-2.5 px-3.5 text-sm font-medium text-slate-800">
                     {opt.label}
                   </option>
                 ))

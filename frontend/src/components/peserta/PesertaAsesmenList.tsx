@@ -25,13 +25,23 @@ import {
   BookOpen,
   FileText,
   Lock,
-  Layers
+  Layers,
+  Code2,
+  Terminal,
+  Cpu,
+  ExternalLink,
+  Download,
+  ListChecks,
+  Eye,
+  GraduationCap
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
-import { Button, Badge } from '../ui';
+import { Button, Badge, Card } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById, getAllPrograms } from '../../services/assessmentCatalog';
 import { getPortalToken } from '../../services/portalAuthService';
+import { INITIAL_MATERI_LIST, type MasterMateriItem } from '../admin/AdminMasterMateriTree';
+import PesertaLiveCodingJudge0 from './PesertaLiveCodingJudge0';
 
 interface AsesmenItem {
   id: string;
@@ -62,10 +72,29 @@ export default function PesertaAsesmenList() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedProgramId = searchParams.get('id');
+  const urlTab = searchParams.get('tab') as 'materi' | 'ujian' | 'coding' | null;
 
+  // Active LMS tab (materi, ujian CAT, live coding test)
+  const [activeLmsTab, setActiveLmsTab] = useState<'materi' | 'ujian' | 'coding'>(
+    urlTab === 'coding' ? 'coding' : urlTab === 'materi' ? 'materi' : 'materi'
+  );
+
+  const [viewMode, setViewMode] = useState<'lms' | 'catalog'>('lms');
   const [filter, setFilter] = useState<'semua' | 'belum' | 'selesai'>('semua');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showFlowGuide, setShowFlowGuide] = useState(true);
+
+  // Course materials state for LMS view
+  const [materials, setMaterials] = useState<MasterMateriItem[]>([]);
+  const [selectedModule, setSelectedModule] = useState<MasterMateriItem | null>(null);
+  const [completedModules, setCompletedModules] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('peserta_completed_modules');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [materiSearch, setMateriSearch] = useState('');
 
   const activeUser = useMemo(() => getActiveSessionUser(), []);
   const activeProg = useMemo(() => {
@@ -73,18 +102,18 @@ export default function PesertaAsesmenList() {
       getProgramById(activeUser.assessmentId || 'BMRI-DATA-02') ||
       ({
         id: activeUser.assessmentId || 'BMRI-DATA-02',
-        title: activeUser.assessmentTitle || 'Program Asesmen',
-        companyName: activeUser.companyName || '-',
+        title: activeUser.assessmentTitle || 'Lead Data Engineer & Concurrency Specialist (PT Bank Mandiri Tbk)',
+        companyName: activeUser.companyName || 'PT Bank Mandiri (Persero) Tbk',
         category: 'Program Asesmen',
-        description: '',
+        description:
+          'Evaluasi menyeluruh mencakup arsitektur streaming terdistribusi, Lakehouse tuning, Apache Spark/Kafka, idempotensi data finansial berkapasitas tinggi, dan integritas wawancara.',
         durationMinutes: 90,
         passingScore: 70,
-        totalQuestions: 0,
+        totalQuestions: 40,
         gradeLevel: activeUser.gradeLevel || 'Grade B (Specialist / Mid)'
       } as any)
     );
-  }, [activeUser.assessmentId]);
-
+  }, [activeUser.assessmentId, activeUser.assessmentTitle, activeUser.companyName, activeUser.gradeLevel]);
 
   const [serverExam, setServerExam] = useState<{ status?: string; score?: number | null } | null>(null);
   const [serverInterview, setServerInterview] = useState<{ status?: string; score?: number | null } | null>(null);
@@ -105,6 +134,71 @@ export default function PesertaAsesmenList() {
       cancelled = true;
     };
   }, []);
+
+  // Fetch materials for current program
+  useEffect(() => {
+    let cancelled = false;
+    const token = getPortalToken();
+
+    const loadLocalMaterials = () => {
+      let savedList: MasterMateriItem[] = [];
+      try {
+        const stored = localStorage.getItem('talenta_master_materi_table_v2');
+        if (stored) savedList = JSON.parse(stored);
+      } catch {}
+
+      const pool = savedList.length > 0 ? savedList : INITIAL_MATERI_LIST;
+      const currentProgId = selectedProgramId || activeProg.id;
+      let matched = pool.filter(
+        (m) =>
+          m.code === currentProgId ||
+          (activeProg.companyName && m.companyName.toLowerCase().includes(activeProg.companyName.toLowerCase().slice(0, 8)))
+      );
+      if (matched.length === 0) {
+        matched = pool.slice(0, 4);
+      }
+      setMaterials(matched);
+      if (matched.length > 0 && !selectedModule) {
+        setSelectedModule(matched[0]);
+      }
+    };
+
+    if (token) {
+      axios
+        .get('/api/portal/materials', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+          if (cancelled) return;
+          if (Array.isArray(res.data?.data) && res.data.data.length > 0) {
+            setMaterials(res.data.data);
+            setSelectedModule(res.data.data[0]);
+          } else {
+            loadLocalMaterials();
+          }
+        })
+        .catch(() => {
+          if (!cancelled) loadLocalMaterials();
+        });
+    } else {
+      loadLocalMaterials();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProg.id, activeProg.companyName, selectedProgramId]);
+
+  // Sync tab with URL
+  useEffect(() => {
+    if (urlTab && ['materi', 'ujian', 'coding'].includes(urlTab)) {
+      setActiveLmsTab(urlTab);
+    }
+  }, [urlTab]);
+
+  const handleTabChange = (tab: 'materi' | 'ujian' | 'coding') => {
+    setActiveLmsTab(tab);
+    searchParams.set('tab', tab);
+    setSearchParams(searchParams, { replace: true });
+  };
 
   const isCatCompleted = useMemo(() => {
     return (
@@ -127,14 +221,14 @@ export default function PesertaAsesmenList() {
         badgeStatus: isInterviewCompleted
           ? 'Selesai • Hasil Wawancara Tersedia'
           : isCatCompleted
-            ? 'CAT Selesai • Menuju Wawancara'
-            : 'Belum Dikerjakan • Sesi Aktif',
+          ? 'CAT Selesai • Menuju Wawancara'
+          : 'Belum Dikerjakan • Sesi Aktif',
         badgeVariant: isInterviewCompleted ? 'teal' : isCatCompleted ? 'navy' : 'warning',
         duration: `${activeProg.durationMinutes} Menit`,
         questions: `${activeProg.totalQuestions} Soal CAT`,
         passingScore: activeProg.passingScore,
         deadline: 'Hari ini, 23:59 WIB',
-        progress: isInterviewCompleted ? 100 : isCatCompleted ? 60 : 10,
+        progress: isInterviewCompleted ? 100 : isCatCompleted ? 60 : 15,
         currentStageNumber: isInterviewCompleted ? 4 : isCatCompleted ? 3 : 2,
         score: serverInterview?.score ?? serverExam?.score ?? undefined,
         description: activeProg.description,
@@ -143,615 +237,809 @@ export default function PesertaAsesmenList() {
           mode: 'Live Video & Audio Interaktif',
           duration: '45 Menit',
           timing: 'Dilakukan setelah lulus/submit ujian CAT 40 soal',
-          correlationNote: 'Asesor akan memvalidasi penalaran studi kasus yang Anda jawab di lembar CAT serta mengukur kompetensi perilaku (BARS).'
+          correlationNote:
+            'Asesor akan memvalidasi penalaran studi kasus yang Anda jawab di lembar CAT serta mengukur kompetensi perilaku (BARS).'
         }
-      },
+      }
     ];
   }, [activeProg, isCatCompleted, isInterviewCompleted, serverInterview?.score, serverExam?.score]);
 
-  // Selected Program for Detail View
-  const selectedItem = useMemo(() => {
-    if (!selectedProgramId) return null;
-    return programs.find((p) => p.id === selectedProgramId) || programs[0];
+  const currentProgram = useMemo(() => {
+    if (selectedProgramId) {
+      return programs.find((p) => p.id === selectedProgramId) || programs[0];
+    }
+    return programs[0];
   }, [selectedProgramId, programs]);
 
-  // Filtered programs for Catalog Mode
-  const filtered = useMemo(() => {
-    return programs.filter((p) => {
-      // Search filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const match =
-          p.title.toLowerCase().includes(q) ||
-          p.pt.toLowerCase().includes(q) ||
-          p.id.toLowerCase().includes(q);
-        if (!match) return false;
-      }
+  const filteredMaterials = useMemo(() => {
+    const q = materiSearch.trim().toLowerCase();
+    if (!q) return materials;
+    return materials.filter(
+      (m) =>
+        m.title.toLowerCase().includes(q) ||
+        m.category.toLowerCase().includes(q) ||
+        (m.competency && m.competency.toLowerCase().includes(q)) ||
+        m.code.toLowerCase().includes(q)
+    );
+  }, [materials, materiSearch]);
 
-      // Status filter
-      if (filter === 'belum') {
-        return p.status === 'belum' || p.status === 'berjalan';
-      }
-      if (filter === 'selesai') {
-        return p.status === 'selesai';
-      }
-      return true;
-    });
-  }, [programs, searchQuery, filter]);
+  const toggleModuleCompletion = (modId: string) => {
+    const updated = { ...completedModules, [modId]: !completedModules[modId] };
+    setCompletedModules(updated);
+    try {
+      localStorage.setItem('peserta_completed_modules', JSON.stringify(updated));
+    } catch {}
+  };
 
-  const belumCount = programs.filter((p) => p.status === 'belum' || p.status === 'berjalan').length;
-  const selesaiCount = programs.filter((p) => p.status === 'selesai').length;
+  const completedCount = useMemo(() => {
+    return materials.filter((m) => completedModules[m.id]).length;
+  }, [materials, completedModules]);
 
   return (
     <PesertaLayout activeTab="asesmen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-7 antialiased">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 space-y-6 antialiased">
         {/* ═══════════════════════════════════════════════════════════
-            MODE A: DETAIL VIEW (Ditampilkan saat Card Modul di-klik)
+            LMS MOODLE-STYLE COURSE ROOM
         ═══════════════════════════════════════════════════════════ */}
-        {selectedItem ? (
+        {viewMode === 'lms' && currentProgram ? (
           <div className="space-y-6 animate-fadeIn">
-            {/* Top Navigation & Breadcrumb */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
-              <button
-                onClick={() => {
-                  searchParams.delete('id');
-                  setSearchParams(searchParams);
-                }}
-                className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-700 hover:text-primary-navy bg-white hover:bg-slate-50 border border-slate-200/90 px-4 py-2.5 rounded-2xl transition-all shadow-2xs cursor-pointer group self-start"
-              >
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                <span>← Kembali ke Daftar Modul Asesmen</span>
-              </button>
+            {/* ─── LMS Top Course Banner (Moodle Inspired) ─── */}
+            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
+              <div className="bg-gradient-to-r from-primary-navy via-slate-900 to-primary-navy p-6 sm:p-8 text-white relative">
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <span className="font-mono text-xs font-bold bg-white/15 px-3 py-1 rounded-lg border border-white/20 backdrop-blur-xs">
+                        {currentProgram.id}
+                      </span>
+                      <span className="text-xs sm:text-sm font-semibold text-blue-100 flex items-center gap-1.5">
+                        <Building2 className="w-4 h-4 text-blue-300" />
+                        {currentProgram.pt}
+                      </span>
+                      <span className="text-white/40">•</span>
+                      <span className="text-xs sm:text-sm text-blue-200">{currentProgram.category}</span>
+                      <Badge variant={currentProgram.badgeVariant}>{currentProgram.badgeStatus}</Badge>
+                    </div>
 
-              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                <span>Modul Terpilih:</span>
-                <span className="font-mono font-bold text-primary-navy bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-                  {selectedItem.id}
-                </span>
-                <span>•</span>
-                <span className="font-semibold text-slate-700">{selectedItem.pt}</span>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold font-heading leading-tight tracking-tight">
+                      {currentProgram.title}
+                    </h1>
+
+                    <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
+                      {currentProgram.description}
+                    </p>
+                  </div>
+
+                  {/* Course Progress Card */}
+                  <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4.5 min-w-[240px] shrink-0 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-blue-100">
+                      <span>Progres Asesmen LMS</span>
+                      <span className="font-mono text-emerald-400 font-extrabold">
+                        {completedCount > 0 ? Math.round((completedCount / (materials.length || 1)) * 50) + (isCatCompleted ? 50 : 0) : isCatCompleted ? 50 : 15}%
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-emerald-400 to-blue-400 rounded-full transition-all duration-500"
+                        style={{
+                          width: `${
+                            completedCount > 0
+                              ? Math.round((completedCount / (materials.length || 1)) * 50) + (isCatCompleted ? 50 : 0)
+                              : isCatCompleted ? 50 : 15
+                          }%`
+                        }}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-blue-200 font-medium">
+                      <div className="bg-white/5 py-1 px-1.5 rounded-lg border border-white/10">
+                        <span className="block font-bold text-white">{completedCount}/{materials.length}</span>
+                        <span>Materi</span>
+                      </div>
+                      <div className="bg-white/5 py-1 px-1.5 rounded-lg border border-white/10">
+                        <span className="block font-bold text-white">{isCatCompleted ? 'Lulus' : 'Siap'}</span>
+                        <span>Ujian CAT</span>
+                      </div>
+                      <div className="bg-white/5 py-1 px-1.5 rounded-lg border border-white/10">
+                        <span className="block font-bold text-white">Online</span>
+                        <span>Live Code</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ─── LMS Main Navigation Tabs (Moodle Course Hub) ─── */}
+              <div className="bg-slate-50/90 px-6 sm:px-8 border-b border-slate-200/90 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2 py-3">
+                  {/* Tab 1: Materi & Master Silabus */}
+                  <button
+                    onClick={() => handleTabChange('materi')}
+                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                      activeLmsTab === 'materi'
+                        ? 'bg-primary-navy text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    <span>1. Materi &amp; Master Silabus</span>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        activeLmsTab === 'materi' ? 'bg-white/20 text-white' : 'bg-blue-50 text-primary-navy'
+                      }`}
+                    >
+                      {materials.length} Modul
+                    </span>
+                  </button>
+
+                  {/* Tab 2: Ujian Soal CAT */}
+                  <button
+                    onClick={() => handleTabChange('ujian')}
+                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                      activeLmsTab === 'ujian'
+                        ? 'bg-primary-navy text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <FileCheck2 className="w-4 h-4" />
+                    <span>2. Ujian Soal CAT (40 Soal)</span>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        activeLmsTab === 'ujian'
+                          ? 'bg-white/20 text-white'
+                          : isCatCompleted
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {isCatCompleted ? '✓ Selesai' : 'Siap Mulai'}
+                    </span>
+                  </button>
+
+                  {/* Tab 3: Live Coding Test (Judge0 Prototype) */}
+                  <button
+                    onClick={() => handleTabChange('coding')}
+                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                      activeLmsTab === 'coding'
+                        ? 'bg-primary-navy text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <Code2 className="w-4 h-4" />
+                    <span>3. Live Coding Test</span>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        activeLmsTab === 'coding' ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                      }`}
+                    >
+                      Judge0 IDE
+                    </span>
+                  </button>
+                </div>
+
+                {/* Quick Action / Catalog Switcher */}
+                <button
+                  onClick={() => setViewMode('catalog')}
+                  className="text-xs font-semibold text-slate-500 hover:text-primary-navy py-2 flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Lihat Katalog Semua Program</span>
+                </button>
               </div>
             </div>
 
-            {/* Main Detail Assessment Card (Persis sesuai foto pengguna) */}
-            <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
-              {/* Top Row: Meta, Company, Status Badge */}
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-2.5 py-1 rounded-lg border border-accent-border">
-                      {selectedItem.id}
-                    </span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                      {selectedItem.pt}
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-xs sm:text-sm text-muted-slate">{selectedItem.category}</span>
-                    <Badge variant={selectedItem.badgeVariant}>{selectedItem.badgeStatus}</Badge>
-                  </div>
+            {/* ═══════════════════════════════════════════════════════════
+                TAB 1: MATERI & MASTER SILABUS (Preview Tampilan Materi)
+            ═══════════════════════════════════════════════════════════ */}
+            {activeLmsTab === 'materi' && (
+              <div className="space-y-6 animate-fadeIn">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* Left Column: Module Curriculum List */}
+                  <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col h-[680px]">
+                    {/* Header */}
+                    <div className="p-4 border-b border-slate-100 bg-slate-50/70 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <BookOpen className="w-4 h-4 text-primary-navy" />
+                            Silabus &amp; Kurikulum Uji
+                          </h3>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            {completedCount} dari {materials.length} modul telah selesai dibaca
+                          </p>
+                        </div>
+                        <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">
+                          {Math.round((completedCount / (materials.length || 1)) * 100)}%
+                        </span>
+                      </div>
 
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-ink font-heading leading-tight">
-                    {selectedItem.title}
-                  </h1>
-                </div>
+                      {/* Module search */}
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={materiSearch}
+                          onChange={(e) => setMateriSearch(e.target.value)}
+                          placeholder="Cari modul atau kompetensi..."
+                          className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-primary-navy"
+                        />
+                      </div>
+                    </div>
 
-                {/* Score or Status Pill */}
-                {selectedItem.status === 'selesai' && typeof selectedItem.score === 'number' && (
-                  <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-2xl shrink-0 self-start lg:self-auto">
-                    <Award className="w-6 h-6 text-emerald-600" />
-                    <div>
-                      <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Nilai Komposit Akhir</span>
-                      <span className="font-mono text-xl font-extrabold text-emerald-700 leading-none">{selectedItem.score} / 100</span>
+                    {/* Module List Scrollable */}
+                    <div className="p-3 overflow-y-auto space-y-2 flex-1">
+                      {filteredMaterials.map((item, index) => {
+                        const isSelected = selectedModule?.id === item.id;
+                        const isDone = completedModules[item.id];
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => setSelectedModule(item)}
+                            className={`p-3.5 rounded-xl border transition-all cursor-pointer text-left space-y-2 ${
+                              isSelected
+                                ? 'bg-blue-50/70 border-primary-navy shadow-xs ring-1 ring-primary-navy/20'
+                                : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center font-mono">
+                                  {index + 1}
+                                </span>
+                                <Badge variant="teal" format="soft" className="text-[10px] py-0 px-1.5">
+                                  {item.type || 'Materi'}
+                                </Badge>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleModuleCompletion(item.id);
+                                }}
+                                title={isDone ? 'Tandai belum dibaca' : 'Tandai sudah dibaca'}
+                                className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors cursor-pointer border ${
+                                  isDone
+                                    ? 'bg-emerald-600 border-emerald-600 text-white'
+                                    : 'border-slate-300 hover:border-slate-400 bg-white'
+                                }`}
+                              >
+                                {isDone && <Check className="w-3 h-3" />}
+                              </button>
+                            </div>
+
+                            <h4 className="font-heading font-bold text-xs sm:text-sm text-slate-900 leading-snug line-clamp-2">
+                              {item.title}
+                            </h4>
+
+                            <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                              {item.content}
+                            </p>
+
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100 font-sans">
+                              <span>{item.competency || item.category}</span>
+                              <span className="font-mono text-primary-navy font-semibold">
+                                {item.code} • {item.version || 'v1.0'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                )}
+
+                  {/* Right Column: Interactive Course Reader Preview */}
+                  <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col h-[680px]">
+                    {selectedModule ? (
+                      <div className="flex flex-col h-full">
+                        {/* Reader Header */}
+                        <div className="p-5 border-b border-slate-100 bg-slate-50/70 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="navy" format="soft">
+                                {selectedModule.category}
+                              </Badge>
+                              <span className="font-mono text-xs text-slate-500 font-semibold">
+                                {selectedModule.code} • {selectedModule.version || 'v2.1'}
+                              </span>
+                            </div>
+
+                            <Button
+                              variant={completedModules[selectedModule.id] ? 'secondary' : 'primary'}
+                              size="xs"
+                              onClick={() => toggleModuleCompletion(selectedModule.id)}
+                              leftIcon={completedModules[selectedModule.id] ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : undefined}
+                            >
+                              {completedModules[selectedModule.id] ? 'Selesai Dibaca ✓' : 'Tandai Selesai Dibaca'}
+                            </Button>
+                          </div>
+
+                          <h2 className="font-heading font-extrabold text-lg sm:text-xl text-slate-900 leading-snug">
+                            {selectedModule.title}
+                          </h2>
+
+                          {selectedModule.competency && (
+                            <p className="text-xs text-slate-600 flex items-center gap-1.5 font-medium">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              Kompetensi Inti: <strong className="text-slate-800">{selectedModule.competency}</strong>
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Reader Content Body Scrollable */}
+                        <div className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm text-slate-700 leading-relaxed flex-1">
+                          {/* Main syllabus text */}
+                          <div className="bg-slate-50/80 rounded-2xl border border-slate-200/70 p-4.5 space-y-2">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-primary-navy font-heading flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-blue-600" />
+                              Rangkuman Pokok Bahasan &amp; Konsep Kunci
+                            </h4>
+                            <p className="text-slate-700 leading-relaxed whitespace-pre-line text-xs sm:text-sm">
+                              {selectedModule.content}
+                            </p>
+                          </div>
+
+                          {/* Rubric Section */}
+                          {selectedModule.rubric && (
+                            <div className="p-4.5 bg-blue-50/50 rounded-2xl border border-blue-200/60 space-y-2">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-900 font-heading flex items-center gap-1.5">
+                                <Award className="w-4 h-4 text-blue-700" />
+                                Rubrik Penilaian Asesor (Standar BARS)
+                              </h4>
+                              <p className="text-blue-950 text-xs sm:text-sm leading-relaxed">
+                                {selectedModule.rubric}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Behavioral Indicators Checklist */}
+                          {selectedModule.behavioralIndicators && selectedModule.behavioralIndicators.length > 0 && (
+                            <div className="space-y-3">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 font-heading flex items-center gap-2">
+                                <ListChecks className="w-4 h-4 text-slate-500" />
+                                Indikator Kompetensi yang Diuji
+                              </h4>
+                              <div className="space-y-2">
+                                {selectedModule.behavioralIndicators.map((indicator, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="p-3 bg-white rounded-xl border border-slate-200 flex items-start gap-2.5 shadow-2xs"
+                                  >
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                    <span className="text-xs text-slate-700 font-medium leading-snug">
+                                      {indicator}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Reader Bottom Actions Bar */}
+                        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3">
+                          <span className="text-xs text-slate-500 font-medium">
+                            Siap melanjutkan tahapan tes?
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleTabChange('coding')}
+                              leftIcon={<Code2 className="w-3.5 h-3.5" />}
+                              className="text-xs"
+                            >
+                              Live Coding Test
+                            </Button>
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleTabChange('ujian')}
+                              rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                              className="text-xs font-bold"
+                            >
+                              Lanjut ke Ujian CAT
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2 p-8">
+                        <BookOpen className="w-10 h-10 text-slate-300" />
+                        <p className="text-sm font-semibold">Pilih modul di sebelah kiri untuk melihat rincian silabus.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
+            )}
 
-              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-4xl">
-                {selectedItem.description}
-              </p>
+            {/* ═══════════════════════════════════════════════════════════
+                TAB 2: UJIAN SOAL CAT (Computer Adaptive Test)
+            ═══════════════════════════════════════════════════════════ */}
+            {activeLmsTab === 'ujian' && (
+              <div className="space-y-6 animate-fadeIn">
+                {/* Main Detail Assessment Card */}
+                <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
+                  {/* Top Row: Meta, Company, Status Badge */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-2.5 py-1 rounded-lg border border-accent-border">
+                          {currentProgram.id}
+                        </span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                          {currentProgram.pt}
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-xs sm:text-sm text-muted-slate">{currentProgram.category}</span>
+                        <Badge variant={currentProgram.badgeVariant}>{currentProgram.badgeStatus}</Badge>
+                      </div>
 
-              {/* ─── 4-Step Pipeline Flow Indicator on this Assessment ─── */}
-              <div className="p-4 sm:p-5 bg-slate-50/80 rounded-2xl border border-slate-200/70 space-y-3">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  <span>Alur Tahapan Seleksi Program Ini</span>
-                  <span className="text-primary-navy font-semibold normal-case">
-                    {selectedItem.status === 'selesai'
-                      ? '✅ 4 dari 4 Tahap Selesai'
-                      : selectedItem.status === 'berjalan'
-                      ? '⏳ Tahap 2 Selesai • Menunggu Tahap 3 (Wawancara)'
-                      : '🚀 Siap Dimulai (Tahap 1 & 2)'}
-                  </span>
+                      <h2 className="text-2xl sm:text-3xl font-extrabold text-ink font-heading leading-tight">
+                        {currentProgram.title}
+                      </h2>
+                    </div>
+
+                    {/* Score or Status Pill */}
+                    {currentProgram.status === 'selesai' && typeof currentProgram.score === 'number' && (
+                      <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-2xl shrink-0 self-start lg:self-auto">
+                        <Award className="w-6 h-6 text-emerald-600" />
+                        <div>
+                          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Nilai Komposit Akhir</span>
+                          <span className="font-mono text-xl font-extrabold text-emerald-700 leading-none">{currentProgram.score} / 100</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ─── 4-Step Pipeline Flow Indicator on this Assessment ─── */}
+                  <div className="p-4 sm:p-5 bg-slate-50/80 rounded-2xl border border-slate-200/70 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      <span>Alur Tahapan Seleksi Program Ini</span>
+                      <span className="text-primary-navy font-semibold normal-case">
+                        {currentProgram.status === 'selesai'
+                          ? '✅ 4 dari 4 Tahap Selesai'
+                          : currentProgram.status === 'berjalan'
+                          ? '⏳ Tahap 2 Selesai • Menunggu Tahap 3 (Wawancara)'
+                          : '🚀 Siap Dimulai (Tahap 1 & 2)'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {/* Step 1: Cek Perangkat */}
+                      <div
+                        className={`p-3 rounded-xl border flex items-center gap-3 ${
+                          currentProgram.status === 'selesai' || currentProgram.status === 'berjalan'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                            : 'bg-white border-blue-200 text-primary-navy shadow-2xs'
+                        }`}
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                            currentProgram.status === 'selesai' || currentProgram.status === 'berjalan'
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-primary-navy text-white'
+                          }`}
+                        >
+                          {currentProgram.status === 'selesai' || currentProgram.status === 'berjalan' ? '✓' : '1'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs truncate">Cek Perangkat</p>
+                          <p className="text-[11px] text-slate-500 truncate">Kamera &amp; Mic HD</p>
+                        </div>
+                      </div>
+
+                      {/* Step 2: Ujian CAT 40 Soal */}
+                      <div
+                        className={`p-3 rounded-xl border flex items-center gap-3 ${
+                          currentProgram.status === 'selesai' || currentProgram.status === 'berjalan'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                            : 'bg-white border-blue-300 text-primary-navy ring-2 ring-blue-500/20'
+                        }`}
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                            currentProgram.status === 'selesai' || currentProgram.status === 'berjalan'
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-blue-600 text-white animate-pulse'
+                          }`}
+                        >
+                          {currentProgram.status === 'selesai' || currentProgram.status === 'berjalan' ? '✓' : '2'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs truncate">Ujian CAT (40 Soal)</p>
+                          <p className="text-[11px] text-slate-500 truncate">{currentProgram.duration} • PG &amp; Kasus</p>
+                        </div>
+                      </div>
+
+                      {/* Step 3: Wawancara Live Asesor */}
+                      <div
+                        className={`p-3 rounded-xl border flex items-center gap-3 ${
+                          currentProgram.status === 'selesai'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                            : currentProgram.status === 'berjalan'
+                            ? 'bg-white border-blue-400 text-primary-navy ring-2 ring-blue-500/30 shadow-2xs'
+                            : 'bg-slate-100/70 border-slate-200 text-slate-500'
+                        }`}
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                            currentProgram.status === 'selesai'
+                              ? 'bg-emerald-600 text-white'
+                              : currentProgram.status === 'berjalan'
+                              ? 'bg-blue-600 text-white animate-pulse'
+                              : 'bg-slate-300 text-slate-700'
+                          }`}
+                        >
+                          {currentProgram.status === 'selesai' ? '✓' : '3'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs truncate">Wawancara Live Asesor</p>
+                          <p className="text-[11px] text-slate-500 truncate">Setelah CAT Selesai</p>
+                        </div>
+                      </div>
+
+                      {/* Step 4: Rekap Nilai LHA */}
+                      <div
+                        className={`p-3 rounded-xl border flex items-center gap-3 ${
+                          currentProgram.status === 'selesai'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                            : 'bg-slate-100/70 border-slate-200 text-slate-500'
+                        }`}
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                            currentProgram.status === 'selesai' ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+                          }`}
+                        >
+                          {currentProgram.status === 'selesai' ? '✓' : '4'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs truncate">Hasil &amp; Nilai LHA</p>
+                          <p className="text-[11px] text-slate-500 truncate">Laporan Resmi</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ─── Penjelasan Khusus Wawancara untuk Asesmen Ini ─── */}
+                  <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-2.5">
+                      <Video className="w-4.5 h-4.5 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-amber-950">
+                          Informasi Wawancara Kompetensi: {currentProgram.interviewInfo.assessorName}
+                        </p>
+                        <p className="text-amber-800 mt-0.5">
+                          {currentProgram.interviewInfo.correlationNote} <strong>({currentProgram.interviewInfo.timing})</strong>
+                        </p>
+                      </div>
+                    </div>
+                    <span className="font-mono font-semibold text-amber-900 bg-amber-100/80 px-2.5 py-1 rounded-lg shrink-0 self-start md:self-auto">
+                      Bobot Wawancara: 60%
+                    </span>
+                  </div>
+
+                  {/* ─── Metric Details & Action Buttons ─── */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pt-3 border-t border-slate-100">
+                    <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-muted-slate">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-blue-accent" />
+                        Durasi CAT: <strong className="text-ink">{currentProgram.duration}</strong>
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <FileCheck2 className="w-4 h-4 text-blue-accent" />
+                        Jumlah Soal: <strong className="text-ink">{currentProgram.questions}</strong>
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        Passing Grade: <strong className="text-emerald-700">{currentProgram.passingScore} / 100</strong>
+                      </span>
+                      <span className="flex items-center gap-1.5 font-mono text-xs text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200/60">
+                        Batas: {currentProgram.deadline}
+                      </span>
+                    </div>
+
+                    {/* Dynamic Action Buttons based on Stage */}
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                      {currentProgram.status === 'selesai' ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            onClick={() => navigate('/peserta/hasil')}
+                            className="text-xs sm:text-sm py-2.5 px-4 rounded-xl flex items-center gap-2 font-bold cursor-pointer"
+                          >
+                            <Award className="w-4 h-4 text-emerald-600" />
+                            <span>Lihat Skor &amp; LHA ({currentProgram.score})</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </Button>
+                        </>
+                      ) : currentProgram.status === 'berjalan' ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            onClick={() => navigate('/peserta/hasil')}
+                            className="text-xs sm:text-sm py-2.5 px-3.5 rounded-xl cursor-pointer"
+                          >
+                            Skor CAT Sementara
+                          </Button>
+                          <Button
+                            variant="primary"
+                            onClick={() => navigate('/peserta/waiting-room')}
+                            className="text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 font-bold shadow-sm bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                          >
+                            <Video className="w-4 h-4" />
+                            <span>Masuk Ruang Wawancara (Tahap 3)</span>
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="outline"
+                            onClick={() => navigate('/peserta/device-check')}
+                            className="text-xs sm:text-sm py-2.5 px-3.5 rounded-xl flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Laptop className="w-4 h-4 text-slate-500" />
+                            <span>1. Cek Perangkat</span>
+                          </Button>
+                          <Button
+                            variant="primary"
+                            onClick={() => navigate(`/peserta/exam/${currentProgram.id}`)}
+                            className="text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 font-bold shadow-sm cursor-pointer"
+                          >
+                            <PlayCircle className="w-4 h-4" />
+                            <span>2. Mulai Ujian CAT (40 Soal)</span>
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {/* Step 1: Cek Perangkat */}
-                  <div
-                    className={`p-3 rounded-xl border flex items-center gap-3 ${
-                      selectedItem.status === 'selesai' || selectedItem.status === 'berjalan'
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                        : 'bg-white border-blue-200 text-primary-navy shadow-2xs'
-                    }`}
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                        selectedItem.status === 'selesai' || selectedItem.status === 'berjalan'
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-primary-navy text-white'
-                      }`}
-                    >
-                      {selectedItem.status === 'selesai' || selectedItem.status === 'berjalan' ? '✓' : '1'}
+                {/* Extra Guidance */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2 shadow-2xs">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                      <ShieldCheck className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-xs truncate">Cek Perangkat</p>
-                      <p className="text-[11px] text-slate-500 truncate">Kamera &amp; Mic HD</p>
-                    </div>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">AI Proctoring &amp; Integritas</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Ujian diawasi oleh algoritma OpenCV dan deteksi multi-wajah. Pastikan pencahayaan cukup dan hindari membuka tab lain.
+                    </p>
                   </div>
 
-                  {/* Step 2: Ujian CAT 40 Soal */}
-                  <div
-                    className={`p-3 rounded-xl border flex items-center gap-3 ${
-                      selectedItem.status === 'selesai' || selectedItem.status === 'berjalan'
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                        : 'bg-white border-blue-300 text-primary-navy ring-2 ring-blue-500/20'
-                    }`}
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                        selectedItem.status === 'selesai' || selectedItem.status === 'berjalan'
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-blue-600 text-white animate-pulse'
-                      }`}
-                    >
-                      {selectedItem.status === 'selesai' || selectedItem.status === 'berjalan' ? '✓' : '2'}
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2 shadow-2xs">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                      <Clock className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-xs truncate">Ujian CAT (40 Soal)</p>
-                      <p className="text-[11px] text-slate-500 truncate">{selectedItem.duration} • PG &amp; Kasus</p>
-                    </div>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">Manajemen Waktu Otomatis</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Timer 90 menit berjalan otomatis saat tes dimulai. Jawaban Anda tersimpan secara berkala setiap 5 detik ke cloud server.
+                    </p>
                   </div>
 
-                  {/* Step 3: Wawancara Live Asesor */}
-                  <div
-                    className={`p-3 rounded-xl border flex items-center gap-3 ${
-                      selectedItem.status === 'selesai'
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                        : selectedItem.status === 'berjalan'
-                        ? 'bg-white border-blue-400 text-primary-navy ring-2 ring-blue-500/30 shadow-2xs'
-                        : 'bg-slate-100/70 border-slate-200 text-slate-500'
-                    }`}
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                        selectedItem.status === 'selesai'
-                          ? 'bg-emerald-600 text-white'
-                          : selectedItem.status === 'berjalan'
-                          ? 'bg-blue-600 text-white animate-pulse'
-                          : 'bg-slate-300 text-slate-700'
-                      }`}
-                    >
-                      {selectedItem.status === 'selesai' ? '✓' : '3'}
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2 shadow-2xs">
+                    <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                      <Video className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-xs truncate">Wawancara Live Asesor</p>
-                      <p className="text-[11px] text-slate-500 truncate">Setelah CAT Selesai</p>
-                    </div>
-                  </div>
-
-                  {/* Step 4: Rekap Nilai LHA */}
-                  <div
-                    className={`p-3 rounded-xl border flex items-center gap-3 ${
-                      selectedItem.status === 'selesai'
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                        : 'bg-slate-100/70 border-slate-200 text-slate-500'
-                    }`}
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                        selectedItem.status === 'selesai' ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
-                      }`}
-                    >
-                      {selectedItem.status === 'selesai' ? '✓' : '4'}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-xs truncate">Hasil &amp; Nilai LHA</p>
-                      <p className="text-[11px] text-slate-500 truncate">Laporan Resmi</p>
-                    </div>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">Validasi Wawancara Langsung</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Setelah submit CAT, Anda akan langsung diarahkan ke antrean wawancara bersama asesor atau Gemini AI Live.
+                    </p>
                   </div>
                 </div>
               </div>
+            )}
 
-              {/* ─── Penjelasan Khusus Wawancara untuk Asesmen Ini ─── */}
-              <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-                <div className="flex items-start gap-2.5">
-                  <Video className="w-4.5 h-4.5 text-amber-600 shrink-0 mt-0.5" />
+            {/* ═══════════════════════════════════════════════════════════
+                TAB 3: LIVE CODING TEST (PROTOTYPE JUDGE0)
+            ═══════════════════════════════════════════════════════════ */}
+            {activeLmsTab === 'coding' && (
+              <div className="space-y-4 animate-fadeIn">
+                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <p className="font-bold text-amber-950">
-                      Informasi Wawancara Kompetensi: {selectedItem.interviewInfo.assessorName}
-                    </p>
-                    <p className="text-amber-800 mt-0.5">
-                      {selectedItem.interviewInfo.correlationNote} <strong>({selectedItem.interviewInfo.timing})</strong>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        JUDGE0 SANDBOX
+                      </span>
+                      <Badge variant="teal" format="soft">Prototype Evaluation Engine</Badge>
+                    </div>
+                    <h2 className="font-heading font-extrabold text-base sm:text-lg text-slate-900">
+                      Live Coding &amp; Algorithmic Assessment
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Uji kemampuan problem solving, data structures, dan arsitektur kode secara interaktif dengan engine Judge0.
                     </p>
                   </div>
-                </div>
-                <span className="font-mono font-semibold text-amber-900 bg-amber-100/80 px-2.5 py-1 rounded-lg shrink-0 self-start md:self-auto">
-                  Bobot Wawancara: 60%
-                </span>
-              </div>
 
-              {/* ─── Metric Details & Action Buttons ─── */}
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pt-3 border-t border-slate-100">
-                <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-muted-slate">
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-blue-accent" />
-                    Durasi CAT: <strong className="text-ink">{selectedItem.duration}</strong>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <FileCheck2 className="w-4 h-4 text-blue-accent" />
-                    Jumlah Soal: <strong className="text-ink">{selectedItem.questions}</strong>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    Passing Grade: <strong className="text-emerald-700">{selectedItem.passingScore} / 100</strong>
-                  </span>
-                  <span className="flex items-center gap-1.5 font-mono text-xs text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200/60">
-                    Batas: {selectedItem.deadline}
-                  </span>
+                  <div className="flex items-center gap-3 text-xs text-slate-600 font-mono">
+                    <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                      <Cpu className="w-3.5 h-3.5 text-slate-500" />
+                      Isolated Container
+                    </span>
+                  </div>
                 </div>
 
-                {/* Dynamic Action Buttons based on Stage */}
-                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                  {selectedItem.status === 'selesai' ? (
-                    <>
-                      <Button
-                        variant="outline"
-                        onClick={() => navigate('/peserta/hasil')}
-                        className="text-xs sm:text-sm py-2.5 px-4 rounded-xl flex items-center gap-2 font-bold cursor-pointer"
-                      >
-                        <Award className="w-4 h-4 text-emerald-600" />
-                        <span>Lihat Skor &amp; LHA ({selectedItem.score})</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
-                    </>
-                  ) : selectedItem.status === 'berjalan' ? (
-                    <>
-                      <Button
-                        variant="outline"
-                        onClick={() => navigate('/peserta/hasil')}
-                        className="text-xs sm:text-sm py-2.5 px-3.5 rounded-xl cursor-pointer"
-                      >
-                        Skor CAT Sementara
-                      </Button>
-                      <Button
-                        variant="primary"
-                        onClick={() => navigate('/peserta/waiting-room')}
-                        className="text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 font-bold shadow-sm bg-blue-600 hover:bg-blue-700 cursor-pointer"
-                      >
-                        <Video className="w-4 h-4" />
-                        <span>Masuk Ruang Wawancara (Tahap 3)</span>
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button
-                        variant="outline"
-                        onClick={() => navigate('/peserta/device-check')}
-                        className="text-xs sm:text-sm py-2.5 px-3.5 rounded-xl flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Laptop className="w-4 h-4 text-slate-500" />
-                        <span>1. Cek Perangkat</span>
-                      </Button>
-                      <Button
-                        variant="primary"
-                        onClick={() => navigate(`/peserta/exam/${selectedItem.id}`)}
-                        className="text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 font-bold shadow-sm cursor-pointer"
-                      >
-                        <PlayCircle className="w-4 h-4" />
-                        <span>2. Mulai Ujian CAT (40 Soal)</span>
-                      </Button>
-                    </>
-                  )}
-                </div>
+                <PesertaLiveCodingJudge0 programTitle={currentProgram.title} />
               </div>
-            </div>
-
-            {/* Extra Guidance on the Detail View */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900">AI Proctoring & Integritas</h4>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Ujian diawasi oleh algoritma OpenCV dan deteksi multi-wajah. Pastikan pencahayaan cukup dan hindari membuka tab lain.
-                </p>
-              </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                  <Clock className="w-4 h-4" />
-                </div>
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900">Manajemen Waktu Otomatis</h4>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Timer 90 menit berjalan otomatis saat tes dimulai. Jawaban Anda tersimpan secara berkala setiap 5 detik ke cloud server.
-                </p>
-              </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
-                  <Video className="w-4 h-4" />
-                </div>
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900">Validasi Wawancara Langsung</h4>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Setelah submit CAT, Anda akan langsung diarahkan ke antrean wawancara bersama asesor atau Gemini AI Live.
-                </p>
-              </div>
-            </div>
+            )}
           </div>
         ) : (
-          /* ═══════════════════════════════════════════════════════════
-              MODE B: CATALOG VIEW (Card Modul Asesmen)
-          ═══════════════════════════════════════════════════════════ */
           <div className="space-y-7 animate-fadeIn">
             {/* ─── Header Title & Description ─── */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-primary-navy border border-blue-200/60 text-xs font-semibold mb-2">
                   <Sparkles className="w-3.5 h-3.5 text-blue-accent" />
-                  <span>Portal Asesmen Mandiri Right</span>
+                  <span>Katalog Program Asesmen Right</span>
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
-                  Daftar Asesmen Saya
+                  Katalog Asesmen Enterprise
                 </h1>
                 <p className="text-sm text-muted-slate mt-1 max-w-2xl">
-                  Pilih salah satu kartu modul asesmen di bawah untuk melihat rincian tahapan seleksi, panduan pengerjaan, dan memulai ujian.
+                  Pilih program untuk membuka ruang LMS interaktif, membaca master silabus, mengerjakan soal CAT, dan live coding test.
                 </p>
               </div>
 
-              {/* Quick Search */}
-              <div className="relative w-full md:w-72">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari asesmen atau instansi..."
-                  className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
-                />
-              </div>
-            </div>
-
-            {/* ─── Penjelasan Korelasi CAT & Wawancara (Important Context Box) ─── */}
-            {showFlowGuide && (
-              <div className="bg-blue-50 border border-blue-200/90 rounded-3xl p-5 sm:p-6 relative shadow-xs">
-                <button
-                  onClick={() => setShowFlowGuide(false)}
-                  className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 text-xs font-semibold cursor-pointer p-1"
-                  title="Tutup informasi ini"
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="primary"
+                  onClick={() => setViewMode('lms')}
+                  leftIcon={<BookOpen className="w-4 h-4" />}
+                  className="text-xs sm:text-sm font-bold"
                 >
-                  ✕
-                </button>
-                <div className="flex flex-col lg:flex-row items-start lg:items-center gap-5">
-                  <div className="w-12 h-12 rounded-2xl bg-primary-navy text-white flex items-center justify-center shrink-0 shadow-sm">
-                    <Video className="w-6 h-6 text-blue-200" />
-                  </div>
-                  <div className="flex-1 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm sm:text-base font-extrabold text-primary-navy font-heading">
-                        📌 Bagaimana Alur Asesmen & Mengapa Ada Sesi Wawancara (Interview)?
-                      </h3>
-                      <span className="text-[11px] font-bold bg-white text-blue-800 px-2.5 py-0.5 rounded-full border border-blue-200">
-                        Penting Diketahui
-                      </span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                      Pelaksanaan asesmen di Right menggabungkan <strong>Ujian CAT (40 Soal)</strong> dan <strong>Wawancara Live (Asesor / Gemini AI)</strong>. Sesi wawancara dilakukan <strong>SETELAH</strong> Anda selesai mengerjakan ujian CAT. Asesor akan menanyakan alasan dan penalaran di balik keputusan kasus bisnis Anda saat CAT untuk memvalidasi kompetensi perilaku Anda secara nyata.
-                    </p>
-                    <div className="flex flex-wrap items-center gap-4 pt-1.5 text-xs font-semibold text-primary-navy">
-                      <span className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        Tahap 1: Cek Perangkat (Kamera &amp; Mic)
-                      </span>
-                      <span className="text-slate-300">→</span>
-                      <span className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        Tahap 2: Ujian CAT 40 Soal
-                      </span>
-                      <span className="text-slate-300">→</span>
-                      <span className="flex items-center gap-1.5 text-blue-800 font-bold">
-                        <Video className="w-4 h-4 text-blue-600" />
-                        Tahap 3: Wawancara Live Asesor
-                      </span>
-                      <span className="text-slate-300">→</span>
-                      <span className="flex items-center gap-1.5 text-slate-600">
-                        <Award className="w-4 h-4 text-amber-500" />
-                        Tahap 4: Rekap Nilai &amp; LHA
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ─── Filter Tabs: Belum Dikerjakan vs Selesai ─── */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
-              <div className="flex items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200/80 self-start">
-                <button
-                  onClick={() => setFilter('semua')}
-                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-                    filter === 'semua'
-                      ? 'bg-white text-primary-navy shadow-xs font-bold'
-                      : 'text-slate-600 hover:text-ink'
-                  }`}
-                >
-                  Semua Asesmen ({programs.length})
-                </button>
-                <button
-                  onClick={() => setFilter('belum')}
-                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    filter === 'belum'
-                      ? 'bg-white text-primary-navy shadow-xs font-bold'
-                      : 'text-slate-600 hover:text-ink'
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  <span>Belum Dikerjakan / Berjalan ({belumCount})</span>
-                </button>
-                <button
-                  onClick={() => setFilter('selesai')}
-                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    filter === 'selesai'
-                      ? 'bg-white text-primary-navy shadow-xs font-bold'
-                      : 'text-slate-600 hover:text-ink'
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span>Sudah Selesai ({selesaiCount})</span>
-                </button>
-              </div>
-
-              <div className="text-xs text-muted-slate flex items-center gap-1.5">
-                <Info className="w-4 h-4 text-slate-400" />
-                <span>Menampilkan <strong>{filtered.length}</strong> modul asesmen</span>
-              </div>
-            </div>
-
-            {/* ─── CARD MODUL ASESMEN (GRID VIEW) ─── */}
-            {filtered.length === 0 ? (
-              <div className="text-center py-16 bg-white rounded-3xl border border-slate-200/80 p-8 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                  <FileCheck2 className="w-6 h-6" />
-                </div>
-                <p className="font-bold text-slate-700">Tidak ada modul asesmen yang cocok dengan filter</p>
-                <p className="text-xs text-muted-slate">Coba ubah kata kunci pencarian atau ganti tab filter di atas.</p>
-                <Button variant="outline" onClick={() => { setFilter('semua'); setSearchQuery(''); }} className="text-xs mt-2">
-                  Reset Filter
+                  Buka Ruang Belajar LMS
                 </Button>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filtered.map((item) => {
-                  const isFinished = item.status === 'selesai';
-                  const isWaitingInterview = item.status === 'berjalan';
+            </div>
 
-                  return (
-                    <div
-                      key={item.id}
+            {/* Catalog Grid Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {programs.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs hover:shadow-md hover:border-accent-border transition-all space-y-4 flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-2.5 py-1 rounded-lg border border-accent-border">
+                        {item.id}
+                      </span>
+                      <Badge variant={item.badgeVariant}>{item.badgeStatus}</Badge>
+                    </div>
+
+                    <h3 className="font-heading font-bold text-base text-ink line-clamp-2">
+                      {item.title}
+                    </h3>
+
+                    <p className="text-xs text-slate-500 line-clamp-2">
+                      {item.description}
+                    </p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-600">{item.pt}</span>
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => {
                         searchParams.set('id', item.id);
                         setSearchParams(searchParams);
+                        setViewMode('lms');
                       }}
-                      className="bg-white rounded-3xl border border-slate-200/90 hover:border-blue-500 hover:shadow-lg transition-all duration-200 p-6 flex flex-col justify-between cursor-pointer group relative overflow-hidden "
+                      className="text-xs font-bold"
                     >
-                      {/* Top Accent Strip */}
-                      <div
-                        className={`absolute top-0 left-0 right-0 h-1.5 ${
-                          isFinished
-                            ? 'bg-emerald-500'
-                            : isWaitingInterview
-                            ? 'bg-blue-600'
-                            : 'bg-amber-500'
-                        }`}
-                      />
-
-                      <div className="space-y-4">
-                        {/* Header: Code & Badge */}
-                        <div className="flex items-center justify-between gap-2 pt-1">
-                          <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-2.5 py-1 rounded-lg border border-accent-border">
-                            {item.id}
-                          </span>
-                          <Badge variant={item.badgeVariant}>{item.badgeStatus}</Badge>
-                        </div>
-
-                        {/* Title & Organization */}
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 truncate">
-                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate">{item.pt}</span>
-                          </div>
-                          <h3 className="text-base sm:text-lg font-bold font-heading text-ink group-hover:text-blue-accent transition-colors line-clamp-2 leading-snug">
-                            {item.title}
-                          </h3>
-                          <span className="inline-block text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md mt-1">
-                            {item.category}
-                          </span>
-                        </div>
-
-                        {/* Description Preview */}
-                        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                          {item.description}
-                        </p>
-
-                        {/* Stage Progress Bar */}
-                        <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px] font-semibold">
-                            <span className="text-slate-500">Tahapan:</span>
-                            <span
-                              className={
-                                isFinished
-                                  ? 'text-emerald-700'
-                                  : isWaitingInterview
-                                  ? 'text-blue-700'
-                                  : 'text-amber-700'
-                              }
-                            >
-                              {isFinished
-                                ? '✅ Selesai (Lulus LHA)'
-                                : isWaitingInterview
-                                ? '⏳ Tahap 3: Wawancara'
-                                : '🚀 Tahap 1: Cek & CAT'}
-                            </span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-300 ${
-                                isFinished
-                                  ? 'bg-emerald-500 w-full'
-                                  : isWaitingInterview
-                                  ? 'bg-blue-600 w-3/4'
-                                  : 'bg-amber-500 w-1/4'
-                              }`}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Key Specs Grid */}
-                        <div className="grid grid-cols-3 gap-2 text-center pt-1">
-                          <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100">
-                            <span className="text-[10px] text-slate-400 block font-medium">Durasi CAT</span>
-                            <span className="text-xs font-bold text-slate-800 font-mono">{item.duration}</span>
-                          </div>
-                          <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100">
-                            <span className="text-[10px] text-slate-400 block font-medium">Beban Soal</span>
-                            <span className="text-xs font-bold text-slate-800 font-mono">
-                              {item.questions.split(' ')[0]} Soal
-                            </span>
-                          </div>
-                          <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100">
-                            <span className="text-[10px] text-slate-400 block font-medium">Passing</span>
-                            <span className="text-xs font-bold text-emerald-700 font-mono">
-                              {item.passingScore}/100
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Card Footer: Deadline & Action */}
-                      <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-[11px] text-slate-500 font-medium">
-                          Batas: <strong className="text-slate-700">{item.deadline.split('(')[0]}</strong>
-                        </span>
-                        <div className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-navy group-hover:text-blue-600 transition-colors">
-                          <span>Buka Detail Modul</span>
-                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                      Buka Ruang LMS →
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

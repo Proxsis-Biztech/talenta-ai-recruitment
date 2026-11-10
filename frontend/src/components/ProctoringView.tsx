@@ -36,7 +36,7 @@ interface ProctorViolationEvent {
 
 export default function ProctoringView({ applicants, onViewApplicant }: ProctoringViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterRisk, setFilterRisk] = useState<'ALL' | 'CLEAN' | 'WARNING' | 'HIGH_RISK'>('ALL');
+  const [filterRisk, setFilterRisk] = useState<'ALL' | 'CLEAN' | 'WARNING' | 'HIGH_RISK' | 'UNINTERVIEWED'>('ALL');
   const [inspectingApplicant, setInspectingApplicant] = useState<Applicant | null>(null);
 
   // Parse proctor flags
@@ -50,6 +50,13 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
     }
   };
 
+  // Helper to check if interview was actually completed/scored
+  const isInterviewDone = (applicant: Applicant): boolean => {
+    return applicant.interviewStatus === 'completed' || 
+           applicant.interviewStatus === 'scored' || 
+           (applicant.interviewScore !== null && applicant.interviewScore !== undefined && applicant.interviewScore > 0);
+  };
+
   // Interview sessions list
   const interviewSessions = useMemo(() => {
     return applicants.filter(a => a.interviewStatus === 'completed' || a.interviewStatus === 'in_progress' || (a.interviewTranscript && a.interviewTranscript.length > 0));
@@ -60,16 +67,19 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
     let totalViolations = 0;
     let cleanSessions = 0;
     let highRiskSessions = 0;
+    let completedCount = 0;
 
     interviewSessions.forEach(a => {
+      if (!isInterviewDone(a)) return;
+      completedCount++;
       const flags = parseFlags(a.proctorFlags);
       totalViolations += flags.length;
       if (flags.length === 0) cleanSessions++;
       if (flags.length >= 3) highRiskSessions++;
     });
 
-    const complianceRate = interviewSessions.length > 0
-      ? Math.round((cleanSessions / interviewSessions.length) * 100)
+    const complianceRate = completedCount > 0
+      ? Math.round((cleanSessions / completedCount) * 100)
       : 100;
 
     return {
@@ -82,21 +92,29 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
 
   const filteredSessions = useMemo(() => {
     return interviewSessions.filter(a => {
+      const isDone = isInterviewDone(a);
       const flags = parseFlags(a.proctorFlags);
       const matchesSearch = 
         a.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (a.job?.title || a.appliedPosition).toLowerCase().includes(searchQuery.toLowerCase());
       
       let matchesRisk = true;
-      if (filterRisk === 'CLEAN') matchesRisk = flags.length === 0;
-      if (filterRisk === 'WARNING') matchesRisk = flags.length >= 1 && flags.length <= 2;
-      if (filterRisk === 'HIGH_RISK') matchesRisk = flags.length >= 3;
+      if (filterRisk === 'CLEAN') matchesRisk = isDone && flags.length === 0;
+      if (filterRisk === 'WARNING') matchesRisk = isDone && flags.length >= 1 && flags.length <= 2;
+      if (filterRisk === 'HIGH_RISK') matchesRisk = isDone && flags.length >= 3;
+      if (filterRisk === 'UNINTERVIEWED') matchesRisk = !isDone;
 
       return matchesSearch && matchesRisk;
     });
   }, [interviewSessions, searchQuery, filterRisk]);
 
-  const getRiskBadge = (count: number) => {
+  const getRiskBadge = (count: number, isDone: boolean = true) => {
+    if (!isDone) {
+      return {
+        label: 'BELUM WAWANCARA',
+        className: 'bg-slate-100 text-slate-700 border-slate-200'
+      };
+    }
     if (count === 0) {
       return {
         label: 'INTEGRITAS BERSIH',
@@ -116,17 +134,20 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
   };
 
   const handleExportProctorLog = () => {
-    const headers = ['Nama Kandidat', 'Posisi', 'Status Sesi', 'Jumlah Pelanggaran', 'Skor Wawancara', 'Log Rincian'];
+    const headers = ['Nama Kandidat', 'Posisi', 'Status Sesi', 'Status Integritas', 'Jumlah Pelanggaran', 'Skor Wawancara', 'Log Rincian'];
     const rows = filteredSessions.map(s => {
+      const isDone = isInterviewDone(s);
       const flags = parseFlags(s.proctorFlags);
-      const details = flags.map(f => `${f.type} (${f.timestamp || f.time || '-'})`).join('; ');
+      const integrityStatus = !isDone ? 'BELUM WAWANCARA' : flags.length === 0 ? 'INTEGRITAS BERSIH' : flags.length >= 3 ? 'RISIKO TINGGI' : 'PERINGATAN';
+      const flagCount = !isDone ? '-' : flags.length;
       return [
         `"${s.fullName}"`,
         `"${s.job?.title || s.appliedPosition}"`,
         `"${s.interviewStatus}"`,
-        `"${flags.length}"`,
-        `"${s.interviewScore || '-'}"`,
-        `"${details.replace(/"/g, '""')}"`
+        `"${integrityStatus}"`,
+        flagCount,
+        s.interviewScore ? `${s.interviewScore}/100` : (!isDone ? 'Belum Wawancara' : 'Belum Dinilai'),
+        `"${flags.map(f => f.type).join('; ')}"`
       ];
     });
 
@@ -264,6 +285,12 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
             >
               Risiko Tinggi (3+)
             </button>
+            <button
+              onClick={() => setFilterRisk('UNINTERVIEWED')}
+              className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${filterRisk === 'UNINTERVIEWED' ? 'bg-white text-slate-800 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              Belum Wawancara
+            </button>
           </div>
         </div>
 
@@ -304,9 +331,23 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
             </TableRow>
           ) : (
             filteredSessions.map(session => {
+              const isDone = isInterviewDone(session);
               const flags = parseFlags(session.proctorFlags);
-              const badgeVariant = flags.length === 0 ? 'success' : flags.length >= 3 ? 'danger' : 'warning';
-              const badgeLabel = flags.length === 0 ? 'INTEGRITAS BERSIH' : flags.length >= 3 ? 'RISIKO TINGGI' : 'PERINGATAN';
+              const badgeVariant = !isDone 
+                ? 'neutral' 
+                : flags.length === 0 
+                  ? 'success' 
+                  : flags.length >= 3 
+                    ? 'danger' 
+                    : 'warning';
+              const badgeLabel = !isDone 
+                ? 'BELUM WAWANCARA' 
+                : flags.length === 0 
+                  ? 'INTEGRITAS BERSIH' 
+                  : flags.length >= 3 
+                    ? 'RISIKO TINGGI' 
+                    : 'PERINGATAN';
+
               return (
                 <TableRow key={session.id}>
                   <TableCell className="font-sans">
@@ -321,10 +362,18 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center font-bold font-mono text-slate-900">
-                    {flags.length}
+                    {!isDone ? (
+                      <span className="text-slate-400 font-mono font-normal">-</span>
+                    ) : (
+                      flags.length
+                    )}
                   </TableCell>
                   <TableCell className="font-sans text-xs text-slate-600 max-w-xs">
-                    {flags.length === 0 ? (
+                    {!isDone ? (
+                      <span className="text-slate-400 font-sans italic text-xs">
+                        Belum melaksanakan sesi wawancara
+                      </span>
+                    ) : flags.length === 0 ? (
                       <span className="text-emerald-700 font-medium">
                         Kandidat fokus penuh selama wawancara
                       </span>
@@ -350,7 +399,7 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
                       </span>
                     ) : (
                       <span className="text-slate-400 font-sans italic text-xs">
-                        Belum Dinilai
+                        {session.interviewStatus === 'completed' ? 'Belum Dinilai' : 'Belum Wawancara'}
                       </span>
                     )}
                   </TableCell>
@@ -410,16 +459,20 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
               <div className="border border-slate-200 rounded-lg p-3.5 bg-slate-50 space-y-1.5 text-xs">
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-sans">Status Wawancara:</span>
-                  <span className="font-semibold text-slate-800 font-mono uppercase">{inspectingApplicant.interviewStatus}</span>
+                  <span className="font-semibold text-slate-800 font-mono uppercase">
+                    {!isInterviewDone(inspectingApplicant) ? 'BELUM WAWANCARA' : inspectingApplicant.interviewStatus}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-sans">Skor AI:</span>
-                  <span className="font-semibold text-slate-800 font-mono">{inspectingApplicant.interviewScore || '-'} / 100</span>
+                  <span className="font-semibold text-slate-800 font-mono">{inspectingApplicant.interviewScore ? `${inspectingApplicant.interviewScore} / 100` : '-'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-sans">Total Pelanggaran:</span>
-                  <span className="font-semibold text-rose-600 font-mono">
-                    {parseFlags(inspectingApplicant.proctorFlags).length} insiden tercatat
+                  <span className={`font-semibold font-mono ${!isInterviewDone(inspectingApplicant) ? 'text-slate-500' : parseFlags(inspectingApplicant.proctorFlags).length > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {!isInterviewDone(inspectingApplicant) 
+                      ? 'Belum ada rekaman (Belum Wawancara)' 
+                      : `${parseFlags(inspectingApplicant.proctorFlags).length} insiden tercatat`}
                   </span>
                 </div>
               </div>
@@ -429,7 +482,11 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
                   Timeline Insiden Browser
                 </h5>
                 <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-48 overflow-y-auto bg-white">
-                  {parseFlags(inspectingApplicant.proctorFlags).length === 0 ? (
+                  {!isInterviewDone(inspectingApplicant) ? (
+                    <div className="py-4 text-center text-xs text-slate-400 font-sans">
+                      Kandidat belum melaksanakan sesi wawancara. Belum ada telemetri browser yang terekam.
+                    </div>
+                  ) : parseFlags(inspectingApplicant.proctorFlags).length === 0 ? (
                     <div className="py-4 text-center text-xs text-slate-400 font-sans">
                       Sesi 100% patuh, tidak ada insiden tercatat.
                     </div>
