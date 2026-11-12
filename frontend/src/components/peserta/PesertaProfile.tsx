@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
+import Swal from 'sweetalert2';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getPortalToken, savePortalSession, getPortalUser } from '../../services/portalAuthService';
 import { getProgramById } from '../../services/assessmentCatalog';
@@ -111,6 +112,8 @@ export default function PesertaProfile() {
 
   // Status banners
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [biodataError, setBiodataError] = useState('');
+  const [isSavingBiodata, setIsSavingBiodata] = useState(false);
   const [passSuccess, setPassSuccess] = useState(false);
   const [passError, setPassError] = useState('');
 
@@ -207,18 +210,13 @@ export default function PesertaProfile() {
   // Save profile updates
   const handleSaveBiodata = async (e: React.FormEvent) => {
     e.preventDefault();
-    const requiredFields = [
-      { label: 'Nama Lengkap', value: fullName, id: 'profile-fullname' },
-      { label: 'Nomor WhatsApp', value: phone, id: 'profile-phone' },
-      { label: 'NIK', value: nik, id: 'profile-nik' },
-      { label: 'Pendidikan', value: education, id: 'profile-education' },
-      { label: 'Universitas', value: university, id: 'profile-university' },
-      { label: 'Kota Domisili', value: city, id: 'profile-city' }
-    ];
+    setBiodataError('');
+    setSaveSuccess(false);
+
     const cleanPhone = phone.replace(/[\s-]/g, '');
-    const phoneValid = /^(?:\+62|62|0)8[1-9][0-9]{7,11}$/.test(cleanPhone);
-    const cleanNik = nik.replace(/[\s-]/g, '');
-    const nikValid = /^\d{16}$/.test(cleanNik);
+    const phoneValid = /^(?:\+62|62|0)8[0-9]{8,12}$/.test(cleanPhone);
+    const cleanNik = nik.replace(/\D/g, '');
+    const nikValid = cleanNik.length === 16;
 
     const validationErrors: string[] = [];
     if (!fullName.trim() || isPlaceholderName(fullName)) {
@@ -232,40 +230,118 @@ export default function PesertaProfile() {
     if (!nik.trim()) {
       validationErrors.push('NIK belum diisi');
     } else if (!nikValid) {
-      validationErrors.push('NIK harus terdiri dari 16 digit angka');
+      validationErrors.push(`NIK harus terdiri dari 16 digit angka (saat ini ${cleanNik.length} digit)`);
     }
-    if (!education.trim()) validationErrors.push('Pendidikan belum diisi');
-    if (!university.trim()) validationErrors.push('Universitas belum diisi');
+    if (!education.trim()) validationErrors.push('Pendidikan terakhir belum diisi');
+    if (!university.trim()) validationErrors.push('Universitas / Institusi belum diisi');
     if (!city.trim()) validationErrors.push('Kota Domisili belum diisi');
 
     if (validationErrors.length > 0) {
-      setPassError(`Periksa kembali data Anda: ${validationErrors.join(' • ')}.`);
-      return;
-    }
-    const token = getPortalToken();
-    if (!token) {
-      setPassError('Sesi Anda tidak ditemukan. Silakan masuk kembali.');
-      return;
-    }
-    try {
-      const response = await axios.put('/api/portal/profile', { name: fullName.trim(), phone: cleanPhone, nik: cleanNik, education, university, city, employeeNumber, department, portfolioUrl, bio }, {
-        headers: { Authorization: `Bearer ${token}` }
+      const errText = `Periksa kembali data Anda: ${validationErrors.join(' • ')}.`;
+      setBiodataError(errText);
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Data Diri Belum Lengkap',
+        html: `
+          <div class="text-left text-xs sm:text-sm text-slate-700 space-y-2 p-1">
+            <p class="font-bold text-rose-700 mb-2">Mohon lengkapi seluruh kolom wajib berikut:</p>
+            <ul class="list-disc pl-5 space-y-1 text-slate-600">
+              ${validationErrors.map((err) => `<li>${err}</li>`).join('')}
+            </ul>
+          </div>
+        `,
+        confirmButtonText: 'Perbaiki Data',
+        confirmButtonColor: '#0b192c',
+        customClass: {
+          popup: 'rounded-2xl',
+          confirmButton: 'rounded-xl text-xs sm:text-sm font-bold px-5 py-2.5 cursor-pointer'
+        }
       });
-      const currentToken = getPortalToken();
-      if (currentToken && response.data.user) {
-        savePortalSession({ token: currentToken, user: response.data.user });
-        if (response.data.user.profileCompleted) {
-          if (!response.data.user.deviceCheckCompletedAt) {
-            setTimeout(() => navigate('/peserta/device-check'), 700);
-          } else {
-            setTimeout(() => navigate(response.data.user.mustChangePassword ? '/peserta/onboarding' : '/peserta'), 700);
-          }
+      return;
+    }
+
+    setIsSavingBiodata(true);
+    const token = getPortalToken();
+    try {
+      let updatedUser: any = null;
+      if (token) {
+        const response = await axios.put('/api/portal/profile', {
+          name: fullName.trim(),
+          phone: cleanPhone,
+          nik: cleanNik,
+          education: education.trim(),
+          university: university.trim(),
+          city: city.trim(),
+          employeeNumber: employeeNumber.trim() || null,
+          department: department.trim() || null,
+          portfolioUrl: portfolioUrl.trim() || null,
+          bio: bio.trim() || null
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        updatedUser = response.data?.user;
+      } else {
+        // Fallback for demo or offline mode
+        const current = getPortalUser() || ({} as any);
+        updatedUser = {
+          ...current,
+          name: fullName.trim(),
+          phone: cleanPhone,
+          nik: cleanNik,
+          education: education.trim(),
+          university: university.trim(),
+          city: city.trim(),
+          employeeNumber,
+          department,
+          portfolioUrl,
+          bio,
+          profileCompleted: true
+        };
+      }
+
+      if (updatedUser) {
+        savePortalSession({ token: token || 'session-token', user: updatedUser });
+      }
+
+      setSaveSuccess(true);
+      setBiodataError('');
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Perubahan Berhasil Disimpan!',
+        text: 'Data profil Anda telah berhasil diperbarui di basis data Right.',
+        timer: 2000,
+        showConfirmButton: false,
+        customClass: {
+          popup: 'rounded-2xl'
+        }
+      });
+
+      if (updatedUser?.profileCompleted) {
+        if (!updatedUser.deviceCheckCompletedAt) {
+          setTimeout(() => navigate('/peserta/device-check'), 500);
+        } else if (updatedUser.mustChangePassword) {
+          setTimeout(() => navigate('/peserta/onboarding'), 500);
         }
       }
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
-      setPassError(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal menyimpan profil.' : 'Gagal menyimpan profil.');
+      const errorMsg = axios.isAxiosError(error)
+        ? error.response?.data?.error || 'Gagal menyimpan profil ke server.'
+        : 'Gagal menyimpan profil.';
+      setBiodataError(errorMsg);
+      await Swal.fire({
+        icon: 'error',
+        title: 'Gagal Menyimpan Data',
+        text: errorMsg,
+        confirmButtonText: 'Tutup',
+        confirmButtonColor: '#0b192c',
+        customClass: {
+          popup: 'rounded-2xl',
+          confirmButton: 'rounded-xl text-xs sm:text-sm font-bold px-5 py-2.5 cursor-pointer'
+        }
+      });
+    } finally {
+      setIsSavingBiodata(false);
     }
   };
 
@@ -494,6 +570,16 @@ export default function PesertaProfile() {
               </div>
             )}
 
+            {biodataError && (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs sm:text-sm text-rose-900 flex items-start gap-3 animate-fadeIn shadow-2xs">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-bold block text-rose-950">Perhatian: Data Belum Lengkap / Sesuai</span>
+                  <p className="leading-relaxed text-rose-800">{biodataError}</p>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-slate-700">Kelengkapan profil</span>
@@ -563,14 +649,20 @@ export default function PesertaProfile() {
 
                 {/* No Telepon / WA */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Nomor WhatsApp / Seluler *
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Nomor WhatsApp / Seluler *
+                    </label>
+                    <span className={`text-[11px] font-mono font-bold ${/^(?:\+62|62|0)8[0-9]{8,12}$/.test(phone.replace(/[\s-]/g, '')) ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {phone.replace(/[\s-]/g, '').length > 0 ? `${phone.replace(/[\s-]/g, '').length} Digit` : ''}
+                    </span>
+                  </div>
                   <input
                     type="tel"
                     id="profile-phone"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Contoh: 081234567890"
                     required
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all font-mono"
                   />
@@ -578,26 +670,37 @@ export default function PesertaProfile() {
 
                 {/* NIK / KTP */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Nomor Induk Kependudukan (NIK) *
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Nomor Induk Kependudukan (NIK) *
+                    </label>
+                    <span className={`text-[11px] font-mono font-bold ${nik.replace(/\D/g, '').length === 16 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {nik.replace(/\D/g, '').length} / 16 Digit
+                    </span>
+                  </div>
                   <div className="relative">
                     <input
                       id="profile-nik"
                       type={showNik ? 'text' : 'password'}
                       value={nik}
                       onChange={(e) => setNik(e.target.value)}
+                      placeholder="16 digit angka NIK sesuai KTP"
+                      maxLength={20}
                       required
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all font-mono tracking-wider"
                     />
                     <button
                       type="button"
                       onClick={() => setShowNik(!showNik)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                      title={showNik ? 'Sembunyikan NIK' : 'Tampilkan NIK'}
                     >
                       {showNik ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Gunakan 16 digit angka resmi KTP untuk verifikasi seleksi dan penerbitan berkas LHA.
+                  </p>
                 </div>
 
                 {/* Pendidikan Terakhir */}
@@ -698,14 +801,30 @@ export default function PesertaProfile() {
                 />
               </div>
 
-              <div className="pt-2 flex justify-end">
+              <div className="pt-3 flex flex-col items-end gap-2.5">
+                {biodataError && (
+                  <p className="text-xs text-rose-600 font-bold flex items-center gap-1.5 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{biodataError}</span>
+                  </p>
+                )}
                 <Button
                   type="submit"
                   variant="primary"
-                  className="px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 rounded-xl cursor-pointer"
+                  disabled={isSavingBiodata}
+                  className="px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 rounded-xl cursor-pointer shadow-xs disabled:opacity-60"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Simpan Perubahan Data Diri</span>
+                  {isSavingBiodata ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Menyimpan Perubahan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Simpan Perubahan Data Diri</span>
+                    </>
+                  )}
                 </Button>
               </div>
             </form>

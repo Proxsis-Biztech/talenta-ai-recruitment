@@ -6,7 +6,7 @@ import {
   Target, Search, RefreshCw, Building2,
   BookOpen, Layers, CheckCircle2, Eye, HelpCircle, Check, 
   X, Filter, SlidersHorizontal, ListOrdered, Award, ShieldCheck, 
-  ChevronRight, FileText, Download
+  ChevronRight, FileText, Download, Database, Info, FileSpreadsheet
 } from 'lucide-react';
 import {
   Card,
@@ -448,6 +448,29 @@ export default function JobManagement() {
         message: 'Soal berhasil dimuat ke editor, tetapi sinkronisasi ke server mengalami kendala.'
       });
     }
+  };
+
+  const handleDownloadQuestionTemplate = () => {
+    const headers = ['No', 'Tipe_Soal', 'Kompetensi', 'Tingkat_Kesulitan', 'Bobot', 'Teks_Pertanyaan', 'Opsi_A', 'Opsi_B', 'Opsi_C', 'Opsi_D', 'Kunci_Jawaban', 'Penjelasan_Rasional'];
+    const rows = [
+      ['1', 'single', 'System & Problem Solving', 'Sulit', '3.5', '[PT Astra International Tbk] Dalam skenario arsitektur Corporate Finance & M&A Strategic Analyst, manakah strategi optimal untuk menangani lonjakan transaksi?', 'Menerapkan asynchronous event-driven queue dengan backpressure handling dan distributed mutex.', 'Memproses seluruh query secara synchronous langsung ke database tanpa caching.', 'Menonaktifkan audit trail logging untuk menghemat memori.', 'Membatasi koneksi peramban secara statis tanpa retry otomatis.', 'A', 'Penerapan queue asinkron dengan backpressure dan distributed mutex lock mencegah thread starvation.'],
+      ['2', 'multi', 'Data Integrity & Optimization', 'Sulit', '4.0', 'Pilihlah DUA prinsip utama dalam menjamin konsistensi data transaksi finansial pada sistem berskala terdistribusi:', 'Penerapan Transactional Outbox Pattern dan Idempotent Consumer.', 'Penggunaan Read Committed Isolation Level dengan locking terukur.', 'Menonaktifkan database indexing selama jam transaksi puncak.', 'Menyimpan seluruh payload transaksi sensitif tanpa enkripsi.', 'A,B', 'Outbox pattern dan idempotency menjamin tidak ada duplikasi pemrosesan pada arsitektur terdistribusi.'],
+      ['3', 'short', 'Financial Architecture', 'Sedang', '3.0', 'Sebutkan protokol audit trail finansial terstandar yang menjamin immutability catatan transaksi pada sistem modern:', '', '', '', '', 'SHA-256 / Append-Only Ledger', 'Append-only ledger ber-hash kriptografis menjamin integritas catatan audit.']
+    ];
+
+    const escapeCsv = (val: string) => `"${(val || '').replace(/"/g, '""')}"`;
+    const csvContent = '\uFEFF' + [
+      headers.map(escapeCsv).join(','),
+      ...rows.map((r) => r.map(escapeCsv).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Template_Bank_Soal_CAT_${(editingJob?.code || 'Formasi').replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const syncQuestionsToServer = async (programCode: string, questions: QuestionItem[]) => {
@@ -1188,10 +1211,16 @@ export default function JobManagement() {
                 <div className="space-y-4">
                   <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900 flex items-start gap-3">
                     <BookOpen className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-blue-950 text-sm">Bank Soal CAT — {editQuestions.length} Butir Aktif</p>
-                      <p className="text-blue-700 text-xs mt-0.5">
-                        Daftar butir soal ini langsung dipakai pada lembar ujian CAT peserta pada formasi lowongan ini.
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-blue-950 text-sm">Bank Soal CAT — {editQuestions.length} Butir Aktif</p>
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold bg-white text-primary-navy border border-blue-200 px-2.5 py-0.5 rounded-md shadow-2xs">
+                          <Database className="w-3 h-3 text-blue-600" />
+                          Sumber: Master Repositori Bank Soal CAT
+                        </span>
+                      </div>
+                      <p className="text-blue-700 text-xs mt-0.5 leading-relaxed">
+                        Daftar butir soal ini langsung dipakai pada lembar ujian CAT peserta pada formasi lowongan ini. Anda dapat menambah soal manual atau mengimpor dari Master Bank Soal CAT &amp; pustaka lintas formasi.
                       </p>
                     </div>
                   </div>
@@ -1260,6 +1289,29 @@ export default function JobManagement() {
                     </Button>
                   </div>
 
+                  {/* Keterangan Sumber Impor Soal */}
+                  <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-blue-100 text-primary-navy flex items-center justify-center shrink-0">
+                        <Info className="w-3.5 h-3.5" />
+                      </div>
+                      <span>
+                        <strong>Keterangan Sumber Impor:</strong> Soal diimpor dari <strong>Master Bank Soal CAT</strong> (katalog terpusat di menu sidebar <em>Bank Soal CAT</em>) serta arsip paket formasi instansi lain ({allProgramsList.length} program terdaftar).
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowImportPanel(!showImportPanel);
+                        setImportFeedback(null);
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary-navy hover:text-blue-700 underline shrink-0 cursor-pointer"
+                    >
+                      <Database className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{showImportPanel ? 'Tutup Pilihan Sumber' : 'Buka Pilihan Sumber Soal →'}</span>
+                    </button>
+                  </div>
+
                   {showImportPanel && (
                     <div className="p-4.5 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-4 shadow-2xs animate-in fade-in duration-150">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
@@ -1283,6 +1335,45 @@ export default function JobManagement() {
                         >
                           <X className="w-4 h-4" />
                         </button>
+                      </div>
+
+                      {/* Penjelasan Detail Asal Sumber Soal & Template CSV */}
+                      <div className="p-3.5 bg-white border border-blue-200/90 rounded-xl text-xs text-slate-700 space-y-2 shadow-2xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                          <span className="font-bold text-primary-navy flex items-center gap-1.5">
+                            <Info className="w-4 h-4 text-blue-600" />
+                            Keterangan Sumber &amp; Format Impor Soal CAT:
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleDownloadQuestionTemplate}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-primary-navy bg-soft-blue hover:bg-blue-100/80 border border-accent-border rounded-lg transition-colors cursor-pointer self-start sm:self-auto"
+                            title="Unduh contoh template format impor soal (CSV)"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Unduh Format Template CSV</span>
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] sm:text-xs text-slate-600">
+                          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
+                            <p className="font-bold text-slate-900 flex items-center gap-1">
+                              <Database className="w-3 h-3 text-blue-600" />
+                              1. Repositori Master Bank Soal CAT
+                            </p>
+                            <p className="leading-relaxed">
+                              Diambil langsung dari basis data terpusat (menu sidebar <strong>Bank Soal CAT</strong>) dan pustaka soal per formasi ({allProgramsList.length} instansi/program terintegrasi).
+                            </p>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
+                            <p className="font-bold text-slate-900 flex items-center gap-1">
+                              <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                              2. Standar Format File CSV / Excel
+                            </p>
+                            <p className="leading-relaxed">
+                              Dapat disusun via spreadsheet dengan kolom: No, Tipe, Teks Pertanyaan, Opsi A-D, Kunci Jawaban, Bobot, dan Rasional BARS.
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
