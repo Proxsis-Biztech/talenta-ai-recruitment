@@ -2,6 +2,8 @@
 
 export interface QuestionItem {
   id: number;
+  questionCode?: string;
+  sourceBank?: string;
   type: 'single' | 'multi' | 'short' | 'essay' | 'matching';
   competency: string;
   difficulty: 'Mudah' | 'Sedang' | 'Sulit';

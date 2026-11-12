@@ -226,8 +226,11 @@ export default function JobManagement() {
       'Esai': 'essay',
       'Matching': 'matching'
     };
+    const pCode = question.programCode || 'CAT';
     return {
       id: index + 1,
+      questionCode: question.id || `SOAL-${pCode}-${String(index + 1).padStart(2, '0')}`,
+      sourceBank: `Master Bank Soal CAT [${pCode}]`,
       type: typeMap[question.type] || 'single',
       text: question.text || '',
       competency: question.competency || 'General',
@@ -252,7 +255,12 @@ export default function JobManagement() {
     if (programQuestions.length === 0 && program.questions && program.questions.length > 0) {
       programQuestions = program.questions;
     }
-    const detailProgram = { ...program, questions: programQuestions };
+    const questionsWithMeta = programQuestions.map((q, idx) => ({
+      ...q,
+      questionCode: q.questionCode || `SOAL-${program.id}-${String(q.id || idx + 1).padStart(2, '0')}`,
+      sourceBank: q.sourceBank || `Master Bank Soal CAT [${program.id} • ${program.companyName || 'Formasi'}]`
+    }));
+    const detailProgram = { ...program, questions: questionsWithMeta };
     const materials = getMaterialsForJob(job);
     setSelectedJobDetail({ job, program: detailProgram, materials });
     setDetailTab('soal');
@@ -268,7 +276,9 @@ export default function JobManagement() {
         !qSearch ||
         q.text.toLowerCase().includes(qSearch.toLowerCase()) ||
         q.competency.toLowerCase().includes(qSearch.toLowerCase()) ||
-        (q.explanation && q.explanation.toLowerCase().includes(qSearch.toLowerCase()));
+        (q.explanation && q.explanation.toLowerCase().includes(qSearch.toLowerCase())) ||
+        (q.questionCode && q.questionCode.toLowerCase().includes(qSearch.toLowerCase())) ||
+        (q.sourceBank && q.sourceBank.toLowerCase().includes(qSearch.toLowerCase()));
       const matchType = qTypeFilter === 'ALL' || q.type === qTypeFilter;
       const matchDiff = qDiffFilter === 'ALL' || q.difficulty === qDiffFilter;
       return matchSearch && matchType && matchDiff;
@@ -376,8 +386,13 @@ export default function JobManagement() {
 
     // Muat soal & materi untuk formasi ini sehingga aksi Ubah bisa melihat dan menyunting konten yang terintegrasi.
     const program = findProgramByTitle(job.title, job.id);
-    setEditQuestions(JSON.parse(JSON.stringify(program.questions)) as QuestionItem[]);
-    setOriginalQuestions(JSON.parse(JSON.stringify(program.questions)) as QuestionItem[]);
+    const questionsWithMeta = (program.questions || []).map((q, idx) => ({
+      ...q,
+      questionCode: q.questionCode || `SOAL-${program.id}-${String(q.id || idx + 1).padStart(2, '0')}`,
+      sourceBank: q.sourceBank || `Master Bank Soal CAT [${program.id} • ${program.companyName || 'Formasi'}]`
+    }));
+    setEditQuestions(JSON.parse(JSON.stringify(questionsWithMeta)) as QuestionItem[]);
+    setOriginalQuestions(JSON.parse(JSON.stringify(questionsWithMeta)) as QuestionItem[]);
     setEditMaterials(JSON.parse(JSON.stringify(getMaterialsForJob(job))) as MasterMateriItem[]);
     setOriginalMaterials(JSON.parse(JSON.stringify(getMaterialsForJob(job))) as MasterMateriItem[]);
     setEditTab(initialTab);
@@ -418,12 +433,28 @@ export default function JobManagement() {
     if (!editingJob || filteredImportQuestions.length === 0) return;
     const program = findProgramByTitle(editTitle.trim() || editingJob.title, editingJob.id);
 
+    const sourceProg = allProgramsList.find((p) => p.id === importSourceProgramId);
+    const sourceLabel = sourceProg
+      ? `Bank Soal CAT [${sourceProg.id} • ${sourceProg.companyName}]`
+      : `Master Bank Soal CAT [${importSourceProgramId}]`;
+
     let nextList: QuestionItem[] = [];
     if (importMode === 'replace') {
-      nextList = filteredImportQuestions.map((q, idx) => ({ ...q, id: idx + 1 }));
+      nextList = filteredImportQuestions.map((q, idx) => ({
+        ...q,
+        id: idx + 1,
+        questionCode: q.questionCode || `SOAL-${importSourceProgramId}-${String(idx + 1).padStart(2, '0')}`,
+        sourceBank: sourceLabel
+      }));
     } else {
       const existingTexts = new Set(editQuestions.map((q) => q.text.trim().toLowerCase()));
-      const toAdd = filteredImportQuestions.filter((q) => !existingTexts.has(q.text.trim().toLowerCase()));
+      const toAdd = filteredImportQuestions
+        .filter((q) => !existingTexts.has(q.text.trim().toLowerCase()))
+        .map((q, idx) => ({
+          ...q,
+          questionCode: q.questionCode || `SOAL-${importSourceProgramId}-${String(editQuestions.length + idx + 1).padStart(2, '0')}`,
+          sourceBank: sourceLabel
+        }));
       if (toAdd.length === 0) {
         setImportFeedback({
           type: 'info',
@@ -572,10 +603,13 @@ export default function JobManagement() {
 
   const handleAddQuestion = () => {
     const nextId = editQuestions.reduce((max, q) => Math.max(max, q.id), 0) + 1;
+    const progCode = editingJob?.code || 'CAT';
     setEditQuestions((prev) => [
       ...prev,
       {
         id: nextId,
+        questionCode: `SOAL-${progCode}-${String(nextId).padStart(2, '0')}`,
+        sourceBank: `Master Bank Soal CAT [${progCode}]`,
         type: 'single',
         competency: 'Umum',
         difficulty: 'Sedang',
@@ -621,7 +655,9 @@ export default function JobManagement() {
       (q) =>
         q.text.toLowerCase().includes(t) ||
         q.competency.toLowerCase().includes(t) ||
-        (q.explanation || '').toLowerCase().includes(t)
+        (q.explanation || '').toLowerCase().includes(t) ||
+        (q.questionCode || '').toLowerCase().includes(t) ||
+        (q.sourceBank || '').toLowerCase().includes(t)
     );
   }, [editQuestions, editQSearch]);
 
@@ -1487,6 +1523,14 @@ export default function JobManagement() {
                                 <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 font-mono font-bold text-sm flex items-center justify-center border border-indigo-200">
                                   #{q.id.toString().padStart(2, '0')}
                                 </span>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-900 text-white shadow-2xs">
+                                  <span className="text-slate-400 font-normal">ID Soal:</span>
+                                  <span>{q.questionCode || `SOAL-${editingJob?.code || 'CAT'}-${q.id.toString().padStart(2, '0')}`}</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-primary-navy border border-blue-200 shadow-2xs">
+                                  <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                  <span>Sumber: <strong className="text-blue-950 font-bold">{q.sourceBank || `Master Bank Soal CAT [${editingJob?.code || 'CAT'}]`}</strong></span>
+                                </span>
                                 <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                                   {questionTypeLabel(q.type)}
                                 </span>
@@ -1530,6 +1574,29 @@ export default function JobManagement() {
                             {isEditing ? (
                               /* ── Form edit soal ── */
                               <div className="space-y-3.5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-white rounded-xl border border-blue-200">
+                                  <div>
+                                    <label className={labelCls}>ID Soal (Kode Identifikasi Unik)</label>
+                                    <input
+                                      type="text"
+                                      value={q.questionCode || `SOAL-${editingJob?.code || 'CAT'}-${q.id.toString().padStart(2, '0')}`}
+                                      onChange={(e) => updateEditQuestion(q.id, { questionCode: e.target.value })}
+                                      placeholder="Contoh: SOAL-SE-402-01"
+                                      className={`${editInputCls} font-mono font-bold text-primary-navy`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className={labelCls}>Sumber Bank Soal CAT</label>
+                                    <input
+                                      type="text"
+                                      value={q.sourceBank || `Master Bank Soal CAT [${editingJob?.code || 'CAT'}]`}
+                                      onChange={(e) => updateEditQuestion(q.id, { sourceBank: e.target.value })}
+                                      placeholder="Contoh: Master Bank Soal CAT [SE-402 • PT Telkom Indonesia Tbk]"
+                                      className={editInputCls}
+                                    />
+                                  </div>
+                                </div>
+
                                 <div>
                                   <label className={labelCls}>Teks Soal</label>
                                   <textarea
@@ -1662,6 +1729,20 @@ export default function JobManagement() {
                             ) : (
                               /* ── Tampilan ringkas (identik modal Lihat Soal & Materi) ── */
                               <div className="space-y-3">
+                                {/* Metadata Sumber Bank Soal & ID Soal */}
+                                <div className="flex items-center gap-2 flex-wrap text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/80 text-slate-600">
+                                  <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                                    <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    Sumber Bank Soal:
+                                  </span>
+                                  <span className="text-blue-950 font-semibold">{q.sourceBank || `Master Bank Soal CAT [${editingJob?.code || 'CAT'}]`}</span>
+                                  <span className="text-slate-300">•</span>
+                                  <span className="font-semibold text-slate-700">ID Soal:</span>
+                                  <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300">
+                                    {q.questionCode || `SOAL-${editingJob?.code || 'CAT'}-${q.id.toString().padStart(2, '0')}`}
+                                  </span>
+                                </div>
+
                                 <p className="text-sm sm:text-[15px] font-medium text-slate-900 leading-relaxed">{q.text}</p>
 
                                 {q.options && q.options.length > 0 && (
@@ -2065,9 +2146,17 @@ export default function JobManagement() {
                       >
                         {/* Question Header */}
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 font-mono font-bold text-sm flex items-center justify-center border border-indigo-200">
                               #{q.id.toString().padStart(2, '0')}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-900 text-white shadow-2xs">
+                              <span className="text-slate-400 font-normal">ID Soal:</span>
+                              <span>{q.questionCode || `SOAL-${selectedJobDetail.job.code || 'CAT'}-${q.id.toString().padStart(2, '0')}`}</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-primary-navy border border-blue-200 shadow-2xs">
+                              <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span>Sumber: <strong className="text-blue-950 font-bold">{q.sourceBank || `Master Bank Soal CAT [${selectedJobDetail.job.code || 'CAT'} • ${selectedJobDetail.program.companyName || 'Formasi'}]`}</strong></span>
                             </span>
                             <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                               {q.type === 'single' ? 'Pilihan Ganda' : q.type === 'multi' ? 'Multi-Select' : q.type === 'short' ? 'Isian Singkat' : q.type === 'essay' ? 'Studi Kasus / Esai' : 'Matching'}
@@ -2082,6 +2171,20 @@ export default function JobManagement() {
                           </div>
                           <span className="text-xs sm:text-sm text-slate-500 font-medium">
                             Kompetensi: <strong className="text-slate-800">{q.competency}</strong>
+                          </span>
+                        </div>
+
+                        {/* Metadata Sumber Bank Soal & ID Soal */}
+                        <div className="flex items-center gap-2 flex-wrap text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/80 text-slate-600">
+                          <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                            <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            Sumber Bank Soal CAT:
+                          </span>
+                          <span className="text-blue-950 font-semibold">{q.sourceBank || `Master Bank Soal CAT [${selectedJobDetail.job.code || 'CAT'} • ${selectedJobDetail.program.companyName || 'Formasi'}]`}</span>
+                          <span className="text-slate-300">•</span>
+                          <span className="font-semibold text-slate-700">ID Soal:</span>
+                          <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300">
+                            {q.questionCode || `SOAL-${selectedJobDetail.job.code || 'CAT'}-${q.id.toString().padStart(2, '0')}`}
                           </span>
                         </div>
 

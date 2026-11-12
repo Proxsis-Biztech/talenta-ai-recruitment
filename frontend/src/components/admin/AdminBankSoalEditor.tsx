@@ -19,7 +19,8 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   ChevronLeft,
-  Layers
+  Layers,
+  Database
 } from 'lucide-react';
 import axios from 'axios';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
@@ -653,6 +654,14 @@ export function AdminBankSoalEditor() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="w-8 h-8 rounded-lg bg-primary-navy text-white flex items-center justify-center font-mono font-bold text-xs">{index + 1}</span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-900 text-white shadow-2xs">
+                      <span className="text-slate-400 font-normal">ID Soal:</span>
+                      <span>{q.id}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-primary-navy border border-blue-200 shadow-2xs">
+                      <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>Sumber: <strong className="text-blue-950 font-bold">Master Bank Soal CAT [{selectedProgramCode || 'Umum'}]</strong></span>
+                    </span>
                     <Badge variant="navy" format="soft">{q.type}</Badge>
                     <Badge variant={q.difficulty === 'Sulit' ? 'danger' : q.difficulty === 'Sedang' ? 'warning' : 'success'} format="soft">{q.difficulty}</Badge>
                     <Badge variant={q.status === 'Published' ? 'success' : q.status === 'Review' ? 'warning' : 'neutral'} format="soft">{q.status}</Badge>
@@ -669,9 +678,18 @@ export function AdminBankSoalEditor() {
                     </Button>
                   </div>
                 </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/80 text-slate-600">
+                  <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                    <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    Sumber Bank Soal CAT:
+                  </span>
+                  <span className="text-blue-950 font-semibold">Master Bank Soal CAT [{selectedProgramCode || 'Umum'}]</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="font-semibold text-slate-700">ID Soal:</span>
+                  <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300">{q.id}</span>
+                </div>
                 <p className="text-sm font-medium text-slate-800 leading-relaxed">{q.text || '(Teks soal belum diisi)'}</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
-                  <span className="font-mono">{q.id}</span>
                   <span>Kompetensi: <strong className="text-slate-700">{q.competency}</strong></span>
                   <span>P-value: <strong className="font-mono text-slate-700">{Number.isFinite(Number(q.pValue)) ? Number(q.pValue).toFixed(2) : '—'}</strong></span>
                   {q.options.length > 0 && <span>{q.options.length} opsi</span>}
