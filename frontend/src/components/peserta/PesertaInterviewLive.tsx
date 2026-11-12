@@ -182,7 +182,7 @@ export default function PesertaInterviewLive() {
     },
     {
       sender: 'Gemini Live',
-      text: `Halo ${sessionUser.name || 'Farhan Pratama'}, selamat datang di sesi wawancara AI Right untuk ${program.companyName || 'PT Telkom Indonesia Tbk'}. Saya Gemini 2.5 Flash Live Assessor. Mari kita mulai dengan pertanyaan pertama terkait arsitektur sistem.`,
+      text: `Halo ${sessionUser.name || 'Farhan Pratama'}, selamat datang di sesi wawancara AI Right untuk ${program.companyName || 'PT Telkom Indonesia Tbk'}. Saya Ava, AI Interviewer Anda (didukung Gemini Live Engine). Mari kita mulai dengan pertanyaan pertama terkait arsitektur sistem.`,
       time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -1439,7 +1439,7 @@ export default function PesertaInterviewLive() {
                   Wawancara Kompetensi • Live AI
                 </h1>
                 <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-soft-blue text-primary-navy border border-accent-border">
-                  Gemini Live
+                  Ava AI Live
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-mono truncate">
@@ -1836,7 +1836,7 @@ export default function PesertaInterviewLive() {
                     Soal #{activeQuestion.id} dari {questions.length}
                   </span>
                   <span className="bg-white/15 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
-                    Live Gemini
+                    Ava AI Live
                   </span>
                 </div>
 
@@ -1859,40 +1859,40 @@ export default function PesertaInterviewLive() {
                 </button>
               </div>
 
-              {/* Standar Rubrik BARS untuk Pertanyaan Aktif */}
+              {/* Panduan Menjawab Berbasis Kompetensi STAR */}
               <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
                   <span className="flex items-center gap-1.5">
                     <Award className="w-3.5 h-3.5 text-blue-600" />
-                    Rubrik Penilaian BARS Asesor:
+                    Panduan Menjawab Sesi Wawancara:
                   </span>
                   <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold">
-                    Standar BARS
+                    Standar STAR
                   </span>
                 </div>
                 <div className="space-y-1 text-[11px] text-slate-600">
                   <div className="p-2 rounded-xl bg-white border border-slate-200/80 flex items-start gap-1.5">
-                    <span className="text-emerald-600 font-bold">Level 5 (4.8 - 5.0):</span>
-                    <span>Arsitektur sistemik komprehensif, mitigasi risiko operasional, idempotensi &amp; trade-offs.</span>
+                    <span className="text-emerald-600 font-bold">Metode STAR:</span>
+                    <span>Jelaskan Situasi (Situation), Tugas (Task), Tindakan konkret (Action), dan Hasil pencapaian (Result).</span>
                   </div>
                   <div className="p-2 rounded-xl bg-white border border-slate-200/80 flex items-start gap-1.5">
-                    <span className="text-blue-600 font-bold">Level 4 (4.0 - 4.7):</span>
-                    <span>Pendekatan teknis benar, standar industri, pemahaman operasional solid.</span>
+                    <span className="text-blue-600 font-bold">Kedalaman Teknis:</span>
+                    <span>Sampaikan alasan arsitektural, mitigasi risiko operasional, dan trade-off dari pilihan keputusan Anda.</span>
                   </div>
                 </div>
 
-                {/* Quick Answer Suggestion Helper for Demo */}
-                {activeQuestion.sampleAnswer && (
+                {/* Quick Answer Suggestion Helper ONLY in DEV mode */}
+                {import.meta.env.DEV && activeQuestion.sampleAnswer && (
                   <button
                     type="button"
                     onClick={() => {
                       setUserAnswer(activeQuestion.sampleAnswer || '');
                       setLiveInterimText(activeQuestion.sampleAnswer || '');
-                      setProctorCustomMessage('Contoh argumen disisipkan. Jawaban akan dinilai otomatis setelah giliran Anda selesai.');
+                      setProctorCustomMessage('Contoh argumen disisipkan (Dev Mode).');
                     }}
                     className="w-full text-center py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-1.5 shadow-2xs"
                   >
-                    <span>💡 Gunakan Contoh Jawaban Demo</span>
+                    <span>💡 [DEV ONLY] Gunakan Contoh Jawaban Demo</span>
                   </button>
                 )}
               </div>
@@ -2100,7 +2100,7 @@ export default function PesertaInterviewLive() {
               Selamat, {sessionUser.name}!
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 mt-1">
-              Seluruh 4 butir pertanyaan wawancara kompetensi terstandar BARS telah selesai dievaluasi oleh Gemini Live AI.
+              Seluruh butir pertanyaan wawancara kompetensi terstandar BARS telah selesai dievaluasi oleh Ava AI (didukung Gemini Live Engine).
             </p>
           </div>
 

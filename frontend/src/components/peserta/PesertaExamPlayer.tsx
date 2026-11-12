@@ -665,7 +665,7 @@ export default function PesertaExamPlayer() {
                 <span>Tahap Berikutnya: Masuk ke Ruang Tunggu Wawancara (Waiting Room)</span>
               </div>
               <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                Jawaban dan penalaran studi kasus yang Anda pilih saat ujian CAT telah diteruskan kepada <strong>Lead Assessor (Dr. Ir. Dwi Hartanto / Gemini AI Live)</strong>. Pada sesi wawancara, Asesor akan mendalami alasan pengambilan keputusan Anda dan menguji kompetensi perilaku kerja (BARS).
+                Jawaban dan penalaran studi kasus yang Anda pilih saat ujian CAT telah diteruskan kepada <strong>Lead Assessor (Dr. Ir. Dwi Hartanto / Ava AI Interviewer)</strong>. Pada sesi wawancara, Asesor akan mendalami alasan pengambilan keputusan Anda dan menguji kompetensi perilaku kerja (BARS).
               </p>
               <div className="pt-2 flex flex-wrap items-center gap-3">
                 <Button
@@ -1453,7 +1453,7 @@ export default function PesertaExamPlayer() {
               <span>Tahap Selanjutnya: Wawancara Kompetensi (Tahap 3 &amp; 4)</span>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Asesor atau AI Gemini Live akan menguji penalaran studi kasus yang baru saja Anda jawab. Silakan masuk ke <strong>Ruang Tunggu Asesor (Waiting Room)</strong> untuk persiapan sesi wawancara.
+              Dewan Asesor atau Ava AI akan menguji penalaran studi kasus yang baru saja Anda jawab. Silakan masuk ke <strong>Ruang Tunggu Asesor (Waiting Room)</strong> untuk persiapan sesi wawancara.
             </p>
           </div>
 

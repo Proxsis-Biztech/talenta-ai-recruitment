@@ -22,7 +22,10 @@ import {
   Smile,
   Building2,
   FileQuestion,
-  Users
+  Users,
+  Camera,
+  Mic,
+  Eye
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
@@ -641,6 +644,84 @@ export default function PesertaDashboard() {
                 <Clock className="w-4 h-4 text-blue-accent" />
                 <span>{profileComplete ? 'Masuk ke Waiting Room' : 'Lengkapi Profil untuk Wawancara'}</span>
               </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── Kartu Status Pengawasan & Kesiapan Perangkat (TC-016) ─── */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-heading font-bold text-base text-ink flex items-center gap-2">
+                  <span>Status Pengawasan &amp; Kesiapan Perangkat</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Proctoring Siap
+                  </span>
+                </h3>
+                <p className="text-xs text-muted-slate mt-0.5">
+                  Pemantauan real-time AI &amp; telemetri integritas aktif selama ujian berlangsung
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/peserta/device-check')}
+              className="text-xs py-2 px-3.5 rounded-xl text-primary-navy font-bold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+            >
+              <Laptop className="w-3.5 h-3.5" />
+              <span>Cek / Uji Ulang Perangkat</span>
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+            <div className="p-4 rounded-xl bg-exam-bg border border-slate-200/80 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-slate font-medium">Kamera &amp; Wajah</span>
+                <Camera className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="font-bold text-ink text-sm">
+                {faceVerified ? 'Wajah Terdaftar' : 'Webcam Siap'}
+              </p>
+              <p className="text-[11px] text-muted-slate">
+                Deteksi kehadiran tunggal &amp; orientasi wajah
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-exam-bg border border-slate-200/80 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-slate font-medium">Mikrofon &amp; Audio</span>
+                <Mic className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="font-bold text-ink text-sm">Input Audio Aktif</p>
+              <p className="text-[11px] text-muted-slate">
+                Deteksi suara ganda &amp; transkripsi AI
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-exam-bg border border-slate-200/80 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-slate font-medium">Aturan Lingkungan</span>
+                <Eye className="w-4 h-4 text-primary-navy" />
+              </div>
+              <p className="font-bold text-ink text-sm">Virtual BG Dilarang</p>
+              <p className="text-[11px] text-muted-slate">
+                Latar belakang asli ruangan wajib terlihat
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-exam-bg border border-slate-200/80 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-slate font-medium">Integritas Browser</span>
+                <ShieldCheck className="w-4 h-4 text-primary-navy" />
+              </div>
+              <p className="font-bold text-ink text-sm">Preset Sedang</p>
+              <p className="text-[11px] text-muted-slate">
+                Kunci full-screen &amp; audit perpindahan tab
+              </p>
             </div>
           </div>
         </div>

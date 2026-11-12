@@ -394,9 +394,9 @@ export default function RolePortalSelector() {
                     </p>
                   </div>
                   <div>
-                    <p className="font-mono text-3xl font-extrabold tabular-nums">99.8%</p>
+                    <p className="font-mono text-3xl font-extrabold tabular-nums">Real-time</p>
                     <p className="text-xs text-blue-200 mt-1 leading-snug">
-                      Insiden kecurangan tertangkap otomatis
+                      Pengawasan AI &amp; deteksi kecurangan otomatis
                     </p>
                   </div>
                 </div>

@@ -269,7 +269,7 @@ export default function PesertaAsesmenList() {
           description: activeProg.description,
           isAssigned: true,
           interviewInfo: {
-            assessorName: 'Dr. Ir. Dwi Hartanto, M.Kom / Gemini AI Live',
+            assessorName: 'Dr. Ir. Dwi Hartanto, M.Kom / Ava AI',
             mode: 'Live Video & Audio Interaktif',
             duration: '45 Menit',
             timing: 'Dilakukan setelah lulus/submit ujian CAT & Live Coding',
