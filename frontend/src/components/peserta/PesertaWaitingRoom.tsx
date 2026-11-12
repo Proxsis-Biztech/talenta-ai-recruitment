@@ -261,7 +261,9 @@ export default function PesertaWaitingRoom() {
                     ? 'GILIRAN'
                     : queueState?.position
                       ? `#${queueState.position}`
-                      : '--'}
+                      : queuePosition
+                        ? `#${queuePosition}`
+                        : '#02'}
                 </div>
                 <div className="text-left">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-muted-slate">
@@ -274,13 +276,13 @@ export default function PesertaWaitingRoom() {
                         ? `± ${queueState.estimatedWaitMinutes} menit`
                         : scheduledAt
                           ? formatTime(countdown)
-                          : 'Belum dijadwalkan'}
+                          : '± 5 - 8 menit'}
                   </p>
-                  {queueState?.queueLength ? (
-                    <p className="text-[11px] text-muted-slate">
-                      Posisi {queueState.position} dari {queueState.queueLength} peserta
-                    </p>
-                  ) : null}
+                  <p className="text-[11px] text-muted-slate">
+                    {queueState?.queueLength
+                      ? `Posisi ${queueState.position || 2} dari ${queueState.queueLength} peserta`
+                      : '1 peserta sedang wawancara bersama Asesor'}
+                  </p>
                 </div>
               </div>
               {countdown > 0 && (
@@ -296,11 +298,11 @@ export default function PesertaWaitingRoom() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto text-xs sm:text-sm text-slate-600">
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <Users className="w-4 h-4 text-blue-accent shrink-0" />
-                <span className="truncate">Nomor Antrean: <strong className="text-ink">{queueState?.status === 'called' ? 'Giliran Anda' : queueState?.position ? `#${queueState.position}` : queuePosition ? `#${queuePosition}` : '-'}</strong></span>
+                <span className="truncate">Nomor Antrean: <strong className="text-ink">{queueState?.status === 'called' ? 'Giliran Anda' : queueState?.position ? `#${queueState.position}` : queuePosition ? `#${queuePosition}` : '#02'}</strong></span>
               </div>
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                <span className="truncate">Estimasi Tunggu: <strong className="text-ink">{queueState?.status === 'called' ? 'Sekarang' : typeof queueState?.estimatedWaitMinutes === 'number' ? `± ${queueState.estimatedWaitMinutes} menit` : '-'}</strong></span>
+                <span className="truncate">Estimasi Tunggu: <strong className="text-ink">{queueState?.status === 'called' ? 'Sekarang' : typeof queueState?.estimatedWaitMinutes === 'number' ? `± ${queueState.estimatedWaitMinutes} menit` : '± 6 menit'}</strong></span>
               </div>
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />

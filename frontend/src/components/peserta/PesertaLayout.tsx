@@ -557,9 +557,9 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     1
                   </div>
                   <div className="space-y-1">
-                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Buka Menu "Asesmen Saya"</p>
+                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Lengkapi Data Diri &amp; Identitas KTP</p>
                     <p className="text-xs text-muted-slate leading-relaxed">
-                      Klik menu <strong>Asesmen Saya</strong> di sidebar kiri. Anda akan melihat daftar asesmen yang ditugaskan oleh perusahaan mitra. Gunakan tab filter <strong>"Belum Dikerjakan"</strong> untuk memilih program aktif Anda.
+                      Buka menu <strong>Profil &amp; Dokumen</strong>. Pastikan Nama Lengkap sesuai KTP, NIK, nomor kontak WhatsApp, dan data pendidikan telah terisi lengkap sebagai arsip resmi seleksi.
                     </p>
                   </div>
                 </div>
@@ -569,57 +569,69 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
                     2
                   </div>
                   <div className="space-y-1">
-                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Lakukan Tahap 1: Cek Perangkat (Kamera &amp; Mic)</p>
+                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Uji Kesiapan Perangkat &amp; Registrasi Wajah</p>
                     <p className="text-xs text-muted-slate leading-relaxed">
-                      Pastikan kamera web Anda menghasilkan video yang jelas, mikrofon menangkap suara Anda tanpa dengung, dan lakukan verifikasi foto biometrik wajah.
+                      Buka menu <strong>Cek Kamera &amp; Mic</strong>. Pastikan webcam, audio output, mikrofon, dan jaringan normal, lalu ambil snapshot foto wajah dan tekan tombol konfirmasi kesiapan sistem.
                     </p>
                   </div>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-white border border-slate-200/80 flex items-start gap-3 shadow-2xs">
-                  <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
                     3
                   </div>
                   <div className="space-y-1">
-                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Kerjakan Tahap 2: Ujian CAT sesuai paket</p>
+                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Baca Aturan Ujian &amp; Pakta Integritas</p>
                     <p className="text-xs text-muted-slate leading-relaxed">
-                      Masuk ke Ruang Ujian CAT. Anda akan mengerjakan 40 butir soal pilihan ganda &amp; studi kasus situasional. Jawaban Anda tersimpan otomatis ke server secara real-time.
+                      Patuhi standar anti-kecurangan: <strong>dilarang menggunakan virtual background/filter</strong>, dilarang membuka tab/aplikasi lain, dan pastikan tidak ada orang lain di sekitar ruangan ujian.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white border border-slate-200/80 flex items-start gap-3 shadow-2xs">
+                  <div className="w-8 h-8 rounded-xl bg-blue-700 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    4
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Kerjakan Paket Ujian Teknis (CAT &amp; Live Coding)</p>
+                    <p className="text-xs text-muted-slate leading-relaxed">
+                      Kerjakan paket butir soal sesuai formasi yang Anda lamar. Seluruh pilihan jawaban tersimpan secara instan dan otomatis ke server penguji.
                     </p>
                   </div>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-white border border-slate-200/80 flex items-start gap-3 shadow-2xs">
                   <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                    4
+                    5
                   </div>
                   <div className="space-y-1">
-                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Masuk Tahap 3: Ruang Tunggu Asesor</p>
+                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Masuk Ruang Tunggu Asesor (Waiting Room)</p>
                     <p className="text-xs text-muted-slate leading-relaxed">
-                      Setelah menekan "Kumpulkan Jawaban CAT", Anda diarahkan ke Ruang Tunggu (Waiting Room) untuk sinkronisasi antrean wawancara dan persiapan feed audio-video.
+                      Setelah submit ujian teknis, Anda diarahkan ke Ruang Tunggu. Sistem antrean waktu-nyata akan memberikan nomor giliran dan notifikasi otomatis saat giliran Anda tiba.
                     </p>
                   </div>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-white border border-slate-200/80 flex items-start gap-3 shadow-2xs">
                   <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                    5
+                    6
                   </div>
                   <div className="space-y-1">
-                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Ikuti Tahap 4: Wawancara Live bersama Asesor</p>
+                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Wawancara Live Terstandar BARS</p>
                     <p className="text-xs text-muted-slate leading-relaxed">
-                      Saat giliran tiba, masuk ke ruang wawancara live. Asesor (atau avatar AI sesuai program) akan mengajukan pertanyaan mendalam; penilaian akhir tetap dilakukan asesor.
+                      Ikuti sesi wawancara interaktif bersama Dewan Asesor / Right AI Assistant. Pertanyaan menggali kompetensi perilaku kerja dan penalaran jawaban ujian teknis Anda.
                     </p>
                   </div>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-white border border-slate-200/80 flex items-start gap-3 shadow-2xs">
                   <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                    6
+                    7
                   </div>
                   <div className="space-y-1">
-                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Buka Tahap 5: Hasil &amp; Nilai Akhir (LHA)</p>
+                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Penerbitan Laporan Hasil Asesmen (LHA)</p>
                     <p className="text-xs text-muted-slate leading-relaxed">
-                      Laporan Hasil Asesmen (LHA) resmi tersedia setelah asesor menyelesaikan penilaian dan menandatangani laporan.
+                      LHA resmi dan rekomendasi seleksi diterbitkan setelah seluruh hasil dievaluasi dan ditandatangani secara elektronik (e-sign) oleh asesor berwenang.
                     </p>
                   </div>
                 </div>
@@ -683,6 +695,34 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           {helpActiveTab === 'faq' && (
             <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <p className="font-bold text-slate-900 text-xs sm:text-sm">📷 Bagaimana aturan kamera web dan larangan Virtual Background?</p>
+                <p className="text-xs text-muted-slate leading-relaxed">
+                  Kamera web wajib aktif sepanjang ujian dan wawancara. <strong>Dilarang keras menggunakan Virtual Background, filter kamera, atau green screen buatan</strong>. Sistem proctoring AI memerlukan latar belakang ruangan yang asli dan pencahayaan yang cukup untuk memvalidasi integritas pengawasan Anda.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <p className="font-bold text-slate-900 text-xs sm:text-sm">🛡️ Apa saja aturan anti-kecurangan (Proctoring AI)?</p>
+                <p className="text-xs text-muted-slate leading-relaxed">
+                  Sistem AI mendeteksi anomali secara waktu-nyata: perpindahan jendela/tab peramban (maksimal toleransi 3x peringatan), deteksi wajah ganda atau tidak ada wajah, dan suara pihak ketiga. Setiap pelanggaran dicatat ke dalam audit trail asesor.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <p className="font-bold text-slate-900 text-xs sm:text-sm">🔔 Bagaimana mengetahui giliran masuk wawancara?</p>
+                <p className="text-xs text-muted-slate leading-relaxed">
+                  Setelah ujian teknis selesai, Anda akan masuk ke <strong>Ruang Tunggu (Waiting Room)</strong>. Di sana tertera nomor urut antrean Anda dan estimasi waktu tunggu. Ketika asesor memanggil nomor Anda, banner notifikasi dan nada panggil akan berbunyi di layar Anda.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <p className="font-bold text-slate-900 text-xs sm:text-sm">📜 Kapan Laporan Hasil Asesmen (LHA) dapat diunduh?</p>
+                <p className="text-xs text-muted-slate leading-relaxed">
+                  LHA resmi diterbitkan setelah Dewan Asesor menyelesaikan rekap nilai komposit (CAT + Interview BARS) dan membubuhkan tanda tangan elektronik (e-sign). Anda dapat melihat dan mengunduh berkas dossier resmi di menu <strong>Hasil Nilai &amp; LHA</strong>.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
                 <p className="font-bold text-slate-900 text-xs sm:text-sm">🌐 Apa yang harus dilakukan jika sambungan internet terputus?</p>
                 <p className="text-xs text-muted-slate leading-relaxed">
                   Jawaban Anda disimpan otomatis ke server setiap kali Anda memilih opsi. Jika jaringan terputus, muat ulang (refresh) halaman peramban Anda. Anda akan langsung kembali ke nomor soal terakhir tanpa kehilangan data.
@@ -690,23 +730,9 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
-                <p className="font-bold text-slate-900 text-xs sm:text-sm">📷 Bagaimana aturan kamera web (webcam)?</p>
-                <p className="text-xs text-muted-slate leading-relaxed">
-                  Kamera web wajib aktif selama ujian CAT dan wawancara berlangsung. Pastikan wajah Anda selalu berada di dalam bingkai kamera dan ruangan memiliki pencahayaan cukup.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
-                <p className="font-bold text-slate-900 text-xs sm:text-sm">🎙️ Bagaimana jika mikrofon tidak terdengar saat wawancara?</p>
-                <p className="text-xs text-muted-slate leading-relaxed">
-                  Periksa izin akses mikrofon di peramban (ikon gembok di bilah URL). Anda juga dapat membuka menu <strong>1. Cek Perangkat</strong> untuk menguji input volume suara sebelum masuk ke ruang wawancara.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
                 <p className="font-bold text-slate-900 text-xs sm:text-sm">📞 Butuh bantuan teknis segera?</p>
                 <p className="text-xs text-muted-slate leading-relaxed">
-                  Hubungi Helpdesk Panitia melalui email di <strong>support@talenta-plus.id</strong> atau hubungi nomor hotline WhatsApp resmi yang tertera di kartu ujian Anda.
+                  Hubungi Helpdesk Panitia melalui email di <strong>support@right.id</strong> atau hubungi tim pengawas seleksi institusi Anda.
                 </p>
               </div>
             </div>

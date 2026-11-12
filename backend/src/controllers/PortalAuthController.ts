@@ -226,7 +226,7 @@ export const tokenLogin = async (req: AuthRequest, res: Response) => {
       const generatedEmail = email || `token-${programCode.toLowerCase()}-${Date.now()}@talenta.local`;
       user = await prisma.portalUser.create({
         data: {
-          name: String(req.body.name || 'Kandidat Ujian CAT').trim(),
+          name: req.body.name ? String(req.body.name).trim() : '',
           email: generatedEmail,
           password: await bcrypt.hash(`token-${Date.now()}-${Math.random()}`, 10),
           role: 'peserta',
@@ -293,7 +293,17 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
     }
     const existing = await prisma.portalUser.findUnique({ where: { id: req.portalUser.id } });
     const merged = { ...existing, ...data } as any;
-    if (merged.name && merged.phone && merged.nik && merged.education && merged.university && merged.city) {
+    const isPlaceholder = (n?: string | null) => {
+      if (!n) return true;
+      const s = n.trim().toLowerCase();
+      return (
+        s === 'kandidat ujian cat' ||
+        s === 'kandidat baru' ||
+        s.startsWith('token-') ||
+        s.startsWith('kandidat ')
+      );
+    };
+    if (merged.name && !isPlaceholder(merged.name) && merged.phone && merged.nik && merged.education && merged.university && merged.city) {
       data.profileCompleted = true;
     }
     const user = await prisma.portalUser.update({

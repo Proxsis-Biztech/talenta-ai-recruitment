@@ -61,6 +61,10 @@ export default function PesertaDeviceCheck() {
   const [speakerPlaying, setSpeakerPlaying] = useState(false);
   const [consentGiven, setConsentGiven] = useState(true);
 
+  // System validation & confirmation states
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationSuccess, setValidationSuccess] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
+
   // Face registration states
   const [faceDetected, setFaceDetected] = useState(true);
   const [initialFaceRegistered, setInitialFaceRegistered] = useState(() => {
@@ -300,24 +304,75 @@ export default function PesertaDeviceCheck() {
   }, [handleTestConnection]);
 
   // ──────────────────────────────────────────────
-  // 5. Proceed to Exam Navigation
+  // 5. System Diagnostic Confirmation & Navigation
   // ──────────────────────────────────────────────
-  const handleFinishDeviceCheck = async () => {
-    const token = getPortalToken();
-    if (token) {
-      try {
+  const handleConfirmDeviceCheck = async () => {
+    setFaceError('');
+
+    const errors: string[] = [];
+    if (cameraStatus !== 'active' && cameraStatus !== 'simulated') {
+      errors.push('Kamera belum aktif. Pastikan izin akses kamera telah diizinkan.');
+    }
+    if (micStatus !== 'active' && micStatus !== 'simulated') {
+      errors.push('Mikrofon belum aktif. Pastikan audio input terhubung normal.');
+    }
+    if (!speakerTested) {
+      handleTestSpeaker();
+    }
+    const hasFace = initialFaceRegistered || Boolean(getPortalUser()?.faceVerifiedAt);
+    if (!hasFace) {
+      if (cameraStatus === 'active' && videoRef.current && videoRef.current.videoWidth > 0) {
+        handleCaptureFace();
+      } else {
+        errors.push('Snapshot wajah belum tersimpan. Silakan klik "Ambil Foto" pada kartu Registrasi Foto Wajah.');
+      }
+    }
+    if (!consentGiven) {
+      errors.push('Persetujuan biometrik & perlindungan data wajib dicentang.');
+    }
+
+    if (errors.length > 0) {
+      setFaceError(errors[0]);
+      return;
+    }
+
+    setIsValidating(true);
+    try {
+      // Diagnostic delay for thorough validation feedback
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      const token = getPortalToken();
+      if (token) {
         const response = await axios.post('/api/portal/device-check/complete', {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        if (response.data?.user) savePortalSession({ token, user: response.data.user });
-      } catch {
-        // Tetap lanjut; status dapat diselesaikan ulang.
+        if (response.data?.user) {
+          savePortalSession({ token, user: response.data.user });
+        }
       }
+      setValidationSuccess(true);
+      setFaceError('');
+    } catch (err) {
+      setFaceError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal memvalidasi perangkat.' : 'Gagal memvalidasi perangkat.');
+    } finally {
+      setIsValidating(false);
     }
-    navigate((getPortalUser()?.faceVerifiedAt || initialFaceRegistered) ? '/peserta' : '/peserta/profile?tab=biometrik');
+  };
+
+  const handleFinishDeviceCheck = async () => {
+    if (!validationSuccess && !getPortalUser()?.deviceCheckCompletedAt) {
+      await handleConfirmDeviceCheck();
+    }
+    navigate('/peserta');
   };
 
   const handleProceedToExam = () => {
+    if (!validationSuccess && !getPortalUser()?.deviceCheckCompletedAt) {
+      setFaceError('Silakan tekan tombol "Konfirmasi & Validasi Kesiapan Perangkat" terlebih dahulu untuk memvalidasi seluruh sistem perangkat Anda.');
+      const btn = document.getElementById('btn-confirm-device');
+      btn?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     if (!consentGiven) {
       setFaceError('Silakan centang persetujuan biometrik & perlindungan data sebelum melanjutkan.');
       return;
@@ -352,7 +407,7 @@ export default function PesertaDeviceCheck() {
             <p className="text-sm text-muted-slate mt-2.5 leading-relaxed flex items-center gap-2">
               <Building2 className="w-4 h-4 text-slate-400" />
               <span>
-                Kandidat: <strong className="text-ink font-semibold">{activeUser.name}</strong> ({activeUser.id}) • Instansi: <strong className="text-primary-navy font-semibold">{activeProgram.companyName}</strong>
+                Kandidat: <strong className="text-ink font-semibold">{activeUser.name || 'Peserta Terdaftar'}</strong> • Instansi: <strong className="text-primary-navy font-semibold">{activeProgram.companyName}</strong>
               </span>
             </p>
           </div>
@@ -363,7 +418,7 @@ export default function PesertaDeviceCheck() {
             className="self-start sm:self-auto py-3 px-6 text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm rounded-xl cursor-pointer"
           >
             <PlayCircle className="w-4 h-4" />
-            <span>Mulai Ujian CAT Langsung (40 Soal)</span>
+            <span>Mulai Ujian CAT Langsung ({activeProgram.questions?.length || activeProgram.totalQuestions || 40} Soal)</span>
           </Button>
         </div>
 
@@ -405,11 +460,11 @@ export default function PesertaDeviceCheck() {
                 <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full text-white text-xs">
                   <span
                     className={`w-2.5 h-2.5 rounded-full ${
-                      cameraStatus === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'
+                      cameraStatus === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
                     }`}
                   />
                   <span className="font-medium">
-                    {cameraStatus === 'active' ? 'Webcam Aktif (Live)' : 'Kamera Simulasi Mandatori'}
+                    {cameraStatus === 'active' ? 'Webcam Fisik Aktif (Live)' : 'Mode Simulasi (Kamera Fisik Belum Diberi Izin)'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 bg-primary-navy/80 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-mono">
@@ -422,14 +477,14 @@ export default function PesertaDeviceCheck() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="relative w-64 h-64 flex items-center justify-center">
                     {/* Bounding Box Overlay */}
-                    <div className="absolute inset-6 border-2 border-emerald-400/80 rounded-2xl pointer-events-none animate-pulse">
-                      <span className="absolute -top-3.5 left-4 bg-emerald-500 text-white font-mono text-xs px-2 py-0.5 rounded font-bold shadow-xs">
-                        Wajah Terdeteksi (98.4%)
+                    <div className="absolute inset-6 border-2 border-amber-400/80 rounded-2xl pointer-events-none">
+                      <span className="absolute -top-3.5 left-4 bg-amber-500 text-white font-mono text-[11px] px-2 py-0.5 rounded font-bold shadow-xs">
+                        Pratinjau Simulasi (Izin Kamera Fisik Diperlukan)
                       </span>
-                      <div className="absolute -top-1 -left-1 w-3.5 h-3.5 border-t-2 border-l-2 border-emerald-400" />
-                      <div className="absolute -top-1 -right-1 w-3.5 h-3.5 border-t-2 border-r-2 border-emerald-400" />
-                      <div className="absolute -bottom-1 -left-1 w-3.5 h-3.5 border-b-2 border-l-2 border-emerald-400" />
-                      <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 border-b-2 border-r-2 border-emerald-400" />
+                      <div className="absolute -top-1 -left-1 w-3.5 h-3.5 border-t-2 border-l-2 border-amber-400" />
+                      <div className="absolute -top-1 -right-1 w-3.5 h-3.5 border-t-2 border-r-2 border-amber-400" />
+                      <div className="absolute -bottom-1 -left-1 w-3.5 h-3.5 border-b-2 border-l-2 border-amber-400" />
+                      <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 border-b-2 border-r-2 border-amber-400" />
                     </div>
 
                     {/* Candidate Avatar / Silhouette */}
@@ -473,14 +528,25 @@ export default function PesertaDeviceCheck() {
                     1 Wajah Terverifikasi • Pencahayaan Cukup
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={startRealMedia}
-                  className="text-xs text-slate-300 hover:text-white underline cursor-pointer flex items-center gap-1"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Uji Ulang Kamera</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCaptureFace}
+                    disabled={registeringFace || cameraStatus !== 'active'}
+                    className="px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg cursor-pointer transition-all flex items-center gap-1 shadow-2xs"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>{registeringFace ? 'Menyimpan...' : initialFaceRegistered ? 'Foto Ulang' : 'Ambil Foto Wajah'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startRealMedia}
+                    className="text-xs text-slate-300 hover:text-white underline cursor-pointer flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Uji Ulang</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -519,27 +585,41 @@ export default function PesertaDeviceCheck() {
                 {/* 1. Camera Check */}
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-200 hover:bg-white hover:border-accent-border hover:shadow-2xs">
                   <div className="flex items-center gap-3">
-                    <Camera className="w-5 h-5 text-primary-navy" />
+                    <Camera className={`w-5 h-5 ${cameraStatus === 'active' ? 'text-emerald-600' : 'text-amber-600'}`} />
                     <div>
                       <p className="text-xs sm:text-sm font-bold text-ink">Kamera Web (Webcam)</p>
                       <p className="text-xs text-muted-slate">
-                        {cameraStatus === 'active' ? 'HD Camera Terhubung • Siap' : 'Mode Simulasi Terverifikasi'}
+                        {cameraStatus === 'active' ? 'HD Camera Fisik Terhubung • Siap' : 'Mode Simulasi (Kamera Fisik Belum Diberi Izin)'}
                       </p>
                     </div>
                   </div>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  {cameraStatus === 'active' ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  ) : (
+                    <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded border border-amber-200">
+                      Simulasi
+                    </span>
+                  )}
                 </div>
 
                 {/* 2. Mic Check */}
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-200 hover:bg-white hover:border-accent-border hover:shadow-2xs">
                   <div className="flex items-center gap-3">
-                    <Mic className="w-5 h-5 text-primary-navy" />
+                    <Mic className={`w-5 h-5 ${micStatus === 'active' ? 'text-emerald-600' : 'text-amber-600'}`} />
                     <div>
                       <p className="text-xs sm:text-sm font-bold text-ink">Mikrofon Sistem</p>
-                      <p className="text-xs text-muted-slate">Audio Input Responsif • Sinyal Normal</p>
+                      <p className="text-xs text-muted-slate">
+                        {micStatus === 'active' ? `Mikrofon Fisik Terhubung • Responsif (${audioLevel}%)` : 'Mode Simulasi (Mikrofon Fisik Belum Terhubung)'}
+                      </p>
                     </div>
                   </div>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  {micStatus === 'active' ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  ) : (
+                    <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded border border-amber-200">
+                      Simulasi
+                    </span>
+                  )}
                 </div>
 
                 {/* 3. Speaker / Audio Test Button */}
@@ -613,7 +693,7 @@ export default function PesertaDeviceCheck() {
                 {initialFaceRegistered || getPortalUser()?.faceVerifiedAt ? (
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-200 hover:bg-white hover:border-accent-border hover:shadow-2xs flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <ShieldCheck className="w-5 h-5 text-primary-navy shrink-0" />
+                      <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs sm:text-sm font-bold text-ink">Registrasi Foto Wajah</p>
                         <p className="text-xs text-emerald-700 font-medium truncate">
@@ -625,10 +705,12 @@ export default function PesertaDeviceCheck() {
                       <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                       <button
                         type="button"
-                        onClick={() => navigate('/peserta/profile?tab=biometrik')}
-                        className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 text-slate-600 rounded-lg cursor-pointer transition-all"
+                        onClick={handleCaptureFace}
+                        disabled={registeringFace}
+                        className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg cursor-pointer transition-all"
+                        title="Ambil snapshot wajah ulang"
                       >
-                        Ubah
+                        {registeringFace ? 'Menyimpan...' : 'Foto Ulang'}
                       </button>
                     </div>
                   </div>
@@ -644,13 +726,14 @@ export default function PesertaDeviceCheck() {
                       </div>
                     </div>
                     <Button
-                      variant="outline"
+                      variant="primary"
                       size="xs"
                       type="button"
-                      onClick={() => navigate('/peserta/profile?tab=biometrik')}
-                      className="text-xs py-1.5 px-3 bg-white border-amber-300 text-amber-900 font-bold shrink-0 hover:bg-amber-100 shadow-2xs"
+                      disabled={registeringFace || cameraStatus !== 'active'}
+                      onClick={handleCaptureFace}
+                      className="text-xs py-1.5 px-3 bg-primary-navy text-white font-bold shrink-0 shadow-2xs cursor-pointer"
                     >
-                      Buka Profil
+                      {registeringFace ? 'Menyimpan...' : 'Ambil Foto'}
                     </Button>
                   </div>
                 )}
@@ -685,7 +768,7 @@ export default function PesertaDeviceCheck() {
 
               {/* Error Alert Banner if validation fails */}
               {faceError && (
-                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5 animate-shake">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <span className="font-semibold">{faceError}</span>
@@ -693,26 +776,84 @@ export default function PesertaDeviceCheck() {
                 </div>
               )}
 
-              {/* Action Buttons: Clean vertical stack to eliminate any horizontal overflow or button collision */}
-              <div className="pt-2 flex flex-col gap-2.5">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  onClick={handleProceedToExam}
-                  className="w-full py-3.5 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm rounded-xl cursor-pointer"
-                >
-                  <PlayCircle className="w-4 h-4 shrink-0" />
-                  <span>Lanjut ke Lembar Ujian CAT (40 Soal)</span>
-                </Button>
+              {/* Validation Success Card if confirmed */}
+              {validationSuccess && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-3 animate-fade-in shadow-2xs">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-emerald-950 text-xs sm:text-sm">
+                        Device & Sistem Divalidasi Sempurna
+                      </span>
+                      <span className="text-[10px] bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded-full">
+                        Terverifikasi
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-800 leading-relaxed">
+                      Kamera, mikrofon, audio output, koneksi internet, dan registrasi wajah Anda telah dikonfirmasi berfungsi optimal oleh sistem.
+                    </p>
+                  </div>
+                </div>
+              )}
 
-                <Button
-                  variant="outline"
-                  onClick={handleFinishDeviceCheck}
-                  className="w-full py-2.5 px-4 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 flex items-center justify-center gap-2 rounded-xl cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span>{getPortalUser()?.faceVerifiedAt || initialFaceRegistered ? 'Selesai & Lanjut ke Dashboard' : 'Lanjut Registrasi Wajah'}</span>
-                </Button>
+              {/* Action Buttons: Confirmation & Navigation */}
+              <div className="pt-2 flex flex-col gap-2.5">
+                {!validationSuccess ? (
+                  <>
+                    <Button
+                      id="btn-confirm-device"
+                      variant="primary"
+                      size="lg"
+                      disabled={isValidating}
+                      onClick={handleConfirmDeviceCheck}
+                      className="w-full py-4 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-md rounded-2xl cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white transition-all transform active:scale-[0.99]"
+                    >
+                      {isValidating ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Sistem Sedang Memvalidasi Perangkat...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="w-5 h-5 text-emerald-200 shrink-0" />
+                          <span>Konfirmasi & Validasi Kesiapan Perangkat</span>
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-[11px] text-center text-slate-500">
+                      Tekan tombol konfirmasi di atas agar sistem memvalidasi seluruh fungsi kamera, audio, dan jaringan Anda sebelum masuk ke ujian.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      onClick={handleProceedToExam}
+                      className="w-full py-3.5 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm rounded-xl cursor-pointer"
+                    >
+                      <PlayCircle className="w-4 h-4 shrink-0" />
+                      <span>Lanjut ke Lembar Ujian CAT ({activeProgram.questions?.length || 40} Soal)</span>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={handleFinishDeviceCheck}
+                      className="w-full py-2.5 px-4 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 flex items-center justify-center gap-2 rounded-xl cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Masuk ke Dashboard Peserta</span>
+                    </Button>
+
+                    <button
+                      type="button"
+                      onClick={() => setValidationSuccess(false)}
+                      className="text-[11px] text-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer py-1"
+                    >
+                      Perlu cek ulang perangkat lagi? Klik di sini untuk re-validasi
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

@@ -433,6 +433,72 @@ export default function PesertaDashboard() {
           </div>
         </div>
 
+        {/* ─── Visual Pipeline Tahapan Asesmen (Clean, Friendly Stepper di Posisi Atas) ─── */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+            <div>
+              <h3 className="font-heading font-bold text-lg text-ink">
+                Progres Tahapan Seleksi Anda
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-slate mt-0.5">
+                Lacak seluruh pencapaian tahapan evaluasi Anda secara transparan dan berurutan
+              </p>
+            </div>
+            <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-3.5 py-1.5 rounded-full border border-accent-border self-start sm:self-auto">
+              {isCatCompleted ? 'Tahap 3 dari 5 Selesai (Wawancara Aktif)' : 'Tahap 2 dari 5 Selesai (Ujian CAT Aktif)'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
+            {stages.map((stg, idx) => {
+              const isCompleted = stg.status === 'completed';
+              const isActive = stg.status === 'active';
+              return (
+                <div
+                  key={idx}
+                  className={`p-5 rounded-2xl border transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between ${
+                    isActive
+                      ? 'border-blue-accent/70 bg-soft-blue shadow-2xs ring-1 ring-blue-accent/20'
+                      : isCompleted
+                      ? 'border-emerald-200 bg-emerald-50/50'
+                      : 'border-slate-200 bg-slate-50/60'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-mono font-bold text-slate-400">
+                        Langkah 0{idx + 1}
+                      </span>
+                      {isCompleted ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : isActive ? (
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-accent" />
+                      ) : (
+                        <Clock className="w-3.5 h-3.5 text-slate-300" />
+                      )}
+                    </div>
+                    <p
+                      className={`text-xs font-bold leading-snug ${
+                        isActive
+                          ? 'text-primary-navy'
+                          : isCompleted
+                          ? 'text-emerald-950'
+                          : 'text-slate-600'
+                      }`}
+                    >
+                      {stg.title}
+                    </p>
+                  </div>
+                  <div className="mt-4 pt-2.5 border-t border-slate-200/50">
+                    <p className="text-[11px] text-muted-slate font-medium">{stg.desc}</p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">{stg.date}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* ─── 8 / 4 Split: Active Assessment & Upcoming Interview ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch">
           {/* Active Assessment Card (8 cols) */}
@@ -576,72 +642,6 @@ export default function PesertaDashboard() {
                 <span>{profileComplete ? 'Masuk ke Waiting Room' : 'Lengkapi Profil untuk Wawancara'}</span>
               </Button>
             </div>
-          </div>
-        </div>
-
-        {/* ─── Visual Pipeline Tahapan Asesmen (Clean, Friendly Stepper) ─── */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="font-heading font-bold text-lg text-ink">
-                Progres Tahapan Seleksi Anda
-              </h3>
-              <p className="text-xs sm:text-sm text-muted-slate mt-0.5">
-                Lacak seluruh pencapaian tahapan evaluasi Anda secara transparan dan berurutan
-              </p>
-            </div>
-            <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-3.5 py-1.5 rounded-full border border-accent-border self-start sm:self-auto">
-              {isCatCompleted ? 'Tahap 3 dari 5 Selesai (Wawancara Aktif)' : 'Tahap 2 dari 5 Selesai (Ujian CAT Aktif)'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
-            {stages.map((stg, idx) => {
-              const isCompleted = stg.status === 'completed';
-              const isActive = stg.status === 'active';
-              return (
-                <div
-                  key={idx}
-                  className={`p-5 rounded-2xl border transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between ${
-                    isActive
-                      ? 'border-blue-accent/70 bg-soft-blue shadow-2xs ring-1 ring-blue-accent/20'
-                      : isCompleted
-                      ? 'border-emerald-200 bg-emerald-50/50'
-                      : 'border-slate-200 bg-slate-50/60'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-mono font-bold text-slate-400">
-                        Langkah 0{idx + 1}
-                      </span>
-                      {isCompleted ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      ) : isActive ? (
-                        <span className="w-2.5 h-2.5 rounded-full bg-blue-accent" />
-                      ) : (
-                        <Clock className="w-3.5 h-3.5 text-slate-300" />
-                      )}
-                    </div>
-                    <p
-                      className={`text-xs font-bold leading-snug ${
-                        isActive
-                          ? 'text-primary-navy'
-                          : isCompleted
-                          ? 'text-emerald-950'
-                          : 'text-slate-600'
-                      }`}
-                    >
-                      {stg.title}
-                    </p>
-                  </div>
-                  <div className="mt-4 pt-2.5 border-t border-slate-200/50">
-                    <p className="text-[11px] text-muted-slate font-medium">{stg.desc}</p>
-                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">{stg.date}</p>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
 

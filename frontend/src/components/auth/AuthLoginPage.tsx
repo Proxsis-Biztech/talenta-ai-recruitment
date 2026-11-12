@@ -22,7 +22,7 @@ import { Button, Badge } from '../ui';
 import { setActiveSessionUser } from '../../services/userRegistryService';
 import { clearPortalSession, loginPortal, savePortalSession, tokenLogin } from '../../services/portalAuthService';
 
-const SHOW_DEMO_ACCESS = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
+const SHOW_DEMO_ACCESS = false;
 
 export default function AuthLoginPage() {
   const navigate = useNavigate();
@@ -129,7 +129,27 @@ export default function AuthLoginPage() {
         const session = await tokenLogin({ programCode: programCode.trim().toUpperCase() });
         savePortalSession(session);
         setSuccessRole('peserta');
-        setTimeout(() => navigate(!session.user.faceVerifiedAt ? '/peserta/device-check' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta'), 300);
+
+        const isPlaceholder = (n?: string | null) => {
+          if (!n) return true;
+          const s = n.trim().toLowerCase();
+          return s === '' || s === 'kandidat ujian cat' || s === 'kandidat baru' || s.startsWith('token-') || s.startsWith('kandidat ');
+        };
+        const isProfileComplete = Boolean(
+          session.user.name &&
+          !isPlaceholder(session.user.name) &&
+          session.user.phone &&
+          session.user.nik &&
+          session.user.education &&
+          session.user.university &&
+          session.user.city
+        );
+        const nextUrl = !isProfileComplete
+          ? '/peserta/profile'
+          : !session.user.deviceCheckCompletedAt
+            ? '/peserta/device-check'
+            : '/peserta';
+        setTimeout(() => navigate(nextUrl), 300);
         return;
       }
 
@@ -168,7 +188,32 @@ export default function AuthLoginPage() {
       const session = await loginPortal(identifier.trim(), password);
       savePortalSession(session);
       setSuccessRole(session.user.role === 'asesor' ? 'asesor' : 'peserta');
-      setTimeout(() => navigate(session.user.role === 'asesor' ? '/asesor' : !session.user.faceVerifiedAt ? '/peserta/device-check' : session.requiresOnboarding ? '/peserta/onboarding' : '/peserta'), 300);
+      if (session.user.role === 'asesor') {
+        setTimeout(() => navigate('/asesor'), 300);
+      } else {
+        const isPlaceholder = (n?: string | null) => {
+          if (!n) return true;
+          const s = n.trim().toLowerCase();
+          return s === '' || s === 'kandidat ujian cat' || s === 'kandidat baru' || s.startsWith('token-') || s.startsWith('kandidat ');
+        };
+        const isProfileComplete = Boolean(
+          session.user.name &&
+          !isPlaceholder(session.user.name) &&
+          session.user.phone &&
+          session.user.nik &&
+          session.user.education &&
+          session.user.university &&
+          session.user.city
+        );
+        const nextUrl = session.requiresOnboarding
+          ? '/peserta/onboarding'
+          : !isProfileComplete
+            ? '/peserta/profile'
+            : !session.user.deviceCheckCompletedAt
+              ? '/peserta/device-check'
+              : '/peserta';
+        setTimeout(() => navigate(nextUrl), 300);
+      }
     } catch (err) {
       const message = axios.isAxiosError(err)
         ? err.response?.data?.error ||

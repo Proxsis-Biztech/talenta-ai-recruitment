@@ -20,6 +20,8 @@ export interface AIConfiguration {
   integrityWeight: number;
   passingThreshold: number;
   maxDurationMinutes: number;
+  proctoringPreset: 'ringan' | 'sedang' | 'ketat';
+  blockVirtualBackground: boolean;
 }
 
 const DEFAULT_CONFIG: AIConfiguration = {
@@ -30,7 +32,9 @@ const DEFAULT_CONFIG: AIConfiguration = {
   interviewWeight: 50,
   integrityWeight: 15,
   passingThreshold: 70,
-  maxDurationMinutes: 20
+  maxDurationMinutes: 20,
+  proctoringPreset: 'sedang',
+  blockVirtualBackground: true
 };
 
 export default function AIConfigView() {
@@ -417,6 +421,102 @@ export default function AIConfigView() {
               {config.passingThreshold} / 100
             </span>
           </div>
+        </div>
+      </Card>
+
+      {/* 4. Kebijakan & Preset Pengawasan Proctoring AI (BRD Compliance) */}
+      <Card elevation="flat" className="p-5 border-slate-200 space-y-5">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-sm font-heading font-bold text-ink tracking-tight flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              4. Preset Kebijakan Proctoring &amp; Anti-Kecurangan AI
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Standar pengawasan otomatis ujian CAT dan wawancara live berbasis deteksi AI Computer Vision.
+            </p>
+          </div>
+          <Badge variant="teal" format="soft">
+            Preset: {config.proctoringPreset === 'ringan' ? 'Ringan' : config.proctoringPreset === 'ketat' ? 'Ketat (High-Stakes)' : 'Sedang (Standar)'}
+          </Badge>
+        </div>
+
+        {/* 3 Preset Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Ringan */}
+          <div
+            onClick={() => setConfig({ ...config, proctoringPreset: 'ringan' })}
+            className={`p-4 rounded-xl border cursor-pointer transition-all ${
+              config.proctoringPreset === 'ringan'
+                ? 'bg-soft-blue/70 border-primary-navy ring-1 ring-primary-navy/30 shadow-2xs'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-bold text-xs text-slate-900">Ringan (Permisif)</span>
+              <span className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded">Toleransi 5x</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Kamera &amp; mic aktif berkala. Toleransi 5x perpindahan tab, tanpa penguncian fullscreen mutlak. Cocok untuk simulasi atau asesmen internal informal.
+            </p>
+          </div>
+
+          {/* Sedang */}
+          <div
+            onClick={() => setConfig({ ...config, proctoringPreset: 'sedang' })}
+            className={`p-4 rounded-xl border cursor-pointer transition-all ${
+              config.proctoringPreset === 'sedang'
+                ? 'bg-soft-blue/70 border-primary-navy ring-1 ring-primary-navy/30 shadow-2xs'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-bold text-xs text-primary-navy">Sedang (Standar BUMN/Bank)</span>
+              <span className="text-[10px] bg-blue-100 text-primary-navy font-bold px-2 py-0.5 rounded">Rekomendasi</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Deteksi tab-switching (maks 3x toleransi), deteksi wajah ganda, audio background, dan alert waktu-nyata ke dewan asesor.
+            </p>
+          </div>
+
+          {/* Ketat */}
+          <div
+            onClick={() => setConfig({ ...config, proctoringPreset: 'ketat' })}
+            className={`p-4 rounded-xl border cursor-pointer transition-all ${
+              config.proctoringPreset === 'ketat'
+                ? 'bg-soft-blue/70 border-primary-navy ring-1 ring-primary-navy/30 shadow-2xs'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-bold text-xs text-rose-900">Ketat (High-Stakes)</span>
+              <span className="text-[10px] bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded">0 Toleransi</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Fullscreen lockdown seketika, snapshot berkala 30 detik, deteksi eye tracking, larangan keras virtual background, dan audit trail instan ke LHA.
+            </p>
+          </div>
+        </div>
+
+        {/* Virtual Background Prohibition Toggle */}
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-slate-900 block">
+              Larangan Penggunaan Virtual Background &amp; Filter
+            </span>
+            <p className="text-[11px] text-slate-500 leading-relaxed max-w-xl">
+              Peserta diwajibkan menggunakan latar belakang alami ruangan dengan pencahayaan memadai. AI menolak filter buatan untuk menjamin transparansi lingkungan ujian.
+            </p>
+          </div>
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0">
+            <input
+              type="checkbox"
+              checked={config.blockVirtualBackground}
+              onChange={(e) => setConfig({ ...config, blockVirtualBackground: e.target.checked })}
+              className="w-4 h-4 text-primary-navy rounded border-slate-300 focus:ring-primary-navy cursor-pointer"
+            />
+            <span className="text-xs font-bold text-slate-700">Wajib Latar Asli</span>
+          </label>
         </div>
       </Card>
     </div>

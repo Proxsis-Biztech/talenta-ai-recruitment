@@ -68,13 +68,30 @@ export default function PesertaProfile() {
     };
   }, [sessionUser]);
 
+  const isPlaceholderName = (name?: string | null) => {
+    if (!name) return true;
+    const n = name.trim().toLowerCase();
+    return (
+      n === '' ||
+      n === 'kandidat ujian cat' ||
+      n === 'kandidat baru' ||
+      n.startsWith('token-') ||
+      n.startsWith('kandidat ')
+    );
+  };
+
   // Form states
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') === 'biometrik' ? 'biometrik' : 'biodata';
   const [activeTab, setActiveTab] = useState<'biodata' | 'asesmen' | 'biometrik' | 'keamanan'>(initialTab);
-  const [fullName, setFullName] = useState(initialData.name);
+  const [fullName, setFullName] = useState(() => (isPlaceholderName(initialData.name) ? '' : initialData.name));
   const [phone, setPhone] = useState(initialData.phone);
   const [email] = useState(initialData.username);
+  const isAccessCodeUser = Boolean(
+    initialData.username?.startsWith('token-') ||
+    initialData.username?.endsWith('@talenta.local') ||
+    initialData.id?.startsWith('token-')
+  );
   const [nik, setNik] = useState(getPortalUser()?.nik || '');
   const [showNik, setShowNik] = useState(false);
   const [education, setEducation] = useState(getPortalUser()?.education || '');
@@ -198,12 +215,31 @@ export default function PesertaProfile() {
       { label: 'Universitas', value: university, id: 'profile-university' },
       { label: 'Kota Domisili', value: city, id: 'profile-city' }
     ];
-    const missing = requiredFields.filter((field) => !field.value.trim());
-    if (missing.length > 0) {
-      setPassError(`${missing.length} kolom wajib belum diisi: ${missing.map((field) => field.label).join(', ')}.`);
-      const first = document.getElementById(missing[0].id);
-      first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      (first as HTMLInputElement | null)?.focus();
+    const cleanPhone = phone.replace(/[\s-]/g, '');
+    const phoneValid = /^(?:\+62|62|0)8[1-9][0-9]{7,11}$/.test(cleanPhone);
+    const cleanNik = nik.replace(/[\s-]/g, '');
+    const nikValid = /^\d{16}$/.test(cleanNik);
+
+    const validationErrors: string[] = [];
+    if (!fullName.trim() || isPlaceholderName(fullName)) {
+      validationErrors.push('Nama Lengkap wajib diisi sesuai KTP');
+    }
+    if (!phone.trim()) {
+      validationErrors.push('Nomor WhatsApp belum diisi');
+    } else if (!phoneValid) {
+      validationErrors.push('Nomor WhatsApp tidak valid (gunakan awalan 08 atau +628, 10-14 digit angka)');
+    }
+    if (!nik.trim()) {
+      validationErrors.push('NIK belum diisi');
+    } else if (!nikValid) {
+      validationErrors.push('NIK harus terdiri dari 16 digit angka');
+    }
+    if (!education.trim()) validationErrors.push('Pendidikan belum diisi');
+    if (!university.trim()) validationErrors.push('Universitas belum diisi');
+    if (!city.trim()) validationErrors.push('Kota Domisili belum diisi');
+
+    if (validationErrors.length > 0) {
+      setPassError(`Periksa kembali data Anda: ${validationErrors.join(' • ')}.`);
       return;
     }
     const token = getPortalToken();
@@ -212,14 +248,18 @@ export default function PesertaProfile() {
       return;
     }
     try {
-      const response = await axios.put('/api/portal/profile', { name: fullName, phone, nik, education, university, city, employeeNumber, department, portfolioUrl, bio }, {
+      const response = await axios.put('/api/portal/profile', { name: fullName.trim(), phone: cleanPhone, nik: cleanNik, education, university, city, employeeNumber, department, portfolioUrl, bio }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const currentToken = getPortalToken();
       if (currentToken && response.data.user) {
         savePortalSession({ token: currentToken, user: response.data.user });
-        if (response.data.user.profileCompleted && response.data.user.faceVerifiedAt) {
-          setTimeout(() => navigate(response.data.user.mustChangePassword ? '/peserta/onboarding' : '/peserta'), 700);
+        if (response.data.user.profileCompleted) {
+          if (!response.data.user.deviceCheckCompletedAt) {
+            setTimeout(() => navigate('/peserta/device-check'), 700);
+          } else {
+            setTimeout(() => navigate(response.data.user.mustChangePassword ? '/peserta/onboarding' : '/peserta'), 700);
+          }
         }
       }
       setSaveSuccess(true);
@@ -472,6 +512,18 @@ export default function PesertaProfile() {
               </p>
             </div>
 
+            {isAccessCodeUser && !getPortalUser()?.profileCompleted && (
+              <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 text-xs text-amber-900 animate-fade-in shadow-2xs">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-bold text-amber-950 block text-xs sm:text-sm">Pemberitahuan Peserta Kode Program</span>
+                  <p className="leading-relaxed text-amber-800">
+                    Anda masuk menggunakan kode program asesmen. Mohon lengkapi data profil dan isi <strong>Nama Lengkap (Sesuai KTP)</strong> Anda untuk verifikasi identitas resmi seleksi dan penerbitan berkas hasil asesmen.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSaveBiodata} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {/* Nama Lengkap */}
@@ -484,8 +536,9 @@ export default function PesertaProfile() {
                     id="profile-fullname"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Masukkan nama lengkap resmi sesuai KTP Anda"
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all placeholder:text-slate-400"
                   />
                 </div>
 

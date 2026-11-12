@@ -211,16 +211,16 @@ function App() {
             <Route path="/offline" element={<OfflinePage />} />
 
             {/* Route Group A: PESERTA (/peserta) */}
-            <Route path="/peserta" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaDashboard /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
-            <Route path="/peserta/dashboard" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaDashboard /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
-            <Route path="/peserta/asesmen" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaAsesmenList /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaDashboard /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/dashboard" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaDashboard /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/asesmen" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaAsesmenList /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/materi" element={<Navigate to="/peserta/asesmen?tab=materi" replace />} />
-            <Route path="/peserta/detail/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaDetailAsesmen /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/detail/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaDetailAsesmen /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/device-check" element={<RequireRole roles={['peserta']}><PesertaDeviceCheck /></RequireRole>} />
-            <Route path="/peserta/exam/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireFaceVerified><PesertaExamPlayer /></RequireFaceVerified></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/exam/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><RequireFaceVerified><PesertaExamPlayer /></RequireFaceVerified></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/waiting-room" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaWaitingRoom /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/interview" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaInterviewLive /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
-            <Route path="/peserta/hasil" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaHasilScorecard /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/hasil" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaHasilScorecard /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/onboarding" element={<RequireRole roles={['peserta']}><PesertaOnboarding /></RequireRole>} />
             <Route path="/peserta/profile" element={<RequireRole roles={['peserta']}><PesertaProfile /></RequireRole>} />
 
