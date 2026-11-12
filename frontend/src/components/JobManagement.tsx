@@ -364,7 +364,7 @@ export default function JobManagement() {
     }
   };
 
-  const openEditModal = (job: Job) => {
+  const openEditModal = (job: Job, initialTab: 'profil' | 'soal' | 'materi' = 'profil') => {
     setEditingJob(job);
     setEditCode(job.code || '');
     setEditTitle(job.title);
@@ -374,14 +374,13 @@ export default function JobManagement() {
     setEditPassingScore(job.interviewPassingScore ?? 70);
     setEditError('');
 
-    // Muat soal & materi yang sama persis dengan menu "Lihat Soal & Materi"
-    // sehingga aksi Ubah bisa melihat dan menyunting konten yang identik.
+    // Muat soal & materi untuk formasi ini sehingga aksi Ubah bisa melihat dan menyunting konten yang terintegrasi.
     const program = findProgramByTitle(job.title, job.id);
     setEditQuestions(JSON.parse(JSON.stringify(program.questions)) as QuestionItem[]);
     setOriginalQuestions(JSON.parse(JSON.stringify(program.questions)) as QuestionItem[]);
     setEditMaterials(JSON.parse(JSON.stringify(getMaterialsForJob(job))) as MasterMateriItem[]);
     setOriginalMaterials(JSON.parse(JSON.stringify(getMaterialsForJob(job))) as MasterMateriItem[]);
-    setEditTab('profil');
+    setEditTab(initialTab);
     setEditingQId(null);
     setEditingMatId(null);
     setEditQSearch('');
@@ -853,19 +852,18 @@ export default function JobManagement() {
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <button
                           type="button"
-                          onClick={() => handleOpenDetailModal(job)}
+                          onClick={() => openEditModal(job, 'soal')}
                           className="inline-flex items-center gap-1 text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition-colors cursor-pointer"
+                          title="Buka Bank Soal pada Formasi ini"
                         >
                           <BookOpen className="w-3 h-3 text-blue-600" />
                           {getBankQuestionCountForJob(job)} Soal CAT
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            handleOpenDetailModal(job);
-                            setDetailTab('materi');
-                          }}
+                          onClick={() => openEditModal(job, 'materi')}
                           className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 transition-colors cursor-pointer"
+                          title="Buka Silabus & Materi pada Formasi ini"
                         >
                           <Layers className="w-3 h-3 text-emerald-600" />
                           Silabus & Rubrik BARS
@@ -904,16 +902,6 @@ export default function JobManagement() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="inline-flex items-center gap-1.5">
-                    <Button
-                      variant="primary"
-                      size="xs"
-                      onClick={() => handleOpenDetailModal(job)}
-                      leftIcon={<Eye className="w-3 h-3" />}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-xs"
-                      title={`Lihat ${getBankQuestionCountForJob(job)} soal ujian CAT dan silabus materi untuk formasi ini`}
-                    >
-                      Lihat Soal & Materi
-                    </Button>
                     <Button
                       variant="secondary"
                       size="xs"
@@ -1186,14 +1174,13 @@ export default function JobManagement() {
                 <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900 flex items-start gap-2.5">
                   <BookOpen className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                   <span>
-                    Tab <strong>Bank Soal CAT</strong> dan <strong>Silabus &amp; Materi</strong> berisi konten yang sama dengan
-                    menu “Lihat Soal &amp; Materi”, namun dapat disunting dan langsung berlaku di lembar ujian peserta.
+                    Tab <strong>Bank Soal CAT</strong> dan <strong>Silabus &amp; Materi</strong> dapat langsung ditinjau dan disunting, serta otomatis tersimpan untuk lembar ujian peserta.
                   </span>
                 </div>
               </form>
             </div>
 
-            {/* TAB SOAL — Bank soal editable (tampilan kartu identik dengan modal Lihat Soal) */}
+            {/* TAB SOAL — Bank soal editable */}
             {editTab === 'soal' && (() => {
               const editInputCls = 'w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy';
               const labelCls = 'block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5';
@@ -1204,8 +1191,7 @@ export default function JobManagement() {
                     <div>
                       <p className="font-semibold text-blue-950 text-sm">Bank Soal CAT — {editQuestions.length} Butir Aktif</p>
                       <p className="text-blue-700 text-xs mt-0.5">
-                        Soal yang disunting di sini langsung dipakai pada lembar ujian CAT peserta dan tampil identik pada menu
-                        “Lihat Soal &amp; Materi”.
+                        Daftar butir soal ini langsung dipakai pada lembar ujian CAT peserta pada formasi lowongan ini.
                       </p>
                     </div>
                   </div>
@@ -1653,7 +1639,7 @@ export default function JobManagement() {
                   <div>
                     <p className="font-semibold text-indigo-950 text-sm">Silabus &amp; Modul Pembelajaran Formasi Ini</p>
                     <p className="text-indigo-700 text-xs mt-0.5">
-                      Data sama dengan tab materi pada menu “Lihat Soal &amp; Materi”. Suntingan tersimpan bersama konfigurasi saat menekan
+                      Kelola dan pratinjau modul materi, master silabus, dan rubrik kompetensi. Seluruh suntingan tersimpan bersama konfigurasi saat menekan
                       <strong> Simpan Semua Perubahan</strong>.
                     </p>
                   </div>
