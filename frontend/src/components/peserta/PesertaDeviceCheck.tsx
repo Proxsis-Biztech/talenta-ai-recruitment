@@ -54,12 +54,15 @@ export default function PesertaDeviceCheck() {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // Diagnostics states
+  // Diagnostics states (all triggered manually like KYC)
   const [pingMs, setPingMs] = useState<number | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [cameraVerified, setCameraVerified] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
   const [micVerified, setMicVerified] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
   const [speakerTonePlayed, setSpeakerTonePlayed] = useState(false);
   const [speakerTested, setSpeakerTested] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
+  const [connectionTested, setConnectionTested] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
+  const [browserVerified, setBrowserVerified] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
   const [speakerPlaying, setSpeakerPlaying] = useState(false);
   const [consentGiven, setConsentGiven] = useState(true);
 
@@ -147,9 +150,6 @@ export default function PesertaDeviceCheck() {
               // Map 0..128 to 15..95% for realistic smooth visualization
               const normalized = Math.min(100, Math.max(12, Math.round((average / 128) * 100)));
               setAudioLevel(normalized);
-              if (normalized >= 20) {
-                setMicVerified(true);
-              }
             }
             animFrameRef.current = requestAnimationFrame(updateAudioMeter);
           };
@@ -314,31 +314,30 @@ export default function PesertaDeviceCheck() {
   // ──────────────────────────────────────────────
   const handleTestConnection = useCallback(async () => {
     setTestingConnection(true);
+    setFaceError('');
     const start = performance.now();
     try {
       await fetch('/api/health', { method: 'GET', cache: 'no-store' });
       const elapsed = Math.max(12, Math.round(performance.now() - start));
       setPingMs(elapsed);
+      setConnectionTested(true);
     } catch {
       // Graceful fallback for local development or behind restricted firewalls
       setPingMs(24);
+      setConnectionTested(true);
     } finally {
       setTestingConnection(false);
     }
   }, []);
 
-  useEffect(() => {
-    handleTestConnection();
-  }, [handleTestConnection]);
-
   // ──────────────────────────────────────────────
-  // 5. KYC Per-Point Validation Flags & Confirmation
+  // 5. KYC Per-Point Validation Flags & Confirmation (100% Manual Trigger)
   // ──────────────────────────────────────────────
-  const isCameraOk = cameraStatus === 'active' || cameraStatus === 'simulated';
+  const isCameraOk = cameraVerified && (cameraStatus === 'active' || cameraStatus === 'simulated');
   const isMicOk = micVerified;
   const isSpeakerOk = speakerTested;
-  const isConnectionOk = pingMs !== null && !testingConnection;
-  const isBrowserOk = true;
+  const isConnectionOk = connectionTested && !testingConnection;
+  const isBrowserOk = browserVerified;
   const isFaceOk = initialFaceRegistered || Boolean(getPortalUser()?.faceVerifiedAt);
 
   const kycPoints = [
@@ -357,16 +356,19 @@ export default function PesertaDeviceCheck() {
 
     const errors: string[] = [];
     if (!isCameraOk) {
-      errors.push('Poin 1 (Kamera Web) belum aktif. Pastikan izin akses kamera telah diberikan.');
+      errors.push('Poin 1 (Kamera Web) belum divalidasi. Klik tombol "Cek Kamera".');
     }
     if (!isMicOk) {
-      errors.push('Poin 2 (Mikrofon) belum diverifikasi. Ucapkan kalimat pendek atau tekan tombol "Konfirmasi Mic".');
+      errors.push('Poin 2 (Mikrofon) belum divalidasi. Klik tombol "Cek Mic".');
     }
     if (!isSpeakerOk) {
       errors.push('Poin 3 (Speaker) belum divalidasi. Klik "Putar Nada" lalu konfirmasi "Ya, Terdengar".');
     }
     if (!isConnectionOk) {
-      errors.push('Poin 4 (Koneksi Internet) belum selesai diuji.');
+      errors.push('Poin 4 (Koneksi Internet) belum diuji. Klik tombol "Uji Koneksi".');
+    }
+    if (!isBrowserOk) {
+      errors.push('Poin 5 (Browser & Layar) belum divalidasi. Klik tombol "Cek Browser".');
     }
     if (!isFaceOk) {
       errors.push('Poin 6 (Foto Wajah KYC) belum diambil. Klik "Ambil Foto Wajah" terlebih dahulu.');
@@ -431,39 +433,36 @@ export default function PesertaDeviceCheck() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans antialiased">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#F8FAFC] text-slate-800 flex flex-col font-sans antialiased">
       {/* ─── Focused Topbar without Sidebar ─── */}
-      <header className="h-18 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
-        <div className="flex items-center gap-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-primary-navy text-white flex items-center justify-center font-bold text-sm shadow-2xs">
+      <header className="h-14 shrink-0 bg-white border-b border-slate-200/80 px-4 sm:px-6 flex items-center justify-between z-30">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-primary-navy text-white flex items-center justify-center font-bold text-xs shadow-2xs">
               R
             </div>
             <div>
-              <span className="font-heading font-black text-sm tracking-tight text-primary-navy block leading-none">
+              <span className="font-heading font-black text-xs sm:text-sm tracking-tight text-primary-navy block leading-none">
                 RIGHT
               </span>
-              <span className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">
+              <span className="text-[9px] text-slate-400 font-medium tracking-wide uppercase">
                 Assessment Platform
               </span>
             </div>
           </div>
 
-          <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block" />
-
-          <div className="hidden sm:flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-full bg-blue-50 text-primary-navy border border-blue-200/70 text-xs font-bold">
-              Mode Fokus • Cek Perangkat Mandatori
-            </span>
-          </div>
+          <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+          <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full bg-blue-50 text-primary-navy border border-blue-200/70 text-[11px] font-bold">
+            Mode Fokus • Verifikasi KYC Perangkat
+          </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <div className="hidden md:block text-right">
             <p className="text-xs font-bold text-slate-900 leading-tight">
               {activeUser.name || 'Peserta Terdaftar'}
             </p>
-            <p className="text-[11px] text-slate-500 font-mono mt-0.5 truncate max-w-[200px]">
+            <p className="text-[10px] text-slate-500 font-mono truncate max-w-[200px]">
               {activeProgram.companyName || 'Program Asesmen'}
             </p>
           </div>
@@ -474,7 +473,7 @@ export default function PesertaDeviceCheck() {
               variant="outline"
               size="sm"
               onClick={() => navigate('/peserta/asesmen')}
-              className="text-xs font-semibold gap-1.5"
+              className="text-xs font-semibold gap-1 py-1.5 px-3"
             >
               <span>Buka Asesmen Saya</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -488,7 +487,7 @@ export default function PesertaDeviceCheck() {
               localStorage.removeItem('adminToken');
               navigate('/login');
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
             title="Keluar dari akun"
           >
             <LogOut className="w-3.5 h-3.5" />
@@ -497,63 +496,49 @@ export default function PesertaDeviceCheck() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-8 sm:py-12 space-y-8">
+      <main className="flex-1 min-h-0 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4 flex flex-col gap-3">
         {/* Hidden canvas for snapshot capture */}
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* ─── Page Header with Program & Candidate Details ─── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-3 py-1 rounded-lg border border-accent-border">
-                TAHAP PERSIAPAN • {activeProgram.id}
-              </span>
-              <Badge variant="teal">Verifikasi Mandatori</Badge>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
+        {/* ─── Compact Header Row ─── */}
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2.5 py-1 rounded-lg border border-accent-border">
+              {activeProgram.id}
+            </span>
+            <h1 className="text-lg sm:text-xl font-extrabold font-heading text-ink tracking-tight">
               Uji Kesiapan Perangkat
             </h1>
-            <p className="text-sm text-muted-slate mt-2.5 leading-relaxed flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-slate-400" />
-              <span>
-                Kandidat: <strong className="text-ink font-semibold">{activeUser.name || 'Peserta Terdaftar'}</strong> • Instansi: <strong className="text-primary-navy font-semibold">{activeProgram.companyName}</strong>
+            {errorMessage && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[11px] font-medium text-amber-900">
+                <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Mode Simulasi Aktif</span>
+                <button
+                  type="button"
+                  onClick={startRealMedia}
+                  className="underline font-bold text-amber-800 hover:text-amber-950 ml-1 cursor-pointer"
+                >
+                  Coba Ulang
+                </button>
               </span>
-            </p>
+            )}
           </div>
 
           <Button
             variant="primary"
             onClick={handleProceedToAsesmen}
-            className="self-start sm:self-auto py-3 px-6 text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm rounded-xl cursor-pointer"
+            className="py-2 px-4 text-xs font-bold flex items-center gap-1.5 shadow-xs rounded-xl cursor-pointer"
           >
             <span>Lanjut ke Asesmen Saya</span>
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </Button>
         </div>
 
-        {/* Informative notice if simulated or permissions */}
-        {errorMessage && (
-          <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-start gap-3 text-xs text-amber-900">
-            <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <span className="font-bold block">Status Akses Kamera & Mikrofon:</span>
-              <p className="mt-0.5 leading-relaxed">{errorMessage}</p>
-            </div>
-            <button
-              onClick={startRealMedia}
-              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs shrink-0 cursor-pointer"
-            >
-              Coba Ulang Akses
-            </button>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* ─── Left Column (7 cols): Camera Live Preview ─── */}
-          <div className="lg:col-span-7 w-full min-w-0 space-y-6">
-            <div className="bg-slate-900 rounded-3xl overflow-hidden shadow-tinted-lg border border-slate-800 relative aspect-video flex flex-col justify-between p-6 ring-1 ring-slate-900/10">
-              <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-blue-accent/5" />
-              {/* Real Video Element (displays live webcam stream if active) */}
+        {/* ─── Single-Frame 2-Column Workspace ─── */}
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+          {/* Left Column (6 cols): Camera Live Preview + Compact Mic Bar */}
+          <div className="lg:col-span-6 flex flex-col gap-3 min-h-0">
+            <div className="flex-1 min-h-[240px] bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-800 relative flex flex-col justify-between p-4">
               <video
                 ref={videoRef}
                 autoPlay
@@ -566,91 +551,68 @@ export default function PesertaDeviceCheck() {
 
               {/* Top status bar inside camera preview */}
               <div className="flex items-center justify-between relative z-10">
-                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full text-white text-xs">
+                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-white text-[11px]">
                   <span
-                    className={`w-2.5 h-2.5 rounded-full ${
+                    className={`w-2 h-2 rounded-full ${
                       cameraStatus === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
                     }`}
                   />
                   <span className="font-medium">
-                    {cameraStatus === 'active' ? 'Webcam Fisik Aktif (Live)' : 'Mode Simulasi (Kamera Fisik Belum Diberi Izin)'}
+                    {cameraStatus === 'active' ? 'Webcam Fisik Aktif' : 'Mode Simulasi Kamera'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 bg-primary-navy/80 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-mono">
-                  <span>OpenCV AI • 30 FPS</span>
-                </div>
+                <span className="bg-primary-navy/80 backdrop-blur-md px-2.5 py-1 rounded-lg text-white text-[11px] font-mono">
+                  OpenCV AI • 30 FPS
+                </span>
               </div>
 
               {/* Simulated Silhouette Frame if camera not active */}
               {cameraStatus !== 'active' && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="relative w-64 h-64 flex items-center justify-center">
-                    {/* Bounding Box Overlay */}
-                    <div className="absolute inset-6 border-2 border-amber-400/80 rounded-2xl pointer-events-none">
-                      <span className="absolute -top-3.5 left-4 bg-amber-500 text-white font-mono text-[11px] px-2 py-0.5 rounded font-bold shadow-xs">
-                        Pratinjau Simulasi (Izin Kamera Fisik Diperlukan)
-                      </span>
-                      <div className="absolute -top-1 -left-1 w-3.5 h-3.5 border-t-2 border-l-2 border-amber-400" />
-                      <div className="absolute -top-1 -right-1 w-3.5 h-3.5 border-t-2 border-r-2 border-amber-400" />
-                      <div className="absolute -bottom-1 -left-1 w-3.5 h-3.5 border-b-2 border-l-2 border-amber-400" />
-                      <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 border-b-2 border-r-2 border-amber-400" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center z-0 pointer-events-none">
+                  {capturedPhotoUrl ? (
+                    <img
+                      src={capturedPhotoUrl}
+                      alt="Snapshot Wajah"
+                      className="w-28 h-28 rounded-full object-cover border-4 border-emerald-400/50 shadow-lg mb-2"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center bg-slate-800/40 mb-2">
+                      <Camera className="w-8 h-8 text-slate-500" />
                     </div>
-
-                    {/* Candidate Avatar / Silhouette */}
-                    <div className="w-32 h-32 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-400 shadow-inner">
-                      <div className="text-center">
-                        <span className="font-heading font-extrabold text-2xl text-slate-200">
-                          {activeUser.name
-                            .split(' ')
-                            .slice(0, 2)
-                            .map((w) => w[0])
-                            .join('')
-                            .toUpperCase() || 'P'}
-                        </span>
-                        <p className="text-xs text-slate-400 mt-1 truncate max-w-[110px]">{activeUser.name}</p>
-                      </div>
-                    </div>
-                  </div>
+                  )}
+                  <p className="text-xs text-slate-300 font-medium">
+                    {capturedPhotoUrl
+                      ? 'Snapshot Wajah Tersimpan'
+                      : 'Kamera belum aktif — gunakan tombol "Ambil Foto" pada poin 6'}
+                  </p>
                 </div>
               )}
 
-              {/* OpenCV Bounding Box Overlay on Live Video */}
-              {cameraStatus === 'active' && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="relative w-64 h-64 border-2 border-emerald-400/80 rounded-2xl animate-pulse">
-                    <span className="absolute -top-3.5 left-4 bg-emerald-600 text-white font-mono text-xs px-2 py-0.5 rounded font-bold shadow-xs">
-                      {initialFaceRegistered ? 'Snapshot Wajah Tersimpan' : 'Menunggu Registrasi Wajah'}
-                    </span>
-                    <div className="absolute -top-1 -left-1 w-3.5 h-3.5 border-t-2 border-l-2 border-emerald-400" />
-                    <div className="absolute -top-1 -right-1 w-3.5 h-3.5 border-t-2 border-r-2 border-emerald-400" />
-                    <div className="absolute -bottom-1 -left-1 w-3.5 h-3.5 border-b-2 border-l-2 border-emerald-400" />
-                    <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 border-b-2 border-r-2 border-emerald-400" />
-                  </div>
+              {/* Bottom bar inside camera preview */}
+              <div className="flex items-center justify-between gap-2 relative z-10">
+                <div className="flex items-center gap-1.5 text-[11px] bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg text-emerald-300">
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>{faceDetected ? '1 Wajah Terdeteksi' : 'Posisikan Wajah'}</span>
                 </div>
-              )}
 
-              {/* Bottom camera diagnostics */}
-              <div className="relative z-10 flex items-center justify-between bg-black/60 backdrop-blur-md p-3 rounded-2xl text-white text-xs sm:text-sm">
-                <div className="flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="font-medium text-emerald-300">
-                    1 Wajah Terverifikasi • Pencahayaan Cukup
-                  </span>
-                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={handleCaptureFace}
                     disabled={registeringFace}
-                    className="px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg cursor-pointer transition-all flex items-center gap-1 shadow-2xs"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all cursor-pointer ${
+                      isFaceOk
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-white text-primary-navy hover:bg-blue-50'
+                    }`}
                   >
                     <Camera className="w-3.5 h-3.5" />
-                    <span>{registeringFace ? 'Menyimpan...' : initialFaceRegistered ? 'Foto Ulang' : 'Ambil Foto Wajah'}</span>
+                    <span>{registeringFace ? 'Menyimpan...' : isFaceOk ? 'Foto Ulang' : 'Ambil Foto Wajah'}</span>
                   </button>
                   <button
                     type="button"
                     onClick={startRealMedia}
-                    className="text-xs text-slate-300 hover:text-white underline cursor-pointer flex items-center gap-1"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white text-xs font-medium cursor-pointer border border-slate-700"
                   >
                     <RefreshCw className="w-3 h-3" />
                     <span>Uji Ulang</span>
@@ -659,438 +621,398 @@ export default function PesertaDeviceCheck() {
               </div>
             </div>
 
-            {/* Audio Meter Visualizer */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-3">
-              <div className="flex items-center justify-between text-xs sm:text-sm">
-                <span className="flex items-center gap-2 font-bold text-ink">
-                  <Volume2 className="w-4 h-4 text-blue-accent" />
-                  Input Volume Mikrofon (Silakan Bersuara)
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>{audioLevel}% Responsif</span>
-                </span>
+            {/* Compact Mic Volume Meter */}
+            <div className="shrink-0 bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center gap-4 shadow-2xs">
+              <div className="flex items-center gap-2 shrink-0">
+                <Mic className={`w-4 h-4 ${micStatus === 'active' ? 'text-emerald-600' : 'text-amber-600'}`} />
+                <span className="text-xs font-bold text-ink">Input Mikrofon</span>
               </div>
-              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 border border-slate-200">
+              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                 <div
-                  className="bg-primary-navy h-full rounded-full transition-all duration-150"
-                  style={{ width: `${Math.min(100, Math.max(5, audioLevel))}%` }}
+                  className={`h-full transition-all duration-150 rounded-full ${
+                    audioLevel > 60 ? 'bg-emerald-500' : audioLevel > 25 ? 'bg-blue-accent' : 'bg-slate-400'
+                  }`}
+                  style={{ width: `${audioLevel}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-slate">
-                Ucapkan kalimat pendek. Indikator bar di atas akan bergerak saat mikrofon mendeteksi suara Anda.
-              </p>
+              <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded shrink-0">
+                {audioLevel}%
+              </span>
             </div>
           </div>
 
-          {/* ─── Right Column (5 cols): Diagnostic Checklist & Consent ─── */}
-          <div className="lg:col-span-5 w-full min-w-0 space-y-6">
-            <div className="bg-white rounded-3xl border border-slate-200 p-7 sm:p-9 shadow-xs space-y-6">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="font-heading font-bold text-lg text-ink">
-                    Validasi KYC Perangkat
+          {/* Right Column (6 cols): 6-Point Manual KYC Checklist in 2x3 Compact Grid */}
+          <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col justify-between gap-3 min-h-0">
+            {/* Header & Progress Bar */}
+            <div className="shrink-0 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h2 className="font-heading font-bold text-base text-ink leading-tight">
+                    Validasi KYC Perangkat (Trigger Manual)
                   </h2>
+                  <p className="text-[11px] text-muted-slate">
+                    Klik tombol validasi pada masing-masing 6 poin di bawah ini.
+                  </p>
+                </div>
+                <span
+                  className={`text-xs font-bold px-2.5 py-1 rounded-full border shrink-0 ${
+                    allPointsVerified
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                  }`}
+                >
+                  {verifiedPointsCount} / {kycPoints.length} Tervalidasi
+                </span>
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    allPointsVerified ? 'bg-emerald-500' : 'bg-primary-navy'
+                  }`}
+                  style={{ width: `${Math.round((verifiedPointsCount / kycPoints.length) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* 2x3 Grid of 6 Manual KYC Points */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1 min-h-0 content-start">
+              {/* 1. Kamera Web */}
+              <div
+                className={`p-3 rounded-xl border flex flex-col justify-between gap-2 ${
+                  isCameraOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                        isCameraOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+                      }`}
+                    >
+                      {isCameraOk ? <Check className="w-3 h-3" /> : '1'}
+                    </span>
+                    <p className="text-xs font-bold text-ink truncate">Kamera Web</p>
+                  </div>
                   <span
-                    className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
-                      allPointsVerified
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      isCameraOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                     }`}
                   >
-                    {verifiedPointsCount} / {kycPoints.length} Poin Tervalidasi
+                    {isCameraOk ? 'Valid' : 'Belum'}
                   </span>
                 </div>
-                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      allPointsVerified ? 'bg-emerald-500' : 'bg-primary-navy'
-                    }`}
-                    style={{ width: `${Math.round((verifiedPointsCount / kycPoints.length) * 100)}%` }}
-                  />
-                </div>
-                <p className="text-xs text-muted-slate">
-                  Selesaikan validasi setiap poin di bawah ini secara berurutan sebelum melanjutkan ke asesmen.
+                <p className="text-[11px] text-muted-slate truncate">
+                  {cameraStatus === 'active' ? 'Webcam fisik terdeteksi' : 'Mode simulasi kamera'}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCameraVerified(true);
+                    setFaceError('');
+                  }}
+                  className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                    isCameraOk
+                      ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                      : 'bg-primary-navy hover:bg-slate-800 text-white'
+                  }`}
+                >
+                  {isCameraOk ? 'Tervalidasi ✓' : 'Cek Kamera'}
+                </button>
               </div>
 
-              <div className="space-y-3.5">
-                {/* 1. Camera Check */}
-                <div
-                  className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-200 ${
-                    isCameraOk
-                      ? 'bg-emerald-50/40 border-emerald-200'
-                      : 'bg-amber-50/50 border-amber-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
+              {/* 2. Mikrofon Sistem */}
+              <div
+                className={`p-3 rounded-xl border flex flex-col justify-between gap-2 ${
+                  isMicOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <span
-                      className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 ${
-                        isCameraOk ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
+                      className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                        isMicOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
                       }`}
                     >
-                      {isCameraOk ? <Check className="w-3.5 h-3.5" /> : '1'}
+                      {isMicOk ? <Check className="w-3 h-3" /> : '2'}
                     </span>
-                    <div>
-                      <p className="text-xs sm:text-sm font-bold text-ink">1. Kamera Web (Webcam)</p>
-                      <p className="text-xs text-muted-slate">
-                        {cameraStatus === 'active'
-                          ? 'HD Camera Fisik Terhubung • Siap'
-                          : 'Mode Simulasi (Kamera Fisik Belum Diberi Izin)'}
-                      </p>
-                    </div>
+                    <p className="text-xs font-bold text-ink truncate">Mikrofon Sistem</p>
                   </div>
-                  {cameraStatus === 'active' ? (
-                    <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full">
-                      Tervalidasi
-                    </span>
-                  ) : (
-                    <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded border border-amber-200">
-                      Simulasi
-                    </span>
-                  )}
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      isMicOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {isMicOk ? 'Valid' : 'Belum'}
+                  </span>
                 </div>
-
-                {/* 2. Mic Check */}
-                <div
-                  className={`flex items-center justify-between gap-3 p-4 rounded-2xl border transition-all duration-200 ${
+                <p className="text-[11px] text-muted-slate truncate">
+                  Level audio saat ini: {audioLevel}%
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMicVerified(true);
+                    setFaceError('');
+                  }}
+                  className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
                     isMicOk
-                      ? 'bg-emerald-50/40 border-emerald-200'
-                      : 'bg-amber-50/50 border-amber-200'
+                      ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                      : 'bg-primary-navy hover:bg-slate-800 text-white'
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  {isMicOk ? 'Tervalidasi ✓' : 'Cek Mic'}
+                </button>
+              </div>
+
+              {/* 3. Speaker / Audio Output */}
+              <div
+                className={`p-3 rounded-xl border flex flex-col justify-between gap-2 ${
+                  isSpeakerOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <span
-                      className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 ${
-                        isMicOk ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
+                      className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                        isSpeakerOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
                       }`}
                     >
-                      {isMicOk ? <Check className="w-3.5 h-3.5" /> : '2'}
+                      {isSpeakerOk ? <Check className="w-3 h-3" /> : '3'}
                     </span>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm font-bold text-ink">2. Mikrofon Sistem</p>
-                      <p className="text-xs text-muted-slate">
-                        {isMicOk
-                          ? `Tervalidasi • Responsif (${audioLevel}%)`
-                          : micStatus === 'active'
-                            ? 'Ucapkan kalimat pendek atau klik Konfirmasi Mic'
-                            : 'Mode Simulasi • Klik Konfirmasi Mic'}
-                      </p>
-                    </div>
+                    <p className="text-xs font-bold text-ink truncate">Speaker / Audio</p>
                   </div>
-                  {isMicOk ? (
-                    <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full shrink-0">
-                      Tervalidasi
-                    </span>
-                  ) : (
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      isSpeakerOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {isSpeakerOk ? 'Valid' : 'Belum'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-slate truncate">
+                  {isSpeakerOk ? 'Suara terdengar jelas' : speakerTonePlayed ? 'Terdengar di speaker?' : 'Putar nada uji'}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleTestSpeaker}
+                    disabled={speakerPlaying}
+                    className="flex-1 py-1.5 px-2 rounded-lg bg-white border border-slate-200 hover:border-primary-navy text-[11px] font-semibold text-slate-700 cursor-pointer"
+                  >
+                    {speakerPlaying ? 'Memutar...' : 'Putar Nada'}
+                  </button>
+                  {!isSpeakerOk && speakerTonePlayed && (
                     <button
                       type="button"
                       onClick={() => {
-                        setMicVerified(true);
+                        setSpeakerTested(true);
                         setFaceError('');
                       }}
-                      className="px-2.5 py-1 text-xs font-bold bg-primary-navy hover:bg-slate-800 text-white rounded-lg cursor-pointer transition-all shrink-0"
+                      className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer"
                     >
-                      Konfirmasi Mic
+                      Ya, Terdengar
                     </button>
                   )}
                 </div>
+              </div>
 
-                {/* 3. Speaker / Audio Test Button */}
-                <div
-                  className={`flex items-center justify-between gap-3 p-4 rounded-2xl border transition-all duration-200 ${
-                    isSpeakerOk
-                      ? 'bg-emerald-50/40 border-emerald-200'
-                      : 'bg-amber-50/50 border-amber-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
+              {/* 4. Koneksi Internet */}
+              <div
+                className={`p-3 rounded-xl border flex flex-col justify-between gap-2 ${
+                  isConnectionOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <span
-                      className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 ${
-                        isSpeakerOk ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
+                      className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                        isConnectionOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
                       }`}
                     >
-                      {isSpeakerOk ? <Check className="w-3.5 h-3.5" /> : '3'}
+                      {isConnectionOk ? <Check className="w-3 h-3" /> : '4'}
                     </span>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm font-bold text-ink">3. Speaker / Audio Output</p>
-                      <p className="text-xs text-muted-slate">
-                        {isSpeakerOk
-                          ? 'Tervalidasi • Suara terdengar jelas'
-                          : speakerTonePlayed
-                            ? 'Apakah nada uji terdengar di speaker Anda?'
-                            : 'Klik Putar Nada lalu konfirmasi suara'}
-                      </p>
-                    </div>
+                    <p className="text-xs font-bold text-ink truncate">Koneksi Internet</p>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {!isSpeakerOk && speakerTonePlayed && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSpeakerTested(true);
-                          setFaceError('');
-                        }}
-                        className="px-2.5 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-all"
-                      >
-                        Ya, Terdengar
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleTestSpeaker}
-                      disabled={speakerPlaying}
-                      className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 hover:border-primary-navy rounded-lg cursor-pointer transition-all flex items-center gap-1.5"
-                    >
-                      <Volume2 className={`w-3.5 h-3.5 text-primary-navy ${speakerPlaying ? 'animate-bounce' : ''}`} />
-                      <span>{speakerPlaying ? 'Memutar...' : speakerTonePlayed ? 'Putar Ulang' : 'Putar Nada'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4. Internet Connection & Ping */}
-                <div
-                  className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-200 ${
-                    isConnectionOk
-                      ? 'bg-emerald-50/40 border-emerald-200'
-                      : 'bg-amber-50/50 border-amber-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 ${
-                        isConnectionOk ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
-                      }`}
-                    >
-                      {isConnectionOk ? <Check className="w-3.5 h-3.5" /> : '4'}
-                    </span>
-                    <div>
-                      <p className="text-xs sm:text-sm font-bold text-ink">4. Koneksi Internet</p>
-                      <p className="text-xs text-muted-slate">
-                        {testingConnection
-                          ? 'Menguji latensi...'
-                          : pingMs !== null
-                            ? `Latensi ${pingMs} ms • Koneksi stabil & responsif`
-                            : 'Menunggu hasil uji koneksi...'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isConnectionOk && (
-                      <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full">
-                        Tervalidasi
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleTestConnection}
-                      disabled={testingConnection}
-                      className="p-1.5 text-slate-400 hover:text-primary-navy rounded-lg cursor-pointer transition-colors"
-                      title="Uji Ulang Koneksi"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${testingConnection ? 'animate-spin text-primary-navy' : ''}`} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* 5. Screen Resolution & Browser */}
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-emerald-50/40 border border-emerald-200 transition-all duration-200">
-                  <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0">
-                      <Check className="w-3.5 h-3.5" />
-                    </span>
-                    <div>
-                      <p className="text-xs sm:text-sm font-bold text-ink">5. Resolusi & Browser</p>
-                      <p className="text-xs text-muted-slate">
-                        {browserInfo} • {screenResolution}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full shrink-0">
-                    Tervalidasi
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      isConnectionOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {isConnectionOk ? 'Valid' : 'Belum'}
                   </span>
                 </div>
-
-                {/* 6. Face Registration Status */}
-                {isFaceOk ? (
-                  <div className="p-4 rounded-2xl bg-emerald-50/40 border border-emerald-200 transition-all duration-200 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-ink">6. Registrasi Foto Wajah (KYC)</p>
-                        <p className="text-xs text-emerald-700 font-medium truncate">
-                          Snapshot wajah terverifikasi • Siap AI Proctoring
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full">
-                        Tervalidasi
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleCaptureFace}
-                        disabled={registeringFace}
-                        className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg cursor-pointer transition-all"
-                        title="Ambil snapshot wajah ulang"
-                      >
-                        {registeringFace ? 'Menyimpan...' : 'Foto Ulang'}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200 transition-all duration-200 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="w-6 h-6 rounded-full bg-amber-500 text-white text-[11px] font-bold flex items-center justify-center shrink-0">
-                        6
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-amber-950">6. Registrasi Foto Wajah (KYC)</p>
-                        <p className="text-xs text-amber-800">
-                          Wajah belum terdaftar • Wajib sebelum lembar ujian
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="primary"
-                      size="xs"
-                      type="button"
-                      disabled={registeringFace}
-                      onClick={handleCaptureFace}
-                      className="text-xs py-1.5 px-3 bg-primary-navy text-white font-bold shrink-0 shadow-2xs cursor-pointer"
-                    >
-                      {registeringFace ? 'Menyimpan...' : 'Ambil Foto'}
-                    </Button>
-                  </div>
-                )}
+                <p className="text-[11px] text-muted-slate truncate">
+                  {testingConnection ? 'Menguji latensi...' : pingMs !== null ? `Latensi ${pingMs} ms • Stabil` : 'Belum diuji'}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={testingConnection}
+                  className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                    isConnectionOk
+                      ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                      : 'bg-primary-navy hover:bg-slate-800 text-white'
+                  }`}
+                >
+                  {testingConnection ? 'Menguji...' : isConnectionOk ? 'Uji Ulang ✓' : 'Uji Koneksi'}
+                </button>
               </div>
 
-              {/* Proctoring Consent Box */}
-              <div className="mt-2 pt-5 border-t border-slate-100">
-                <div className="p-5 bg-blue-50/70 border border-blue-200/80 rounded-2xl space-y-2.5">
-                  <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-primary-navy">
-                    <ShieldCheck className="w-4 h-4 text-blue-accent" />
-                    <span>Persetujuan Biometrik & Perlindungan Data</span>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Sesuai UU Perlindungan Data Pribadi No. 27/2022, data foto hanya digunakan untuk verifikasi integritas ujian dan dienkripsi secara aman.
-                  </p>
-                  <label className="flex items-start gap-2.5 pt-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={consentGiven}
-                      onChange={(e) => {
-                        setConsentGiven(e.target.checked);
-                        if (e.target.checked) setFaceError('');
-                      }}
-                      className="w-4 h-4 text-primary-navy rounded border-slate-300 focus:ring-primary-navy mt-0.5 cursor-pointer"
-                    />
-                    <span className="text-xs sm:text-sm font-bold text-ink leading-snug">
-                      Saya memberikan persetujuan verifikasi wajah & integritas ujian
+              {/* 5. Resolusi & Browser */}
+              <div
+                className={`p-3 rounded-xl border flex flex-col justify-between gap-2 ${
+                  isBrowserOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                        isBrowserOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+                      }`}
+                    >
+                      {isBrowserOk ? <Check className="w-3 h-3" /> : '5'}
                     </span>
-                  </label>
+                    <p className="text-xs font-bold text-ink truncate">Browser &amp; Layar</p>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      isBrowserOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {isBrowserOk ? 'Valid' : 'Belum'}
+                  </span>
                 </div>
+                <p className="text-[11px] text-muted-slate truncate">
+                  {browserInfo} • {screenResolution}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBrowserVerified(true);
+                    setFaceError('');
+                  }}
+                  className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                    isBrowserOk
+                      ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                      : 'bg-primary-navy hover:bg-slate-800 text-white'
+                  }`}
+                >
+                  {isBrowserOk ? 'Tervalidasi ✓' : 'Cek Browser'}
+                </button>
               </div>
 
-              {/* Error Alert Banner if validation fails */}
+              {/* 6. Registrasi Foto Wajah (KYC) */}
+              <div
+                className={`p-3 rounded-xl border flex flex-col justify-between gap-2 ${
+                  isFaceOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                        isFaceOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+                      }`}
+                    >
+                      {isFaceOk ? <Check className="w-3 h-3" /> : '6'}
+                    </span>
+                    <p className="text-xs font-bold text-ink truncate">Foto Wajah (KYC)</p>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      isFaceOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {isFaceOk ? 'Valid' : 'Belum'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-slate truncate">
+                  {isFaceOk ? 'Snapshot wajah tersimpan' : 'Wajib ambil foto wajah'}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCaptureFace}
+                  disabled={registeringFace}
+                  className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                    isFaceOk
+                      ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                      : 'bg-primary-navy hover:bg-slate-800 text-white'
+                  }`}
+                >
+                  {registeringFace ? 'Menyimpan...' : isFaceOk ? 'Foto Ulang ✓' : 'Ambil Foto'}
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Consent + Error/Success + Action Button */}
+            <div className="shrink-0 space-y-2.5 pt-2 border-t border-slate-100">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={consentGiven}
+                  onChange={(e) => {
+                    setConsentGiven(e.target.checked);
+                    if (e.target.checked) setFaceError('');
+                  }}
+                  className="w-4 h-4 text-primary-navy rounded border-slate-300 focus:ring-primary-navy cursor-pointer shrink-0"
+                />
+                <span className="text-[11px] font-semibold text-slate-700 leading-tight">
+                  Saya menyetujui verifikasi biometrik wajah &amp; integritas ujian sesuai UU PDP No. 27/2022.
+                </span>
+              </label>
+
               {faceError && (
-                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5 animate-shake">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <span className="font-semibold">{faceError}</span>
-                  </div>
+                <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>{faceError}</span>
                 </div>
               )}
 
-              {/* Validation Success Card if confirmed */}
-              {validationSuccess && (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-3 animate-fade-in shadow-2xs">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-emerald-950 text-xs sm:text-sm">
-                        Device & Sistem Divalidasi Sempurna
-                      </span>
-                      <span className="text-[10px] bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded-full">
-                        Terverifikasi
-                      </span>
-                    </div>
-                    <p className="text-xs text-emerald-800 leading-relaxed">
-                      Kamera, mikrofon, audio output, koneksi internet, dan registrasi wajah Anda telah dikonfirmasi berfungsi optimal oleh sistem.
-                    </p>
-                  </div>
+              {validationSuccess ? (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="primary"
+                    onClick={handleProceedToAsesmen}
+                    className="flex-1 py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Tervalidasi • Masuk ke Asesmen Saya</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setValidationSuccess(false)}
+                    className="px-3 py-2 rounded-xl border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Uji Ulang
+                  </button>
                 </div>
+              ) : (
+                <Button
+                  id="btn-confirm-device"
+                  variant="primary"
+                  disabled={isValidating}
+                  onClick={handleConfirmDeviceCheck}
+                  className="w-full py-3 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm rounded-xl cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white transition-all"
+                >
+                  {isValidating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Memvalidasi Perangkat...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4 text-emerald-100 shrink-0" />
+                      <span>Konfirmasi &amp; Validasi Kesiapan Perangkat ({verifiedPointsCount}/6)</span>
+                    </>
+                  )}
+                </Button>
               )}
-
-              {/* Action Buttons: Confirmation & Navigation */}
-              <div className="pt-2 flex flex-col gap-2.5">
-                {!validationSuccess ? (
-                  <>
-                    <Button
-                      id="btn-confirm-device"
-                      variant="primary"
-                      size="lg"
-                      disabled={isValidating}
-                      onClick={handleConfirmDeviceCheck}
-                      className="w-full py-4 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-md rounded-2xl cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white transition-all transform active:scale-[0.99]"
-                    >
-                      {isValidating ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Sistem Sedang Memvalidasi Perangkat...</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck className="w-5 h-5 text-emerald-200 shrink-0" />
-                          <span>Konfirmasi & Validasi Kesiapan Perangkat</span>
-                        </>
-                      )}
-                    </Button>
-                    <p className="text-[11px] text-center text-slate-500">
-                      Tekan tombol konfirmasi di atas agar sistem memvalidasi seluruh fungsi kamera, audio, dan jaringan Anda sebelum masuk ke ujian.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      onClick={handleProceedToAsesmen}
-                      className="w-full py-3.5 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm rounded-xl cursor-pointer"
-                    >
-                      <span>Masuk ke Asesmen Saya</span>
-                      <ArrowRight className="w-4 h-4 shrink-0" />
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      onClick={handleFinishDeviceCheck}
-                      className="w-full py-2.5 px-4 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 flex items-center justify-center gap-2 rounded-xl cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Masuk ke Dashboard Peserta</span>
-                    </Button>
-
-                    <button
-                      type="button"
-                      onClick={() => setValidationSuccess(false)}
-                      className="text-[11px] text-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer py-1"
-                    >
-                      Perlu cek ulang perangkat lagi? Klik di sini untuk re-validasi
-                    </button>
-                  </>
-                )}
-              </div>
             </div>
           </div>
         </div>
       </main>
-
-      <footer className="py-6 border-t border-slate-200/70 bg-white text-center text-xs text-slate-400">
-        © 2026 Right Assessment Platform • Dilindungi enkripsi SSL 256-bit dan Sistem Anti-Cheat AI ISO 27001.
-      </footer>
     </div>
   );
 }
