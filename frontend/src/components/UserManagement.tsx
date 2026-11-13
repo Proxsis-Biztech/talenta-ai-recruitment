@@ -1198,7 +1198,7 @@ export default function UserManagement() {
                   </label>
                   <input
                     type="text"
-                    required
+                    required={!editingPesertaId}
                     value={pesertaFormPassword}
                     onChange={(e) => setPesertaFormPassword(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy font-mono"
