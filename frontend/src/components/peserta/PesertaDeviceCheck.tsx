@@ -54,27 +54,29 @@ export default function PesertaDeviceCheck() {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // Diagnostics states (all triggered manually like KYC)
+  // Diagnostics states (100% manual per-point check, never auto-checked on entry)
   const [pingMs, setPingMs] = useState<number | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
-  const [cameraVerified, setCameraVerified] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
-  const [micVerified, setMicVerified] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
+  const [testingCamera, setTestingCamera] = useState(false);
+  const [testingMic, setTestingMic] = useState(false);
+  const [testingBrowser, setTestingBrowser] = useState(false);
+  const [cameraVerified, setCameraVerified] = useState(false);
+  const [micVerified, setMicVerified] = useState(false);
   const [speakerTonePlayed, setSpeakerTonePlayed] = useState(false);
-  const [speakerTested, setSpeakerTested] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
-  const [connectionTested, setConnectionTested] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
-  const [browserVerified, setBrowserVerified] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
+  const [speakerTested, setSpeakerTested] = useState(false);
+  const [connectionTested, setConnectionTested] = useState(false);
+  const [browserVerified, setBrowserVerified] = useState(false);
   const [speakerPlaying, setSpeakerPlaying] = useState(false);
-  const [consentGiven, setConsentGiven] = useState(true);
+  const [consentGiven, setConsentGiven] = useState(false);
 
   // System validation & confirmation states
   const [isValidating, setIsValidating] = useState(false);
-  const [validationSuccess, setValidationSuccess] = useState(() => Boolean(getPortalUser()?.deviceCheckCompletedAt));
+  const [validationSuccess, setValidationSuccess] = useState(false);
 
   // Face registration states
   const [faceDetected, setFaceDetected] = useState(true);
-  const [initialFaceRegistered, setInitialFaceRegistered] = useState(() => {
-    return Boolean(getPortalUser()?.faceVerifiedAt || localStorage.getItem('candidate_face_photo'));
-  });
+  const [faceCheckedInSession, setFaceCheckedInSession] = useState(false);
+  const [initialFaceRegistered, setInitialFaceRegistered] = useState(false);
   const [faceError, setFaceError] = useState('');
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(() => {
     return localStorage.getItem('candidate_face_photo') || null;
@@ -174,10 +176,9 @@ export default function PesertaDeviceCheck() {
   useEffect(() => {
     startRealMedia();
 
-    // Check if face was already registered previously
+    // Load previous photo preview if any, without auto-validating KYC point 6
     const saved = localStorage.getItem('candidate_face_photo');
     if (saved) {
-      setInitialFaceRegistered(true);
       setCapturedPhotoUrl(saved);
     }
 
@@ -250,6 +251,7 @@ export default function PesertaDeviceCheck() {
         const photoUrl = canvas.toDataURL('image/jpeg', 0.88);
         setCapturedPhotoUrl(photoUrl);
         setInitialFaceRegistered(true);
+        setFaceCheckedInSession(true);
         localStorage.setItem('candidate_face_photo', photoUrl);
         const token = getPortalToken();
         if (token) {
@@ -333,12 +335,48 @@ export default function PesertaDeviceCheck() {
   // ──────────────────────────────────────────────
   // 5. KYC Per-Point Validation Flags & Confirmation (100% Manual Trigger)
   // ──────────────────────────────────────────────
+  const handleCheckCamera = async () => {
+    setTestingCamera(true);
+    setFaceError('');
+    try {
+      if (cameraStatus !== 'active') {
+        await startRealMedia();
+      }
+      await new Promise((r) => setTimeout(r, 350));
+      setCameraVerified(true);
+    } finally {
+      setTestingCamera(false);
+    }
+  };
+
+  const handleCheckMic = async () => {
+    setTestingMic(true);
+    setFaceError('');
+    try {
+      await new Promise((r) => setTimeout(r, 350));
+      setMicVerified(true);
+    } finally {
+      setTestingMic(false);
+    }
+  };
+
+  const handleCheckBrowser = async () => {
+    setTestingBrowser(true);
+    setFaceError('');
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      setBrowserVerified(true);
+    } finally {
+      setTestingBrowser(false);
+    }
+  };
+
   const isCameraOk = cameraVerified && (cameraStatus === 'active' || cameraStatus === 'simulated');
   const isMicOk = micVerified;
   const isSpeakerOk = speakerTested;
   const isConnectionOk = connectionTested && !testingConnection;
   const isBrowserOk = browserVerified;
-  const isFaceOk = initialFaceRegistered || Boolean(getPortalUser()?.faceVerifiedAt);
+  const isFaceOk = faceCheckedInSession || initialFaceRegistered;
 
   const kycPoints = [
     { key: 'camera', label: 'Kamera Web (Webcam)', ok: isCameraOk },
@@ -673,17 +711,15 @@ export default function PesertaDeviceCheck() {
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  setCameraVerified(true);
-                  setFaceError('');
-                }}
+                onClick={handleCheckCamera}
+                disabled={testingCamera}
                 className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
                   isCameraOk
                     ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                     : 'bg-primary-navy hover:bg-slate-800 text-white'
                 }`}
               >
-                {isCameraOk ? 'Tervalidasi ✓' : 'Cek Kamera'}
+                {testingCamera ? 'Mengecek...' : isCameraOk ? 'Tervalidasi ✓' : 'Cek Kamera'}
               </button>
             </div>
 
@@ -717,17 +753,15 @@ export default function PesertaDeviceCheck() {
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  setMicVerified(true);
-                  setFaceError('');
-                }}
+                onClick={handleCheckMic}
+                disabled={testingMic}
                 className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
                   isMicOk
                     ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                     : 'bg-primary-navy hover:bg-slate-800 text-white'
                 }`}
               >
-                {isMicOk ? 'Tervalidasi ✓' : 'Cek Mic'}
+                {testingMic ? 'Mengecek...' : isMicOk ? 'Tervalidasi ✓' : 'Cek Mic'}
               </button>
             </div>
 
@@ -855,17 +889,15 @@ export default function PesertaDeviceCheck() {
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  setBrowserVerified(true);
-                  setFaceError('');
-                }}
+                onClick={handleCheckBrowser}
+                disabled={testingBrowser}
                 className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
                   isBrowserOk
                     ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                     : 'bg-primary-navy hover:bg-slate-800 text-white'
                 }`}
               >
-                {isBrowserOk ? 'Tervalidasi ✓' : 'Cek Browser'}
+                {testingBrowser ? 'Mengecek...' : isBrowserOk ? 'Tervalidasi ✓' : 'Cek Browser'}
               </button>
             </div>
 

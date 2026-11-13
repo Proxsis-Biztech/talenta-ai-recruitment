@@ -57,7 +57,7 @@ export default function PesertaDashboard() {
 
   const activeUser = useMemo(() => getActiveSessionUser(), []);
 
-  const activeProgram = useMemo(() => {
+  const fallbackProgram = useMemo(() => {
     return (
       getProgramById(activeUser.assessmentId || 'SE-402') ||
       ({
@@ -71,6 +71,7 @@ export default function PesertaDashboard() {
   }, [activeUser.assessmentId, activeUser.assessmentTitle, activeUser.companyName, activeUser.gradeLevel]);
 
   const [dashboard, setDashboard] = useState<any>(null);
+  const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [taskTab, setTaskTab] = useState<TaskFilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarCursor, setCalendarCursor] = useState(() => {
@@ -82,7 +83,10 @@ export default function PesertaDashboard() {
     let cancelled = false;
     const loadDashboard = async () => {
       const token = getPortalToken();
-      if (!token) return;
+      if (!token) {
+        setLoadingDashboard(false);
+        return;
+      }
       try {
         const response = await axios.get('/api/portal/dashboard', {
           headers: { Authorization: `Bearer ${token}` }
@@ -90,6 +94,8 @@ export default function PesertaDashboard() {
         if (!cancelled) setDashboard(response.data);
       } catch {
         if (!cancelled) setDashboard(null);
+      } finally {
+        if (!cancelled) setLoadingDashboard(false);
       }
     };
     void loadDashboard();
@@ -98,8 +104,21 @@ export default function PesertaDashboard() {
     };
   }, []);
 
+  // Real user & program data prioritized from /api/portal/dashboard
+  const realUser = dashboard?.user || activeUser;
+  const programTitle =
+    dashboard?.program?.title || realUser?.assessmentTitle || fallbackProgram.title;
+  const companyName = realUser?.companyName || fallbackProgram.companyName || '-';
+  const programDuration =
+    dashboard?.program?.durationMinutes || fallbackProgram.durationMinutes || 90;
+
+  const programHeaderLabel = programTitle.toLowerCase().includes(companyName.toLowerCase())
+    ? programTitle
+    : `${programTitle} • ${companyName}`;
+
   const isCatCompleted = ['submitted', 'graded'].includes(dashboard?.exam?.status || '');
-  const faceVerified = Boolean(dashboard?.user?.faceVerifiedAt);
+  const isInterviewCompleted = dashboard?.interview?.status === 'completed';
+  const faceVerified = Boolean(dashboard?.user?.faceVerifiedAt || dashboard?.user?.deviceCheckCompletedAt);
   const profileComplete = dashboard
     ? Boolean(
         dashboard?.user?.name &&
@@ -128,7 +147,7 @@ export default function PesertaDashboard() {
       {
         id: 'profile',
         title: 'Kelengkapan Data Diri & Dokumen',
-        subtitle: `${activeUser.name} • ${activeProgram.companyName}`,
+        subtitle: `${realUser?.name || activeUser.name} • ${companyName}`,
         category: 'Administrasi',
         status: profileComplete ? 'completed' : 'pending',
         actionLabel: profileComplete ? 'Selesai' : 'Lengkapi',
@@ -140,7 +159,7 @@ export default function PesertaDashboard() {
         id: 'device',
         title: 'Verifikasi Kamera, Mikrofon & Wajah',
         subtitle: faceVerified
-          ? `Terverifikasi pada ${formatDate(dashboard?.user?.faceVerifiedAt)}`
+          ? `Terverifikasi pada ${formatDate(dashboard?.user?.faceVerifiedAt || dashboard?.user?.deviceCheckCompletedAt)}`
           : 'Wajib sebelum memulai sesi CAT & Wawancara',
         category: 'Perangkat',
         status: faceVerified ? 'completed' : 'pending',
@@ -151,10 +170,12 @@ export default function PesertaDashboard() {
       },
       {
         id: 'cat',
-        title: `Ujian Kompetensi CAT — ${activeProgram.title}`,
+        title: `Ujian Kompetensi CAT — ${programTitle}`,
         subtitle: isCatCompleted
-          ? `Selesai dikumpulkan • ${formatDate(dashboard?.exam?.submittedAt)}`
-          : `Durasi ${activeProgram.durationMinutes || 90} Menit • Akses melalui Asesmen Saya`,
+          ? `Selesai dikumpulkan • ${formatDate(dashboard?.exam?.submittedAt)}${
+              dashboard?.exam?.score != null ? ` • Skor ${dashboard.exam.score}` : ''
+            }`
+          : `Durasi ${programDuration} Menit • Akses melalui Asesmen Saya`,
         category: 'Asesmen',
         status: isCatCompleted ? 'completed' : 'pending',
         actionLabel: isCatCompleted ? 'Selesai' : 'Buka Asesmen',
@@ -165,22 +186,26 @@ export default function PesertaDashboard() {
       {
         id: 'interview',
         title: 'Sesi Wawancara Tatap Muka Asesor',
-        subtitle: interview.assessorName
-          ? `Asesor: ${interview.assessorName} • ${interview.scheduledAt ? formatDate(interview.scheduledAt) : 'Terjadwal'}`
-          : 'Sesi tatap muka daring bersama Dewan Asesor',
+        subtitle: isInterviewCompleted
+          ? `Selesai • ${interview.assessorName || 'Tim Asesor'}${
+              interview.score != null ? ` • Skor ${interview.score}` : ''
+            }`
+          : interview.assessorName
+            ? `Asesor: ${interview.assessorName} • ${
+                interview.scheduledAt ? formatDate(interview.scheduledAt) : 'Menunggu Jadwal'
+              }`
+            : 'Sesi tatap muka daring bersama Dewan Asesor',
         category: 'Wawancara',
-        status:
-          interview.status === 'completed'
-            ? 'completed'
-            : isCatCompleted
-              ? 'pending'
-              : 'upcoming',
-        actionLabel:
-          interview.status === 'completed'
-            ? 'Selesai'
-            : isCatCompleted
-              ? 'Buka Asesmen'
-              : 'Menunggu CAT',
+        status: isInterviewCompleted
+          ? 'completed'
+          : isCatCompleted
+            ? 'pending'
+            : 'upcoming',
+        actionLabel: isInterviewCompleted
+          ? 'Selesai'
+          : isCatCompleted
+            ? 'Buka Asesmen'
+            : 'Menunggu CAT',
         tone: 'amber',
         icon: Video,
         onAction: () => navigate('/peserta/asesmen')
@@ -189,8 +214,8 @@ export default function PesertaDashboard() {
         id: 'lha',
         title: 'Laporan Hasil Asesmen (LHA) & Sertifikat',
         subtitle: lha?.signed
-          ? `Diterbitkan resmi pada ${formatDate(lha.signedAt)}`
-          : 'Rekapitulasi nilai kompetensi & rekomendasi',
+          ? `Diterbitkan pada ${formatDate(lha.signedAt)} • ${lha.recommendation || 'Terverifikasi'}`
+          : 'Menunggu penerbitan resmi oleh Dewan Asesor',
         category: 'Evaluasi',
         status: lha?.signed ? 'completed' : 'upcoming',
         actionLabel: lha?.signed ? 'Lihat Hasil' : 'Menunggu LHA',
@@ -200,21 +225,26 @@ export default function PesertaDashboard() {
       }
     ],
     [
-      activeProgram.companyName,
-      activeProgram.durationMinutes,
-      activeProgram.title,
       activeUser.name,
+      companyName,
+      dashboard?.exam?.score,
       dashboard?.exam?.submittedAt,
+      dashboard?.user?.deviceCheckCompletedAt,
       dashboard?.user?.faceVerifiedAt,
       faceVerified,
       interview.assessorName,
       interview.scheduledAt,
-      interview.status,
+      interview.score,
       isCatCompleted,
+      isInterviewCompleted,
+      lha?.recommendation,
       lha?.signed,
       lha?.signedAt,
       navigate,
-      profileComplete
+      profileComplete,
+      programDuration,
+      programTitle,
+      realUser?.name
     ]
   );
 
@@ -237,7 +267,7 @@ export default function PesertaDashboard() {
   }, [searchQuery, taskTab, tasks]);
 
   const completedCount = tasks.filter((t) => t.status === 'completed').length;
-  const remainingCatAndInterview = (isCatCompleted ? 0 : 1) + (interview.status === 'completed' ? 0 : 1);
+  const remainingCatAndInterview = (isCatCompleted ? 0 : 1) + (isInterviewCompleted ? 0 : 1);
 
   // Build calendar cells (Monday-first grid)
   const calendarDays = useMemo(() => {
@@ -245,13 +275,11 @@ export default function PesertaDashboard() {
     const month = calendarCursor.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
-    // JS getDay(): 0=Sun..6=Sat -> shift to Mon=0..Sun=6
     const startOffset = (firstDay.getDay() + 6) % 7;
     const totalDays = lastDay.getDate();
 
     const cells: Array<{ date: Date; inMonth: boolean }> = [];
 
-    // Previous month trailing days
     const prevLastDate = new Date(year, month, 0).getDate();
     for (let i = startOffset - 1; i >= 0; i--) {
       cells.push({
@@ -260,7 +288,6 @@ export default function PesertaDashboard() {
       });
     }
 
-    // Current month days
     for (let d = 1; d <= totalDays; d++) {
       cells.push({
         date: new Date(year, month, d),
@@ -268,7 +295,6 @@ export default function PesertaDashboard() {
       });
     }
 
-    // Next month leading days to fill 35 or 42 grid
     const remainder = cells.length % 7;
     if (remainder !== 0) {
       const needed = 7 - remainder;
@@ -289,53 +315,73 @@ export default function PesertaDashboard() {
     a.getDate() === b.getDate();
 
   const interviewDate = interview?.scheduledAt ? new Date(interview.scheduledAt) : null;
+  const examSubmittedDate = dashboard?.exam?.submittedAt ? new Date(dashboard.exam.submittedAt) : null;
 
+  // Real upcoming/pending events only (never show already-completed sessions as upcoming)
   const upcomingEvents = useMemo(() => {
-    const list = [
-      {
+    const list: Array<{
+      id: string;
+      title: string;
+      desc: string;
+      dateLabel: string;
+      durationLabel: string;
+      dotColor: string;
+      iconBg: string;
+      icon: React.ComponentType<{ className?: string }>;
+    }> = [];
+
+    if (!isCatCompleted) {
+      list.push({
         id: 'ev-cat',
         title: 'Ujian CAT Kompetensi',
-        desc: 'Kerjakan melalui menu Asesmen Saya',
-        dateLabel: isCatCompleted ? formatShortDate(dashboard?.exam?.submittedAt) : 'Hari Ini',
-        durationLabel: `${activeProgram.durationMinutes || 90} Menit`,
+        desc: `Akses melalui menu Asesmen Saya`,
+        dateLabel: 'Tersedia',
+        durationLabel: `${programDuration} Menit`,
         dotColor: 'bg-[#F95B2B]',
         iconBg: 'bg-[#F2F0FE] text-[#5B4CE4]',
         icon: FileText
-      },
-      {
+      });
+    }
+
+    if (!isInterviewCompleted) {
+      list.push({
         id: 'ev-interview',
         title: 'Wawancara Panel Asesor',
         desc: interview.assessorName ? `Asesor: ${interview.assessorName}` : 'Sesi tatap muka daring',
-        dateLabel: interview.scheduledAt ? formatShortDate(interview.scheduledAt) : 'Terjadwal',
-        durationLabel: '30 Menit',
+        dateLabel: interview.scheduledAt ? formatShortDate(interview.scheduledAt) : 'Menunggu',
+        durationLabel: interview.queuePosition ? `Antrean #${interview.queuePosition}` : 'Terjadwal',
         dotColor: 'bg-amber-400',
         iconBg: 'bg-[#FEF7E6] text-[#D97706]',
         icon: Video
-      },
-      {
+      });
+    }
+
+    if (!lha?.signed) {
+      list.push({
         id: 'ev-lha',
-        title: 'Rekap & Pengumuman LHA',
-        desc: 'Laporan hasil asesmen terverifikasi',
-        dateLabel: lha?.signedAt ? formatShortDate(lha.signedAt) : 'Pasca Ujian',
-        durationLabel: lha?.signed ? 'Tersedia' : 'Menunggu',
+        title: 'Penerbitan Hasil (LHA)',
+        desc: 'Menunggu tanda tangan digital asesor',
+        dateLabel: 'Pasca Sesi',
+        durationLabel: 'Belum Terbit',
         dotColor: 'bg-[#0F9D8A]',
         iconBg: 'bg-[#EAF8F5] text-[#0F9D8A]',
         icon: ShieldCheck
-      }
-    ];
+      });
+    }
+
     const q = searchQuery.trim().toLowerCase();
     if (!q) return list;
     return list.filter(
       (ev) => ev.title.toLowerCase().includes(q) || ev.desc.toLowerCase().includes(q)
     );
   }, [
-    activeProgram.durationMinutes,
-    dashboard?.exam?.submittedAt,
     interview.assessorName,
+    interview.queuePosition,
     interview.scheduledAt,
     isCatCompleted,
+    isInterviewCompleted,
     lha?.signed,
-    lha?.signedAt,
+    programDuration,
     searchQuery
   ]);
 
@@ -378,7 +424,7 @@ export default function PesertaDashboard() {
                   Asesmen Saya<span className="text-[#F95B2B]">.</span>
                 </h1>
                 <p className="text-xs font-medium text-slate-500">
-                  {activeProgram.title} • {activeProgram.companyName}
+                  {loadingDashboard ? 'Memuat program...' : programHeaderLabel}
                 </p>
               </div>
 
@@ -398,8 +444,10 @@ export default function PesertaDashboard() {
                   <h2 className="text-base font-bold text-slate-900">Ujian CAT</h2>
                   <p className="text-xs text-slate-500 mt-1 mb-5">
                     {isCatCompleted
-                      ? 'Selesai & Tersimpan'
-                      : `${activeProgram.durationMinutes || 90} Menit • Siap Dikerjakan`}
+                      ? dashboard?.exam?.score != null
+                        ? `Skor: ${dashboard.exam.score}/100 • Selesai`
+                        : 'Selesai & Tersimpan'
+                      : `${programDuration} Menit • Siap Dikerjakan`}
                   </p>
                   <button
                     type="button"
@@ -418,14 +466,16 @@ export default function PesertaDashboard() {
                     </div>
                     <span
                       className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-[#FEF7E6] ${
-                        interview.status === 'completed' ? 'bg-emerald-500' : 'bg-[#F95B2B]'
+                        isInterviewCompleted ? 'bg-emerald-500' : 'bg-[#F95B2B]'
                       }`}
                     />
                   </div>
                   <h2 className="text-base font-bold text-slate-900">Wawancara</h2>
                   <p className="text-xs text-slate-500 mt-1 mb-5">
-                    {interview.status === 'completed'
-                      ? 'Selesai Dinilai Asesor'
+                    {isInterviewCompleted
+                      ? interview.score != null
+                        ? `Skor: ${interview.score}/100 • Selesai`
+                        : 'Selesai Dinilai Asesor'
                       : interview.scheduledAt
                         ? `Jadwal: ${formatShortDate(interview.scheduledAt)}`
                         : 'Menunggu Jadwal Asesor'}
@@ -439,7 +489,7 @@ export default function PesertaDashboard() {
                   </button>
                 </div>
 
-                {/* Card 3: Soft Lavender — Hasil & Progres */}
+                {/* Card 3: Soft Lavender — Hasil & LHA */}
                 <div className="rounded-3xl bg-[#F2F0FE] p-5 flex flex-col items-center text-center transition-transform hover:-translate-y-0.5">
                   <div className="relative mb-4 mt-1">
                     <div className="w-14 h-14 rounded-2xl bg-[#5B4CE4] text-white flex items-center justify-center shadow-sm rotate-3">
@@ -451,24 +501,24 @@ export default function PesertaDashboard() {
                       }`}
                     />
                   </div>
-                  <h2 className="text-base font-bold text-slate-900">Hasil & LHA</h2>
+                  <h2 className="text-base font-bold text-slate-900">Hasil &amp; LHA</h2>
                   <p className="text-xs text-slate-500 mt-1 mb-5">
                     {lha?.signed
-                      ? 'LHA Resmi Tersedia'
+                      ? `LHA Resmi • Skor ${lha.compositeScore ?? '-'}`
                       : `${completedCount}/${tasks.length} Tahap Selesai`}
                   </p>
                   <button
                     type="button"
-                    onClick={() => navigate(lha?.signed ? '/peserta/hasil' : '/peserta/profile')}
+                    onClick={() => navigate(lha?.signed || profileComplete ? '/peserta/hasil' : '/peserta/profile')}
                     className="w-full max-w-[150px] py-2 px-4 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 shadow-xs border border-slate-200/60 transition-colors cursor-pointer"
                   >
-                    {lha?.signed ? 'Lihat Hasil' : 'Cek Profil'}
+                    {lha?.signed || profileComplete ? 'Lihat Hasil' : 'Cek Profil'}
                   </button>
                 </div>
               </div>
             </section>
 
-            {/* Section 2: Tahapan Hari Ini (Today Tasks ala Reference) */}
+            {/* Section 2: Tahapan Asesmen */}
             <section className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-xl sm:text-2xl font-extrabold font-heading text-slate-900 tracking-tight">
@@ -633,6 +683,7 @@ export default function PesertaDashboard() {
                 {calendarDays.map(({ date, inMonth }, idx) => {
                   const isToday = isSameDay(date, today);
                   const isInterviewDay = interviewDate ? isSameDay(date, interviewDate) : false;
+                  const isExamDay = examSubmittedDate ? isSameDay(date, examSubmittedDate) : false;
 
                   return (
                     <div key={idx} className="flex items-center justify-center py-0.5">
@@ -640,7 +691,7 @@ export default function PesertaDashboard() {
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
                           isToday
                             ? 'bg-[#F95B2B] text-white font-bold shadow-xs'
-                            : isInterviewDay
+                            : isInterviewDay || isExamDay
                               ? 'bg-[#FDECE6] text-[#F95B2B] font-bold'
                               : inMonth
                                 ? 'text-slate-700 hover:bg-slate-100'
@@ -655,48 +706,60 @@ export default function PesertaDashboard() {
               </div>
             </div>
 
-            {/* Jadwal Mendatang (Upcoming) */}
+            {/* Jadwal Mendatang (Real Pending Schedule Only) */}
             <div className="space-y-4">
               <h2 className="text-lg font-extrabold font-heading text-slate-900">
                 Jadwal Mendatang<span className="text-[#F95B2B]">.</span>
               </h2>
 
-              <div className="relative pl-4 space-y-5 before:content-[''] before:absolute before:left-[5px] before:top-2 before:bottom-2 before:w-px before:bg-slate-200">
-                {upcomingEvents.map((ev) => {
-                  const EvIcon = ev.icon;
-                  return (
-                    <div key={ev.id} className="relative flex items-start justify-between gap-3">
-                      <span
-                        className={`absolute -left-4 top-1.5 w-2.5 h-2.5 rounded-full ring-4 ring-white ${ev.dotColor}`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-slate-900 leading-snug">{ev.title}</p>
-                        <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{ev.desc}</p>
-                      </div>
+              {upcomingEvents.length === 0 ? (
+                <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200/70 p-4 text-center space-y-1">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto" />
+                  <p className="text-xs font-bold text-emerald-900">
+                    Semua tahapan asesmen telah selesai
+                  </p>
+                  <p className="text-[11px] text-emerald-700">
+                    Hasil &amp; LHA resmi Anda sudah tersedia.
+                  </p>
+                </div>
+              ) : (
+                <div className="relative pl-4 space-y-5 before:content-[''] before:absolute before:left-[5px] before:top-2 before:bottom-2 before:w-px before:bg-slate-200">
+                  {upcomingEvents.map((ev) => {
+                    const EvIcon = ev.icon;
+                    return (
+                      <div key={ev.id} className="relative flex items-start justify-between gap-3">
+                        <span
+                          className={`absolute -left-4 top-1.5 w-2.5 h-2.5 rounded-full ring-4 ring-white ${ev.dotColor}`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-slate-900 leading-snug">{ev.title}</p>
+                          <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{ev.desc}</p>
+                        </div>
 
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${ev.iconBg}`}>
-                          <EvIcon className="w-4 h-4" />
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs font-bold text-[#F95B2B]">{ev.dateLabel}</p>
-                          <p className="text-[11px] font-medium text-slate-500 flex items-center justify-end gap-1">
-                            <Clock className="w-3 h-3" />
-                            {ev.durationLabel}
-                          </p>
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${ev.iconBg}`}>
+                            <EvIcon className="w-4 h-4" />
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-bold text-[#F95B2B]">{ev.dateLabel}</p>
+                            <p className="text-[11px] font-medium text-slate-500 flex items-center justify-end gap-1">
+                              <Clock className="w-3 h-3" />
+                              {ev.durationLabel}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <button
                 type="button"
-                onClick={() => navigate('/peserta/asesmen')}
+                onClick={() => navigate(upcomingEvents.length === 0 ? '/peserta/hasil' : '/peserta/asesmen')}
                 className="inline-flex items-center gap-1 text-xs font-bold text-[#F95B2B] hover:text-[#e34d20] pt-1 cursor-pointer"
               >
-                Lihat semua jadwal Asesmen
+                {upcomingEvents.length === 0 ? 'Lihat Hasil & LHA' : 'Lihat semua jadwal Asesmen'}
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
