@@ -139,6 +139,7 @@ export default function PesertaAsesmenList() {
 
   const [serverExam, setServerExam] = useState<{ status?: string; score?: number | null } | null>(null);
   const [serverInterview, setServerInterview] = useState<{ status?: string; score?: number | null } | null>(null);
+  const [serverPrograms, setServerPrograms] = useState<Array<{ code: string; title: string; durationMinutes?: number; passingScore?: number }>>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -150,6 +151,9 @@ export default function PesertaAsesmenList() {
         if (cancelled) return;
         setServerExam(response.data?.exam || null);
         setServerInterview(response.data?.interview || null);
+        if (Array.isArray(response.data?.programs)) {
+          setServerPrograms(response.data.programs);
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -250,6 +254,9 @@ export default function PesertaAsesmenList() {
     if (activeUser?.assignedProgramIds && Array.isArray(activeUser.assignedProgramIds)) {
       activeUser.assignedProgramIds.forEach((id) => assignedIds.add(id));
     }
+    serverPrograms.forEach((sp) => {
+      if (sp.code) assignedIds.add(sp.code);
+    });
     if (currentPeserta?.assessmentId) assignedIds.add(currentPeserta.assessmentId);
     if (currentPeserta?.assignedProgramIds && Array.isArray(currentPeserta.assignedProgramIds)) {
       currentPeserta.assignedProgramIds.forEach((id) => assignedIds.add(id));
@@ -293,36 +300,42 @@ export default function PesertaAsesmenList() {
               'Asesor akan memvalidasi penalaran studi kasus yang Anda jawab di lembar CAT serta menguji arsitektur kode di live coding.'
           }
         });
-      } else if (catalogData) {
-        items.push({
-          id: catalogData.id,
-          title: catalogData.title,
-          pt: catalogData.companyName,
-          category: catalogData.category,
-          status: 'belum',
-          badgeStatus: 'Terdaftar • Siap Dimulai',
-          badgeVariant: 'warning',
-          duration: `${catalogData.durationMinutes} Menit`,
-          questions: `${catalogData.totalQuestions} Soal CAT`,
-          passingScore: catalogData.passingScore,
-          deadline: 'Periode Aktif 2026',
-          progress: 0,
-          currentStageNumber: 1,
-          description: catalogData.description,
-          isAssigned: true,
-          interviewInfo: {
-            assessorName: 'Dewan Asesor Terakreditasi',
-            mode: 'Live Video & Audio Interaktif',
-            duration: '45 Menit',
-            timing: 'Tahap 3 setelah ujian teknis',
-            correlationNote: 'Validasi pemahaman silabus, kompetensi BARS, dan kesesuaian formasi.'
-          }
-        });
+      } else {
+        const sp = serverPrograms.find((item) => item.code === pId);
+        const resolvedTitle = catalogData?.title || sp?.title;
+        if (resolvedTitle) {
+          items.push({
+            id: pId,
+            title: resolvedTitle,
+            pt: catalogData?.companyName || activeProg.companyName,
+            category: catalogData?.category || 'Asesmen Kompetensi',
+            status: 'belum',
+            badgeStatus: 'Terdaftar • Siap Dimulai',
+            badgeVariant: 'warning',
+            duration: `${catalogData?.durationMinutes || sp?.durationMinutes || 90} Menit`,
+            questions: `${catalogData?.totalQuestions || 40} Soal CAT`,
+            passingScore: catalogData?.passingScore || sp?.passingScore || 70,
+            deadline: 'Periode Aktif 2026',
+            progress: 0,
+            currentStageNumber: 1,
+            description:
+              catalogData?.description ||
+              'Evaluasi komprehensif mencakup kompetensi teknis dan wawancara asesor terakreditasi.',
+            isAssigned: true,
+            interviewInfo: {
+              assessorName: 'Dewan Asesor Terakreditasi',
+              mode: 'Live Video & Audio Interaktif',
+              duration: '45 Menit',
+              timing: 'Tahap 3 setelah ujian teknis',
+              correlationNote: 'Validasi pemahaman silabus, kompetensi BARS, dan kesesuaian formasi.'
+            }
+          });
+        }
       }
     });
 
     return items;
-  }, [activeProg, activeUser, isCatCompleted, isInterviewCompleted, serverInterview?.score, serverExam?.score]);
+  }, [activeProg, activeUser, serverPrograms, isCatCompleted, isInterviewCompleted, serverInterview?.score, serverExam?.score]);
 
   // View state: if an ID is present in URL, view that program's LMS room; otherwise, view the Cards Grid!
   const isViewingLmsRoom = Boolean(selectedProgramId);

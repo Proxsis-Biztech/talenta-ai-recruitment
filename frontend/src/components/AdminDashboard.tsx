@@ -106,6 +106,10 @@ interface Applicant {
   proctorFlags: string | null;
   compositeEvaluation?: CompositeEvaluation;
   candidateCode?: string | null;
+  portalCompanyName?: string | null;
+  portalAssessmentId?: string | null;
+  portalAssessmentIds?: string | null;
+  portalAssessmentTitle?: string | null;
   examAttempt?: {
     score?: number | null;
     integrityScore?: number | null;
@@ -119,6 +123,7 @@ interface Applicant {
 
 // Helpers for Right Candidate Table representation
 const getCompanyForApplicant = (app: Applicant): string => {
+  if (app.portalCompanyName) return app.portalCompanyName;
   const experienceCompany = app.experiences?.[0]?.companyName;
   if (experienceCompany) return experienceCompany;
   const match = app.job?.title?.match(/\(([^)]+)\)\s*$/);
@@ -126,7 +131,19 @@ const getCompanyForApplicant = (app: Applicant): string => {
 };
 
 const getProgramForApplicant = (app: Applicant): string =>
-  app.job?.title || app.appliedPosition || '-';
+  app.portalAssessmentTitle || app.job?.title || app.appliedPosition || '-';
+
+const getAssessmentCodesForApplicant = (app: Applicant): string[] => {
+  if (app.portalAssessmentIds) {
+    try {
+      const parsed = JSON.parse(app.portalAssessmentIds);
+      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+    } catch {
+      // ignore malformed JSON
+    }
+  }
+  return app.portalAssessmentId ? [app.portalAssessmentId] : [];
+};
 
 const getStageForApplicant = (app: Applicant): string => {
   if (app.interviewStatus === 'completed' || app.interviewStatus === 'scored') {
@@ -1559,9 +1576,23 @@ ${app.interviewResult ? `
 
                           {/* Program */}
                           <TableCell className="text-sm text-slate-600">
-                            <span className="block max-w-[240px] truncate" title={getProgramForApplicant(app)}>
-                              {getProgramForApplicant(app).replace(/\s*\([^)]*\)\s*$/, '')}
-                            </span>
+                            <div className="space-y-1 max-w-[260px]">
+                              <span className="block line-clamp-2 font-medium text-slate-800" title={getProgramForApplicant(app)}>
+                                {getProgramForApplicant(app).replace(/\s*\([^)]*\)\s*$/, '')}
+                              </span>
+                              {getAssessmentCodesForApplicant(app).length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {getAssessmentCodesForApplicant(app).map((code) => (
+                                    <span
+                                      key={code}
+                                      className="text-[10px] font-mono bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded"
+                                    >
+                                      {code}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </TableCell>
 
                           {/* Skor CAT */}

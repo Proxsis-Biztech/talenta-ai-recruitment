@@ -84,6 +84,7 @@ export default function UserManagement() {
   const [companyOptions, setCompanyOptions] = useState(COMPANIES_CATALOG);
   const [programOptions, setProgramOptions] = useState(getAllPrograms());
   const [pesertaFormAssessmentId, setPesertaFormAssessmentId] = useState('');
+  const [pesertaFormAssessmentIds, setPesertaFormAssessmentIds] = useState<string[]>([]);
   const [pesertaFormGrade, setPesertaFormGrade] = useState<'Grade C (Junior)' | 'Grade B (Specialist / Mid)' | 'Grade A (Lead / Senior)'>('Grade B (Specialist / Mid)');
   const [pesertaFormDate, setPesertaFormDate] = useState(new Date().toISOString().split('T')[0]);
   const [pesertaFormError, setPesertaFormError] = useState('');
@@ -99,11 +100,23 @@ export default function UserManagement() {
     return [...base, ...extra];
   }, [pesertaFormCompanyId, companyOptions, programOptions]);
 
-  // Set default assessment when company changes in modal
+  // Set default assessment when company changes in modal (preserve valid existing selections on edit)
   useEffect(() => {
     if (availableProgramsForModal.length > 0) {
-      setPesertaFormAssessmentId(availableProgramsForModal[0].id);
-      setPesertaFormGrade(availableProgramsForModal[0].gradeLevel);
+      setPesertaFormAssessmentIds((prev) => {
+        const valid = prev.filter((id) => availableProgramsForModal.some((p) => p.id === id));
+        if (valid.length > 0) {
+          setPesertaFormAssessmentId(valid[0]);
+          return valid;
+        }
+        const first = availableProgramsForModal[0];
+        setPesertaFormAssessmentId(first.id);
+        setPesertaFormGrade(first.gradeLevel);
+        return [first.id];
+      });
+    } else {
+      setPesertaFormAssessmentIds([]);
+      setPesertaFormAssessmentId('');
     }
   }, [availableProgramsForModal]);
 
@@ -120,6 +133,18 @@ export default function UserManagement() {
           ? new Date(rawDate).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0];
 
+        const parsedAssessmentIds: string[] = (() => {
+          if (user.assessmentIds) {
+            try {
+              const parsed = JSON.parse(user.assessmentIds);
+              if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+            } catch {
+              // ignore malformed JSON
+            }
+          }
+          return user.assessmentId ? [String(user.assessmentId)] : [];
+        })();
+
         return {
           id: user.id,
           name: user.name,
@@ -128,7 +153,8 @@ export default function UserManagement() {
           phone: user.phone || '',
           companyId: user.companyId || '',
           companyName: user.companyName || '',
-          assessmentId: user.assessmentId || '',
+          assessmentId: user.assessmentId || parsedAssessmentIds[0] || '',
+          assignedProgramIds: parsedAssessmentIds,
           assessmentTitle: user.assessmentTitle || '',
           gradeLevel: user.gradeLevel || 'Grade B (Specialist / Mid)',
           scheduleDate: scheduleDateStr,
@@ -322,7 +348,14 @@ export default function UserManagement() {
     setPesertaFormPassword('');
     setPesertaFormPhone(peserta.phone || '');
     setPesertaFormCompanyId(peserta.companyId || companyOptions[0]?.id || COMPANIES_CATALOG[0].id);
-    setPesertaFormAssessmentId(peserta.assessmentId || '');
+    const initialIds =
+      peserta.assignedProgramIds && peserta.assignedProgramIds.length > 0
+        ? peserta.assignedProgramIds
+        : peserta.assessmentId
+        ? [peserta.assessmentId]
+        : [];
+    setPesertaFormAssessmentIds(initialIds);
+    setPesertaFormAssessmentId(initialIds[0] || peserta.assessmentId || '');
     setPesertaFormGrade(peserta.gradeLevel as any);
     setPesertaFormDate(peserta.scheduleDate || new Date().toISOString().split('T')[0]);
     setPesertaFormError('');
@@ -335,10 +368,16 @@ export default function UserManagement() {
     setPesertaFormUsername('');
     setPesertaFormPassword('peserta123');
     setPesertaFormPhone('');
-    setPesertaFormCompanyId(companyOptions[0]?.id || COMPANIES_CATALOG[0].id);
-    if (availableProgramsForModal.length > 0) {
-      setPesertaFormAssessmentId(availableProgramsForModal[0].id);
-      setPesertaFormGrade(availableProgramsForModal[0].gradeLevel);
+    const defaultCompanyId = companyOptions[0]?.id || COMPANIES_CATALOG[0].id;
+    setPesertaFormCompanyId(defaultCompanyId);
+    const defaultPrograms = getProgramsByCompany(defaultCompanyId);
+    if (defaultPrograms.length > 0) {
+      setPesertaFormAssessmentId(defaultPrograms[0].id);
+      setPesertaFormAssessmentIds([defaultPrograms[0].id]);
+      setPesertaFormGrade(defaultPrograms[0].gradeLevel);
+    } else {
+      setPesertaFormAssessmentId('');
+      setPesertaFormAssessmentIds([]);
     }
     setPesertaFormDate(new Date().toISOString().split('T')[0]);
     setPesertaFormError('');
@@ -351,18 +390,30 @@ export default function UserManagement() {
       setPesertaFormError('Nama lengkap dan username/email wajib diisi.');
       return;
     }
+    if (pesertaFormAssessmentIds.length === 0) {
+      setPesertaFormError('Pilih minimal satu jenis asesmen untuk peserta.');
+      return;
+    }
 
     try {
       const token = localStorage.getItem('adminToken');
-      const program = programOptions.find((item) => item.id === pesertaFormAssessmentId);
+      const selectedPrograms = pesertaFormAssessmentIds
+        .map((id) => programOptions.find((item) => item.id === id))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item));
+      const primaryId = pesertaFormAssessmentIds[0] || pesertaFormAssessmentId;
+      const combinedTitles =
+        selectedPrograms.length > 0
+          ? selectedPrograms.map((item) => item.title).join(', ')
+          : programOptions.find((item) => item.id === primaryId)?.title || '';
       const company = companyOptions.find((item) => item.id === pesertaFormCompanyId);
       const payload: Record<string, unknown> = {
         name: pesertaFormName,
         phone: pesertaFormPhone,
         companyId: pesertaFormCompanyId,
         companyName: company?.name,
-        assessmentId: pesertaFormAssessmentId,
-        assessmentTitle: program?.title,
+        assessmentId: primaryId,
+        assessmentIds: pesertaFormAssessmentIds,
+        assessmentTitle: combinedTitles,
         gradeLevel: pesertaFormGrade,
         scheduleDate: pesertaFormDate,
         interviewScheduledAt: pesertaFormDate ? new Date(`${pesertaFormDate}T09:00:00.000Z`).toISOString() : null
@@ -1008,13 +1059,25 @@ export default function UserManagement() {
                       </TableCell>
 
                       <TableCell>
-                        <div>
-                          <span className="font-semibold text-xs text-ink line-clamp-1">
-                            {p.assessmentTitle}
+                        <div className="space-y-1">
+                          <span className="font-semibold text-xs text-ink line-clamp-2" title={p.assessmentTitle}>
+                            {p.assessmentTitle || '-'}
                           </span>
-                          <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                            ID Program: {p.assessmentId}
-                          </span>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {(p.assignedProgramIds && p.assignedProgramIds.length > 0
+                              ? p.assignedProgramIds
+                              : p.assessmentId
+                              ? [p.assessmentId]
+                              : []
+                            ).map((code) => (
+                              <span
+                                key={code}
+                                className="text-[10px] text-slate-600 font-mono bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded"
+                              >
+                                {code}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </TableCell>
 
@@ -1189,31 +1252,57 @@ export default function UserManagement() {
                   </div>
 
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
-                      Pilih Jenis Asesmen *
-                    </label>
-                    <select
-                      value={pesertaFormAssessmentId}
-                      onChange={(e) => {
-                        const selectedId = e.target.value;
-                        setPesertaFormAssessmentId(selectedId);
-                        const match = availableProgramsForModal.find((p) => p.id === selectedId);
-                        if (match) {
-                          setPesertaFormGrade(match.gradeLevel);
-                        }
-                      }}
-                      className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium text-slate-800 shadow-2xs"
-                    >
-                      {availableProgramsForModal.length === 0 ? (
-                        <option value="">Tidak ada program untuk PT ini</option>
-                      ) : (
-                        availableProgramsForModal.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            [{p.id}] {p.title}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs sm:text-sm font-semibold text-slate-800">
+                        Pilih Jenis Asesmen (Bisa Lebih dari 1) *
+                      </label>
+                      <span className="text-[11px] font-semibold text-primary-navy bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                        {pesertaFormAssessmentIds.length} dipilih
+                      </span>
+                    </div>
+                    {availableProgramsForModal.length === 0 ? (
+                      <div className="px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
+                        Tidak ada program untuk PT ini
+                      </div>
+                    ) : (
+                      <div className="max-h-40 overflow-y-auto space-y-1.5 p-2 bg-slate-50/70 border border-slate-200 rounded-xl">
+                        {availableProgramsForModal.map((p) => {
+                          const isChecked = pesertaFormAssessmentIds.includes(p.id);
+                          return (
+                            <label
+                              key={p.id}
+                              className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${
+                                isChecked
+                                  ? 'bg-blue-50/80 border-blue-300 text-slate-900'
+                                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const nextIds = e.target.checked
+                                    ? [...pesertaFormAssessmentIds, p.id]
+                                    : pesertaFormAssessmentIds.filter((id) => id !== p.id);
+                                  setPesertaFormAssessmentIds(nextIds);
+                                  setPesertaFormAssessmentId(nextIds[0] || '');
+                                  if (e.target.checked && nextIds.length === 1) {
+                                    setPesertaFormGrade(p.gradeLevel);
+                                  }
+                                }}
+                                className="mt-0.5 rounded border-slate-300 text-primary-navy focus:ring-primary-navy cursor-pointer"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-semibold leading-snug">
+                                  <span className="font-mono text-[11px] text-primary-navy mr-1.5">[{p.id}]</span>
+                                  {p.title}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -10,6 +10,7 @@ export interface PortalUser {
   companyId?: string | null;
   companyName?: string | null;
   assessmentId?: string | null;
+  assessmentIds?: string | null;
   assessmentTitle?: string | null;
   gradeLevel?: string | null;
   specialization?: string | null;
@@ -73,6 +74,17 @@ export const savePortalSession = ({ token, user }: PortalSession): void => {
   localStorage.setItem(PORTAL_TOKEN_KEY, token);
   localStorage.setItem(PORTAL_USER_KEY, JSON.stringify(user));
   localStorage.setItem('authRole', user.role);
+  const assignedProgramIds = (() => {
+    if (user.assessmentIds) {
+      try {
+        const parsed = JSON.parse(user.assessmentIds);
+        if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+    return user.assessmentId ? [user.assessmentId] : undefined;
+  })();
   localStorage.setItem(SESSION_USER_KEY, JSON.stringify({
     id: user.id,
     name: user.name,
@@ -81,6 +93,7 @@ export const savePortalSession = ({ token, user }: PortalSession): void => {
     companyId: user.companyId || undefined,
     companyName: user.companyName || undefined,
     assessmentId: user.assessmentId || undefined,
+    assignedProgramIds,
     assessmentTitle: user.assessmentTitle || undefined,
     gradeLevel: user.gradeLevel || undefined,
     specialization: user.specialization || undefined

@@ -22,6 +22,7 @@ const userSelect = {
   companyId: true,
   companyName: true,
   assessmentId: true,
+  assessmentIds: true,
   assessmentTitle: true,
   gradeLevel: true,
   specialization: true,
@@ -442,7 +443,21 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
     if (!user) return res.status(404).json({ error: 'Akun tidak ditemukan.' });
 
     const programCode = user.assessmentId || '';
-    const job = programCode ? await prisma.job.findFirst({ where: { code: programCode } }) : null;
+    const assignedCodes: string[] = (() => {
+      if (user.assessmentIds) {
+        try {
+          const parsed = JSON.parse(user.assessmentIds);
+          if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+        } catch {
+          // ignore malformed JSON
+        }
+      }
+      return programCode ? [programCode] : [];
+    })();
+    const jobs = assignedCodes.length
+      ? await prisma.job.findMany({ where: { code: { in: assignedCodes } } })
+      : [];
+    const job = jobs.find((item) => item.code === programCode) || jobs[0] || null;
     const attempt = programCode
       ? await prisma.examAttempt.findUnique({
           where: { userId_programCode: { userId: user.id, programCode } }
@@ -510,6 +525,12 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
             passingScore: job.interviewPassingScore || 70
           }
         : null,
+      programs: jobs.map((item) => ({
+        code: item.code,
+        title: item.title,
+        durationMinutes: item.interviewDuration || 30,
+        passingScore: item.interviewPassingScore || 70
+      })),
       exam: attempt
         ? {
             status: attempt.status,
@@ -603,7 +624,22 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
         phone: req.body.phone ? String(req.body.phone) : null,
         companyId: req.body.companyId ? String(req.body.companyId) : null,
         companyName: req.body.companyName ? String(req.body.companyName) : null,
-        assessmentId: req.body.assessmentId ? String(req.body.assessmentId) : null,
+        assessmentId: (() => {
+          if (req.body.assessmentId) return String(req.body.assessmentId);
+          if (Array.isArray(req.body.assessmentIds) && req.body.assessmentIds.length > 0) {
+            return String(req.body.assessmentIds[0]);
+          }
+          return null;
+        })(),
+        assessmentIds: (() => {
+          if (Array.isArray(req.body.assessmentIds)) {
+            const cleaned = req.body.assessmentIds.map(String).filter(Boolean);
+            return cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+          }
+          if (req.body.assessmentIds) return String(req.body.assessmentIds);
+          if (req.body.assessmentId) return JSON.stringify([String(req.body.assessmentId)]);
+          return null;
+        })(),
         assessmentTitle: req.body.assessmentTitle ? String(req.body.assessmentTitle) : null,
         gradeLevel: req.body.gradeLevel ? String(req.body.gradeLevel) : null,
         specialization: req.body.specialization ? String(req.body.specialization) : null,
@@ -639,6 +675,17 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
     for (const field of ['name', 'username', 'phone', 'companyId', 'companyName', 'assessmentId', 'assessmentTitle', 'gradeLevel', 'specialization', 'status', 'nik', 'education', 'university', 'city', 'portfolioUrl', 'bio', 'employeeNumber', 'department']) {
       if (req.body[field] !== undefined) data[field] = req.body[field] === null ? null : String(req.body[field]);
     }
+    if (req.body.assessmentIds !== undefined) {
+      if (Array.isArray(req.body.assessmentIds)) {
+        const cleaned = req.body.assessmentIds.map(String).filter(Boolean);
+        data.assessmentIds = cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+        if (req.body.assessmentId === undefined) {
+          data.assessmentId = cleaned[0] || null;
+        }
+      } else {
+        data.assessmentIds = req.body.assessmentIds === null ? null : String(req.body.assessmentIds);
+      }
+    }
     if (req.body.interviewScheduledAt !== undefined || req.body.scheduleDate !== undefined) {
       const rawDate = req.body.interviewScheduledAt || req.body.scheduleDate;
       data.interviewScheduledAt = rawDate ? new Date(rawDate) : null;
@@ -649,6 +696,9 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
     }
 
     const user = await prisma.portalUser.update({ where: { id }, data, select: userSelect });
+    if (user.role === 'peserta') {
+      await ensureApplicantForPortalUser(user.id);
+    }
     return res.json({ data: user });
   } catch (error) {
     if (error instanceof z.ZodError) {

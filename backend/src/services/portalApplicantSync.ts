@@ -21,8 +21,8 @@ export async function ensureApplicantForPortalUser(userId: string) {
         phone: user.phone || existing.phone,
         education: user.education || existing.education,
         university: user.university || existing.university,
-        appliedPosition: existing.appliedPosition || job?.title || user.assessmentTitle || 'General',
-        jobId: existing.jobId || job?.id || null
+        appliedPosition: user.assessmentTitle || job?.title || existing.appliedPosition || 'General',
+        jobId: job?.id || existing.jobId || null
       }
     });
   }

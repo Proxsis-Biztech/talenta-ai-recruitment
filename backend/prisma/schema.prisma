@@ -103,6 +103,7 @@ model PortalUser {
   tenantId        String?
   tenant          Tenant?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   assessmentId    String?
+  assessmentIds   String?
   assessmentTitle String?
   gradeLevel      String?
   specialization  String?

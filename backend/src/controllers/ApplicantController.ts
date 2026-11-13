@@ -211,6 +211,10 @@ export const getApplicants = async (req: Request, res: Response) => {
           select: {
             email: true,
             candidateCode: true,
+            companyName: true,
+            assessmentId: true,
+            assessmentIds: true,
+            assessmentTitle: true,
             interviewStatus: true,
             interviewScore: true,
             examAttempts: {
@@ -262,6 +266,11 @@ export const getApplicants = async (req: Request, res: Response) => {
       }
       return {
         ...app,
+        appliedPosition: portal?.assessmentTitle || app.job?.title || app.appliedPosition,
+        portalCompanyName: portal?.companyName || null,
+        portalAssessmentId: portal?.assessmentId || null,
+        portalAssessmentIds: portal?.assessmentIds || null,
+        portalAssessmentTitle: portal?.assessmentTitle || null,
         proctorFlags: mergedFlags,
         candidateCode: portal?.candidateCode || null,
         examAttempt: attempt ? { ...attempt, totalAnswered } : null,
