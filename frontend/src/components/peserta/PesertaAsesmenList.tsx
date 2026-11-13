@@ -931,7 +931,7 @@ export default function PesertaAsesmenList() {
                           <button
                             type="button"
                             disabled={!isCatCompleted}
-                            onClick={() => navigate(`/peserta/wawancara?id=${currentProgram.id}`)}
+                            onClick={() => navigate(`/peserta/interview?id=${currentProgram.id}`)}
                             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                               isCatCompleted
                                 ? 'bg-[#0F275C] hover:bg-[#16367d] text-white cursor-pointer shadow-2xs'

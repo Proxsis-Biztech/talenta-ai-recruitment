@@ -220,6 +220,7 @@ function App() {
             <Route path="/peserta/exam/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><RequireFaceVerified><PesertaExamPlayer /></RequireFaceVerified></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/waiting-room" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaWaitingRoom /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/interview" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaInterviewLive /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
+            <Route path="/peserta/wawancara" element={<Navigate to="/peserta/interview" replace />} />
             <Route path="/peserta/hasil" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaHasilScorecard /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/onboarding" element={<RequireRole roles={['peserta']}><PesertaOnboarding /></RequireRole>} />
             <Route path="/peserta/profile" element={<RequireRole roles={['peserta']}><PesertaProfile /></RequireRole>} />
