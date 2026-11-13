@@ -826,7 +826,7 @@ export default function PesertaAsesmenList() {
                           <button
                             type="button"
                             onClick={() =>
-                              navigate(isCatCompleted ? '/peserta/hasil' : `/peserta/exam/${currentProgram.id}`)
+                              navigate(isCatCompleted ? `/peserta/hasil?id=${currentProgram.id}` : `/peserta/exam/${currentProgram.id}`)
                             }
                             className="px-4 py-1.5 rounded-lg bg-[#0F275C] hover:bg-[#16367d] text-white text-xs font-bold cursor-pointer shadow-2xs"
                           >

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   Award,
@@ -38,24 +38,52 @@ interface ExamResult {
 
 export default function PesertaHasilScorecard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [downloading, setDownloading] = useState(false);
   const [result, setResult] = useState<ExamResult | null>(null);
   const [lha, setLha] = useState<any>(null);
+  const [serverPrograms, setServerPrograms] = useState<Array<{ code: string; title: string }>>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const activeUser = useMemo(() => getActiveSessionUser(), []);
+  const programOptions = useMemo(() => {
+    const ids = new Set<string>();
+    if (activeUser.assessmentId) ids.add(activeUser.assessmentId);
+    if (Array.isArray(activeUser.assignedProgramIds)) {
+      activeUser.assignedProgramIds.forEach((id) => id && ids.add(id));
+    }
+    serverPrograms.forEach((sp) => sp.code && ids.add(sp.code));
+    if (ids.size === 0) ids.add('SE-402');
+
+    return Array.from(ids).map((code) => {
+      const cat = getProgramById(code);
+      const sp = serverPrograms.find((p) => p.code === code);
+      return {
+        id: code,
+        title: cat?.title || sp?.title || activeUser.assessmentTitle || 'Program Asesmen',
+        companyName: cat?.companyName || activeUser.companyName || '-'
+      };
+    });
+  }, [activeUser.assessmentId, activeUser.assignedProgramIds, activeUser.assessmentTitle, activeUser.companyName, serverPrograms]);
+
+  const requestedId = searchParams.get('id');
   const activeProgram = useMemo(
     () =>
-      getProgramById(activeUser.assessmentId || 'SE-402') ||
-      ({
+      programOptions.find((p) => p.id === requestedId) ||
+      programOptions[0] || {
         id: activeUser.assessmentId || 'SE-402',
         title: activeUser.assessmentTitle || 'Program Asesmen',
         companyName: activeUser.companyName || '-'
-      } as any),
-    [activeUser.assessmentId, activeUser.assessmentTitle, activeUser.companyName]
+      },
+    [programOptions, requestedId, activeUser.assessmentId, activeUser.assessmentTitle, activeUser.companyName]
   );
+
+  const handleSelectProgram = (programId: string) => {
+    searchParams.set('id', programId);
+    setSearchParams(searchParams, { replace: true });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -77,12 +105,18 @@ export default function PesertaHasilScorecard() {
           const dashboardResponse = await axios.get('/api/portal/dashboard', {
             headers: { Authorization: `Bearer ${token}` }
           });
-          if (!cancelled) setLha(dashboardResponse.data?.lha || null);
+          if (!cancelled) {
+            setLha(dashboardResponse.data?.lha || null);
+            if (Array.isArray(dashboardResponse.data?.programs)) {
+              setServerPrograms(dashboardResponse.data.programs);
+            }
+          }
         } catch {
           if (!cancelled) setLha(null);
         }
       } catch (err) {
         if (cancelled) return;
+        setResult(null);
         setError(
           axios.isAxiosError(err) && err.response?.status === 404
             ? 'Belum ada hasil ujian untuk program ini.'
@@ -90,6 +124,16 @@ export default function PesertaHasilScorecard() {
               ? err.response?.data?.error || 'Gagal memuat hasil ujian.'
               : 'Gagal memuat hasil ujian.'
         );
+        try {
+          const dashboardResponse = await axios.get('/api/portal/dashboard', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (!cancelled && Array.isArray(dashboardResponse.data?.programs)) {
+            setServerPrograms(dashboardResponse.data.programs);
+          }
+        } catch {
+          // ignore
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -124,18 +168,44 @@ export default function PesertaHasilScorecard() {
     );
   }
 
+  const programSwitcher = programOptions.length > 1 && (
+    <div className="flex flex-wrap items-center gap-2 print:hidden">
+      <span className="text-xs font-semibold text-slate-500 mr-1">Pilih Program Asesmen:</span>
+      {programOptions.map((prog) => {
+        const active = prog.id === activeProgram.id;
+        return (
+          <button
+            key={prog.id}
+            type="button"
+            onClick={() => handleSelectProgram(prog.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+              active
+                ? 'bg-primary-navy text-white border-primary-navy shadow-2xs'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            [{prog.id}] {prog.title.replace(/\s*\([^)]*\)\s*$/, '')}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   if (error || !result) {
     return (
       <PesertaLayout activeTab="hasil">
-        <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
-            <AlertCircle className="w-7 h-7" />
+        <div className="max-w-3xl mx-auto px-4 py-12 space-y-6">
+          {programSwitcher}
+          <div className="max-w-xl mx-auto py-8 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+            <h1 className="text-xl font-extrabold text-ink font-heading">Hasil Ujian Belum Tersedia</h1>
+            <p className="text-sm text-muted-slate">{error}</p>
+            <Button variant="primary" onClick={() => navigate(`/peserta/asesmen?id=${activeProgram.id}`)} className="text-xs">
+              Buka Program di Asesmen Saya
+            </Button>
           </div>
-          <h1 className="text-xl font-extrabold text-ink font-heading">Hasil Ujian Belum Tersedia</h1>
-          <p className="text-sm text-muted-slate">{error}</p>
-          <Button variant="primary" onClick={() => navigate('/peserta/asesmen')} className="text-xs">
-            Buka Menu Asesmen Saya
-          </Button>
         </div>
       </PesertaLayout>
     );
@@ -144,6 +214,7 @@ export default function PesertaHasilScorecard() {
   return (
     <PesertaLayout activeTab="hasil">
       <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 space-y-7 antialiased print:p-0 print:max-w-none">
+        {programSwitcher}
         <div className="bg-primary-navy rounded-3xl p-6 sm:p-10 text-white shadow-sm relative overflow-hidden print:bg-white print:text-slate-900 print:border print:border-slate-300">
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-3">
