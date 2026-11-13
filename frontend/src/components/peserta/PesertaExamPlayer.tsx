@@ -338,7 +338,7 @@ export default function PesertaExamPlayer() {
     const engine = new ProctoringEngine({
       preset: 'Sedang',
       maxViolations: 10,
-      enforceFullscreen: false, // gentle for web sandbox review
+      enforceFullscreen: true,
       blockShortcuts: true,
       blockContextMenu: true,
       blockCopyPaste: true,
@@ -361,6 +361,33 @@ export default function PesertaExamPlayer() {
       engine.stop();
     };
   }, [navigate, isExamLocked]);
+
+  // Auto-enter Fullscreen when taking CAT exam
+  useEffect(() => {
+    if (!examReady || isExamLocked) return;
+
+    const enterFullscreen = () => {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        document.documentElement
+          .requestFullscreen()
+          .then(() => setIsFullscreen(true))
+          .catch(() => {});
+      }
+    };
+
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    enterFullscreen();
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('pointerdown', enterFullscreen, { capture: true });
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('pointerdown', enterFullscreen, { capture: true });
+    };
+  }, [examReady, isExamLocked]);
 
   // Timer Countdown
   useEffect(() => {

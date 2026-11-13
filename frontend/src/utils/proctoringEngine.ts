@@ -101,9 +101,10 @@ export class ProctoringEngine {
     // 2. Window Blur / Focus
     window.addEventListener('blur', this.handleWindowBlur);
 
-    // 3. Keydown Shortcut Interception
+    // 3. Keydown & Keyup Shortcut Interception (PrintScreen often fires only on keyup)
     if (this.config.blockShortcuts) {
       document.addEventListener('keydown', this.handleKeyDown, true);
+      document.addEventListener('keyup', this.handleKeyUp, true);
     }
 
     // 4. Context Menu / Right Click
@@ -136,6 +137,7 @@ export class ProctoringEngine {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     window.removeEventListener('blur', this.handleWindowBlur);
     document.removeEventListener('keydown', this.handleKeyDown, true);
+    document.removeEventListener('keyup', this.handleKeyUp, true);
     document.removeEventListener('contextmenu', this.handleContextMenu, true);
     document.removeEventListener('copy', this.handleCopyPaste, true);
     document.removeEventListener('cut', this.handleCopyPaste, true);
@@ -190,14 +192,14 @@ export class ProctoringEngine {
   };
 
   private handleWindowBlur = (): void => {
-    // 3 second tolerance before logging window blur as anomaly (BRD Section 4.4)
+    // 1.5 second tolerance before logging window blur (catches OS snipping/screenshot tools too)
     this.blurTimeout = setTimeout(() => {
       this.recordManualViolation(
         'BLUR_WINDOW',
-        'Kandidat kehilangan fokus kursor dari area pengerjaan ujian > 3 detik',
+        'Kandidat kehilangan fokus dari layar ujian > 1.5 detik (kemungkinan pindah aplikasi atau tool screenshot)',
         'medium'
       );
-    }, 3000);
+    }, 1500);
 
     const onFocus = () => {
       if (this.blurTimeout) {
@@ -209,14 +211,37 @@ export class ProctoringEngine {
     window.addEventListener('focus', onFocus);
   };
 
+  private handleKeyUp = (e: KeyboardEvent): void => {
+    if (e.key === 'PrintScreen' || e.code === 'PrintScreen' || e.keyCode === 44) {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        navigator.clipboard?.writeText('').catch(() => {});
+      } catch {
+        // ignore clipboard errors
+      }
+      this.recordManualViolation(
+        'SCREENSHOT_ATTEMPT',
+        'Kandidat menekan tombol PrintScreen untuk mengambil cuplikan layar',
+        'critical'
+      );
+    }
+  };
+
   private handleKeyDown = (e: KeyboardEvent): void => {
-    // Detect PrintScreen
-    if (e.key === 'PrintScreen' || e.keyCode === 44) {
+    // Detect PrintScreen / OS Screenshot shortcuts (Win+Shift+S, Cmd+Shift+3/4/5, Ctrl+Shift+S)
+    if (
+      e.key === 'PrintScreen' ||
+      e.code === 'PrintScreen' ||
+      e.keyCode === 44 ||
+      ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 's' || e.key === 'S')) ||
+      (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key))
+    ) {
       e.preventDefault();
       e.stopPropagation();
       this.recordManualViolation(
         'SCREENSHOT_ATTEMPT',
-        'Kandidat menekan tombol PrintScreen untuk mengambil cuplikan layar',
+        'Kandidat mencoba mengambil tangkapan layar (PrintScreen / Shortcut Screenshot)',
         'critical'
       );
       return;
