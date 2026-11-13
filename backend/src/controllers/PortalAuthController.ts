@@ -458,10 +458,11 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
       ? await prisma.job.findMany({ where: { code: { in: assignedCodes } } })
       : [];
     const job = jobs.find((item) => item.code === programCode) || jobs[0] || null;
+    const allAttempts = await prisma.examAttempt.findMany({
+      where: { userId: user.id }
+    });
     const attempt = programCode
-      ? await prisma.examAttempt.findUnique({
-          where: { userId_programCode: { userId: user.id, programCode } }
-        })
+      ? allAttempts.find((item) => item.programCode === programCode) || null
       : null;
 
     if (
@@ -540,6 +541,18 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
             violationCount: JSON.parse(attempt.violations || '[]').length
           }
         : { status: 'not_started', score: null, integrityScore: null, submittedAt: null, violationCount: 0 },
+      examsByProgram: Object.fromEntries(
+        allAttempts.map((item) => [
+          item.programCode,
+          {
+            status: item.status,
+            score: item.score,
+            integrityScore: item.integrityScore,
+            submittedAt: item.submittedAt,
+            violationCount: JSON.parse(item.violations || '[]').length
+          }
+        ])
+      ),
       interview: {
         status: user.interviewStatus,
         scheduledAt: user.interviewScheduledAt,

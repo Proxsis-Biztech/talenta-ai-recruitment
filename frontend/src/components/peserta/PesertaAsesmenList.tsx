@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -138,6 +138,9 @@ export default function PesertaAsesmenList() {
   }, [activeUser.assessmentId, activeUser.assessmentTitle, activeUser.companyName, activeUser.gradeLevel]);
 
   const [serverExam, setServerExam] = useState<{ status?: string; score?: number | null } | null>(null);
+  const [serverExamsByProgram, setServerExamsByProgram] = useState<
+    Record<string, { status?: string; score?: number | null }>
+  >({});
   const [serverInterview, setServerInterview] = useState<{ status?: string; score?: number | null } | null>(null);
   const [serverPrograms, setServerPrograms] = useState<Array<{ code: string; title: string; durationMinutes?: number; passingScore?: number }>>([]);
 
@@ -150,6 +153,7 @@ export default function PesertaAsesmenList() {
       .then((response) => {
         if (cancelled) return;
         setServerExam(response.data?.exam || null);
+        setServerExamsByProgram(response.data?.examsByProgram || {});
         setServerInterview(response.data?.interview || null);
         if (Array.isArray(response.data?.programs)) {
           setServerPrograms(response.data.programs);
@@ -213,15 +217,34 @@ export default function PesertaAsesmenList() {
     };
   }, [activeProg.id, activeProg.companyName, selectedProgramId]);
 
-  const isCatCompleted = useMemo(() => {
-    return (
-      ['submitted', 'graded', 'completed'].includes(String(serverExam?.status || '')) ||
-      ['scheduled', 'called', 'completed'].includes(String(serverInterview?.status || '')) ||
-      localStorage.getItem('talenta_cat_completed') === 'true'
-    );
-  }, [serverExam?.status, serverInterview?.status]);
+  const isProgramCatCompleted = useCallback(
+    (code: string) => {
+      const progExam = serverExamsByProgram[code];
+      if (progExam) {
+        return ['submitted', 'graded', 'completed'].includes(String(progExam.status || ''));
+      }
+      if (code === activeProg.id && Object.keys(serverExamsByProgram).length === 0) {
+        return (
+          ['submitted', 'graded', 'completed'].includes(String(serverExam?.status || '')) ||
+          localStorage.getItem('talenta_cat_completed') === 'true'
+        );
+      }
+      return false;
+    },
+    [serverExamsByProgram, activeProg.id, serverExam?.status]
+  );
 
-  const isInterviewCompleted = serverInterview?.status === 'completed';
+  const isProgramInterviewCompleted = useCallback(
+    (code: string) =>
+      code === activeProg.id &&
+      isProgramCatCompleted(code) &&
+      serverInterview?.status === 'completed',
+    [activeProg.id, isProgramCatCompleted, serverInterview?.status]
+  );
+
+  const activeProgramCode = selectedProgramId || activeProg.id;
+  const isCatCompleted = isProgramCatCompleted(activeProgramCode);
+  const isInterviewCompleted = isProgramInterviewCompleted(activeProgramCode);
 
   // Sync tab with URL & enforce sequential progression
   useEffect(() => {
@@ -268,6 +291,9 @@ export default function PesertaAsesmenList() {
     assignedIds.forEach((pId) => {
       const isPrimary = pId === activeProg.id;
       const catalogData = allCatalog.find((c) => c.id === pId);
+      const catDone = isProgramCatCompleted(pId);
+      const intDone = isProgramInterviewCompleted(pId);
+      const progExamScore = serverExamsByProgram[pId]?.score;
 
       if (isPrimary) {
         items.push({
@@ -275,20 +301,20 @@ export default function PesertaAsesmenList() {
           title: activeProg.title,
           pt: activeProg.companyName,
           category: activeProg.category,
-          status: isInterviewCompleted ? 'selesai' : isCatCompleted ? 'berjalan' : 'belum',
-          badgeStatus: isInterviewCompleted
+          status: intDone ? 'selesai' : catDone ? 'berjalan' : 'belum',
+          badgeStatus: intDone
             ? 'Selesai • Hasil Wawancara Tersedia'
-            : isCatCompleted
+            : catDone
             ? 'CAT Selesai • Menuju Wawancara'
             : 'Sesi Aktif • Siap Dimulai',
-          badgeVariant: isInterviewCompleted ? 'teal' : isCatCompleted ? 'navy' : 'warning',
+          badgeVariant: intDone ? 'teal' : catDone ? 'navy' : 'warning',
           duration: `${activeProg.durationMinutes} Menit`,
           questions: `${activeProg.totalQuestions} Soal CAT`,
           passingScore: activeProg.passingScore,
           deadline: 'Hari ini, 23:59 WIB',
-          progress: isInterviewCompleted ? 100 : isCatCompleted ? 60 : 25,
-          currentStageNumber: isInterviewCompleted ? 4 : isCatCompleted ? 3 : 2,
-          score: serverInterview?.score ?? serverExam?.score ?? undefined,
+          progress: intDone ? 100 : catDone ? 60 : 25,
+          currentStageNumber: intDone ? 4 : catDone ? 3 : 2,
+          score: (intDone ? serverInterview?.score : undefined) ?? progExamScore ?? serverExam?.score ?? undefined,
           description: activeProg.description,
           isAssigned: true,
           interviewInfo: {
@@ -309,15 +335,20 @@ export default function PesertaAsesmenList() {
             title: resolvedTitle,
             pt: catalogData?.companyName || activeProg.companyName,
             category: catalogData?.category || 'Asesmen Kompetensi',
-            status: 'belum',
-            badgeStatus: 'Terdaftar • Siap Dimulai',
-            badgeVariant: 'warning',
+            status: intDone ? 'selesai' : catDone ? 'berjalan' : 'belum',
+            badgeStatus: intDone
+              ? 'Selesai • Hasil Wawancara Tersedia'
+              : catDone
+              ? 'CAT Selesai • Menuju Wawancara'
+              : 'Terdaftar • Siap Dimulai',
+            badgeVariant: intDone ? 'teal' : catDone ? 'navy' : 'warning',
             duration: `${catalogData?.durationMinutes || sp?.durationMinutes || 90} Menit`,
             questions: `${catalogData?.totalQuestions || 40} Soal CAT`,
             passingScore: catalogData?.passingScore || sp?.passingScore || 70,
             deadline: 'Periode Aktif 2026',
-            progress: 0,
-            currentStageNumber: 1,
+            progress: intDone ? 100 : catDone ? 60 : 0,
+            currentStageNumber: intDone ? 4 : catDone ? 3 : 1,
+            score: progExamScore ?? undefined,
             description:
               catalogData?.description ||
               'Evaluasi komprehensif mencakup kompetensi teknis dan wawancara asesor terakreditasi.',
@@ -335,7 +366,7 @@ export default function PesertaAsesmenList() {
     });
 
     return items;
-  }, [activeProg, activeUser, serverPrograms, isCatCompleted, isInterviewCompleted, serverInterview?.score, serverExam?.score]);
+  }, [activeProg, activeUser, serverPrograms, serverExamsByProgram, isProgramCatCompleted, isProgramInterviewCompleted, serverInterview?.score, serverExam?.score]);
 
   // View state: if an ID is present in URL, view that program's LMS room; otherwise, view the Cards Grid!
   const isViewingLmsRoom = Boolean(selectedProgramId);
