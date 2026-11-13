@@ -42,7 +42,7 @@ export interface PortalSession {
 }
 
 export const needsOnboarding = (user: PortalUser | null | undefined): boolean =>
-  Boolean(user && (user.profileCompleted === false || user.mustChangePassword === true));
+  Boolean(user && user.profileCompleted === false);
 
 const PORTAL_TOKEN_KEY = 'portalToken';
 const PORTAL_USER_KEY = 'portalUser';

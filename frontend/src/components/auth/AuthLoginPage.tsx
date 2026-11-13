@@ -65,11 +65,9 @@ export default function AuthLoginPage() {
         session.user.university &&
         session.user.city
       );
-      const nextUrl = session.requiresOnboarding
-        ? '/peserta/onboarding'
-        : !isProfileComplete
-          ? '/peserta/profile'
-          : '/peserta/device-check';
+      const nextUrl = session.requiresOnboarding || !isProfileComplete
+        ? '/peserta/profile'
+        : '/peserta/device-check';
       navigate(nextUrl);
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal masuk dengan Google.' : 'Gagal masuk dengan Google.');
@@ -181,11 +179,9 @@ export default function AuthLoginPage() {
           session.user.university &&
           session.user.city
         );
-        const nextUrl = session.requiresOnboarding
-          ? '/peserta/onboarding'
-          : !isProfileComplete
-            ? '/peserta/profile'
-            : '/peserta/device-check';
+        const nextUrl = session.requiresOnboarding || !isProfileComplete
+          ? '/peserta/profile'
+          : '/peserta/device-check';
         setTimeout(() => navigate(nextUrl), 300);
       }
     } catch (err) {

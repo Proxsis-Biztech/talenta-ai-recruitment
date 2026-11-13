@@ -306,6 +306,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
     };
     if (merged.name && !isPlaceholder(merged.name) && merged.phone && merged.nik && merged.education && merged.university && merged.city) {
       data.profileCompleted = true;
+      data.mustChangePassword = false;
     }
     const user = await prisma.portalUser.update({
       where: { id: req.portalUser.id },
@@ -633,7 +634,7 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
         role,
         tenantId: resolveAdminTenantId(req) || (req.body.tenantId ? String(req.body.tenantId) : null),
         profileCompleted: role !== 'peserta',
-        mustChangePassword: role === 'peserta',
+        mustChangePassword: false,
         phone: req.body.phone ? String(req.body.phone) : null,
         companyId: req.body.companyId ? String(req.body.companyId) : null,
         companyName: req.body.companyName ? String(req.body.companyName) : null,

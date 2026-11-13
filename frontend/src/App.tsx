@@ -63,7 +63,6 @@ const PesertaWaitingRoom = lazyWithRetry(() => import('./components/peserta/Pese
 const PesertaInterviewLive = lazyWithRetry(() => import('./components/peserta/PesertaInterviewLive'), 'PesertaInterviewLive');
 const PesertaHasilScorecard = lazyWithRetry(() => import('./components/peserta/PesertaHasilScorecard'), 'PesertaHasilScorecard');
 const PesertaProfile = lazyWithRetry(() => import('./components/peserta/PesertaProfile'), 'PesertaProfile');
-const PesertaOnboarding = lazyWithRetry(() => import('./components/peserta/PesertaOnboarding'), 'PesertaOnboarding');
 
 // Portal Asesor
 const AsesorDashboard = lazyWithRetry(() => import('./components/asesor/AsesorDashboard'), 'AsesorDashboard');
@@ -222,7 +221,7 @@ function App() {
             <Route path="/peserta/interview" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaInterviewLive /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/wawancara" element={<Navigate to="/peserta/interview" replace />} />
             <Route path="/peserta/hasil" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaHasilScorecard /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
-            <Route path="/peserta/onboarding" element={<RequireRole roles={['peserta']}><PesertaOnboarding /></RequireRole>} />
+            <Route path="/peserta/onboarding" element={<Navigate to="/peserta/profile" replace />} />
             <Route path="/peserta/profile" element={<RequireRole roles={['peserta']}><PesertaProfile /></RequireRole>} />
 
             {/* Route Group B: ASESOR (/asesor) */}

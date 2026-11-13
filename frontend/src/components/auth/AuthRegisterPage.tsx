@@ -64,7 +64,7 @@ export default function AuthRegisterPage() {
       });
 
       savePortalSession(session);
-      navigate(session.requiresOnboarding ? '/peserta/onboarding' : '/peserta');
+      navigate(session.requiresOnboarding ? '/peserta/profile' : '/peserta');
     } catch (err) {
       const message = axios.isAxiosError(err)
         ? err.response?.data?.error || 'Pendaftaran gagal disimpan. Silakan coba lagi.'

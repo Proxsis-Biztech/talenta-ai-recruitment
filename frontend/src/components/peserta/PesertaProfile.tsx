@@ -192,8 +192,6 @@ export default function PesertaProfile() {
           savePortalSession({ token, user: response.data.user });
           if (!response.data.user.profileCompleted) {
             setTimeout(() => setActiveTab('biodata'), 500);
-          } else if (response.data.user.mustChangePassword) {
-            setTimeout(() => navigate('/peserta/onboarding'), 500);
           }
         }
       }
@@ -320,8 +318,6 @@ export default function PesertaProfile() {
       if (updatedUser?.profileCompleted) {
         if (!updatedUser.deviceCheckCompletedAt) {
           setTimeout(() => navigate('/peserta/device-check'), 500);
-        } else if (updatedUser.mustChangePassword) {
-          setTimeout(() => navigate('/peserta/onboarding'), 500);
         }
       }
     } catch (error) {
