@@ -273,7 +273,7 @@ export const me = async (req: AuthRequest, res: Response) => {
   });
   return res.json({
     user,
-    requiresOnboarding: Boolean(user && (!user.profileCompleted || user.mustChangePassword))
+    requiresOnboarding: Boolean(user && !user.profileCompleted)
   });
 };
 

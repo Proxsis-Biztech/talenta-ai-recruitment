@@ -35,7 +35,7 @@ import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
 import Swal from 'sweetalert2';
 import { getActiveSessionUser } from '../../services/userRegistryService';
-import { getPortalToken, savePortalSession, getPortalUser } from '../../services/portalAuthService';
+import { getPortalToken, savePortalSession, getPortalUser, fetchPortalMe } from '../../services/portalAuthService';
 import { getProgramById } from '../../services/assessmentCatalog';
 
 export default function PesertaProfile() {
@@ -204,6 +204,32 @@ export default function PesertaProfile() {
   };
 
   useEffect(() => () => stopFaceCamera(), []);
+
+  // Hydrate saved biodata from server on mount so saved values always persist
+  useEffect(() => {
+    let cancelled = false;
+    if (!getPortalToken()) return;
+    fetchPortalMe()
+      .then((freshUser) => {
+        if (cancelled || !freshUser) return;
+        if (freshUser.name && !isPlaceholderName(freshUser.name)) {
+          setFullName(freshUser.name);
+        }
+        if (freshUser.phone !== undefined) setPhone(freshUser.phone || '');
+        if (freshUser.nik !== undefined) setNik(freshUser.nik || '');
+        if (freshUser.education !== undefined) setEducation(freshUser.education || '');
+        if (freshUser.university !== undefined) setUniversity(freshUser.university || '');
+        if (freshUser.city !== undefined) setCity(freshUser.city || '');
+        if (freshUser.employeeNumber !== undefined) setEmployeeNumber(freshUser.employeeNumber || '');
+        if (freshUser.department !== undefined) setDepartment(freshUser.department || '');
+        if (freshUser.portfolioUrl !== undefined) setPortfolioUrl(freshUser.portfolioUrl || '');
+        if (freshUser.bio !== undefined) setBio(freshUser.bio || '');
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Save profile updates
   const handleSaveBiodata = async (e: React.FormEvent) => {
