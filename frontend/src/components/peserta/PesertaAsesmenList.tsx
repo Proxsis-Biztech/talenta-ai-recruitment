@@ -20,6 +20,10 @@ import {
   Sparkles,
   Info,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  Play,
+  X,
   Laptop,
   AlertCircle,
   BookOpen,
@@ -101,6 +105,18 @@ export default function PesertaAsesmenList() {
     }
   });
   const [materiSearch, setMateriSearch] = useState('');
+  const [moduleFilter, setModuleFilter] = useState<'semua' | 'belum' | 'selesai'>('semua');
+  const [openSections, setOpenSections] = useState<{
+    materi: boolean;
+    ujian: boolean;
+    wawancara: boolean;
+  }>(() => ({
+    materi: urlTab !== 'ujian' && urlTab !== 'coding' && (urlTab as any) !== 'wawancara',
+    ujian: urlTab === 'ujian' || urlTab === 'coding',
+    wawancara: (urlTab as any) === 'wawancara'
+  }));
+  const [activeModalModule, setActiveModalModule] = useState<MasterMateriItem | null>(null);
+  const [showLiveCoding, setShowLiveCoding] = useState(false);
 
   const activeUser = useMemo(() => getActiveSessionUser(), []);
   const activeProg = useMemo(() => {
@@ -378,952 +394,661 @@ export default function PesertaAsesmenList() {
             TAMPILAN 1: LMS MOODLE-STYLE COURSE ROOM (JIKA PROGRAM DIPILIH)
         ═══════════════════════════════════════════════════════════ */}
         {isViewingLmsRoom && currentProgram ? (
-          <div className="space-y-6 animate-fadeIn">
-            {/* ─── Top Navigation Toolbar & Back to Cards ─── */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 sm:px-5 rounded-2xl border border-slate-200/90 shadow-2xs">
-              <button
-                onClick={handleBackToCards}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-primary-navy text-xs sm:text-sm font-bold transition shadow-2xs cursor-pointer group"
-              >
-                <ArrowLeft className="w-4 h-4 text-primary-navy group-hover:-translate-x-1 transition-transform" />
-                <span>← Kembali ke Daftar Kartu Asesmen</span>
-              </button>
+          (() => {
+            const totalUnits = (materials.length || 0) + 3; // materi + 2 tes teknis + 1 wawancara
+            const doneUnits =
+              completedCount +
+              (isCatCompleted ? 1 : 0) +
+              (isInterviewCompleted ? 1 : 0);
+            const overallPct = Math.round((doneUnits / (totalUnits || 1)) * 100);
 
-              <div className="flex items-center gap-2.5 text-xs">
-                <span className="text-slate-500 hidden md:inline">Pindah Program Asesmen:</span>
-                <select
-                  value={currentProgram.id}
-                  onChange={(e) => handleSelectProgram(e.target.value)}
-                  className="bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-1.5 font-medium outline-hidden focus:border-primary-navy cursor-pointer shadow-2xs"
-                >
-                  {programs.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.id} — {p.title.length > 40 ? p.title.slice(0, 40) + '...' : p.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            const visibleMaterials = filteredMaterials.filter((item) => {
+              const isDone = Boolean(completedModules[item.id]);
+              if (moduleFilter === 'selesai') return isDone;
+              if (moduleFilter === 'belum') return !isDone;
+              return true;
+            });
 
-            {/* ─── LMS Top Course Banner (Moodle Inspired) ─── */}
-            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
-              <div className="bg-gradient-to-r from-primary-navy via-slate-900 to-primary-navy p-6 sm:p-8 text-white relative">
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <span className="font-mono text-xs font-bold bg-white/15 px-3 py-1 rounded-lg border border-white/20 backdrop-blur-xs">
-                        {currentProgram.id}
-                      </span>
-                      <span className="text-xs sm:text-sm font-semibold text-blue-100 flex items-center gap-1.5">
-                        <Building2 className="w-4 h-4 text-blue-300" />
-                        {currentProgram.pt}
-                      </span>
-                      <span className="text-white/40">•</span>
-                      <span className="text-xs sm:text-sm text-blue-200">{currentProgram.category}</span>
-                      <Badge variant={currentProgram.badgeVariant}>{currentProgram.badgeStatus}</Badge>
-                    </div>
+            const toggleSection = (key: 'materi' | 'ujian' | 'wawancara') => {
+              setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+            };
 
-                    <h1 className="text-2xl sm:text-3xl font-extrabold font-heading leading-tight tracking-tight">
-                      {currentProgram.title}
-                    </h1>
-
-                    <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
-                      {currentProgram.description}
-                    </p>
-                  </div>
-
-                  {/* Course Progress Card */}
-                  <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4.5 min-w-[240px] shrink-0 space-y-3">
-                    <div className="flex items-center justify-between text-xs font-bold text-blue-100">
-                      <span>Progres Asesmen LMS</span>
-                      <span className="font-mono text-emerald-400 font-extrabold">
-                        {completedCount > 0 ? Math.round((completedCount / (materials.length || 1)) * 50) + (isCatCompleted ? 50 : 0) : isCatCompleted ? 50 : 15}%
-                      </span>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-emerald-400 to-blue-400 rounded-full transition-all duration-500"
-                        style={{
-                          width: `${
-                            completedCount > 0
-                              ? Math.round((completedCount / (materials.length || 1)) * 50) + (isCatCompleted ? 50 : 0)
-                              : isCatCompleted ? 50 : 15
-                          }%`
-                        }}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-blue-200 font-medium">
-                      <div className="bg-white/5 py-1 px-1.5 rounded-lg border border-white/10">
-                        <span className="block font-bold text-white">{completedCount}/{materials.length}</span>
-                        <span>Materi</span>
-                      </div>
-                      <div className="bg-white/5 py-1 px-1.5 rounded-lg border border-white/10">
-                        <span className="block font-bold text-white">{isCatCompleted ? 'Lulus' : 'Uji CAT & Code'}</span>
-                        <span>Tes Teknis</span>
-                      </div>
-                      <div className="bg-white/5 py-1 px-1.5 rounded-lg border border-white/10">
-                        <span className="block font-bold text-white">{isInterviewCompleted ? 'Selesai' : 'Tahap 3'}</span>
-                        <span>Wawancara</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* ─── LMS Main Navigation Tabs (3-Stage LMS Hub) ─── */}
-              <div className="bg-slate-50/90 px-6 sm:px-8 border-b border-slate-200/90 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2 py-3">
-                  {/* Tab 1: Materi & Master Silabus */}
+            return (
+              <div className="max-w-5xl mx-auto space-y-5 animate-fadeIn">
+                {/* Back & Switcher subtle bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <button
-                    onClick={() => handleTabChange('materi')}
-                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                      activeLmsTab === 'materi'
-                        ? 'bg-primary-navy text-white shadow-xs'
-                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                    }`}
+                    type="button"
+                    onClick={handleBackToCards}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-[#0F275C] transition-colors cursor-pointer"
                   >
-                    <BookOpen className="w-4 h-4" />
-                    <span>1. Materi &amp; Master Silabus</span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        activeLmsTab === 'materi' ? 'bg-white/20 text-white' : 'bg-blue-50 text-primary-navy'
-                      }`}
-                    >
-                      {materials.length} Modul
-                    </span>
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Kembali ke Daftar Asesmen</span>
                   </button>
 
-                  {/* Tab 2: Ujian Teknis (CAT & Live Code) */}
-                  <button
-                    onClick={() => handleTabChange('ujian')}
-                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                      activeLmsTab === 'ujian'
-                        ? 'bg-primary-navy text-white shadow-xs'
-                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                  >
-                    <FileCode className="w-4 h-4" />
-                    <span>2. Ujian Teknis (CAT &amp; Live Code)</span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        activeLmsTab === 'ujian'
-                          ? 'bg-white/20 text-white'
-                          : isCatCompleted
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-blue-50 text-blue-700'
-                      }`}
+                  {programs.length > 1 && (
+                    <select
+                      value={currentProgram.id}
+                      onChange={(e) => handleSelectProgram(e.target.value)}
+                      className="bg-white border border-slate-200 text-slate-700 text-xs rounded-full px-3.5 py-1.5 font-medium outline-hidden focus:border-[#0F275C] cursor-pointer shadow-2xs"
                     >
-                      {isCatCompleted ? '⚡ Live Coding' : 'Soal CAT'}
-                    </span>
-                  </button>
-
-                  {/* Tab 3: Sesi Wawancara (Asesor & AI) */}
-                  <button
-                    onClick={() => handleTabChange('wawancara')}
-                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                      activeLmsTab === 'wawancara'
-                        ? 'bg-primary-navy text-white shadow-xs'
-                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                  >
-                    <Video className="w-4 h-4" />
-                    <span>3. Sesi Wawancara (Asesor &amp; AI)</span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        activeLmsTab === 'wawancara'
-                          ? 'bg-white/20 text-white'
-                          : isInterviewCompleted
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-amber-50 text-amber-700'
-                      }`}
-                    >
-                      {isInterviewCompleted ? '✓ Selesai' : 'Live Asesor'}
-                    </span>
-                  </button>
+                      {programs.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.id} — {p.title.length > 38 ? p.title.slice(0, 38) + '...' : p.title}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
-                {/* Quick Action / Return to Cards View */}
-                <button
-                  onClick={handleBackToCards}
-                  className="text-xs font-semibold text-slate-500 hover:text-primary-navy py-2 flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>Kembali ke Kartu Asesmen</span>
-                </button>
-              </div>
-            </div>
-
-            {/* ═══════════════════════════════════════════════════════════
-                TAB 1: MATERI & MASTER SILABUS (Preview Tampilan Materi)
-            ═══════════════════════════════════════════════════════════ */}
-            {activeLmsTab === 'materi' && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  {/* Left Column: Module Curriculum List */}
-                  <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col h-[680px]">
-                    {/* Header */}
-                    <div className="p-4 border-b border-slate-100 bg-slate-50/70 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-2">
-                            <BookOpen className="w-4 h-4 text-primary-navy" />
-                            Silabus &amp; Kurikulum Uji
-                          </h3>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            {completedCount} dari {materials.length} modul telah selesai dibaca
-                          </p>
-                        </div>
-                        <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">
-                          {Math.round((completedCount / (materials.length || 1)) * 100)}%
-                        </span>
-                      </div>
-
-                      {/* Module search */}
-                      <div className="relative">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          value={materiSearch}
-                          onChange={(e) => setMateriSearch(e.target.value)}
-                          placeholder="Cari modul atau kompetensi..."
-                          className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-primary-navy"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Module List Scrollable */}
-                    <div className="p-3 overflow-y-auto space-y-2 flex-1">
-                      {filteredMaterials.map((item, index) => {
-                        const isSelected = selectedModule?.id === item.id;
-                        const isDone = completedModules[item.id];
-                        return (
-                          <div
-                            key={item.id}
-                            onClick={() => setSelectedModule(item)}
-                            className={`p-3.5 rounded-xl border transition-all cursor-pointer text-left space-y-2 ${
-                              isSelected
-                                ? 'bg-blue-50/70 border-primary-navy shadow-xs ring-1 ring-primary-navy/20'
-                                : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center font-mono">
-                                  {index + 1}
-                                </span>
-                                <Badge variant="teal" format="soft" className="text-[10px] py-0 px-1.5">
-                                  {item.type || 'Materi'}
-                                </Badge>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleModuleCompletion(item.id);
-                                }}
-                                title={isDone ? 'Tandai belum dibaca' : 'Tandai sudah dibaca'}
-                                className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors cursor-pointer border ${
-                                  isDone
-                                    ? 'bg-emerald-600 border-emerald-600 text-white'
-                                    : 'border-slate-300 hover:border-slate-400 bg-white'
-                                }`}
-                              >
-                                {isDone && <Check className="w-3 h-3" />}
-                              </button>
-                            </div>
-
-                            <h4 className="font-heading font-bold text-xs sm:text-sm text-slate-900 leading-snug line-clamp-2">
-                              {item.title}
-                            </h4>
-
-                            <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
-                              {item.content}
-                            </p>
-
-                            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100 font-sans">
-                              <span>{item.competency || item.category}</span>
-                              <span className="font-mono text-primary-navy font-semibold">
-                                {item.code} • {item.version || 'v1.0'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Right Column: Interactive Course Reader Preview */}
-                  <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col h-[680px]">
-                    {selectedModule ? (
-                      <div className="flex flex-col h-full">
-                        {/* Reader Header */}
-                        <div className="p-5 border-b border-slate-100 bg-slate-50/70 space-y-2">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="navy" format="soft">
-                                {selectedModule.category}
-                              </Badge>
-                              <span className="font-mono text-xs text-slate-500 font-semibold">
-                                {selectedModule.code} • {selectedModule.version || 'v2.1'}
-                              </span>
-                            </div>
-
-                            <Button
-                              variant={completedModules[selectedModule.id] ? 'secondary' : 'primary'}
-                              size="xs"
-                              onClick={() => toggleModuleCompletion(selectedModule.id)}
-                              leftIcon={completedModules[selectedModule.id] ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : undefined}
-                            >
-                              {completedModules[selectedModule.id] ? 'Selesai Dibaca ✓' : 'Tandai Selesai Dibaca'}
-                            </Button>
-                          </div>
-
-                          <h2 className="font-heading font-extrabold text-lg sm:text-xl text-slate-900 leading-snug">
-                            {selectedModule.title}
-                          </h2>
-
-                          {selectedModule.competency && (
-                            <p className="text-xs text-slate-600 flex items-center gap-1.5 font-medium">
-                              <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                              Kompetensi Inti: <strong className="text-slate-800">{selectedModule.competency}</strong>
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Reader Content Body Scrollable */}
-                        <div className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm text-slate-700 leading-relaxed flex-1">
-                          {/* Main syllabus text */}
-                          <div className="bg-slate-50/80 rounded-2xl border border-slate-200/70 p-4.5 space-y-2">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-primary-navy font-heading flex items-center gap-2">
-                              <FileText className="w-4 h-4 text-blue-600" />
-                              Rangkuman Pokok Bahasan &amp; Konsep Kunci
-                            </h4>
-                            <p className="text-slate-700 leading-relaxed whitespace-pre-line text-xs sm:text-sm">
-                              {selectedModule.content}
-                            </p>
-                          </div>
-
-                          {/* Rubric Section */}
-                          {selectedModule.rubric && (
-                            <div className="p-4.5 bg-blue-50/50 rounded-2xl border border-blue-200/60 space-y-2">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-900 font-heading flex items-center gap-1.5">
-                                <Award className="w-4 h-4 text-blue-700" />
-                                Rubrik Penilaian Asesor (Standar BARS)
-                              </h4>
-                              <p className="text-blue-950 text-xs sm:text-sm leading-relaxed">
-                                {selectedModule.rubric}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Behavioral Indicators Checklist */}
-                          {selectedModule.behavioralIndicators && selectedModule.behavioralIndicators.length > 0 && (
-                            <div className="space-y-3">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 font-heading flex items-center gap-2">
-                                <ListChecks className="w-4 h-4 text-slate-500" />
-                                Indikator Kompetensi yang Diuji
-                              </h4>
-                              <div className="space-y-2">
-                                {selectedModule.behavioralIndicators.map((indicator, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="p-3 bg-white rounded-xl border border-slate-200 flex items-start gap-2.5 shadow-2xs"
-                                  >
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                                    <span className="text-xs text-slate-700 font-medium leading-snug">
-                                      {indicator}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Reader Bottom Actions Bar */}
-                        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3">
-                          <span className="text-xs text-slate-500 font-medium">
-                            Siap melanjutkan tahapan tes?
-                          </span>
-
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => {
-                                handleTabChange('ujian');
-                              }}
-                              rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                              className="text-xs font-bold cursor-pointer"
-                            >
-                              {isCatCompleted ? 'Buka Ujian Teknis (Live Coding)' : 'Lanjut ke Tahap 2: Soal Ujian CAT'}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2 p-8">
-                        <BookOpen className="w-10 h-10 text-slate-300" />
-                        <p className="text-sm font-semibold">Pilih modul di sebelah kiri untuk melihat rincian silabus.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ═══════════════════════════════════════════════════════════
-                TAB 2: UJIAN TEKNIS (CAT 40 SOAL & LIVE CODING JUDGE0)
-            ═══════════════════════════════════════════════════════════ */}
-            {activeLmsTab === 'ujian' && (
-              <div className="space-y-6 animate-fadeIn">
-                {!isCatCompleted ? (
-                  <div className="space-y-6">
-                {/* Main Detail Assessment Card */}
-                <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
-                  {/* Top Row: Meta, Company, Status Badge */}
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-2.5 py-1 rounded-lg border border-accent-border">
+                {/* ─── Dark Navy Hero Banner ─── */}
+                <div className="rounded-3xl bg-gradient-to-br from-[#0F275C] via-[#132F6B] to-[#0B1D47] p-6 sm:p-8 text-white shadow-md">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="space-y-3 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-semibold bg-white/10 border border-white/15 text-blue-100 px-3 py-1 rounded-full">
                           {currentProgram.id}
                         </span>
-                        <span className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-[11px] font-semibold bg-white/10 border border-white/15 text-blue-100 px-3 py-1 rounded-full">
                           {currentProgram.pt}
                         </span>
-                        <span className="text-slate-300">•</span>
-                        <span className="text-xs sm:text-sm text-muted-slate">{currentProgram.category}</span>
-                        <Badge variant={currentProgram.badgeVariant}>{currentProgram.badgeStatus}</Badge>
+                        <span className="text-[11px] font-semibold bg-white/10 border border-white/15 text-blue-100 px-3 py-1 rounded-full">
+                          {currentProgram.category}
+                        </span>
                       </div>
 
-                      <h2 className="text-2xl sm:text-3xl font-extrabold text-ink font-heading leading-tight">
+                      <h1 className="text-2xl sm:text-3xl font-extrabold font-heading leading-tight tracking-tight">
                         {currentProgram.title}
-                      </h2>
+                      </h1>
+
+                      <p className="text-xs sm:text-sm text-blue-100/80 max-w-2xl leading-relaxed">
+                        {currentProgram.description}
+                      </p>
                     </div>
 
-                    {/* Score or Status Pill */}
-                    {currentProgram.status === 'selesai' && typeof currentProgram.score === 'number' && (
-                      <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-2xl shrink-0 self-start lg:self-auto">
-                        <Award className="w-6 h-6 text-emerald-600" />
-                        <div>
-                          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Nilai Komposit Akhir</span>
-                          <span className="font-mono text-xl font-extrabold text-emerald-700 leading-none">{currentProgram.score} / 100</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ─── 4-Step Pipeline Flow Indicator on this Assessment ─── */}
-                  <div className="p-4 sm:p-5 bg-slate-50/80 rounded-2xl border border-slate-200/70 space-y-3">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      <span>Alur Tahapan Seleksi Program Ini</span>
-                      <span className="text-primary-navy font-semibold normal-case">
-                        {currentProgram.status === 'selesai'
-                          ? '✅ 4 dari 4 Tahap Selesai'
-                          : currentProgram.status === 'berjalan'
-                          ? '⏳ Tahap 2 Selesai • Menunggu Tahap 3 (Wawancara)'
-                          : '🚀 Siap Dimulai (Tahap 1 & 2)'}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      {/* Step 1: Cek Perangkat */}
-                      <div
-                        className={`p-3 rounded-xl border flex items-center gap-3 ${
-                          currentProgram.status === 'selesai' || currentProgram.status === 'berjalan'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                            : 'bg-white border-blue-200 text-primary-navy shadow-2xs'
-                        }`}
-                      >
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                            currentProgram.status === 'selesai' || currentProgram.status === 'berjalan'
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-primary-navy text-white'
-                          }`}
-                        >
-                          {currentProgram.status === 'selesai' || currentProgram.status === 'berjalan' ? '✓' : '1'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-xs truncate">Cek Perangkat</p>
-                          <p className="text-[11px] text-slate-500 truncate">Kamera &amp; Mic HD</p>
-                        </div>
+                    {/* Progres Asesmen Glass Card */}
+                    <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-4 min-w-[240px] shrink-0 space-y-3">
+                      <div className="flex items-center justify-between text-[11px] font-bold tracking-wider uppercase text-blue-200">
+                        <span>Progres Asesmen</span>
+                        <span className="text-white font-extrabold">{overallPct}%</span>
                       </div>
 
-                      {/* Step 2: Ujian CAT 40 Soal */}
-                      <div
-                        className={`p-3 rounded-xl border flex items-center gap-3 ${
-                          currentProgram.status === 'selesai' || currentProgram.status === 'berjalan'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                            : 'bg-white border-blue-300 text-primary-navy ring-2 ring-blue-500/20'
-                        }`}
-                      >
+                      <div className="w-full h-1.5 rounded-full bg-white/20 overflow-hidden">
                         <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                            currentProgram.status === 'selesai' || currentProgram.status === 'berjalan'
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-blue-600 text-white animate-pulse'
-                          }`}
-                        >
-                          {currentProgram.status === 'selesai' || currentProgram.status === 'berjalan' ? '✓' : '2'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-xs truncate">Ujian CAT (40 Soal)</p>
-                          <p className="text-[11px] text-slate-500 truncate">{currentProgram.duration} • PG &amp; Kasus</p>
-                        </div>
+                          className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                          style={{ width: `${overallPct}%` }}
+                        />
                       </div>
 
-                      {/* Step 3: Wawancara Live Asesor */}
-                      <div
-                        className={`p-3 rounded-xl border flex items-center gap-3 ${
-                          currentProgram.status === 'selesai'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                            : currentProgram.status === 'berjalan'
-                            ? 'bg-white border-blue-400 text-primary-navy ring-2 ring-blue-500/30 shadow-2xs'
-                            : 'bg-slate-100/70 border-slate-200 text-slate-500'
-                        }`}
-                      >
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                            currentProgram.status === 'selesai'
-                              ? 'bg-emerald-600 text-white'
-                              : currentProgram.status === 'berjalan'
-                              ? 'bg-blue-600 text-white animate-pulse'
-                              : 'bg-slate-300 text-slate-700'
-                          }`}
-                        >
-                          {currentProgram.status === 'selesai' ? '✓' : '3'}
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-white/10 rounded-xl py-2 px-1.5 border border-white/10">
+                          <span className="block text-sm font-extrabold text-white">
+                            {completedCount}/{materials.length}
+                          </span>
+                          <span className="text-[10px] text-blue-200">Materi</span>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-xs truncate">Wawancara Live Asesor</p>
-                          <p className="text-[11px] text-slate-500 truncate">Setelah CAT Selesai</p>
+                        <div className="bg-white/10 rounded-xl py-2 px-1.5 border border-white/10">
+                          <span className="block text-sm font-extrabold text-white">
+                            {isCatCompleted ? '1/2' : '0/2'}
+                          </span>
+                          <span className="text-[10px] text-blue-200">Tes Teknis</span>
                         </div>
-                      </div>
-
-                      {/* Step 4: Rekap Nilai LHA */}
-                      <div
-                        className={`p-3 rounded-xl border flex items-center gap-3 ${
-                          currentProgram.status === 'selesai'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                            : 'bg-slate-100/70 border-slate-200 text-slate-500'
-                        }`}
-                      >
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                            currentProgram.status === 'selesai' ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
-                          }`}
-                        >
-                          {currentProgram.status === 'selesai' ? '✓' : '4'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-xs truncate">Hasil &amp; Nilai LHA</p>
-                          <p className="text-[11px] text-slate-500 truncate">Laporan Resmi</p>
+                        <div className="bg-white/10 rounded-xl py-2 px-1.5 border border-white/10">
+                          <span className="block text-sm font-extrabold text-white">
+                            {isInterviewCompleted ? '1/1' : '0/1'}
+                          </span>
+                          <span className="text-[10px] text-blue-200">Wawancara</span>
                         </div>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* ─── Penjelasan Khusus Wawancara untuk Asesmen Ini ─── */}
-                  <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-                    <div className="flex items-start gap-2.5">
-                      <Video className="w-4.5 h-4.5 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-bold text-amber-950">
-                          Informasi Wawancara Kompetensi: {currentProgram.interviewInfo.assessorName}
-                        </p>
-                        <p className="text-amber-800 mt-0.5">
-                          {currentProgram.interviewInfo.correlationNote} <strong>({currentProgram.interviewInfo.timing})</strong>
-                        </p>
-                      </div>
-                    </div>
-                    <span className="font-mono font-semibold text-amber-900 bg-amber-100/80 px-2.5 py-1 rounded-lg shrink-0 self-start md:self-auto">
-                      Bobot Wawancara: 60%
-                    </span>
+                {/* ─── Filter Pills & Search Row ─── */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <div className="flex items-center gap-2">
+                    {[
+                      { key: 'semua', label: 'Semua' },
+                      { key: 'belum', label: 'Belum Selesai' },
+                      { key: 'selesai', label: 'Selesai' }
+                    ].map((pill) => {
+                      const active = moduleFilter === pill.key;
+                      return (
+                        <button
+                          key={pill.key}
+                          type="button"
+                          onClick={() => setModuleFilter(pill.key as 'semua' | 'belum' | 'selesai')}
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors cursor-pointer ${
+                            active
+                              ? 'bg-[#0F275C] text-white shadow-xs'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          {pill.label}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* ─── Metric Details & Action Buttons ─── */}
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pt-3 border-t border-slate-100">
-                    <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-muted-slate">
-                      <span className="flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-blue-accent" />
-                        Durasi CAT: <strong className="text-ink">{currentProgram.duration}</strong>
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={materiSearch}
+                      onChange={(e) => setMateriSearch(e.target.value)}
+                      placeholder="Cari modul atau kompetensi..."
+                      className="w-full pl-9 pr-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#0F275C]"
+                    />
+                  </div>
+                </div>
+
+                {/* ─── Section 1: Materi & Materi Silabus ─── */}
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('materi')}
+                    className="w-full px-5 py-4 flex items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <span className="w-8 h-8 rounded-full bg-blue-50 text-[#0F275C] font-extrabold text-xs flex items-center justify-center shrink-0">
+                        1
                       </span>
-                      <span className="flex items-center gap-1.5">
-                        <FileCheck2 className="w-4 h-4 text-blue-accent" />
-                        Jumlah Soal: <strong className="text-ink">{currentProgram.questions}</strong>
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        Passing Grade: <strong className="text-emerald-700">{currentProgram.passingScore} / 100</strong>
-                      </span>
-                      <span className="flex items-center gap-1.5 font-mono text-xs text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200/60">
-                        Batas: {currentProgram.deadline}
-                      </span>
+                      <div className="min-w-0">
+                        <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                          Materi &amp; Materi Silabus
+                        </h2>
+                        <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-500 mt-0.5">
+                          <span>{materials.length} modul • baca mandiri</span>
+                          <span>
+                            {completedCount}/{materials.length} selesai
+                          </span>
+                          <span className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden inline-block">
+                            <span
+                              className="block h-full bg-emerald-500 rounded-full"
+                              style={{
+                                width: `${Math.round((completedCount / (materials.length || 1)) * 100)}%`
+                              }}
+                            />
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Dynamic Action Buttons based on Stage */}
-                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                      {currentProgram.status === 'selesai' ? (
-                        <>
-                          <Button
-                            variant="outline"
-                            onClick={() => navigate('/peserta/hasil')}
-                            className="text-xs sm:text-sm py-2.5 px-4 rounded-xl flex items-center gap-2 font-bold cursor-pointer"
-                          >
-                            <Award className="w-4 h-4 text-emerald-600" />
-                            <span>Lihat Skor &amp; LHA ({currentProgram.score})</span>
-                            <ArrowRight className="w-4 h-4" />
-                          </Button>
-                        </>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span
+                        className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-md ${
+                          completedCount === materials.length && materials.length > 0
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-amber-50 text-amber-700'
+                        }`}
+                      >
+                        {completedCount === materials.length && materials.length > 0
+                          ? 'SELESAI'
+                          : 'SEDANG BERJALAN'}
+                      </span>
+                      {openSections.materi ? (
+                        <ChevronUp className="w-4 h-4 text-slate-400" />
                       ) : (
-                        <>
-                          <Button
-                            variant="outline"
-                            onClick={() => navigate('/peserta/device-check')}
-                            className="text-xs sm:text-sm py-2.5 px-3.5 rounded-xl flex items-center gap-1.5 cursor-pointer"
-                          >
-                            <Laptop className="w-4 h-4 text-slate-500" />
-                            <span>1. Cek Perangkat</span>
-                          </Button>
-                          <Button
-                            variant="primary"
-                            onClick={() => navigate(`/peserta/exam/${currentProgram.id}`)}
-                            className="text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 font-bold shadow-sm cursor-pointer"
-                          >
-                            <PlayCircle className="w-4 h-4" />
-                            <span>2. Mulai Ujian CAT (40 Soal)</span>
-                          </Button>
-                        </>
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
                       )}
                     </div>
-                  </div>
-                </div>
+                  </button>
 
-                {/* Extra Guidance */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2 shadow-2xs">
-                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">AI Proctoring &amp; Integritas</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      Ujian diawasi oleh algoritma OpenCV dan deteksi multi-wajah. Pastikan pencahayaan cukup dan hindari membuka tab lain.
-                    </p>
-                  </div>
+                  {openSections.materi && (
+                    <div className="divide-y divide-slate-100 border-t border-slate-100">
+                      {visibleMaterials.length === 0 ? (
+                        <div className="px-5 py-8 text-center text-xs text-slate-400">
+                          Tidak ada modul yang sesuai dengan filter saat ini.
+                        </div>
+                      ) : (
+                        visibleMaterials.map((item) => {
+                          const isDone = Boolean(completedModules[item.id]);
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => {
+                                setSelectedModule(item);
+                                setActiveModalModule(item);
+                              }}
+                              className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-start gap-3.5 min-w-0">
+                                {isDone ? (
+                                  <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                                    <Check className="w-3.5 h-3.5" />
+                                  </span>
+                                ) : (
+                                  <span className="w-6 h-6 rounded-full border-2 border-amber-400 text-amber-500 flex items-center justify-center shrink-0 mt-0.5">
+                                    <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+                                  </span>
+                                )}
 
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2 shadow-2xs">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">Manajemen Waktu Otomatis</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      Timer 90 menit berjalan otomatis saat tes dimulai. Jawaban Anda tersimpan secara berkala setiap 5 detik ke cloud server.
-                    </p>
-                  </div>
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                                      {item.type || 'MODUL'}
+                                    </span>
+                                    {isDone && (
+                                      <span className="text-[11px] font-semibold text-slate-500">
+                                        Selesai
+                                      </span>
+                                    )}
+                                  </div>
+                                  <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                                    {item.title}
+                                  </h3>
+                                  <p className="text-xs text-slate-500 line-clamp-1">
+                                    {item.content}
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-0.5">
+                                    <span>{item.competency || item.category}</span>
+                                    <span>{(item as any).duration || '15 menit'}</span>
+                                    <span className="font-mono">
+                                      {item.code} • {item.version || 'v2.1'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
 
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2 shadow-2xs">
-                    <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
-                      <Video className="w-4 h-4" />
-                    </div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">Validasi Wawancara Langsung</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      Setelah menyelesaikan CAT &amp; Live Coding, Anda akan otomatis diarahkan ke sesi wawancara dewan asesor.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Bottom Step Progression Banner */}
-                <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <h4 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-2">
-                      <Code2 className="w-4 h-4 text-slate-500" />
-                      <span>Tahap Selanjutnya: Live Coding Test (Judge0)</span>
-                      <span className="text-[11px] bg-slate-200 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
-                        🔒 Terkunci (Selesaikan CAT Dahulu)
-                      </span>
-                    </h4>
-                    <p className="text-xs text-slate-600">
-                      Selesaikan dan kumpulkan 40 butir Soal Ujian CAT di atas terlebih dahulu. Sesi Live Coding akan terbuka secara otomatis segera setelah hasil CAT Anda tersimpan.
-                    </p>
-                  </div>
-                  <Button
-                    variant="primary"
-                    onClick={() => navigate(`/peserta/exam/${currentProgram.id}`)}
-                    className="text-xs font-bold shrink-0 flex items-center gap-2 rounded-xl cursor-pointer shadow-xs"
-                  >
-                    <PlayCircle className="w-4 h-4" />
-                    <span>Mulai Kerjakan Soal CAT Sekarang</span>
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              /* Section 2: Live Coding Test (Directly displayed when CAT is completed) */
-              <div className="space-y-4">
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        JUDGE0 SANDBOX
-                      </span>
-                      <Badge variant="teal" format="soft">Prototype Evaluation Engine</Badge>
-                      <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Ujian CAT Selesai
-                      </span>
-                    </div>
-                    <h2 className="font-heading font-extrabold text-base sm:text-lg text-slate-900">
-                      Uji Praktik Pemrograman (Live Coding Test)
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Uji kemampuan problem solving, data structures, dan arsitektur kode secara interaktif dengan engine Judge0.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2.5 text-xs text-slate-600 font-mono">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate('/peserta/hasil')}
-                      className="text-xs font-semibold rounded-xl cursor-pointer"
-                    >
-                      <Award className="w-3.5 h-3.5 text-emerald-600 mr-1" />
-                      <span>Skor CAT ({currentProgram.score ? `${currentProgram.score}/100` : 'Tersimpan'})</span>
-                    </Button>
-                    <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                      <Cpu className="w-3.5 h-3.5 text-slate-500" />
-                      Isolated Container
-                    </span>
-                  </div>
-                </div>
-
-                <PesertaLiveCodingJudge0 programTitle={currentProgram.title} />
-
-                {/* Bottom CTA to go to Stage 3 (Wawancara) */}
-                <div className="mt-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
-                  <div className="space-y-1">
-                    <h4 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                      <Video className="w-4 h-4 text-amber-600" />
-                      <span>Langkah Selanjutnya: Sesi Wawancara Tatap Muka (Tahap 3)</span>
-                    </h4>
-                    <p className="text-xs text-slate-600">
-                      Dewan Asesor akan memvalidasi penalaran hasil CAT dan arsitektur kode Anda pada sesi Wawancara Kompetensi BARS.
-                    </p>
-                  </div>
-                  <Button
-                    variant="primary"
-                    onClick={() => handleTabChange('wawancara')}
-                    className="text-xs font-bold shrink-0 flex items-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 cursor-pointer text-white shadow-xs"
-                  >
-                    <span>Lanjut ke Tahap 3: Sesi Wawancara</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-            </div>
-          )}
-
-          {/* ═══════════════════════════════════════════════════════════
-              TAB 3: SESI WAWANCARA (ASESOR & AI LIVE)
-          ═══════════════════════════════════════════════════════════ */}
-          {activeLmsTab === 'wawancara' && (
-            <div className="space-y-6 animate-fadeIn">
-              <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
-                {/* Top Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-100">
-                  <div>
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs font-bold text-amber-800 mb-2">
-                      <Video className="w-3.5 h-3.5" />
-                      <span>Tahap 3: Wawancara Kompetensi &amp; Perilaku (BARS)</span>
-                    </div>
-                    <h2 className="text-xl sm:text-2xl font-extrabold font-heading text-slate-900">
-                      Sesi Wawancara Tatap Muka Asesor
-                    </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-                      Pada tahap ini, Dewan Asesor akan menggali lebih dalam penalaran teknis yang telah Anda selesaikan pada lembar CAT dan Live Coding, serta menilai kompetensi perilaku dan kepemimpinan.
-                    </p>
-                  </div>
-
-                  {/* Status Pill */}
-                  <div className="shrink-0">
-                    {isInterviewCompleted ? (
-                      <div className="bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-2xl text-center">
-                        <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5 justify-center">
-                          <CheckCircle2 className="w-4 h-4" /> Sesi Wawancara Selesai
-                        </span>
-                        <p className="text-[11px] text-emerald-600 mt-0.5">Hasil telah tercatat dalam LHA</p>
-                      </div>
-                    ) : isCatCompleted ? (
-                      <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-2xl text-center">
-                        <span className="text-xs font-bold text-primary-navy flex items-center gap-1.5 justify-center">
-                          <Sparkles className="w-4 h-4 text-blue-600" /> Siap Masuk Ruang Wawancara
-                        </span>
-                        <p className="text-[11px] text-blue-600 mt-0.5">Asesor siap di ruang live</p>
-                      </div>
-                    ) : (
-                      <div className="bg-amber-50 border border-amber-200 px-4 py-2 rounded-2xl text-center">
-                        <span className="text-xs font-bold text-amber-800 flex items-center gap-1.5 justify-center">
-                          <Clock className="w-4 h-4" /> Menunggu Ujian Teknis
-                        </span>
-                        <p className="text-[11px] text-amber-600 mt-0.5">Selesaikan CAT &amp; Coding dahulu</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Grid Info Asesor & Jadwal */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/70 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-primary-navy text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                        AS
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Dewan Asesor Penguji</p>
-                        <h4 className="font-heading font-extrabold text-sm text-slate-900">
-                          {currentProgram.interviewInfo?.assessorName || 'Dr. Ir. Dwi Hartanto, M.Kom'}
-                        </h4>
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      Lead Evaluator &amp; Asesor Kompetensi Nasional tersertifikasi BARS.
-                    </p>
-                  </div>
-
-                  <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/70 space-y-3">
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Format &amp; Durasi</p>
-                      <h4 className="font-heading font-extrabold text-sm text-slate-900 mt-0.5">
-                        Live Video, Audio &amp; Screen Share
-                      </h4>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <Clock className="w-4 h-4 text-slate-400" />
-                      <span>Alokasi Durasi: <strong>45 Menit</strong></span>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/70 space-y-3">
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pengawasan &amp; Integritas</p>
-                      <h4 className="font-heading font-extrabold text-sm text-slate-900 mt-0.5">
-                        AI Proctoring &amp; UU PDP
-                      </h4>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                      <span>Enkripsi TLS 1.3 &amp; Rekaman Aman</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Rubrik BARS & Pokok Bahasan */}
-                <div className="bg-blue-50/50 rounded-2xl p-5 sm:p-6 border border-blue-100 space-y-4">
-                  <div className="flex items-center gap-2 text-primary-navy font-heading font-bold text-sm">
-                    <BookOpen className="w-4 h-4" />
-                    <span>Fokus Rubrik Penilaian Wawancara (Standar BARS 1-5):</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-700">
-                    <div className="bg-white p-3.5 rounded-xl border border-blue-200/50 flex items-start gap-2.5">
-                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">1</span>
-                      <div>
-                        <strong className="text-slate-900">Validasi Arsitektur &amp; Jawaban CAT:</strong>
-                        <p className="text-slate-500 mt-0.5">Asesor memverifikasi kedalaman logika dan alasan pemilihan solusi pada lembar ujian Anda.</p>
-                      </div>
-                    </div>
-                    <div className="bg-white p-3.5 rounded-xl border border-blue-200/50 flex items-start gap-2.5">
-                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">2</span>
-                      <div>
-                        <strong className="text-slate-900">Pembahasan Code Live (Judge0):</strong>
-                        <p className="text-slate-500 mt-0.5">Penjelasan kompleksitas Big-O, edge cases, error handling, dan struktur kode yang dibuat.</p>
-                      </div>
-                    </div>
-                    <div className="bg-white p-3.5 rounded-xl border border-blue-200/50 flex items-start gap-2.5">
-                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">3</span>
-                      <div>
-                        <strong className="text-slate-900">Kompetensi Perilaku &amp; Problem Solving:</strong>
-                        <p className="text-slate-500 mt-0.5">Penilaian kemampuan menghadapi insiden krisis produksi, kolaborasi tim, dan adaptabilitas.</p>
-                      </div>
-                    </div>
-                    <div className="bg-white p-3.5 rounded-xl border border-blue-200/50 flex items-start gap-2.5">
-                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">4</span>
-                      <div>
-                        <strong className="text-slate-900">Integritas &amp; Kepatuhan Standar:</strong>
-                        <p className="text-slate-500 mt-0.5">Kesesuaian dengan pakta integritas dan standar etika profesional institusi penguji.</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="pt-4 border-t border-slate-100 space-y-4">
-                  {!isCatCompleted && (
-                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                      <div className="flex items-center gap-2.5">
-                        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-                        <span className="text-xs text-amber-950 font-medium leading-relaxed">
-                          <strong className="font-bold">Prasyarat Belum Terpenuhi:</strong> Anda wajib menyelesaikan <strong>Tahap 2: Ujian Teknis (CAT &amp; Live Coding)</strong> terlebih dahulu sebelum dewan asesor memvalidasi sesi wawancara.
-                        </span>
-                      </div>
-                      <Button
-                        variant="primary"
-                        onClick={() => {
-                          handleTabChange('ujian');
-                        }}
-                        className="text-xs font-bold shrink-0 rounded-xl cursor-pointer shadow-xs bg-amber-600 hover:bg-amber-700 text-white"
-                      >
-                        <FileCheck2 className="w-4 h-4" />
-                        <span>Kerjakan Ujian Teknis Terlebih Dahulu</span>
-                      </Button>
+                              <div className="shrink-0 flex justify-end">
+                                {isDone ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedModule(item);
+                                      setActiveModalModule(item);
+                                    }}
+                                    className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer"
+                                  >
+                                    Review
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleModuleCompletion(item.id);
+                                    }}
+                                    className="px-4 py-1.5 rounded-lg bg-[#0F275C] hover:bg-[#16367d] text-white text-xs font-bold cursor-pointer shadow-2xs"
+                                  >
+                                    Tandai Selesai
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   )}
+                </div>
 
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <button
-                      onClick={() => navigate('/peserta/device-check')}
-                      className="text-xs font-semibold text-slate-600 hover:text-primary-navy flex items-center gap-1.5 cursor-pointer"
+                {/* ─── Section 2: Ujian Teknis (CAT & Live Code) ─── */}
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('ujian')}
+                    className="w-full px-5 py-4 flex items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <span className="w-8 h-8 rounded-full bg-blue-50 text-[#0F275C] font-extrabold text-xs flex items-center justify-center shrink-0">
+                        2
+                      </span>
+                      <div className="min-w-0">
+                        <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                          Ujian Teknis (CAT &amp; Live Code)
+                        </h2>
+                        <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-500 mt-0.5">
+                          <span>2 sesi • terjadwal</span>
+                          <span>{isCatCompleted ? '1/2' : '0/2'} selesai</span>
+                          <span className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden inline-block">
+                            <span
+                              className="block h-full bg-emerald-500 rounded-full"
+                              style={{ width: isCatCompleted ? '50%' : '0%' }}
+                            />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span
+                        className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-md ${
+                          isCatCompleted
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-blue-50 text-[#0F275C]'
+                        }`}
+                      >
+                        {isCatCompleted ? 'CAT SELESAI' : 'SIAP DIKERJAKAN'}
+                      </span>
+                      {openSections.ujian ? (
+                        <ChevronUp className="w-4 h-4 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  {openSections.ujian && (
+                    <div className="divide-y divide-slate-100 border-t border-slate-100">
+                      {/* Row 2.1: Ujian CAT */}
+                      <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-start gap-3.5 min-w-0">
+                          {isCatCompleted ? (
+                            <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                              <Check className="w-3.5 h-3.5" />
+                            </span>
+                          ) : (
+                            <span className="w-6 h-6 rounded-full border-2 border-amber-400 text-amber-500 flex items-center justify-center shrink-0 mt-0.5">
+                              <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+                            </span>
+                          )}
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                                UJIAN CAT
+                              </span>
+                              {isCatCompleted && (
+                                <span className="text-[11px] font-semibold text-emerald-700">
+                                  Selesai • Jawaban Tersimpan
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="text-sm font-bold text-slate-900">
+                              Ujian Kompetensi Teknis (Computer Assisted Test)
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                              Diawasi AI Proctoring &amp; penyimpanan jawaban otomatis setiap 5 detik.
+                            </p>
+                            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
+                              <span>{currentProgram.questions}</span>
+                              <span>{currentProgram.duration}</span>
+                              <span>Passing Grade: {currentProgram.passingScore}/100</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 justify-end">
+                          {!isCatCompleted && (
+                            <button
+                              type="button"
+                              onClick={() => navigate('/peserta/device-check')}
+                              className="px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                            >
+                              Cek Perangkat
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(isCatCompleted ? '/peserta/hasil' : `/peserta/exam/${currentProgram.id}`)
+                            }
+                            className="px-4 py-1.5 rounded-lg bg-[#0F275C] hover:bg-[#16367d] text-white text-xs font-bold cursor-pointer shadow-2xs"
+                          >
+                            {isCatCompleted ? 'Lihat Hasil CAT' : 'Mulai Ujian CAT'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Row 2.2: Live Coding */}
+                      <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-start gap-3.5 min-w-0">
+                          <span
+                            className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                              isCatCompleted
+                                ? 'border-2 border-amber-400 text-amber-500'
+                                : 'bg-slate-100 text-slate-400'
+                            }`}
+                          >
+                            {isCatCompleted ? (
+                              <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+                            ) : (
+                              <Lock className="w-3 h-3" />
+                            )}
+                          </span>
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                              LIVE CODING • JUDGE0
+                            </span>
+                            <h3 className="text-sm font-bold text-slate-900">
+                              Uji Praktik Pemrograman (Live Coding Sandbox)
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                              {isCatCompleted
+                                ? 'Sandbox Judge0 aktif. Kerjakan studi kasus algoritma & struktur data.'
+                                : 'Terkunci — selesaikan Ujian CAT terlebih dahulu untuk membuka sesi Live Coding.'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex justify-end">
+                          {isCatCompleted ? (
+                            <button
+                              type="button"
+                              onClick={() => setShowLiveCoding((v) => !v)}
+                              className="px-4 py-1.5 rounded-lg bg-[#0F275C] hover:bg-[#16367d] text-white text-xs font-bold cursor-pointer shadow-2xs"
+                            >
+                              {showLiveCoding ? 'Tutup Sandbox' : 'Buka Live Coding'}
+                            </button>
+                          ) : (
+                            <span className="px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-xs font-bold">
+                              Terkunci
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {isCatCompleted && showLiveCoding && (
+                        <div className="p-5 bg-slate-50/70">
+                          <PesertaLiveCodingJudge0 programTitle={currentProgram.title} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ─── Section 3: Sesi Wawancara (Asesor & AI) ─── */}
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('wawancara')}
+                    className="w-full px-5 py-4 flex items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <span className="w-8 h-8 rounded-full bg-blue-50 text-[#0F275C] font-extrabold text-xs flex items-center justify-center shrink-0">
+                        3
+                      </span>
+                      <div className="min-w-0">
+                        <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                          Sesi Wawancara (Asesor &amp; AI)
+                        </h2>
+                        <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-500 mt-0.5">
+                          <span>1 sesi • Live Asesor</span>
+                          <span>{isInterviewCompleted ? '1/1' : '0/1'} selesai</span>
+                          <span className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden inline-block">
+                            <span
+                              className="block h-full bg-emerald-500 rounded-full"
+                              style={{ width: isInterviewCompleted ? '100%' : '0%' }}
+                            />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span
+                        className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-md ${
+                          isInterviewCompleted
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : isCatCompleted
+                              ? 'bg-blue-50 text-[#0F275C]'
+                              : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {isInterviewCompleted
+                          ? 'SELESAI'
+                          : isCatCompleted
+                            ? 'SIAP MASUK'
+                            : 'TERKUNCI'}
+                      </span>
+                      {openSections.wawancara ? (
+                        <ChevronUp className="w-4 h-4 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  {openSections.wawancara && (
+                    <div className="border-t border-slate-100 px-5 py-5 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                            WAWANCARA BARS • 45 MENIT
+                          </span>
+                          <h3 className="text-sm font-bold text-slate-900">
+                            Asesor: {currentProgram.interviewInfo?.assessorName || 'Dewan Asesor Tersertifikasi'}
+                          </h3>
+                          <p className="text-xs text-slate-500">
+                            Validasi penalaran teknis CAT, pembahasan kode, serta evaluasi kompetensi perilaku (BARS 1–5).
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            disabled={!isCatCompleted}
+                            onClick={() => navigate(`/peserta/waiting-room?id=${currentProgram.id}`)}
+                            className={`px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold transition-colors ${
+                              isCatCompleted
+                                ? 'bg-white hover:bg-slate-50 text-slate-700 cursor-pointer'
+                                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            }`}
+                          >
+                            Ruang Tunggu
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!isCatCompleted}
+                            onClick={() => navigate(`/peserta/wawancara?id=${currentProgram.id}`)}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                              isCatCompleted
+                                ? 'bg-[#0F275C] hover:bg-[#16367d] text-white cursor-pointer shadow-2xs'
+                                : 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                            }`}
+                          >
+                            {isInterviewCompleted ? 'Wawancara Selesai' : 'Mulai Wawancara'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom Helper Caption */}
+                <p className="text-center text-xs text-slate-400 pt-1">
+                  Klik baris untuk detail modul • tombol aksi mengubah status
+                </p>
+
+                {/* Module Detail Reader Modal */}
+                {activeModalModule && (
+                  <div
+                    className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+                    onClick={() => setActiveModalModule(null)}
+                  >
+                    <div
+                      className="bg-white rounded-3xl border border-slate-200 shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <Camera className="w-4 h-4 text-slate-400" />
-                      <span>Uji Kesiapan Kamera &amp; Mikrofon (Device Check)</span>
-                    </button>
+                      <div className="p-5 sm:p-6 border-b border-slate-100 flex items-start justify-between gap-4 bg-slate-50/70">
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-50 text-[#0F275C]">
+                              {activeModalModule.type || activeModalModule.category}
+                            </span>
+                            <span className="font-mono text-xs text-slate-500">
+                              {activeModalModule.code} • {activeModalModule.version || 'v2.1'}
+                            </span>
+                          </div>
+                          <h3 className="text-lg font-extrabold text-slate-900 leading-snug">
+                            {activeModalModule.title}
+                          </h3>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setActiveModalModule(null)}
+                          className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 cursor-pointer shrink-0"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
 
-                    <div className="flex items-center gap-3 w-full sm:w-auto">
-                      <Button
-                        variant="outline"
-                        disabled={!isCatCompleted}
-                        onClick={() => navigate(`/peserta/waiting-room?id=${currentProgram.id}`)}
-                        className={`w-full sm:w-auto text-xs font-bold rounded-xl ${
-                          !isCatCompleted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                        }`}
-                      >
-                        Masuk Ruang Tunggu (Waiting Room)
-                      </Button>
+                      <div className="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed">
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/70 space-y-1.5">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-[#0F275C]">
+                            Pokok Bahasan &amp; Ringkasan Materi
+                          </h4>
+                          <p className="whitespace-pre-line">{activeModalModule.content}</p>
+                        </div>
 
-                      <Button
-                        variant="primary"
-                        disabled={!isCatCompleted}
-                        onClick={() => navigate(`/peserta/wawancara?id=${currentProgram.id}`)}
-                        className={`w-full sm:w-auto text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs ${
-                          !isCatCompleted
-                            ? 'opacity-50 cursor-not-allowed bg-slate-400 hover:bg-slate-400'
-                            : 'cursor-pointer'
-                        }`}
-                      >
-                        <Video className="w-4 h-4" />
-                        <span>Mulai Wawancara Tatap Muka</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
+                        {activeModalModule.rubric && (
+                          <div className="bg-blue-50/60 rounded-2xl p-4 border border-blue-200/60 space-y-1.5">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-blue-900">
+                              Rubrik Penilaian Asesor (BARS)
+                            </h4>
+                            <p className="text-blue-950">{activeModalModule.rubric}</p>
+                          </div>
+                        )}
+
+                        {activeModalModule.behavioralIndicators &&
+                          activeModalModule.behavioralIndicators.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                                Indikator Kompetensi yang Diuji
+                              </h4>
+                              <ul className="space-y-1.5">
+                                {activeModalModule.behavioralIndicators.map((ind, idx) => (
+                                  <li
+                                    key={idx}
+                                    className="flex items-start gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 text-xs"
+                                  >
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                                    <span>{ind}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                      </div>
+
+                      <div className="p-4 sm:px-6 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setActiveModalModule(null)}
+                          className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Tutup
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toggleModuleCompletion(activeModalModule.id);
+                            setActiveModalModule(null);
+                          }}
+                          className="px-5 py-2 rounded-xl bg-[#0F275C] hover:bg-[#16367d] text-white text-xs font-bold cursor-pointer"
+                        >
+                          {completedModules[activeModalModule.id]
+                            ? 'Tandai Belum Selesai'
+                            : 'Tandai Selesai'}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
-            </div>
-          )}
-          </div>
+            );
+          })()
         ) : (
           /* ═══════════════════════════════════════════════════════════
               TAMPILAN 2: DAFTAR KARTU ASESMEN SAYA (CARDS VIEW)
