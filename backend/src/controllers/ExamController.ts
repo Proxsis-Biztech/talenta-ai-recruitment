@@ -119,9 +119,26 @@ const isPortalProfileComplete = async (userId: string) => {
   return Boolean(user?.name && user?.phone && user?.nik && user?.education && user?.university && user?.city);
 };
 
-const canAccessProgram = (portalUser: { assessmentId?: string | null } | undefined, programCode: string) => {
-  if (!portalUser?.assessmentId) return false;
-  return portalUser.assessmentId.toUpperCase() === programCode;
+const canAccessProgram = (
+  portalUser: { assessmentId?: string | null; assessmentIds?: string | null } | undefined,
+  programCode: string
+) => {
+  if (!portalUser) return false;
+  const target = programCode.trim().toUpperCase();
+  if (portalUser.assessmentId && portalUser.assessmentId.trim().toUpperCase() === target) {
+    return true;
+  }
+  if (portalUser.assessmentIds) {
+    try {
+      const parsed = JSON.parse(portalUser.assessmentIds);
+      if (Array.isArray(parsed)) {
+        return parsed.some((code) => String(code).trim().toUpperCase() === target);
+      }
+    } catch {
+      // ignore malformed JSON
+    }
+  }
+  return false;
 };
 
 const loadProgram = async (programCode: string) => {

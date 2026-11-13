@@ -30,7 +30,21 @@ const matchesCompany = (item: any, context: string, companyName: string) => {
 export const getPortalMaterials = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
-    const programCode = req.portalUser.assessmentId || null;
+    const requestedCode = typeof req.query.programCode === 'string' ? req.query.programCode.trim() : '';
+    const allowedCodes = new Set<string>();
+    if (req.portalUser.assessmentId) allowedCodes.add(req.portalUser.assessmentId.trim().toUpperCase());
+    if (req.portalUser.assessmentIds) {
+      try {
+        const parsed = JSON.parse(req.portalUser.assessmentIds);
+        if (Array.isArray(parsed)) parsed.forEach((c) => c && allowedCodes.add(String(c).trim().toUpperCase()));
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+    const programCode =
+      requestedCode && allowedCodes.has(requestedCode.toUpperCase())
+        ? requestedCode
+        : req.portalUser.assessmentId || Array.from(allowedCodes)[0] || null;
     if (!programCode) {
       return res.json({ programCode: null, programTitle: null, data: [] });
     }

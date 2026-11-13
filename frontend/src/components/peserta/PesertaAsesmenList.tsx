@@ -195,7 +195,10 @@ export default function PesertaAsesmenList() {
 
     if (token) {
       axios
-        .get('/api/portal/materials', { headers: { Authorization: `Bearer ${token}` } })
+        .get('/api/portal/materials', {
+          params: { programCode: selectedProgramId || activeProg.id },
+          headers: { Authorization: `Bearer ${token}` }
+        })
         .then((res) => {
           if (cancelled) return;
           if (Array.isArray(res.data?.data) && res.data.data.length > 0) {
