@@ -23,12 +23,12 @@ import {
   MicOff,
   VolumeX,
   Sliders,
-  HelpCircle
+  HelpCircle,
+  LogOut
 } from 'lucide-react';
-import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
-import { getPortalToken, getPortalUser, savePortalSession } from '../../services/portalAuthService';
+import { clearPortalSession, getPortalToken, getPortalUser, savePortalSession } from '../../services/portalAuthService';
 import { getProgramById, DEFAULT_ASSESSMENT_PROGRAMS } from '../../services/assessmentCatalog';
 
 export default function PesertaDeviceCheck() {
@@ -385,7 +385,7 @@ export default function PesertaDeviceCheck() {
     navigate('/peserta');
   };
 
-  const handleProceedToExam = () => {
+  const handleProceedToAsesmen = () => {
     if (!validationSuccess && !getPortalUser()?.deviceCheckCompletedAt) {
       setFaceError('Silakan tekan tombol "Konfirmasi & Validasi Kesiapan Perangkat" terlebih dahulu untuk memvalidasi seluruh sistem perangkat Anda.');
       const btn = document.getElementById('btn-confirm-device');
@@ -398,16 +398,81 @@ export default function PesertaDeviceCheck() {
     }
     const isFaceReady = initialFaceRegistered || Boolean(getPortalUser()?.faceVerifiedAt);
     if (!isFaceReady) {
-      setFaceError('Registrasi wajah wajib diselesaikan sebelum masuk ke lembar ujian.');
+      setFaceError('Registrasi wajah wajib diselesaikan sebelum melanjutkan ke menu Asesmen Saya.');
       return;
     }
     setFaceError('');
-    navigate(`/peserta/exam/${activeProgram.id}`);
+    navigate('/peserta/asesmen');
   };
 
   return (
-    <PesertaLayout activeTab="device-check">
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-10 sm:py-14 space-y-10 antialiased font-sans">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans antialiased">
+      {/* ─── Focused Topbar without Sidebar ─── */}
+      <header className="h-18 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
+        <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-primary-navy text-white flex items-center justify-center font-bold text-sm shadow-2xs">
+              R
+            </div>
+            <div>
+              <span className="font-heading font-black text-sm tracking-tight text-primary-navy block leading-none">
+                RIGHT
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">
+                Assessment Platform
+              </span>
+            </div>
+          </div>
+
+          <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block" />
+
+          <div className="hidden sm:flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-full bg-blue-50 text-primary-navy border border-blue-200/70 text-xs font-bold">
+              Mode Fokus • Cek Perangkat Mandatori
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="hidden md:block text-right">
+            <p className="text-xs font-bold text-slate-900 leading-tight">
+              {activeUser.name || 'Peserta Terdaftar'}
+            </p>
+            <p className="text-[11px] text-slate-500 font-mono mt-0.5 truncate max-w-[200px]">
+              {activeProgram.companyName || 'Program Asesmen'}
+            </p>
+          </div>
+
+          {Boolean(getPortalUser()?.deviceCheckCompletedAt || validationSuccess) && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/peserta/asesmen')}
+              className="text-xs font-semibold gap-1.5"
+            >
+              <span>Buka Asesmen Saya</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              clearPortalSession();
+              localStorage.removeItem('adminToken');
+              navigate('/login');
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+            title="Keluar dari akun"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Keluar</span>
+          </button>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-8 sm:py-12 space-y-8">
         {/* Hidden canvas for snapshot capture */}
         <canvas ref={canvasRef} className="hidden" />
 
@@ -433,11 +498,11 @@ export default function PesertaDeviceCheck() {
 
           <Button
             variant="primary"
-            onClick={handleProceedToExam}
+            onClick={handleProceedToAsesmen}
             className="self-start sm:self-auto py-3 px-6 text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm rounded-xl cursor-pointer"
           >
-            <PlayCircle className="w-4 h-4" />
-            <span>Mulai Ujian CAT Langsung ({activeProgram.questions?.length || activeProgram.totalQuestions || 40} Soal)</span>
+            <span>Lanjut ke Asesmen Saya</span>
+            <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
 
@@ -848,11 +913,11 @@ export default function PesertaDeviceCheck() {
                     <Button
                       variant="primary"
                       size="lg"
-                      onClick={handleProceedToExam}
+                      onClick={handleProceedToAsesmen}
                       className="w-full py-3.5 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm rounded-xl cursor-pointer"
                     >
-                      <PlayCircle className="w-4 h-4 shrink-0" />
-                      <span>Lanjut ke Lembar Ujian CAT ({activeProgram.questions?.length || 40} Soal)</span>
+                      <span>Masuk ke Asesmen Saya</span>
+                      <ArrowRight className="w-4 h-4 shrink-0" />
                     </Button>
 
                     <Button
@@ -877,7 +942,11 @@ export default function PesertaDeviceCheck() {
             </div>
           </div>
         </div>
-      </div>
-    </PesertaLayout>
+      </main>
+
+      <footer className="py-6 border-t border-slate-200/70 bg-white text-center text-xs text-slate-400">
+        © 2026 Right Assessment Platform • Dilindungi enkripsi SSL 256-bit dan Sistem Anti-Cheat AI ISO 27001.
+      </footer>
+    </div>
   );
 }

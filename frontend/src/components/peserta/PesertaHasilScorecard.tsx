@@ -133,8 +133,8 @@ export default function PesertaHasilScorecard() {
           </div>
           <h1 className="text-xl font-extrabold text-ink font-heading">Hasil Ujian Belum Tersedia</h1>
           <p className="text-sm text-muted-slate">{error}</p>
-          <Button variant="primary" onClick={() => navigate(`/peserta/exam/${activeProgram.id}`)} className="text-xs">
-            Masuk ke Lembar Ujian
+          <Button variant="primary" onClick={() => navigate('/peserta/asesmen')} className="text-xs">
+            Buka Menu Asesmen Saya
           </Button>
         </div>
       </PesertaLayout>

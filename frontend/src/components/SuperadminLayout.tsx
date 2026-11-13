@@ -27,7 +27,6 @@ import {
   ExternalLink,
   ShieldCheck,
   CreditCard,
-  KeyRound,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
@@ -37,7 +36,6 @@ export type AdminMenuKey =
   | 'dashboard'
   | 'peserta'
   | 'jobs'
-  | 'access-codes'
   | 'materi'
   | 'bank-soal'
   | 'perusahaan'
@@ -94,7 +92,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'ASESMEN & SOAL',
     items: [
       { key: 'jobs', label: 'Program Asesmen', icon: BookOpen },
-      { key: 'access-codes', label: 'Kode Akses Peserta', icon: KeyRound },
       { key: 'materi', label: 'Master Materi & Silabus', icon: FileText },
       { key: 'bank-soal', label: 'Bank Soal CAT', icon: CheckSquare },
     ],

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
-  KeyRound,
   ArrowRight,
   ShieldCheck,
   Eye,
@@ -20,16 +19,14 @@ import {
 } from 'lucide-react';
 import { Button, Badge } from '../ui';
 import { setActiveSessionUser } from '../../services/userRegistryService';
-import { clearPortalSession, loginPortal, savePortalSession, tokenLogin } from '../../services/portalAuthService';
+import { clearPortalSession, loginPortal, savePortalSession } from '../../services/portalAuthService';
 
 const SHOW_DEMO_ACCESS = false;
 
 export default function AuthLoginPage() {
   const navigate = useNavigate();
-  const [loginMode, setLoginMode] = useState<'account' | 'code'>('account');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [programCode, setProgramCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -53,7 +50,27 @@ export default function AuthLoginPage() {
       localStorage.removeItem('adminRole');
       localStorage.removeItem('adminUsername');
       savePortalSession(session);
-      navigate(session.requiresOnboarding ? '/peserta/onboarding' : '/peserta');
+
+      const isPlaceholder = (n?: string | null) => {
+        if (!n) return true;
+        const s = n.trim().toLowerCase();
+        return s === '' || s === 'kandidat ujian cat' || s === 'kandidat baru' || s.startsWith('token-') || s.startsWith('kandidat ');
+      };
+      const isProfileComplete = Boolean(
+        session.user.name &&
+        !isPlaceholder(session.user.name) &&
+        session.user.phone &&
+        session.user.nik &&
+        session.user.education &&
+        session.user.university &&
+        session.user.city
+      );
+      const nextUrl = session.requiresOnboarding
+        ? '/peserta/onboarding'
+        : !isProfileComplete
+          ? '/peserta/profile'
+          : '/peserta/device-check';
+      navigate(nextUrl);
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal masuk dengan Google.' : 'Gagal masuk dengan Google.');
     } finally {
@@ -87,27 +104,21 @@ export default function AuthLoginPage() {
   }, [googleClientId]);
 
   // Quick fill demo helper
-  const handleFillDemo = (type: 'superadmin' | 'asesor' | 'peserta-telkom' | 'peserta-mandiri' | 'code') => {
+  const handleFillDemo = (type: 'superadmin' | 'asesor' | 'peserta-telkom' | 'peserta-mandiri') => {
     setError('');
     setSuccessRole(null);
-    if (type === 'code') {
-      setLoginMode('code');
-      setProgramCode('SE-402');
-    } else {
-      setLoginMode('account');
-      if (type === 'superadmin') {
-        setIdentifier('superadmin');
-        setPassword('cleaverzz25');
-      } else if (type === 'asesor') {
-        setIdentifier('asesor');
-        setPassword('asesor123');
-      } else if (type === 'peserta-telkom') {
-        setIdentifier('farhan@kandidat.id');
-        setPassword('peserta123');
-      } else if (type === 'peserta-mandiri') {
-        setIdentifier('amanda@kandidat.id');
-        setPassword('peserta123');
-      }
+    if (type === 'superadmin') {
+      setIdentifier('superadmin');
+      setPassword('cleaverzz25');
+    } else if (type === 'asesor') {
+      setIdentifier('asesor');
+      setPassword('asesor123');
+    } else if (type === 'peserta-telkom') {
+      setIdentifier('farhan@kandidat.id');
+      setPassword('peserta123');
+    } else if (type === 'peserta-mandiri') {
+      setIdentifier('amanda@kandidat.id');
+      setPassword('peserta123');
     }
   };
 
@@ -118,41 +129,6 @@ export default function AuthLoginPage() {
     setSuccessRole(null);
 
     try {
-      if (loginMode === 'code') {
-        if (!programCode.trim()) {
-          throw new Error('Silakan masukkan kode asesmen program Anda.');
-        }
-        clearPortalSession();
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminRole');
-        localStorage.removeItem('adminUsername');
-        const session = await tokenLogin({ programCode: programCode.trim().toUpperCase() });
-        savePortalSession(session);
-        setSuccessRole('peserta');
-
-        const isPlaceholder = (n?: string | null) => {
-          if (!n) return true;
-          const s = n.trim().toLowerCase();
-          return s === '' || s === 'kandidat ujian cat' || s === 'kandidat baru' || s.startsWith('token-') || s.startsWith('kandidat ');
-        };
-        const isProfileComplete = Boolean(
-          session.user.name &&
-          !isPlaceholder(session.user.name) &&
-          session.user.phone &&
-          session.user.nik &&
-          session.user.education &&
-          session.user.university &&
-          session.user.city
-        );
-        const nextUrl = !isProfileComplete
-          ? '/peserta/profile'
-          : !session.user.deviceCheckCompletedAt
-            ? '/peserta/device-check'
-            : '/peserta';
-        setTimeout(() => navigate(nextUrl), 300);
-        return;
-      }
-
       const cleanId = identifier.trim().toLowerCase();
       const isAdminAccount =
         cleanId === 'superadmin' ||
@@ -209,9 +185,7 @@ export default function AuthLoginPage() {
           ? '/peserta/onboarding'
           : !isProfileComplete
             ? '/peserta/profile'
-            : !session.user.deviceCheckCompletedAt
-              ? '/peserta/device-check'
-              : '/peserta';
+            : '/peserta/device-check';
         setTimeout(() => navigate(nextUrl), 300);
       }
     } catch (err) {
@@ -254,40 +228,7 @@ export default function AuthLoginPage() {
               Akses terpadu untuk Peserta Seleksi, Dewan Asesor, dan Administrator.
             </p>
 
-            {/* Login Mode Toggle Tabs (Clean Apple-style Segmented Control) */}
-            <div className="mt-6 p-1 bg-slate-100 rounded-2xl flex gap-1 border border-slate-200/80">
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginMode('account');
-                  setError('');
-                  setSuccessRole(null);
-                }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                  loginMode === 'account'
-                    ? 'bg-white text-primary-navy shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-ink'
-                }`}
-              >
-                Masuk dengan Akun
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginMode('code');
-                  setError('');
-                  setSuccessRole(null);
-                }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                  loginMode === 'code'
-                    ? 'bg-white text-primary-navy shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-ink'
-                }`}
-              >
-                <KeyRound className="w-3.5 h-3.5 text-blue-accent" />
-                <span>Kode Program Ujian</span>
-              </button>
-            </div>
+
 
             {/* Error Notification */}
             {error && (
@@ -317,82 +258,61 @@ export default function AuthLoginPage() {
 
             {/* Main Login Form */}
             <form onSubmit={handleLogin} className="mt-5 space-y-4">
-              {loginMode === 'account' ? (
-                <>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Username / Email
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                        <User className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <input
-                        type="text"
-                        value={identifier}
-                        onChange={(e) => setIdentifier(e.target.value)}
-                        placeholder="superadmin / asesor / budi@kandidat.id"
-                        required
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none transition-all bg-white"
-                      />
-                    </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Username / Email
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <User className="h-4 w-4 text-slate-400" />
                   </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-semibold text-slate-700">
-                        Kata Sandi
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setError('Reset kata sandi ditangani oleh panitia. Hubungi admin institusi untuk pemulihan akun.')
-                        }
-                        className="text-[11px] text-blue-accent hover:underline font-semibold cursor-pointer"
-                      >
-                        Lupa sandi?
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                        <Lock className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
-                        required
-                        className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none transition-all bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Kode Token Program Asesmen
-                  </label>
                   <input
                     type="text"
-                    value={programCode}
-                    onChange={(e) => setProgramCode(e.target.value.toUpperCase())}
-                    placeholder="SE-402 / TLN-2026-XXXX"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="superadmin / asesor / budi@kandidat.id"
                     required
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 font-mono text-sm sm:text-base font-bold tracking-wider text-primary-navy uppercase outline-none transition-all bg-white text-center"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none transition-all bg-white"
                   />
-                  <p className="text-[11px] text-muted-slate mt-1.5 text-center">
-                    Kode asesmen tertera di email undangan seleksi dari institusi penguji.
-                  </p>
                 </div>
-              )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Kata Sandi
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setError('Reset kata sandi ditangani oleh panitia. Hubungi admin institusi untuk pemulihan akun.')
+                    }
+                    className="text-[11px] text-blue-accent hover:underline font-semibold cursor-pointer"
+                  >
+                    Lupa sandi?
+                  </button>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none transition-all bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
 
               <div className="pt-2">
                 <Button
@@ -473,19 +393,6 @@ export default function AuthLoginPage() {
                 >
                   <Crown className="w-3.5 h-3.5 text-purple-600" />
                   <span>Superadmin</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleFillDemo('code')}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer flex items-center gap-1.5 ${
-                    loginMode === 'code'
-                      ? 'bg-emerald-50 border-emerald-400 text-emerald-900 font-bold shadow-2xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Token SE-402</span>
                 </button>
               </div>
             </div>

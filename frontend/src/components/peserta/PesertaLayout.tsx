@@ -109,7 +109,6 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
       items: [
         { id: 'dashboard', label: 'Dashboard Peserta', path: '/peserta', icon: LayoutDashboard },
         { id: 'asesmen', label: 'Asesmen Saya', path: '/peserta/asesmen', icon: FileCheck2, badge: '1 Aktif' },
-        { id: 'waiting-room', label: 'Ruang Wawancara', path: '/peserta/waiting-room', icon: Video, badge: interviewCalled ? 'Giliran Anda' : isCatCompleted && faceVerified ? 'Siap' : 'Terkunci' },
         { id: 'hasil', label: 'Hasil Nilai & LHA', path: '/peserta/hasil', icon: CheckCircle2 },
         { id: 'profile', label: 'Profil & Dokumen', path: '/peserta/profile', icon: User },
       ]
@@ -774,7 +773,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
               <div>
                 <p className="font-bold text-rose-950">Giliran wawancara Anda tiba</p>
                 <p className="text-xs text-rose-800 mt-0.5">Sesi peserta sebelumnya selesai. Masuk ke Ruang Wawancara sekarang.</p>
-                <Button variant="primary" size="sm" onClick={() => { setNotifModalOpen(false); navigate('/peserta/waiting-room'); }} className="mt-2 text-xs">Masuk Sekarang</Button>
+                <Button variant="primary" size="sm" onClick={() => { setNotifModalOpen(false); navigate('/peserta/asesmen'); }} className="mt-2 text-xs">Buka Asesmen Saya</Button>
               </div>
             </div>
           )}

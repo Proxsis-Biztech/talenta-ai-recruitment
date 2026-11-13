@@ -471,20 +471,20 @@ export default function PesertaProfile() {
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => navigate('/peserta/waiting-room')}
+                  onClick={() => navigate('/peserta/asesmen')}
                   className="text-xs gap-1.5 cursor-pointer bg-blue-600 hover:bg-blue-700"
                 >
                   <Video className="w-3.5 h-3.5" />
-                  <span>CAT Selesai • Wawancara</span>
+                  <span>Buka Wawancara di Asesmen Saya</span>
                 </Button>
               ) : (
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => navigate(`/peserta/exam/${program.id}`)}
+                  onClick={() => navigate('/peserta/asesmen')}
                   className="text-xs gap-1.5 cursor-pointer"
                 >
-                  <span>Buka Lembar Ujian</span>
+                  <span>Buka Asesmen Saya</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </Button>
               )}
@@ -915,10 +915,10 @@ export default function PesertaProfile() {
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => navigate('/peserta/interview')}
+                  onClick={() => navigate('/peserta/asesmen')}
                   className="text-xs font-bold cursor-pointer"
                 >
-                  Masuk Sesi Wawancara →
+                  Buka Wawancara di Asesmen Saya →
                 </Button>
               </div>
 
@@ -933,11 +933,11 @@ export default function PesertaProfile() {
                 </Button>
                 <Button
                   variant="primary"
-                  onClick={() => navigate(`/peserta/exam/${program.id}`)}
+                  onClick={() => navigate('/peserta/asesmen')}
                   className="text-xs font-bold gap-2 cursor-pointer"
                 >
                   <Laptop className="w-4 h-4" />
-                  <span>Mulai Pengerjaan Ujian Sekarang</span>
+                  <span>Buka Menu Asesmen Saya</span>
                 </Button>
               </div>
             </div>

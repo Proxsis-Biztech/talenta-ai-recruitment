@@ -24,7 +24,6 @@ import { AdminCSVImportWizard } from './admin/AdminCSVImportWizard';
 import { AdminVerticalTimeline } from './admin/AdminVerticalTimeline';
 import { AdminMasterMateriTree } from './admin/AdminMasterMateriTree';
 import { AdminBankSoalEditor } from './admin/AdminBankSoalEditor';
-import { AdminAccessCodes } from './admin/AdminAccessCodes';
 import { AdminCompanyMatrix } from './admin/AdminCompanyMatrix';
 import AdminBillingCredit from './admin/AdminBillingCredit';
 import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
@@ -214,7 +213,7 @@ export default function AdminDashboard() {
     const allowed: AdminMenuKey[] = [
       'dashboard', 'peserta', 'pipeline', 'jobs', 'ranking', 'proctoring', 'users',
       'ai-config', 'audit-logs', 'analytics', 'materi', 'bank-soal', 'perusahaan',
-      'billing', 'access-codes', 'help'
+      'billing', 'help'
     ];
     return menu && allowed.includes(menu as AdminMenuKey) ? (menu as AdminMenuKey) : 'dashboard';
   });
@@ -936,12 +935,6 @@ ${app.interviewResult ? `
       title: 'Program Asesmen',
       subtitle: 'Kelola program asesmen lowongan, kriteria kelulusan, dan bobot evaluasi',
       short: 'Program',
-      dotColor: 'bg-primary-navy'
-    },
-    'access-codes': {
-      title: 'Kode Akses Peserta',
-      subtitle: 'Terbitkan dan kelola token akses program asesmen untuk kandidat',
-      short: 'Akses',
       dotColor: 'bg-primary-navy'
     },
     materi: {
@@ -1806,10 +1799,6 @@ ${app.interviewResult ? `
           ) : activeMenu === 'materi' ? (
             <div className="animate-fade-in">
               <AdminMasterMateriTree />
-            </div>
-          ) : activeMenu === 'access-codes' ? (
-            <div className="animate-fade-in">
-              <AdminAccessCodes />
             </div>
           ) : activeMenu === 'bank-soal' ? (
             <div className="animate-fade-in">

@@ -307,11 +307,11 @@ export default function PesertaDashboard() {
                 <>
                   <button
                     type="button"
-                    onClick={() => navigate('/peserta/waiting-room')}
+                    onClick={() => navigate('/peserta/asesmen')}
                     className="py-3 px-6 rounded-xl font-bold text-xs sm:text-sm bg-white text-primary-navy hover:bg-blue-50 shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer group"
                   >
                     <Video className="w-4 h-4 text-primary-navy" />
-                    <span>Masuk Ruang Tunggu Wawancara</span>
+                    <span>Buka Tahap Wawancara di Asesmen Saya</span>
                     <ArrowRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
                   </button>
                   <button
@@ -333,11 +333,11 @@ export default function PesertaDashboard() {
                   <button
                     type="button"
                     disabled={!profileComplete}
-                    onClick={() => navigate(`/peserta/exam/${activeProgram.id}`)}
+                    onClick={() => navigate('/peserta/asesmen')}
                     className="py-3 px-6 rounded-xl font-bold text-xs sm:text-sm bg-white text-primary-navy hover:bg-blue-50 shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer group disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <PlayCircle className="w-4 h-4 text-primary-navy" />
-                    <span>{profileComplete ? 'Mulai Ujian CAT Sekarang (40 Soal)' : 'Lengkapi Profil untuk Memulai Ujian'}</span>
+                    <span>{profileComplete ? 'Buka Menu Asesmen Saya' : 'Lengkapi Profil untuk Memulai Ujian'}</span>
                     <ArrowRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
                   </button>
                   <button
@@ -558,20 +558,20 @@ export default function PesertaDashboard() {
                 {isCatCompleted ? (
                   <Button
                     variant="primary"
-                    onClick={() => navigate('/peserta/waiting-room')}
+                    onClick={() => navigate('/peserta/asesmen')}
                     className="flex-1 sm:flex-initial text-xs sm:text-sm py-2 px-5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer"
                   >
                     <Video className="w-4 h-4" />
-                    <span>Lanjut ke Wawancara</span>
+                    <span>Buka Wawancara di Asesmen Saya</span>
                   </Button>
                 ) : (
                   <Button
                     variant="primary"
-                    onClick={() => navigate(`/peserta/exam/${activeProgram.id}`)}
+                    onClick={() => navigate('/peserta/asesmen')}
                     className="flex-1 sm:flex-initial text-xs sm:text-sm py-2 px-5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer"
                   >
                     <PlayCircle className="w-4 h-4" />
-                    <span>Buka Lembar Ujian</span>
+                    <span>Akses Soal di Asesmen Saya</span>
                   </Button>
                 )}
               </div>
@@ -638,11 +638,11 @@ export default function PesertaDashboard() {
               <Button
                 variant="outline"
                 disabled={!profileComplete}
-                onClick={() => navigate('/peserta/waiting-room')}
+                onClick={() => navigate('/peserta/asesmen')}
                 className="w-full py-2.5 px-4 rounded-xl text-primary-navy font-bold text-xs flex items-center justify-center gap-2 cursor-pointer bg-soft-blue hover:bg-blue-100/70 border-accent-border"
               >
                 <Clock className="w-4 h-4 text-blue-accent" />
-                <span>{profileComplete ? 'Masuk ke Waiting Room' : 'Lengkapi Profil untuk Wawancara'}</span>
+                <span>{profileComplete ? 'Buka Wawancara di Asesmen Saya' : 'Lengkapi Profil untuk Wawancara'}</span>
               </Button>
             </div>
           </div>
