@@ -50,6 +50,39 @@ interface Job {
 /** Override materi khusus per formasi (hasil edit di modal Ubah Formasi) */
 const MATERI_OVERRIDES_KEY = 'talenta_job_materi_overrides_v1';
 
+function resolveQuestionMateriAndSyllabus(
+  q: QuestionItem,
+  materials: MasterMateriItem[],
+  programTitle?: string
+): { materiLabel: string; silabusLabel: string } {
+  const comp = (q.competency || '').toLowerCase();
+  const matchedMat =
+    materials.find(
+      (m) =>
+        comp &&
+        ((m.title && m.title.toLowerCase().includes(comp)) ||
+          (m.category && m.category.toLowerCase().includes(comp)) ||
+          (m.subcategory && m.subcategory.toLowerCase().includes(comp)) ||
+          (m.content && m.content.toLowerCase().includes(comp)))
+    ) ||
+    (materials.length > 0 ? materials[(Math.max(1, q.id) - 1) % materials.length] : undefined);
+
+  const rawSyllabus = (matchedMat?.content || '')
+    .split(/\n|;/)
+    .map((s: string) => s.replace(/^[\d.\-*•\s]+/, '').trim())
+    .filter(Boolean);
+
+  return {
+    materiLabel: matchedMat?.title || programTitle || 'Materi Program Asesmen',
+    silabusLabel:
+      rawSyllabus[0] ||
+      matchedMat?.subcategory ||
+      matchedMat?.category ||
+      q.competency ||
+      'Silabus Kompetensi Formasi'
+  };
+}
+
 function getPersistedMasterMateri(): MasterMateriItem[] {
   try {
     const saved = localStorage.getItem('talenta_master_materi_table_v2');
@@ -1510,6 +1543,7 @@ export default function JobManagement() {
                     ) : (
                       editVisibleQuestions.map((q) => {
                         const isEditing = editingQId === q.id;
+                        const materiInfo = resolveQuestionMateriAndSyllabus(q, editMaterials, editingJob?.title);
                         return (
                           <div
                             key={q.id}
@@ -1522,14 +1556,6 @@ export default function JobManagement() {
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 font-mono font-bold text-sm flex items-center justify-center border border-indigo-200">
                                   #{q.id.toString().padStart(2, '0')}
-                                </span>
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-900 text-white shadow-2xs">
-                                  <span className="text-slate-400 font-normal">ID Soal:</span>
-                                  <span>{q.questionCode || `SOAL-${editingJob?.code || 'CAT'}-${q.id.toString().padStart(2, '0')}`}</span>
-                                </span>
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-primary-navy border border-blue-200 shadow-2xs">
-                                  <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                  <span>Sumber: <strong className="text-blue-950 font-bold">{q.sourceBank || `Master Bank Soal CAT [${editingJob?.code || 'CAT'}]`}</strong></span>
                                 </span>
                                 <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                                   {questionTypeLabel(q.type)}
@@ -1729,18 +1755,16 @@ export default function JobManagement() {
                             ) : (
                               /* ── Tampilan ringkas (identik modal Lihat Soal & Materi) ── */
                               <div className="space-y-3">
-                                {/* Metadata Sumber Bank Soal & ID Soal */}
-                                <div className="flex items-center gap-2 flex-wrap text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/80 text-slate-600">
-                                  <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                                    <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                    Sumber Bank Soal:
+                                {/* Keterangan Materi & Silabus Program */}
+                                <div className="flex items-center gap-2 flex-wrap text-xs bg-blue-50/60 px-3 py-1.5 rounded-lg border border-blue-200/70 text-slate-700">
+                                  <span className="font-semibold text-primary-navy flex items-center gap-1.5">
+                                    <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    Materi:
                                   </span>
-                                  <span className="text-blue-950 font-semibold">{q.sourceBank || `Master Bank Soal CAT [${editingJob?.code || 'CAT'}]`}</span>
+                                  <span className="font-semibold text-slate-900">{materiInfo.materiLabel}</span>
                                   <span className="text-slate-300">•</span>
-                                  <span className="font-semibold text-slate-700">ID Soal:</span>
-                                  <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300">
-                                    {q.questionCode || `SOAL-${editingJob?.code || 'CAT'}-${q.id.toString().padStart(2, '0')}`}
-                                  </span>
+                                  <span className="font-semibold text-primary-navy">Silabus:</span>
+                                  <span className="text-slate-800">{materiInfo.silabusLabel}</span>
                                 </div>
 
                                 <p className="text-sm sm:text-[15px] font-medium text-slate-900 leading-relaxed">{q.text}</p>
@@ -2150,14 +2174,6 @@ export default function JobManagement() {
                             <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 font-mono font-bold text-sm flex items-center justify-center border border-indigo-200">
                               #{q.id.toString().padStart(2, '0')}
                             </span>
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-900 text-white shadow-2xs">
-                              <span className="text-slate-400 font-normal">ID Soal:</span>
-                              <span>{q.questionCode || `SOAL-${selectedJobDetail.job.code || 'CAT'}-${q.id.toString().padStart(2, '0')}`}</span>
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-primary-navy border border-blue-200 shadow-2xs">
-                              <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                              <span>Sumber: <strong className="text-blue-950 font-bold">{q.sourceBank || `Master Bank Soal CAT [${selectedJobDetail.job.code || 'CAT'} • ${selectedJobDetail.program.companyName || 'Formasi'}]`}</strong></span>
-                            </span>
                             <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                               {q.type === 'single' ? 'Pilihan Ganda' : q.type === 'multi' ? 'Multi-Select' : q.type === 'short' ? 'Isian Singkat' : q.type === 'essay' ? 'Studi Kasus / Esai' : 'Matching'}
                             </span>
@@ -2174,19 +2190,26 @@ export default function JobManagement() {
                           </span>
                         </div>
 
-                        {/* Metadata Sumber Bank Soal & ID Soal */}
-                        <div className="flex items-center gap-2 flex-wrap text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/80 text-slate-600">
-                          <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                            <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                            Sumber Bank Soal CAT:
-                          </span>
-                          <span className="text-blue-950 font-semibold">{q.sourceBank || `Master Bank Soal CAT [${selectedJobDetail.job.code || 'CAT'} • ${selectedJobDetail.program.companyName || 'Formasi'}]`}</span>
-                          <span className="text-slate-300">•</span>
-                          <span className="font-semibold text-slate-700">ID Soal:</span>
-                          <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300">
-                            {q.questionCode || `SOAL-${selectedJobDetail.job.code || 'CAT'}-${q.id.toString().padStart(2, '0')}`}
-                          </span>
-                        </div>
+                        {/* Keterangan Materi & Silabus Program */}
+                        {(() => {
+                          const detailMateriInfo = resolveQuestionMateriAndSyllabus(
+                            q,
+                            selectedJobDetail.materials,
+                            selectedJobDetail.job.title
+                          );
+                          return (
+                            <div className="flex items-center gap-2 flex-wrap text-xs bg-blue-50/60 px-3 py-1.5 rounded-lg border border-blue-200/70 text-slate-700">
+                              <span className="font-semibold text-primary-navy flex items-center gap-1.5">
+                                <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                Materi:
+                              </span>
+                              <span className="font-semibold text-slate-900">{detailMateriInfo.materiLabel}</span>
+                              <span className="text-slate-300">•</span>
+                              <span className="font-semibold text-primary-navy">Silabus:</span>
+                              <span className="text-slate-800">{detailMateriInfo.silabusLabel}</span>
+                            </div>
+                          );
+                        })()}
 
                         {/* Question Body */}
                         <p className="text-sm sm:text-[15px] font-medium text-slate-900 leading-relaxed">
