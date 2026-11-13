@@ -1028,42 +1028,37 @@ export default function UserManagement() {
                   return (
                     <TableRow key={p.id}>
                       <TableCell>
-                        <div className="flex items-start gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-xs text-primary-navy">
+                        <div className="flex items-center gap-2.5 min-w-[200px]">
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-xs text-primary-navy shrink-0">
                             {p.name.charAt(0)}
                           </div>
-                          <div>
-                            <div className="font-semibold text-xs text-ink">{p.name}</div>
-                            <div className="text-[11px] text-muted-slate flex items-center gap-1.5 mt-0.5">
-                              <span className="font-mono text-slate-500">{p.id}</span>
-                              <span>•</span>
-                              <span>{p.username}</span>
-                            </div>
-                            <div className="text-[10px] text-slate-400 mt-0.5">
-                              Sandi: <span className="font-mono text-slate-600 bg-slate-100 px-1 rounded">{p.password}</span>
-                            </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-xs text-ink truncate">{p.name}</div>
+                            <div className="text-[11px] text-muted-slate truncate">{p.username}</div>
                           </div>
                         </div>
                       </TableCell>
 
                       <TableCell>
-                        <div className="space-y-1">
-                          <Badge variant="neutral" format="outline" className="font-medium text-[11px]">
-                            <Building2 className="w-3 h-3 mr-1 text-slate-500" />
-                            {p.companyName}
+                        <div className="space-y-1 whitespace-nowrap">
+                          <Badge variant="neutral" format="outline" className="font-medium text-[11px] whitespace-nowrap">
+                            <Building2 className="w-3 h-3 mr-1 text-slate-500 shrink-0" />
+                            {p.companyName || '-'}
                           </Badge>
-                          <div className="text-[10px] text-slate-400 font-mono pl-1">
-                            Kode: {p.companyId}
-                          </div>
+                          {p.companyId && (
+                            <div className="text-[10px] text-slate-400 font-mono pl-1">
+                              {p.companyId}
+                            </div>
+                          )}
                         </div>
                       </TableCell>
 
                       <TableCell>
-                        <div className="space-y-1">
-                          <span className="font-semibold text-xs text-ink line-clamp-2" title={p.assessmentTitle}>
+                        <div className="space-y-1 max-w-[240px]">
+                          <span className="font-semibold text-xs text-ink block truncate" title={p.assessmentTitle}>
                             {p.assessmentTitle || '-'}
                           </span>
-                          <div className="flex flex-wrap gap-1 mt-0.5">
+                          <div className="flex flex-wrap gap-1">
                             {(p.assignedProgramIds && p.assignedProgramIds.length > 0
                               ? p.assignedProgramIds
                               : p.assessmentId
@@ -1072,7 +1067,7 @@ export default function UserManagement() {
                             ).map((code) => (
                               <span
                                 key={code}
-                                className="text-[10px] text-slate-600 font-mono bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded"
+                                className="text-[10px] text-slate-600 font-mono bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded whitespace-nowrap"
                               >
                                 {code}
                               </span>
@@ -1082,18 +1077,18 @@ export default function UserManagement() {
                       </TableCell>
 
                       <TableCell>
-                        <div className="space-y-1">
-                          <Badge variant={gradeBadgeVariant as any} format="soft" hasDot>
+                        <div className="space-y-1 whitespace-nowrap">
+                          <Badge variant={gradeBadgeVariant as any} format="soft" hasDot className="whitespace-nowrap">
                             {p.gradeLevel}
                           </Badge>
                           <div className="text-[10px] text-slate-500">
-                            40 Soal CAT (Single, Multi, Short, Essay, Matching)
+                            40 Soal CAT
                           </div>
                         </div>
                       </TableCell>
 
                       <TableCell>
-                        <div className="space-y-1">
+                        <div className="space-y-1 whitespace-nowrap">
                           <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                             <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                             <span className="font-semibold text-slate-900 font-mono">
@@ -1106,10 +1101,8 @@ export default function UserManagement() {
                               })()}
                             </span>
                           </div>
-                          <div className="text-[10px] text-slate-500 font-mono pl-5">
-                            09:00 - 11:30 WIB
-                          </div>
-                          <div className="pl-5">
+                          <div className="flex items-center gap-1.5 pl-5">
+                            <span className="text-[10px] text-slate-500 font-mono">09:00-11:30</span>
                             <Badge
                               variant={p.status === 'Selesai' ? 'neutral' : 'teal'}
                               format="soft"
