@@ -604,9 +604,6 @@ export default function PesertaDeviceCheck() {
                   {cameraStatus === 'active' ? 'Webcam Fisik Aktif (Live)' : 'Mode Simulasi Kamera'}
                 </span>
               </div>
-              <span className="bg-primary-navy/80 backdrop-blur-md px-2.5 py-1 rounded-lg text-white text-xs font-mono">
-                OpenCV AI • 30 FPS
-              </span>
             </div>
 
             {/* Simulated Silhouette Frame if camera not active */}
