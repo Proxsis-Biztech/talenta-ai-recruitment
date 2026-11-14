@@ -54,12 +54,14 @@ export default function PesertaDeviceCheck() {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // Diagnostics states (100% manual per-point check, never auto-checked on entry)
+  // Diagnostics states (sequential system diagnostic simulation on entry)
   const [pingMs, setPingMs] = useState<number | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
   const [testingCamera, setTestingCamera] = useState(false);
   const [testingMic, setTestingMic] = useState(false);
+  const [testingSpeaker, setTestingSpeaker] = useState(false);
   const [testingBrowser, setTestingBrowser] = useState(false);
+  const [autoDiagRunning, setAutoDiagRunning] = useState(false);
   const [cameraVerified, setCameraVerified] = useState(false);
   const [micVerified, setMicVerified] = useState(false);
   const [speakerTonePlayed, setSpeakerTonePlayed] = useState(false);
@@ -333,43 +335,61 @@ export default function PesertaDeviceCheck() {
   }, []);
 
   // ──────────────────────────────────────────────
-  // 5. KYC Per-Point Validation Flags & Confirmation (100% Manual Trigger)
+  // 5. Sequential System Device Diagnostic Simulation
   // ──────────────────────────────────────────────
-  const handleCheckCamera = async () => {
-    setTestingCamera(true);
+  const runSequentialDiagnostics = useCallback(async () => {
+    setAutoDiagRunning(true);
     setFaceError('');
+    setCameraVerified(false);
+    setMicVerified(false);
+    setSpeakerTested(false);
+    setConnectionTested(false);
+    setBrowserVerified(false);
+    setPingMs(null);
+
     try {
-      if (cameraStatus !== 'active') {
-        await startRealMedia();
-      }
-      await new Promise((r) => setTimeout(r, 350));
+      // 1. Kamera
+      setTestingCamera(true);
+      await new Promise((r) => setTimeout(r, 450));
       setCameraVerified(true);
+      setTestingCamera(false);
+
+      // 2. Mikrofon
+      setTestingMic(true);
+      await new Promise((r) => setTimeout(r, 450));
+      setMicVerified(true);
+      setTestingMic(false);
+
+      // 3. Speaker
+      setTestingSpeaker(true);
+      await new Promise((r) => setTimeout(r, 450));
+      setSpeakerTested(true);
+      setTestingSpeaker(false);
+
+      // 4. Koneksi Internet (real ping)
+      await handleTestConnection();
+      await new Promise((r) => setTimeout(r, 250));
+
+      // 5. Browser & Layar
+      setTestingBrowser(true);
+      await new Promise((r) => setTimeout(r, 350));
+      setBrowserVerified(true);
+      setTestingBrowser(false);
     } finally {
       setTestingCamera(false);
-    }
-  };
-
-  const handleCheckMic = async () => {
-    setTestingMic(true);
-    setFaceError('');
-    try {
-      await new Promise((r) => setTimeout(r, 350));
-      setMicVerified(true);
-    } finally {
       setTestingMic(false);
-    }
-  };
-
-  const handleCheckBrowser = async () => {
-    setTestingBrowser(true);
-    setFaceError('');
-    try {
-      await new Promise((r) => setTimeout(r, 300));
-      setBrowserVerified(true);
-    } finally {
+      setTestingSpeaker(false);
       setTestingBrowser(false);
+      setAutoDiagRunning(false);
     }
-  };
+  }, [handleTestConnection]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void runSequentialDiagnostics();
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [runSequentialDiagnostics]);
 
   const isCameraOk = cameraVerified && (cameraStatus === 'active' || cameraStatus === 'simulated');
   const isMicOk = micVerified;
@@ -392,39 +412,25 @@ export default function PesertaDeviceCheck() {
   const handleConfirmDeviceCheck = async () => {
     setFaceError('');
 
-    const errors: string[] = [];
-    if (!isCameraOk) {
-      errors.push('Poin 1 (Kamera Web) belum divalidasi. Klik tombol "Cek Kamera".');
+    if (autoDiagRunning) {
+      setFaceError('Sistem sedang menyelesaikan simulasi pengecekan perangkat, mohon tunggu sebentar.');
+      return;
     }
-    if (!isMicOk) {
-      errors.push('Poin 2 (Mikrofon) belum divalidasi. Klik tombol "Cek Mic".');
-    }
-    if (!isSpeakerOk) {
-      errors.push('Poin 3 (Speaker) belum divalidasi. Klik "Putar Nada" lalu konfirmasi "Ya, Terdengar".');
-    }
-    if (!isConnectionOk) {
-      errors.push('Poin 4 (Koneksi Internet) belum diuji. Klik tombol "Uji Koneksi".');
-    }
-    if (!isBrowserOk) {
-      errors.push('Poin 5 (Browser & Layar) belum divalidasi. Klik tombol "Cek Browser".');
+    if (!isCameraOk || !isMicOk || !isSpeakerOk || !isConnectionOk || !isBrowserOk) {
+      setFaceError('Sebagian komponen perangkat belum selesai diuji. Klik "Uji Ulang Sistem" untuk memeriksa kembali.');
+      return;
     }
     if (!isFaceOk) {
-      errors.push('Poin 6 (Foto Wajah KYC) belum diambil. Klik "Ambil Foto Wajah" terlebih dahulu.');
+      setFaceError('Ambil foto wajah KYC terlebih dahulu (klik tombol "Ambil Foto Wajah").');
+      return;
     }
     if (!consentGiven) {
-      errors.push('Persetujuan biometrik & perlindungan data wajib dicentang.');
-    }
-
-    if (errors.length > 0) {
-      setFaceError(errors[0]);
+      setFaceError('Centang persetujuan verifikasi biometrik & integritas ujian terlebih dahulu.');
       return;
     }
 
     setIsValidating(true);
     try {
-      // Diagnostic delay for thorough validation feedback
-      await new Promise((resolve) => setTimeout(resolve, 600));
-
       const token = getPortalToken();
       if (token) {
         const response = await axios.post('/api/portal/device-check/complete', {}, {
@@ -436,6 +442,7 @@ export default function PesertaDeviceCheck() {
       }
       setValidationSuccess(true);
       setFaceError('');
+      navigate('/peserta/asesmen');
     } catch (err) {
       setFaceError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal memvalidasi perangkat.' : 'Gagal memvalidasi perangkat.');
     } finally {
@@ -700,40 +707,52 @@ export default function PesertaDeviceCheck() {
                 </div>
                 <span
                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                    isCameraOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    testingCamera
+                      ? 'bg-blue-100 text-blue-700'
+                      : isCameraOk
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  {isCameraOk ? 'Valid' : 'Belum'}
+                  {testingCamera ? 'Menguji...' : isCameraOk ? 'Valid' : 'Antre'}
                 </span>
               </div>
               <p className="text-[10px] text-muted-slate truncate">
-                {cameraStatus === 'active' ? 'Webcam aktif' : 'Mode simulasi'}
+                {testingCamera ? 'Memeriksa webcam...' : cameraStatus === 'active' ? 'Webcam aktif' : 'Mode simulasi'}
               </p>
-              <button
-                type="button"
-                onClick={handleCheckCamera}
-                disabled={testingCamera}
-                className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                  isCameraOk
-                    ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                    : 'bg-primary-navy hover:bg-slate-800 text-white'
+              <div
+                className={`w-full py-1.5 rounded-lg text-[11px] font-bold text-center flex items-center justify-center gap-1 ${
+                  testingCamera
+                    ? 'bg-blue-50 border border-blue-200 text-blue-700'
+                    : isCameraOk
+                    ? 'bg-white border border-emerald-200 text-emerald-700'
+                    : 'bg-slate-100 border border-slate-200 text-slate-500'
                 }`}
               >
-                {testingCamera ? 'Mengecek...' : isCameraOk ? 'Tervalidasi ✓' : 'Cek Kamera'}
-              </button>
+                {testingCamera ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    <span>Menguji...</span>
+                  </>
+                ) : isCameraOk ? (
+                  <span>Tervalidasi ✓</span>
+                ) : (
+                  <span>Menunggu...</span>
+                )}
+              </div>
             </div>
 
             {/* 2. Mikrofon Sistem */}
             <div
               className={`p-2.5 rounded-xl border flex flex-col justify-between gap-2 ${
-                isMicOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                isMicOk ? 'bg-emerald-50/40 border-emerald-200' : testingMic ? 'bg-blue-50/40 border-blue-200' : 'bg-slate-50 border-slate-200'
               }`}
             >
               <div className="flex items-center justify-between gap-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span
                     className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                      isMicOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+                      isMicOk ? 'bg-emerald-600 text-white' : testingMic ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-700'
                     }`}
                   >
                     {isMicOk ? <Check className="w-3 h-3" /> : '2'}
@@ -742,40 +761,52 @@ export default function PesertaDeviceCheck() {
                 </div>
                 <span
                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                    isMicOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    testingMic
+                      ? 'bg-blue-100 text-blue-700'
+                      : isMicOk
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  {isMicOk ? 'Valid' : 'Belum'}
+                  {testingMic ? 'Menguji...' : isMicOk ? 'Valid' : 'Antre'}
                 </span>
               </div>
               <p className="text-[10px] text-muted-slate truncate">
-                Audio: {audioLevel}%
+                {testingMic ? 'Menguji input audio...' : `Audio: ${audioLevel}%`}
               </p>
-              <button
-                type="button"
-                onClick={handleCheckMic}
-                disabled={testingMic}
-                className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                  isMicOk
-                    ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                    : 'bg-primary-navy hover:bg-slate-800 text-white'
+              <div
+                className={`w-full py-1.5 rounded-lg text-[11px] font-bold text-center flex items-center justify-center gap-1 ${
+                  testingMic
+                    ? 'bg-blue-50 border border-blue-200 text-blue-700'
+                    : isMicOk
+                    ? 'bg-white border border-emerald-200 text-emerald-700'
+                    : 'bg-slate-100 border border-slate-200 text-slate-500'
                 }`}
               >
-                {testingMic ? 'Mengecek...' : isMicOk ? 'Tervalidasi ✓' : 'Cek Mic'}
-              </button>
+                {testingMic ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    <span>Menguji...</span>
+                  </>
+                ) : isMicOk ? (
+                  <span>Tervalidasi ✓</span>
+                ) : (
+                  <span>Menunggu...</span>
+                )}
+              </div>
             </div>
 
             {/* 3. Speaker / Audio Output */}
             <div
               className={`p-2.5 rounded-xl border flex flex-col justify-between gap-2 ${
-                isSpeakerOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                isSpeakerOk ? 'bg-emerald-50/40 border-emerald-200' : testingSpeaker ? 'bg-blue-50/40 border-blue-200' : 'bg-slate-50 border-slate-200'
               }`}
             >
               <div className="flex items-center justify-between gap-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span
                     className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                      isSpeakerOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+                      isSpeakerOk ? 'bg-emerald-600 text-white' : testingSpeaker ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-700'
                     }`}
                   >
                     {isSpeakerOk ? <Check className="w-3 h-3" /> : '3'}
@@ -784,50 +815,57 @@ export default function PesertaDeviceCheck() {
                 </div>
                 <span
                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                    isSpeakerOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    testingSpeaker
+                      ? 'bg-blue-100 text-blue-700'
+                      : isSpeakerOk
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  {isSpeakerOk ? 'Valid' : 'Belum'}
+                  {testingSpeaker ? 'Menguji...' : isSpeakerOk ? 'Valid' : 'Antre'}
                 </span>
               </div>
               <p className="text-[10px] text-muted-slate truncate">
-                {isSpeakerOk ? 'Terdengar jelas' : speakerTonePlayed ? 'Nada terdengar?' : 'Uji suara keluar'}
+                {testingSpeaker ? 'Memeriksa output audio...' : isSpeakerOk ? 'Output audio siap' : 'Menunggu antrean...'}
               </p>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={handleTestSpeaker}
-                  disabled={speakerPlaying}
-                  className="flex-1 py-1.5 px-1.5 rounded-lg bg-white border border-slate-200 hover:border-primary-navy text-[11px] font-semibold text-slate-700 cursor-pointer truncate"
-                >
-                  {speakerPlaying ? 'Putar...' : 'Putar Nada'}
-                </button>
-                {!isSpeakerOk && speakerTonePlayed && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSpeakerTested(true);
-                      setFaceError('');
-                    }}
-                    className="flex-1 py-1.5 px-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer truncate"
-                  >
-                    Ya
-                  </button>
+              <button
+                type="button"
+                onClick={handleTestSpeaker}
+                disabled={speakerPlaying || testingSpeaker}
+                className={`w-full py-1.5 px-2 rounded-lg text-[11px] font-bold transition-colors cursor-pointer truncate flex items-center justify-center gap-1 ${
+                  testingSpeaker
+                    ? 'bg-blue-50 border border-blue-200 text-blue-700'
+                    : isSpeakerOk
+                    ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                    : 'bg-slate-100 border border-slate-200 text-slate-500'
+                }`}
+              >
+                {testingSpeaker ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    <span>Menguji...</span>
+                  </>
+                ) : speakerPlaying ? (
+                  <span>Memutar Nada...</span>
+                ) : isSpeakerOk ? (
+                  <span>Putar Nada ✓</span>
+                ) : (
+                  <span>Menunggu...</span>
                 )}
-              </div>
+              </button>
             </div>
 
             {/* 4. Koneksi Internet */}
             <div
               className={`p-2.5 rounded-xl border flex flex-col justify-between gap-2 ${
-                isConnectionOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                isConnectionOk ? 'bg-emerald-50/40 border-emerald-200' : testingConnection ? 'bg-blue-50/40 border-blue-200' : 'bg-slate-50 border-slate-200'
               }`}
             >
               <div className="flex items-center justify-between gap-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span
                     className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                      isConnectionOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+                      isConnectionOk ? 'bg-emerald-600 text-white' : testingConnection ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-700'
                     }`}
                   >
                     {isConnectionOk ? <Check className="w-3 h-3" /> : '4'}
@@ -836,40 +874,52 @@ export default function PesertaDeviceCheck() {
                 </div>
                 <span
                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                    isConnectionOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    testingConnection
+                      ? 'bg-blue-100 text-blue-700'
+                      : isConnectionOk
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  {isConnectionOk ? 'Valid' : 'Belum'}
+                  {testingConnection ? 'Menguji...' : isConnectionOk ? 'Valid' : 'Antre'}
                 </span>
               </div>
               <p className="text-[10px] text-muted-slate truncate">
-                {testingConnection ? 'Menguji...' : pingMs !== null ? `${pingMs} ms • Stabil` : 'Belum diuji'}
+                {testingConnection ? 'Mengukur latensi...' : pingMs !== null ? `${pingMs} ms • Stabil` : 'Menunggu antrean...'}
               </p>
-              <button
-                type="button"
-                onClick={handleTestConnection}
-                disabled={testingConnection}
-                className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                  isConnectionOk
-                    ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                    : 'bg-primary-navy hover:bg-slate-800 text-white'
+              <div
+                className={`w-full py-1.5 rounded-lg text-[11px] font-bold text-center flex items-center justify-center gap-1 ${
+                  testingConnection
+                    ? 'bg-blue-50 border border-blue-200 text-blue-700'
+                    : isConnectionOk
+                    ? 'bg-white border border-emerald-200 text-emerald-700'
+                    : 'bg-slate-100 border border-slate-200 text-slate-500'
                 }`}
               >
-                {testingConnection ? 'Menguji...' : isConnectionOk ? 'Uji Ulang ✓' : 'Uji Koneksi'}
-              </button>
+                {testingConnection ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    <span>Menguji...</span>
+                  </>
+                ) : isConnectionOk ? (
+                  <span>Tervalidasi ✓</span>
+                ) : (
+                  <span>Menunggu...</span>
+                )}
+              </div>
             </div>
 
             {/* 5. Browser & Layar */}
             <div
               className={`p-2.5 rounded-xl border flex flex-col justify-between gap-2 ${
-                isBrowserOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                isBrowserOk ? 'bg-emerald-50/40 border-emerald-200' : testingBrowser ? 'bg-blue-50/40 border-blue-200' : 'bg-slate-50 border-slate-200'
               }`}
             >
               <div className="flex items-center justify-between gap-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span
                     className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                      isBrowserOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+                      isBrowserOk ? 'bg-emerald-600 text-white' : testingBrowser ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-700'
                     }`}
                   >
                     {isBrowserOk ? <Check className="w-3 h-3" /> : '5'}
@@ -878,27 +928,39 @@ export default function PesertaDeviceCheck() {
                 </div>
                 <span
                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                    isBrowserOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    testingBrowser
+                      ? 'bg-blue-100 text-blue-700'
+                      : isBrowserOk
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  {isBrowserOk ? 'Valid' : 'Belum'}
+                  {testingBrowser ? 'Menguji...' : isBrowserOk ? 'Valid' : 'Antre'}
                 </span>
               </div>
               <p className="text-[10px] text-muted-slate truncate">
-                {screenResolution}
+                {testingBrowser ? 'Mengecek resolusi...' : `${browserInfo.split(' ').slice(-1)[0]} • ${screenResolution}`}
               </p>
-              <button
-                type="button"
-                onClick={handleCheckBrowser}
-                disabled={testingBrowser}
-                className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                  isBrowserOk
-                    ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                    : 'bg-primary-navy hover:bg-slate-800 text-white'
+              <div
+                className={`w-full py-1.5 rounded-lg text-[11px] font-bold text-center flex items-center justify-center gap-1 ${
+                  testingBrowser
+                    ? 'bg-blue-50 border border-blue-200 text-blue-700'
+                    : isBrowserOk
+                    ? 'bg-white border border-emerald-200 text-emerald-700'
+                    : 'bg-slate-100 border border-slate-200 text-slate-500'
                 }`}
               >
-                {testingBrowser ? 'Mengecek...' : isBrowserOk ? 'Tervalidasi ✓' : 'Cek Browser'}
-              </button>
+                {testingBrowser ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    <span>Menguji...</span>
+                  </>
+                ) : isBrowserOk ? (
+                  <span>Tervalidasi ✓</span>
+                ) : (
+                  <span>Menunggu...</span>
+                )}
+              </div>
             </div>
 
             {/* 6. Foto Wajah (KYC) */}
@@ -980,47 +1042,35 @@ export default function PesertaDeviceCheck() {
               )}
             </div>
 
-            <div className="shrink-0">
-              {validationSuccess ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="primary"
-                    onClick={handleProceedToAsesmen}
-                    className="py-2 px-4 text-xs font-bold flex items-center gap-2 rounded-xl cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Tervalidasi • Masuk ke Asesmen Saya</span>
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void runSequentialDiagnostics()}
+                disabled={autoDiagRunning || isValidating}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer disabled:opacity-50"
+              >
+                {autoDiagRunning ? 'Menguji Sistem...' : 'Uji Ulang Sistem'}
+              </button>
+              <Button
+                id="btn-confirm-device"
+                variant="primary"
+                disabled={isValidating || autoDiagRunning}
+                onClick={handleConfirmDeviceCheck}
+                className="w-full lg:w-auto py-2.5 px-5 text-xs font-bold flex items-center justify-center gap-2 shadow-sm rounded-xl cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white transition-all"
+              >
+                {isValidating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Menyimpan &amp; Masuk...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4 text-emerald-100 shrink-0" />
+                    <span>Konfirmasi &amp; Lanjut ke Asesmen ({verifiedPointsCount}/6)</span>
                     <ArrowRight className="w-4 h-4" />
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={() => setValidationSuccess(false)}
-                    className="px-3 py-2 rounded-xl border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                  >
-                    Uji Ulang
-                  </button>
-                </div>
-              ) : (
-                <Button
-                  id="btn-confirm-device"
-                  variant="primary"
-                  disabled={isValidating}
-                  onClick={handleConfirmDeviceCheck}
-                  className="w-full lg:w-auto py-2.5 px-5 text-xs font-bold flex items-center justify-center gap-2 shadow-sm rounded-xl cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white transition-all"
-                >
-                  {isValidating ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Memvalidasi Perangkat...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-4 h-4 text-emerald-100 shrink-0" />
-                      <span>Konfirmasi &amp; Validasi Kesiapan ({verifiedPointsCount}/6)</span>
-                    </>
-                  )}
-                </Button>
-              )}
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
