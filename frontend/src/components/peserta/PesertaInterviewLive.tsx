@@ -109,6 +109,16 @@ export default function PesertaInterviewLive() {
   const [handsFreeMode, setHandsFreeMode] = useState(true);
   const [showManualInput, setShowManualInput] = useState(false);
   const [micErrorMsg, setMicErrorMsg] = useState<string | null>(null);
+  const [micAnswerCaptured, setMicAnswerCaptured] = useState(false);
+  const micAnswerCapturedRef = useRef(false);
+  const markMicAnswerCaptured = () => {
+    micAnswerCapturedRef.current = true;
+    setMicAnswerCaptured(true);
+  };
+  const resetMicAnswerCaptured = () => {
+    micAnswerCapturedRef.current = false;
+    setMicAnswerCaptured(false);
+  };
 
   // Proctoring Character states
   const [proctorMood, setProctorMood] = useState<ProctoringMood>('normal');
@@ -496,6 +506,7 @@ export default function PesertaInterviewLive() {
               });
             }
           } else if (data.type === 'candidateText' && data.text) {
+            markMicAnswerCaptured();
             setUserAnswer((prev) => (prev ? `${prev} ${data.text}` : data.text));
             // Catat suara peserta ke panel transkrip (gabungkan dengan segmen kandidat sebelumnya)
             setMessages((prev) => {
@@ -869,6 +880,7 @@ export default function PesertaInterviewLive() {
             }
             const clean = fullTranscript.trim();
             if (clean) {
+              markMicAnswerCaptured();
               setUserAnswer(clean);
               setLiveInterimText(clean);
             }
@@ -989,6 +1001,7 @@ export default function PesertaInterviewLive() {
     // If client SpeechRecognition already transcribed the candidate's speech,
     // SUBMIT IMMEDIATELY! Skip the slow 4-5 second audio upload and server STT entirely!
     if (transcribedText) {
+      markMicAnswerCaptured();
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         try {
           mediaRecorderRef.current.stop();
@@ -1039,6 +1052,7 @@ export default function PesertaInterviewLive() {
                 cleaned.length >= 2
               ) {
                 transcribedText = cleaned;
+                markMicAnswerCaptured();
                 setUserAnswer(transcribedText);
               }
             }
@@ -1068,6 +1082,20 @@ export default function PesertaInterviewLive() {
 
   // Submit Answer to LangChain & Gemini Live with BARS Rubrics
   const submitAnswerTurn = async (answerText: string, options?: { silent?: boolean }) => {
+    if (!micAnswerCapturedRef.current) {
+      const warning = 'Silakan jawab melalui mikrofon terlebih dahulu. Pertanyaan berikutnya baru aktif setelah suara Anda terekam.';
+      setProctorCustomMessage(warning);
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'Sistem',
+          text: warning,
+          time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+      return;
+    }
+
     const textToSubmit = answerText.trim() || activeQuestion.sampleAnswer || 'Saya telah menjelaskan solusi arsitektur saya secara langsung.';
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
@@ -1124,6 +1152,7 @@ export default function PesertaInterviewLive() {
 
       // Check if candidate merely greeted, checked audio, or asked to repeat
       if (!evalData.shouldAdvanceQuestion) {
+        resetMicAnswerCaptured();
         const reply = evalData.conversationalReply;
         // Mode real-time: balasan Ava sudah tercatat dari stream Gemini Live, jangan duplikasi di transkrip
         if (!options?.silent) {
@@ -1167,6 +1196,7 @@ export default function PesertaInterviewLive() {
       if (nextIdx < updatedQuestions.length) {
         updatedQuestions[nextIdx].status = 'active';
         setCurrentQIndex(nextIdx);
+        resetMicAnswerCaptured();
       } else {
         setIsCompletedModalOpen(true);
       }
@@ -1220,6 +1250,7 @@ export default function PesertaInterviewLive() {
       if (nextIdx < updatedQuestions.length) {
         updatedQuestions[nextIdx].status = 'active';
         setCurrentQIndex(nextIdx);
+        resetMicAnswerCaptured();
         nextAiReply = `Terima kasih ${sessionUser.name}. Jawaban Anda telah diterima dan akan diverifikasi asesor. Sekarang mari kita lanjut ke soal #${nextIdx + 1}: ${updatedQuestions[nextIdx].question}`;
       } else {
         nextAiReply = `Luar biasa, ${sessionUser.name}. Seluruh 4 butir pertanyaan wawancara kompetensi telah selesai dijawab dengan sangat memuaskan.`;
@@ -1258,6 +1289,7 @@ export default function PesertaInterviewLive() {
     if (liveTurnSeq === 0 || liveTurnSeq === liveTurnHandledRef.current) return;
     liveTurnHandledRef.current = liveTurnSeq;
     if (!hasStartedInterviewRef.current) return;
+    if (!micAnswerCapturedRef.current) return;
     const spoken = (liveInterimText || userAnswer).trim();
     if (spoken.length < 2) return;
     void submitAnswerTurn(spoken, { silent: true });
@@ -1270,7 +1302,11 @@ export default function PesertaInterviewLive() {
     if (isListening) {
       await handleStopListeningAndSubmit();
     } else {
-      const text = userAnswer.trim() || activeQuestion.sampleAnswer || 'Saya telah menjelaskan analisis dan jawaban teknis saya secara langsung melalui suara.';
+      const text = userAnswer.trim();
+      if (!text) {
+        setProctorCustomMessage('Silakan gunakan mikrofon dan sampaikan jawaban Anda terlebih dahulu.');
+        return;
+      }
       await submitAnswerTurn(text, { silent: isLiveConnectedRef.current });
     }
   };
@@ -1650,6 +1686,13 @@ export default function PesertaInterviewLive() {
                 </div>
               </div>
 
+              {hasStartedInterview && (
+                <div className={`hidden md:flex items-center gap-1.5 text-[10px] font-bold shrink-0 ${micAnswerCaptured ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${micAnswerCaptured ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                  {micAnswerCaptured ? 'Jawaban mic terekam' : 'Mic wajib sebelum lanjut'}
+                </div>
+              )}
+
               <div className="flex items-center gap-1 sm:gap-2 mx-auto overflow-x-auto max-w-full">
                 {/* Mic */}
                 {isListening ? (
@@ -1922,12 +1965,17 @@ export default function PesertaInterviewLive() {
                     <Button
                       variant="primary"
                       onClick={() => submitAnswerTurn(userAnswer)}
-                      disabled={!userAnswer.trim() || isAiAnalyzing || isTranscribing}
+                      disabled={!micAnswerCaptured || !userAnswer.trim() || isAiAnalyzing || isTranscribing}
                       className="w-full py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <span>Kirim Jawaban Teks</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Button>
+                    {!micAnswerCaptured && (
+                      <p className="text-[10px] text-amber-600 leading-snug">
+                        Gunakan mikrofon terlebih dahulu. Jawaban teks aktif setelah suara Anda terekam pada pertanyaan ini.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

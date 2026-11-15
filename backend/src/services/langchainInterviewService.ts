@@ -395,7 +395,10 @@ Kembalikan HANYA format JSON valid berikut (tanpa blok markdown):
     };
   }
 
-  const shouldAdvance = parsed.shouldAdvanceQuestion !== undefined ? Boolean(parsed.shouldAdvanceQuestion) : true;
+  const rawAdvance = parsed.shouldAdvanceQuestion;
+  const shouldAdvance = rawAdvance === undefined ? true : rawAdvance === true || rawAdvance === 'true';
+  const parsedScore = Number(parsed.score);
+  const finalScore = Number.isFinite(parsedScore) ? parsedScore : 4.8;
   const isGreetingOrClarification = parsed.isGreetingOrClarification !== undefined ? Boolean(parsed.isGreetingOrClarification) : !shouldAdvance;
 
   // Generate Neural Indonesian Speech Audio for conversationalReply
@@ -405,7 +408,7 @@ Kembalikan HANYA format JSON valid berikut (tanpa blok markdown):
   }
 
   return {
-    score: Number(parsed.score) || 4.8,
+    score: finalScore,
     rubricLevel: parsed.rubricLevel || 'Level 4 - Kompeten (Proficient)',
     rubricCriteria: Array.isArray(parsed.rubricCriteria) ? parsed.rubricCriteria : [],
     aiFeedback: parsed.aiFeedback || 'Evaluasi BARS selesai.',
