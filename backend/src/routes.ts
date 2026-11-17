@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 import rateLimit from 'express-rate-limit';
 import { 
   submitApplication, getApplicants, downloadCV, exportApplicantsCSV, 
@@ -69,7 +72,25 @@ const authLimiter = rateLimit({
 });
 
 // Public routes
-router.get('/health', (_req, res) => res.json({ status: 'ok', service: 'talenta-api', timestamp: new Date().toISOString() }));
+router.get('/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return res.json({
+      status: 'ok',
+      service: 'talenta-api',
+      database: 'ok',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Health check failed:', error);
+    return res.status(503).json({
+      status: 'degraded',
+      service: 'talenta-api',
+      database: 'down',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 router.post('/applicants', uploadCV, submitApplication);
 router.get('/jobs', getActiveJobs);
 router.post('/admin/login', authLimiter, login);

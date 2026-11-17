@@ -2011,15 +2011,15 @@ export default function PesertaInterviewLive() {
                     <Button
                       variant="primary"
                       onClick={() => submitAnswerTurn(userAnswer)}
-                      disabled={!micAnswerCaptured || !userAnswer.trim() || isAiAnalyzing || isTranscribing}
+                      disabled={!userAnswer.trim() || isAiAnalyzing || isTranscribing}
                       className="w-full py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <span>Kirim Jawaban Teks</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Button>
                     {!micAnswerCaptured && (
-                      <p className="text-[10px] text-amber-600 leading-snug">
-                        Gunakan mikrofon terlebih dahulu. Jawaban teks aktif setelah suara Anda terekam pada pertanyaan ini.
+                      <p className="text-[10px] text-blue-600 leading-snug">
+                        Mikrofon tidak terdeteksi. Jawaban teks tetap dapat dikirim sebagai cadangan.
                       </p>
                     )}
                   </div>

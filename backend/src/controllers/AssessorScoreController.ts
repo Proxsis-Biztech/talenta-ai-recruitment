@@ -83,8 +83,10 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
       where: { candidateCode, role: 'peserta' },
       select: { tenantId: true }
     });
-    if (tenantId && candidate?.tenantId !== tenantId) {
-      return res.status(403).json({ error: 'Kandidat bukan milik tenant Anda.' });
+    if (tenantId && candidate?.tenantId && candidate.tenantId !== tenantId) {
+      return res.status(403).json({
+        error: 'Kandidat ini terdaftar pada tenant lain. Pastikan akun asesor dan kandidat berada pada tenant yang sama.'
+      });
     }
 
     const signedAt = status === 'signed' ? new Date() : null;

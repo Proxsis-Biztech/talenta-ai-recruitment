@@ -73,6 +73,7 @@ export default function AIConfigView() {
     try {
       const token = localStorage.getItem('adminToken');
       const res = await axios.get('/api/admin/ai/ping', {
+        timeout: 8000,
         headers: { Authorization: `Bearer ${token}` }
       });
       setPingResult(res.data);

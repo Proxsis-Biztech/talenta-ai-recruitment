@@ -221,7 +221,7 @@ export default function AsesorRekapProgram() {
                   {c.compositeScore ?? '—'}
                 </TableCell>
                 <TableCell>
-                  {c.recommendation ? (
+                  {c.recommendation && c.recommendation !== 'BELUM DINILAI' ? (
                     <Badge
                       variant={
                         c.recommendation === 'LANJUT' ? 'success' :

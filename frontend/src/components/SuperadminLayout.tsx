@@ -165,6 +165,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
   });
 
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [tenants, setTenants] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [activeTenantId, setActiveTenantId] = useState<string>(() => localStorage.getItem('activeTenantId') || '');
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -511,16 +512,22 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                 )}
 
                 {/* Notification Bell with Badge */}
-                <button
-                  className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                  title="3 Notifikasi Baru"
-                  aria-label="Notifikasi"
-                >
-                  <Bell className="w-5 h-5" />
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center font-mono shadow-xs">
-                    3
-                  </span>
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setNotifOpen(!notifOpen)}
+                    className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                    title="Notifikasi"
+                    aria-label="Notifikasi"
+                  >
+                    <Bell className="w-5 h-5" />
+                  </button>
+                  {notifOpen && (
+                    <div className="absolute right-0 top-11 w-64 bg-white border border-slate-200 rounded-xl shadow-lg p-4 z-50">
+                      <p className="text-xs font-bold text-slate-800">Notifikasi</p>
+                      <p className="text-[11px] text-slate-500 mt-1">Belum ada notifikasi baru.</p>
+                    </div>
+                  )}
+                </div>
 
                 {/* User Dropdown Pill */}
                 <div className="relative" ref={userMenuRef}>

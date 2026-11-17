@@ -704,7 +704,7 @@ export const getApplicantRanking = async (req: AuthRequest, res: Response) => {
 
 export interface CompositeEvaluation {
   compositeScore: number;
-  recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED';
+  recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED' | 'BELUM DINILAI';
   cvContribution: number;
   interviewContribution: number;
   integrityPenalty: number;
@@ -719,6 +719,18 @@ export function computeCompositeEvaluation(
 ): CompositeEvaluation {
   const cv = screeningScore ?? 0;
   const interview = interviewScore ?? 0;
+
+  if (interviewScore === null || interviewScore === undefined) {
+    return {
+      compositeScore: 0,
+      recommendation: 'BELUM DINILAI',
+      cvContribution: 0,
+      interviewContribution: 0,
+      integrityPenalty: 0,
+      proctorCount: 0,
+      rationale: 'Belum ada penilaian asesor untuk kandidat ini.'
+    };
+  }
   
   let proctorCount = 0;
   try {
@@ -741,7 +753,7 @@ export function computeCompositeEvaluation(
     compositeScore = Math.max(0, Math.round(interview - integrityPenalty));
   }
 
-  let recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED' = 'NOT RECOMMENDED';
+  let recommendation: CompositeEvaluation['recommendation'] = 'NOT RECOMMENDED';
   let rationale = '';
 
   if (compositeScore >= 82 && proctorCount <= 1) {

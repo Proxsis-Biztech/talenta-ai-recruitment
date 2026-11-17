@@ -51,6 +51,22 @@ export const getWaitingRoomStatus = async (req: AuthRequest, res: Response) => {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
     const portalUserId = req.portalUser.id;
 
+    const stale = await prisma.portalUser.findUnique({
+      where: { id: portalUserId },
+      select: { interviewStatus: true, interviewScheduledAt: true }
+    });
+    if (
+      stale &&
+      ['scheduled', 'waiting', 'called', 'in_progress'].includes(stale.interviewStatus) &&
+      stale.interviewScheduledAt &&
+      new Date(stale.interviewScheduledAt).getTime() < Date.now() - 3 * 60 * 60 * 1000
+    ) {
+      await prisma.portalUser.update({
+        where: { id: portalUserId },
+        data: { interviewStatus: 'completed' }
+      });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const initial = await tx.portalUser.findUnique({
         where: { id: portalUserId },

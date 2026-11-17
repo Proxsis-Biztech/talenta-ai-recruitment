@@ -381,7 +381,7 @@ export default function PesertaAsesmenList() {
             ? 'CAT Selesai • Menuju Wawancara'
             : 'Sesi Aktif • Siap Dimulai',
           badgeVariant: intDone ? 'teal' : catDone ? 'navy' : 'warning',
-          duration: `${activeProg.durationMinutes} Menit`,
+          duration: `${primaryServer?.durationMinutes || activeProg.durationMinutes} Menit`,
           questions: `${activeProg.totalQuestions} Soal CAT`,
           passingScore: activeProg.passingScore,
           deadline: 'Hari ini, 23:59 WIB',
@@ -418,7 +418,7 @@ export default function PesertaAsesmenList() {
               ? 'CAT Selesai • Menuju Wawancara'
               : 'Terdaftar • Siap Dimulai',
             badgeVariant: intDone ? 'teal' : catDone ? 'navy' : 'warning',
-            duration: `${catalogData?.durationMinutes || sp?.durationMinutes || 90} Menit`,
+            duration: `${sp?.durationMinutes || catalogData?.durationMinutes || 90} Menit`,
             questions: `${catalogData?.totalQuestions || 40} Soal CAT`,
             passingScore: catalogData?.passingScore || sp?.passingScore || 70,
             deadline: 'Periode Aktif 2026',

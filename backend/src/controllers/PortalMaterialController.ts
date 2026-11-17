@@ -68,18 +68,6 @@ export const getPortalMaterials = async (req: AuthRequest, res: Response) => {
       if (Array.isArray(override) && override.length > 0) items = override;
     }
 
-    if (items.length === 0) {
-      const master = await prisma.masterRecord.findUnique({
-        where: { scope_key: { scope: 'materi', key: 'table' } }
-      });
-      const list = parseJson<any[]>(master?.value, []);
-      if (Array.isArray(list) && list.length > 0) {
-        const context = `${req.portalUser.companyName || ''} ${req.portalUser.assessmentTitle || ''} ${job?.title || ''}`.toLowerCase();
-        const matched = list.filter((item) => isActive(item) && matchesCompany(item, context, req.portalUser?.companyName || ''));
-        items = matched.length > 0 ? matched : list.filter(isActive);
-      }
-    }
-
     if (items.length === 0 && job) {
       items = [
         {

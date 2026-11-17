@@ -68,6 +68,26 @@ const appBaseUrl = (): string => {
   return (origin || 'http://localhost:5173').replace(/\/$/, '');
 };
 
+
+const normalizePhoneNumber = (value: unknown): string => String(value || '').replace(/[\s-]/g, '');
+const isValidPhoneNumber = (value: string): boolean => /^(?:\+62|62|0)8[0-9]{8,12}$/.test(value);
+
+const closeStaleInterviewSession = async <T extends { id: string; interviewStatus: string; interviewScheduledAt?: Date | null }>(
+  user: T
+): Promise<T> => {
+  if (
+    ['scheduled', 'waiting', 'called', 'in_progress'].includes(user.interviewStatus) &&
+    user.interviewScheduledAt &&
+    new Date(user.interviewScheduledAt).getTime() < Date.now() - 3 * 60 * 60 * 1000
+  ) {
+    await prisma.portalUser.update({
+      where: { id: user.id },
+      data: { interviewStatus: 'completed' }
+    });
+    return { ...user, interviewStatus: 'completed' };
+  }
+  return user;
+};
 const issueRefreshToken = async (userId: string): Promise<string> => {
   const token = crypto.randomBytes(48).toString('base64url');
   await prisma.portalRefreshToken.create({
@@ -174,7 +194,10 @@ export const registerPeserta = async (req: AuthRequest, res: Response) => {
     const name = String(req.body.name || '').trim();
     const email = emailSchema.parse(req.body.email);
     const password = passwordSchema.parse(req.body.password);
-    const phone = String(req.body.phone || '').trim() || null;
+    const phone = normalizePhoneNumber(req.body.phone) || null;
+    if (phone && !isValidPhoneNumber(phone)) {
+      return res.status(400).json({ error: 'Nomor WhatsApp tidak valid. Gunakan format 08xxxxxxxxxx atau +62xxxxxxxxxx.' });
+    }
     const programCode = String(req.body.programCode || req.body.assessmentId || '').trim().toUpperCase();
 
     if (name.length < 2) {
@@ -309,7 +332,13 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       if (name.length < 2) return res.status(400).json({ error: 'Nama lengkap wajib diisi.' });
       data.name = name;
     }
-    if (req.body.phone !== undefined) data.phone = String(req.body.phone).trim() || null;
+    if (req.body.phone !== undefined) {
+      const phone = normalizePhoneNumber(req.body.phone);
+      if (phone && !isValidPhoneNumber(phone)) {
+        return res.status(400).json({ error: 'Nomor WhatsApp tidak valid. Gunakan format 08xxxxxxxxxx atau +62xxxxxxxxxx.' });
+      }
+      data.phone = phone || null;
+    }
     for (const field of ['nik', 'education', 'university', 'city', 'portfolioUrl', 'bio', 'employeeNumber', 'department']) {
       if (req.body[field] !== undefined) {
         data[field] = req.body[field] === null ? null : String(req.body[field]);
@@ -463,8 +492,9 @@ export const completeDeviceCheckSession = async (req: AuthRequest, res: Response
 export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
-    const user = await prisma.portalUser.findUnique({ where: { id: req.portalUser.id }, select: userSelect });
-    if (!user) return res.status(404).json({ error: 'Akun tidak ditemukan.' });
+    const foundUser = await prisma.portalUser.findUnique({ where: { id: req.portalUser.id }, select: userSelect });
+    if (!foundUser) return res.status(404).json({ error: 'Akun tidak ditemukan.' });
+    const user = await closeStaleInterviewSession(foundUser);
 
     const programCode = user.assessmentId || '';
     const assignedCodes: string[] = (() => {

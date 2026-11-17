@@ -188,6 +188,11 @@ export const publishProgram = async (req: AuthRequest, res: Response) => {
     const programQuestions = bankQuestions.filter(
       (question) => (question.programCode || programCode) === programCode
     );
+    if (programQuestions.length === 0) {
+      return res.status(400).json({
+        error: 'Bank soal masih kosong. Tambahkan soal asli sebelum mengaktifkan program asesmen.'
+      });
+    }
     let questionCount = await replaceProgramQuestions(programCode, programQuestions);
     if (questionCount === 0) {
       const templateQuestions = await prisma.programQuestion.findMany({

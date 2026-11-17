@@ -370,92 +370,6 @@ export function generateProgramQuestions(
     }
   ];
 
-  let singleIdx = 0;
-  let multiIdx = 0;
-  let shortIdx = 0;
-  let essayIdx = 0;
-  let matchingIdx = 0;
-
-  for (let i = 6; i <= 40; i++) {
-    const qType: QuestionItem['type'] =
-      i % 8 === 0 ? 'matching' : i % 7 === 0 ? 'essay' : i % 5 === 0 ? 'short' : i % 4 === 0 ? 'multi' : 'single';
-    const diff: QuestionItem['difficulty'] =
-      i % 3 === 0 ? (isJunior ? 'Sedang' : 'Sulit') : i % 2 === 0 ? 'Sedang' : (isSenior ? 'Sedang' : 'Mudah');
-
-    if (qType === 'single') {
-      const tpl = variedSinglePrompts[singleIdx % variedSinglePrompts.length];
-      singleIdx += 1;
-      questions.push({
-        id: i,
-        type: 'single',
-        competency: tpl.competency,
-        difficulty: diff,
-        text: `[${gradeLevel}] ${tpl.text}`,
-        explanation: tpl.explanation,
-        options: [
-          { key: 'A', label: tpl.options[0], isCorrect: true },
-          { key: 'B', label: tpl.options[1], isCorrect: false },
-          { key: 'C', label: tpl.options[2], isCorrect: false },
-          { key: 'D', label: tpl.options[3], isCorrect: false }
-        ]
-      });
-    } else if (qType === 'multi') {
-      const tpl = variedMultiPrompts[multiIdx % variedMultiPrompts.length];
-      multiIdx += 1;
-      questions.push({
-        id: i,
-        type: 'multi',
-        competency: tpl.competency,
-        difficulty: diff,
-        text: `[${gradeLevel}] ${tpl.text}`,
-        explanation: tpl.explanation,
-        options: tpl.options.map((opt, idx) => ({
-          key: ['A', 'B', 'C', 'D'][idx],
-          label: opt.text,
-          isCorrect: opt.isCorrect
-        }))
-      });
-    } else if (qType === 'short') {
-      const tpl = variedShortPrompts[shortIdx % variedShortPrompts.length];
-      shortIdx += 1;
-      questions.push({
-        id: i,
-        type: 'short',
-        competency: tpl.competency,
-        difficulty: diff,
-        text: tpl.text,
-        explanation: tpl.explanation,
-        correctAnswer: tpl.correctAnswer,
-        options: []
-      });
-    } else if (qType === 'essay') {
-      const tpl = variedEssayPrompts[essayIdx % variedEssayPrompts.length];
-      essayIdx += 1;
-      questions.push({
-        id: i,
-        type: 'essay',
-        competency: tpl.competency,
-        difficulty: diff,
-        text: tpl.text,
-        explanation: tpl.explanation,
-        options: []
-      });
-    } else {
-      const tpl = variedMatchingPrompts[matchingIdx % variedMatchingPrompts.length];
-      matchingIdx += 1;
-      questions.push({
-        id: i,
-        type: 'matching',
-        competency: tpl.competency,
-        difficulty: diff,
-        text: tpl.text,
-        explanation: tpl.explanation,
-        options: [],
-        matchingPairs: tpl.pairs
-      });
-    }
-  }
-
   return questions;
 }
 
@@ -641,6 +555,10 @@ export const DEFAULT_ASSESSMENT_PROGRAMS: AssessmentProgram[] = [
     questions: generateProgramQuestions('Senior Geoscientist & Subsurface Modeler', 'PT Pertamina Hulu Energi', 'Grade A (Lead / Senior)')
   }
 ];
+
+DEFAULT_ASSESSMENT_PROGRAMS.forEach((program) => {
+  program.totalQuestions = program.questions?.length || 0;
+});
 
 // Local storage management helpers
 const CATALOG_STORAGE_KEY = 'talenta_assessment_programs_catalog';

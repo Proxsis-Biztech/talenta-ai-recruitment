@@ -95,7 +95,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
         { id: 'queue', label: 'Antrean Interview', path: '/asesor/interview-queue', icon: Users, badge: '5 Slot' },
         { id: 'console', label: 'Live Console', path: '/asesor/interview-queue', icon: Video, badge: 'Scoring' },
         { id: 'proctoring', label: 'Review Proctoring', path: '/asesor/proctoring', icon: ShieldAlert, badge: '7 Flag' },
-        { id: 'scoring', label: 'Penilaian & LHA', path: '/asesor/rekap', icon: ClipboardCheck, badge: 'E-Sign' },
+        { id: 'scoring', label: 'Penilaian & LHA', path: '/asesor/scoring', icon: ClipboardCheck, badge: 'E-Sign' },
         { id: 'rekap', label: 'Rekap Program', path: '/asesor/rekap', icon: FileSpreadsheet },
       ]
     },

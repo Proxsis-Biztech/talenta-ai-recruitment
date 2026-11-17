@@ -57,7 +57,7 @@ export default function AsesorLiveConsole() {
     };
   }, [id]);
 
-  const [isRecording, setIsRecording] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
   const [elapsed, setElapsed] = useState(380); // ~6 mins
   const [activeCompetency, setActiveCompetency] = useState<string>('c1');
   const [flagModalOpen, setFlagModalOpen] = useState(false);
@@ -160,6 +160,7 @@ export default function AsesorLiveConsole() {
       const token = getPortalToken();
       if (!token) throw new Error('Sesi asesor tidak ditemukan.');
       const interviewScore = Math.round(totalWeightedScore * 10) / 10;
+      const compositeScoreValue = calculateCompositeScore(candidate?.catScore ?? 0, interviewScore);
       await axios.post('/api/asesor/scores', {
         candidateCode: candidate!.code,
         candidateName: candidate!.name,
@@ -171,8 +172,9 @@ export default function AsesorLiveConsole() {
           notes: rubric.notes
         })),
         interviewScore,
-        compositeScore: calculateCompositeScore(candidate!.catScore ?? 0, interviewScore),
-        recommendation: 'DIPERTIMBANGKAN',
+        compositeScore: compositeScoreValue,
+        recommendation:
+          compositeScoreValue >= 80 ? 'LANJUT' : compositeScoreValue >= 60 ? 'DIPERTIMBANGKAN' : 'TIDAK',
         status: 'draft'
       }, { headers: { Authorization: `Bearer ${token}` } });
       navigate(`/asesor/scoring/${candidate!.code}`);
@@ -297,9 +299,11 @@ export default function AsesorLiveConsole() {
             </div>
 
             {/* OpenCV Live Overlay Box */}
-            <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-[11px] text-emerald-400 font-mono flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Face Tracked • Head Pitch 0.2° (Normal)</span>
+            <div className={`absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-[11px] font-mono flex items-center gap-2 ${
+              isRecording ? 'text-emerald-400' : 'text-slate-400'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${isRecording ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+              <span>{isRecording ? 'Sesi aktif • kamera terpantau' : 'Tidak ada sesi aktif'}</span>
             </div>
           </div>
 

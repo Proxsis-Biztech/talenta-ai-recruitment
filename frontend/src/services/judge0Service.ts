@@ -79,151 +79,44 @@ Kembalikan list status untuk setiap request yang masuk berurutan.`,
     outputDescription: `Array string berisikan 'ALLOWED' atau 'THROTTLED' untuk masing-masing request.`,
     starterCode: {
       python: `def rate_limiter(capacity: int, refill_rate: float, timestamps: list[int]) -> list[str]:
-    # Tulis logika token bucket Anda di sini
-    result = []
-    tokens = capacity
-    last_time = timestamps[0] if timestamps else 0
-    
-    for t in timestamps:
-        # Isi ulang token berdasarkan selisih waktu
-        elapsed = t - last_time
-        tokens = min(capacity, tokens + elapsed * refill_rate)
-        last_time = t
-        
-        if tokens >= 1.0:
-            tokens -= 1.0
-            result.append("ALLOWED")
-        else:
-            result.append("THROTTLED")
-            
-    return result
-
-# Contoh panggil
-if __name__ == "__main__":
-    print(rate_limiter(3, 1, [0, 0, 1, 1, 2, 5]))
+    # TODO: implementasikan algoritma token bucket
+    return []
 `,
       javascript: `function rateLimiter(capacity, refillRate, timestamps) {
-  const result = [];
-  let tokens = capacity;
-  let lastTime = timestamps.length > 0 ? timestamps[0] : 0;
-
-  for (const t of timestamps) {
-    const elapsed = t - lastTime;
-    tokens = Math.min(capacity, tokens + elapsed * refillRate);
-    lastTime = t;
-
-    if (tokens >= 1.0) {
-      tokens -= 1.0;
-      result.push("ALLOWED");
-    } else {
-      result.push("THROTTLED");
-    }
-  }
-  return result;
+  // TODO: implementasikan algoritma token bucket
+  return [];
 }
-
-// Driver Code
-console.log(rateLimiter(3, 1, [0, 0, 1, 1, 2, 5]));
 `,
       typescript: `function rateLimiter(capacity: number, refillRate: number, timestamps: number[]): string[] {
-  const result: string[] = [];
-  let tokens = capacity;
-  let lastTime = timestamps[0] || 0;
-
-  for (const t of timestamps) {
-    const elapsed = t - lastTime;
-    tokens = Math.min(capacity, tokens + elapsed * refillRate);
-    lastTime = t;
-
-    if (tokens >= 1) {
-      tokens -= 1;
-      result.push("ALLOWED");
-    } else {
-      result.push("THROTTLED");
-    }
-  }
-  return result;
+  // TODO: implementasikan algoritma token bucket
+  return [];
 }
 `,
-      cpp: `#include <iostream>
+      cpp: `#include <string>
 #include <vector>
-#include <string>
-#include <algorithm>
 
 std::vector<std::string> rateLimiter(int capacity, double refillRate, const std::vector<int>& timestamps) {
-    std::vector<std::string> result;
-    double tokens = capacity;
-    int lastTime = timestamps.empty() ? 0 : timestamps[0];
-
-    for (int t : timestamps) {
-        int elapsed = t - lastTime;
-        tokens = std::min((double)capacity, tokens + elapsed * refillRate);
-        lastTime = t;
-
-        if (tokens >= 1.0) {
-            tokens -= 1.0;
-            result.push_back("ALLOWED");
-        } else {
-            result.push_back("THROTTLED");
-        }
-    }
-    return result;
+    // TODO: implementasikan algoritma token bucket
+    return {};
 }
 `,
       java: `import java.util.*;
 
-public class Solution {
+public class Main {
     public static List<String> rateLimiter(int capacity, double refillRate, int[] timestamps) {
-        List<String> result = new ArrayList<>();
-        double tokens = capacity;
-        int lastTime = timestamps.length > 0 ? timestamps[0] : 0;
-
-        for (int t : timestamps) {
-            int elapsed = t - lastTime;
-            tokens = Math.min(capacity, tokens + elapsed * refillRate);
-            lastTime = t;
-
-            if (tokens >= 1.0) {
-                tokens -= 1.0;
-                result.add("ALLOWED");
-            } else {
-                result.add("THROTTLED");
-            }
-        }
-        return result;
+        // TODO: implementasikan algoritma token bucket
+        return new ArrayList<>();
     }
 }
 `,
       go: `package main
 
-import (
-    "fmt"
-    "math"
-)
-
 func rateLimiter(capacity float64, refillRate float64, timestamps []int) []string {
-    result := make([]string, 0, len(timestamps))
-    tokens := capacity
-    lastTime := 0
-    if len(timestamps) > 0 {
-        lastTime = timestamps[0]
-    }
-
-    for _, t := range timestamps {
-        elapsed := float64(t - lastTime)
-        tokens = math.Min(capacity, tokens + elapsed*refillRate)
-        lastTime = t
-
-        if tokens >= 1.0 {
-            tokens -= 1.0
-            result = append(result, "ALLOWED")
-        } else {
-            result = append(result, "THROTTLED")
-        }
-    }
-    return result
+    // TODO: implementasikan algoritma token bucket
+    return []string{}
 }
 `
+
     },
     testCases: [
       {

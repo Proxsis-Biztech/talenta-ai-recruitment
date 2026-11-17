@@ -410,8 +410,8 @@ export default function PesertaDeviceCheck() {
     return () => clearTimeout(timer);
   }, [runSequentialDiagnostics]);
 
-  const isCameraOk = cameraVerified && (cameraStatus === 'active' || cameraStatus === 'simulated');
-  const isMicOk = micVerified;
+  const isCameraOk = cameraVerified && cameraStatus === 'active';
+  const isMicOk = micVerified && micStatus === 'active';
   const isSpeakerOk = speakerTested;
   const isConnectionOk = connectionTested && !testingConnection;
   const isBrowserOk = browserVerified;

@@ -76,7 +76,11 @@ export default function AsesorProctoringReview() {
   }, [selectedCode]);
 
   useEffect(() => {
-    const validCount = events.filter((event) => event.status === 'valid').length;
+    const validCount = events.filter(
+      (event) =>
+        event.status === 'valid' &&
+        !String(event.type).toLowerCase().includes('face_verified')
+    ).length;
     setIntegrityScore(Math.max(0, 100 - validCount * 6));
   }, [events]);
 

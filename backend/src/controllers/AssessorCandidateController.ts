@@ -90,6 +90,9 @@ const serializeCandidate = (user: any) => {
 
 const severityFor = (type: string): 'high' | 'medium' | 'low' => {
   const normalized = String(type || '').toLowerCase();
+  if (normalized.includes('face_verified') || normalized.includes('face verified') || normalized.includes('verifikasi wajah')) {
+    return 'low';
+  }
   if (
     ['face', 'multiple', 'tab', 'fullscreen', 'devtools', 'blur', 'hidden', 'leave'].some((key) =>
       normalized.includes(key)

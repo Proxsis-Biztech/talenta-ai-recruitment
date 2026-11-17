@@ -137,31 +137,6 @@ const COMPETENCIES = [
   'Clean Code & Refactoring'
 ];
 
-for (let i = 6; i <= 40; i++) {
-  const comp = COMPETENCIES[(i - 1) % COMPETENCIES.length];
-  const qType: Question['type'] =
-    i % 8 === 0 ? 'matching' : i % 7 === 0 ? 'essay' : i % 5 === 0 ? 'short' : i % 4 === 0 ? 'multi' : 'single';
-  const diff: Question['difficulty'] = i % 3 === 0 ? 'Sulit' : i % 2 === 0 ? 'Sedang' : 'Mudah';
-
-  MOCK_QUESTIONS.push({
-    id: i,
-    type: qType,
-    competency: comp,
-    difficulty: diff,
-    text: `Butir Soal #${i}: Berdasarkan prinsip Clean Architecture dan Domain-Driven Design (DDD), bagaimana pemisahan tanggung jawab yang tepat antara Domain Entity, Domain Service, dan Application Use Case saat menangani validasi transaksi lintas agregat?`,
-    options: [
-      { key: 'A', label: 'Domain Service memegang aturan bisnis murni yang melibatkan banyak agregat, sedangkan Application Use Case mengorkestrasi alur interaksi dan persistensi.' },
-      { key: 'B', label: 'Application Use Case langsung mengakses schema basis data tanpa melalui entitas domain untuk meminimalkan beban komputasi.' },
-      { key: 'C', label: 'Semua validasi bisnis dipusatkan pada sisi controller HTTP agar lapisan core domain tetap murni statis.' },
-      { key: 'D', label: 'Menggunakan trigger database relational untuk mengontrol validasi model dan aturan bisnis transaksi.' }
-    ],
-    matchingPairs: [
-      { left: `Domain Entity #${i}`, rightOptions: ['Core Business Logic & Invariants', 'Data Persistence Layer', 'API Transport Layer'] },
-      { left: `Repository Interface #${i}`, rightOptions: ['Core Business Logic & Invariants', 'Data Persistence Layer', 'API Transport Layer'] }
-    ]
-  });
-}
-
 export default function PesertaExamPlayer() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();

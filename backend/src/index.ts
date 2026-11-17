@@ -41,7 +41,7 @@ app.use((_req, res, next) => {
 });
 
 // Trust proxy so req.protocol/host and X-Forwarded-For are correct behind Coolify/Traefik/Caddy.
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 // Serve static frontend files BEFORE CORS. Vite emits module scripts with `crossorigin`,
 // so same-origin asset requests carry an Origin header; they must never hit the API CORS gate.
