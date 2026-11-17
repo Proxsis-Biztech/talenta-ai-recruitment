@@ -310,6 +310,30 @@ export default function AsesorScoringForm() {
     return response.data.data;
   };
 
+  const downloadLhaPdf = async () => {
+    const token = getPortalToken() || localStorage.getItem('adminToken');
+    if (!token || !candidate?.code) {
+      window.alert('LHA belum tersedia.');
+      return;
+    }
+    try {
+      const response = await axios.get(`/api/asesor/lha/${encodeURIComponent(candidate.code)}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `LHA-${candidate.code}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.alert('LHA bertanda tangan belum tersedia di server.');
+    }
+  };
+
   const printLha = () => {
     if (!lhaHash) {
       window.alert('LHA belum ditandatangani. Finalisasi penilaian terlebih dahulu.');
@@ -847,6 +871,10 @@ export default function AsesorScoringForm() {
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <Button variant="outline" onClick={() => setLhaModalOpen(false)}>
                 Tutup
+              </Button>
+              <Button variant="outline" onClick={() => void downloadLhaPdf()}>
+                <Download className="w-4 h-4 mr-1.5" />
+                <span>Unduh PDF Server</span>
               </Button>
               <Button
                 variant="primary"

@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { recordAuditLog } from '../services/auditService';
 import { type AuthRequest, getJwtSecret } from '../middleware/auth';
+import { buildOtpAuthUrl, generateTotpSecret, verifyTotp } from '../services/totpService';
 
 const prisma = new PrismaClient();
 
@@ -27,6 +28,25 @@ export const login = async (req: AuthRequest, res: Response) => {
 
     if (!isMatch) {
       return res.status(401).json({ error: 'Kredensial tidak valid' });
+    }
+
+    if (admin.twoFactorEnabled) {
+      const code = String(req.body.totp || req.body.code || '').trim();
+      if (!code) {
+        return res.status(401).json({ error: 'Kode verifikasi dua langkah wajib diisi.', twoFactorRequired: true });
+      }
+      if (!admin.twoFactorSecret || !verifyTotp(admin.twoFactorSecret, code)) {
+        recordAuditLog({
+          actor: admin.username,
+          action: 'ADMIN_LOGIN_2FA_FAILED',
+          category: 'AUTH',
+          ip: req.ip || '127.0.0.1',
+          target: 'Admin Auth Gate',
+          details: 'Kode TOTP tidak valid',
+          status: 'FAILED'
+        });
+        return res.status(401).json({ error: 'Kode verifikasi dua langkah tidak valid.', twoFactorRequired: true });
+      }
     }
 
     const token = jwt.sign(
@@ -59,7 +79,7 @@ export const me = async (req: AuthRequest, res: Response) => {
     }
     const admin = await prisma.admin.findFirst({
       where: { username: req.user.username },
-      select: { id: true, username: true, role: true, tenantId: true, tenant: { select: { id: true, code: true, name: true } }, createdAt: true }
+      select: { id: true, username: true, role: true, tenantId: true, twoFactorEnabled: true, tenant: { select: { id: true, code: true, name: true } }, createdAt: true }
     });
     if (!admin) {
       return res.status(404).json({ error: 'Akun admin tidak ditemukan' });
@@ -74,7 +94,7 @@ export const me = async (req: AuthRequest, res: Response) => {
 export const getAdmins = async (req: AuthRequest, res: Response) => {
   try {
     const admins = await prisma.admin.findMany({
-      select: { id: true, username: true, role: true, tenantId: true, tenant: { select: { id: true, code: true, name: true } }, createdAt: true }
+      select: { id: true, username: true, role: true, tenantId: true, twoFactorEnabled: true, tenant: { select: { id: true, code: true, name: true } }, createdAt: true }
     });
     res.json({ data: admins });
   } catch (error) {
@@ -171,5 +191,98 @@ export const updateAdmin = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Update admin error:', error);
     res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+  }
+};
+
+export const setupTwoFactor = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Sesi tidak valid' });
+    const admin = await prisma.admin.findUnique({ where: { id: req.user.id } });
+    if (!admin) return res.status(404).json({ error: 'Akun admin tidak ditemukan' });
+
+    if (admin.twoFactorEnabled) {
+      return res.status(409).json({ error: 'Verifikasi dua langkah sudah aktif. Nonaktifkan terlebih dahulu untuk membuat kunci baru.' });
+    }
+
+    const secret = admin.twoFactorSecret || generateTotpSecret();
+    if (!admin.twoFactorSecret) {
+      await prisma.admin.update({ where: { id: admin.id }, data: { twoFactorSecret: secret } });
+    }
+
+    return res.json({
+      secret,
+      otpauthUrl: buildOtpAuthUrl(secret, admin.username),
+      enabled: admin.twoFactorEnabled
+    });
+  } catch (error) {
+    console.error('Setup 2FA error:', error);
+    return res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+  }
+};
+
+export const enableTwoFactor = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Sesi tidak valid' });
+    const code = String(req.body.code || req.body.totp || '').trim();
+    const admin = await prisma.admin.findUnique({ where: { id: req.user.id } });
+    if (!admin) return res.status(404).json({ error: 'Akun admin tidak ditemukan' });
+    if (!admin.twoFactorSecret) {
+      return res.status(400).json({ error: 'Jalankan penyiapan kunci 2FA terlebih dahulu.' });
+    }
+    if (!verifyTotp(admin.twoFactorSecret, code)) {
+      return res.status(400).json({ error: 'Kode verifikasi tidak valid. Pastikan jam perangkat akurat.' });
+    }
+
+    await prisma.admin.update({ where: { id: admin.id }, data: { twoFactorEnabled: true } });
+    recordAuditLog({
+      actor: admin.username,
+      action: 'ADMIN_2FA_ENABLED',
+      category: 'AUTH',
+      ip: req.ip || '127.0.0.1',
+      target: 'Admin Auth Gate',
+      details: 'Verifikasi dua langkah diaktifkan',
+      status: 'SUCCESS'
+    });
+    return res.json({ message: 'Verifikasi dua langkah berhasil diaktifkan.' });
+  } catch (error) {
+    console.error('Enable 2FA error:', error);
+    return res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+  }
+};
+
+export const disableTwoFactor = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Sesi tidak valid' });
+    const code = String(req.body.code || req.body.totp || '').trim();
+    const password = String(req.body.password || '');
+    const admin = await prisma.admin.findUnique({ where: { id: req.user.id } });
+    if (!admin) return res.status(404).json({ error: 'Akun admin tidak ditemukan' });
+
+    if (admin.twoFactorEnabled) {
+      if (!admin.twoFactorSecret || !verifyTotp(admin.twoFactorSecret, code)) {
+        return res.status(400).json({ error: 'Kode verifikasi tidak valid.' });
+      }
+    }
+    if (password && !(await bcrypt.compare(password, admin.password))) {
+      return res.status(400).json({ error: 'Kata sandi tidak sesuai.' });
+    }
+
+    await prisma.admin.update({
+      where: { id: admin.id },
+      data: { twoFactorEnabled: false, twoFactorSecret: null }
+    });
+    recordAuditLog({
+      actor: admin.username,
+      action: 'ADMIN_2FA_DISABLED',
+      category: 'AUTH',
+      ip: req.ip || '127.0.0.1',
+      target: 'Admin Auth Gate',
+      details: 'Verifikasi dua langkah dinonaktifkan',
+      status: 'SUCCESS'
+    });
+    return res.json({ message: 'Verifikasi dua langkah dinonaktifkan.' });
+  } catch (error) {
+    console.error('Disable 2FA error:', error);
+    return res.status(500).json({ error: 'Terjadi kesalahan pada server' });
   }
 };

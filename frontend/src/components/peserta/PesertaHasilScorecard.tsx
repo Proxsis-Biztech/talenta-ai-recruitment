@@ -16,7 +16,7 @@ import { PesertaLayout } from './PesertaLayout';
 import { Button } from '../ui';
 import RadarChart from '../RadarChart';
 import { getActiveSessionUser } from '../../services/userRegistryService';
-import { getPortalToken } from '../../services/portalAuthService';
+import { getPortalToken, getPortalUser } from '../../services/portalAuthService';
 import { DEFAULT_ASSESSMENT_PROGRAMS, getProgramById } from '../../services/assessmentCatalog';
 
 interface CompetencyScore {
@@ -150,6 +150,31 @@ export default function PesertaHasilScorecard() {
       setDownloading(false);
       window.print();
     }, 300);
+  };
+
+  const handleDownloadLha = async () => {
+    const token = getPortalToken();
+    const candidateCode = getPortalUser()?.candidateCode;
+    if (!token || !candidateCode) {
+      window.alert('LHA resmi belum tersedia untuk akun ini.');
+      return;
+    }
+    try {
+      const response = await axios.get(`/api/asesor/lha/${encodeURIComponent(candidateCode)}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `LHA-${candidateCode}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.alert('LHA bertanda tangan belum tersedia. Menunggu finalisasi asesor.');
+    }
   };
 
   const score = Number(result?.score ?? 0);
@@ -413,6 +438,14 @@ export default function PesertaHasilScorecard() {
               className="w-full sm:w-auto justify-center text-xs sm:text-sm py-2.5 px-4 rounded-xl cursor-pointer"
             >
               Lihat Program Lain
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void handleDownloadLha()}
+              className="w-full sm:w-auto justify-center text-xs sm:text-sm py-2.5 px-4 rounded-xl flex items-center gap-2 font-bold cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>Unduh LHA Resmi</span>
             </Button>
             <Button
               variant="primary"

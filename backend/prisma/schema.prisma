@@ -26,6 +26,8 @@ model Admin {
   role      String   @default("admin") // "superadmin" | "admin"
   tenantId  String?
   tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  twoFactorSecret  String?
+  twoFactorEnabled Boolean @default(false)
   createdAt DateTime @default(now())
 }
 
@@ -84,10 +86,14 @@ model Job {
   status               String      @default("active") // "active" | "inactive"
   interviewDuration    Int?        // Durasi wawancara dalam menit
   interviewPassingScore Int?       // Skor kelulusan (0-100) untuk passing threshold
+  assessmentDate       DateTime?   // Tanggal mulai pelaksanaan asesmen
+  assessmentEndDate    DateTime?   // Tanggal selesai pelaksanaan asesmen
+  caseFiles            String?     // JSON array: [{name, url, mime, size}]
   tenantId             String?
   tenant               Tenant?     @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   createdAt            DateTime    @default(now())
   applicants           Applicant[]
+  classGroups          ClassGroup[]
 }
 
 model PortalUser {
@@ -127,11 +133,103 @@ model PortalUser {
   deviceCheckCompletedAt DateTime?
   mustChangePassword Boolean      @default(false)
   profileCompleted   Boolean      @default(true)
+  twoFactorSecret    String?
+  twoFactorEnabled   Boolean      @default(false)
+  departmentId       String?
+  departmentRef      Department?  @relation("DepartmentMembers", fields: [departmentId], references: [id], onDelete: SetNull)
   status          String          @default("Aktif") // "Aktif" | "Nonaktif"
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   examAttempts    ExamAttempt[]
   assessorScores  AssessorScore[]
+  resetTokens     PasswordResetToken[]
+  refreshTokens   PortalRefreshToken[]
+  recordings      InterviewRecording[]
+  classMembers    ClassMember[]
+  ownedClasses    ClassGroup[]    @relation("ClassOwner")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      PortalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PortalRefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      PortalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model InterviewRecording {
+  id            String   @id @default(uuid())
+  userId        String
+  user          PortalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  candidateCode String?
+  programCode   String?
+  kind          String   @default("audio") // "audio" | "video" | "transcript"
+  fileName      String?
+  mimeType      String?
+  sizeBytes     Int?
+  durationSec   Int?
+  transcript    String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  name      String
+  parentId  String?
+  parent    Department?  @relation("DepartmentTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Department[] @relation("DepartmentTree")
+  level     Int      @default(0)
+  createdAt DateTime @default(now())
+  members   PortalUser[] @relation("DepartmentMembers")
+
+  @@unique([tenantId, parentId, name])
+}
+
+model ClassGroup {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  programCode String?
+  program     Job?     @relation(fields: [programCode], references: [code], onDelete: SetNull)
+  name        String
+  description String?
+  capacity    Int?
+  ownerId     String?
+  owner       PortalUser? @relation("ClassOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  members     ClassMember[]
+
+  @@unique([tenantId, programCode, name])
+}
+
+model ClassMember {
+  id        String   @id @default(uuid())
+  classId   String
+  class     ClassGroup @relation(fields: [classId], references: [id], onDelete: Cascade)
+  userId    String
+  user      PortalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([classId, userId])
+  @@index([userId])
 }
 
 model ExamAttempt {
@@ -149,6 +247,7 @@ model ExamAttempt {
   competencyScores  String?
   status            String   @default("in_progress") // "in_progress" | "submitted" | "graded"
   startedAt         DateTime @default(now())
+  endsAt            DateTime?
   submittedAt       DateTime?
   updatedAt         DateTime @updatedAt
 
@@ -178,6 +277,9 @@ model ProgramQuestion {
   matchingPairs String?
   correctAnswer String?
   points        Int     @default(1)
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentMime String?
 
   @@unique([programCode, orderNo])
 }

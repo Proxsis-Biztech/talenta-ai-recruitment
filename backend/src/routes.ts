@@ -13,16 +13,22 @@ const audioUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }
 });
-import { login, me as getCurrentAdmin, getAdmins, createAdmin, updateAdmin, deleteAdmin } from './controllers/AdminController';
+
+const caseFileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+import { login, me as getCurrentAdmin, getAdmins, createAdmin, updateAdmin, deleteAdmin, setupTwoFactor, enableTwoFactor, disableTwoFactor } from './controllers/AdminController';
 import {
   loginPortal, registerPeserta, googleLogin, tokenLogin, me as getPortalMe, updateProfile, changePassword, completeOnboarding, completeDeviceCheck, completeDeviceCheckSession, getPortalDashboard,
-  listPortalUsers, createPortalUser, updatePortalUser, deletePortalUser
+  listPortalUsers, createPortalUser, updatePortalUser, deletePortalUser,
+  forgotPassword, resetPassword, refreshPortalSession, logoutPortal, getAssessmentHistory, sendPortalUserCredentials
 } from './controllers/PortalAuthController';
 import { createInterviewSessionToken } from './controllers/ApplicantController';
 import { getActiveJobs, getAdminJobs, createJob, updateJob, deleteJob } from './controllers/JobController';
-import { getBillingOverview, requestTopUpQuota, approveInvoice, verifyLhaPublic } from './controllers/BillingController';
+import { getBillingOverview, requestTopUpQuota, approveInvoice, verifyLhaPublic, downloadInvoicePdf } from './controllers/BillingController';
 import { startExam, saveAnswers, submitExam, getExamResult } from './controllers/ExamController';
-import { upsertAssessorScore, listAssessorScores, getAssessorScore, getSignedLha } from './controllers/AssessorScoreController';
+import { upsertAssessorScore, listAssessorScores, getAssessorScore, getSignedLha, downloadLhaPdf } from './controllers/AssessorScoreController';
 import { getProctoringReviews, upsertProctoringReview } from './controllers/ProctoringController';
 import { getInterviewQuestions } from './controllers/InterviewController';
 import {
@@ -30,16 +36,26 @@ import {
   getAssessorCandidate,
   getAssessorCandidateProctoring
 } from './controllers/AssessorCandidateController';
-import { getWaitingRoomStatus, completeAndCallNext } from './controllers/InterviewQueueController';
+import { getWaitingRoomStatus, completeAndCallNext, streamWaitingRoom } from './controllers/InterviewQueueController';
 import { getPortalMaterials } from './controllers/PortalMaterialController';
 import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
 import { listTenants } from './controllers/TenantController';
-import { syncProgramQuestions, publishProgram } from './controllers/ProgramQuestionController';
+import { syncProgramQuestions, publishProgram, uploadQuestionAttachment, uploadProgramCaseFile, deleteProgramCaseFile, getCaseFile } from './controllers/ProgramQuestionController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
 import { uploadExcel, downloadPortalUserTemplate, importPortalUsers } from './controllers/BulkImportController';
 import { runFactSheetMatching } from './services/factSheetService';
 import { authenticateAny, authenticatePortal, authenticateToken, requirePortalRole, requireSuperadmin } from './middleware/auth';
 import { uploadCV } from './middleware/upload';
+import {
+  uploadInterviewRecording, saveInterviewTranscript, listMyRecordings,
+  listCandidateRecordings, downloadRecording
+} from './controllers/InterviewRecordingController';
+import {
+  listDepartments, createDepartment, updateDepartment, deleteDepartment, assignUserDepartment,
+  listClassGroups, createClassGroup, updateClassGroup, deleteClassGroup,
+  listClassMembers, addClassMembers, removeClassMember, assignUserClasses, listMyClasses
+} from './controllers/OrganizationController';
+import { executeJudge0, judge0Status } from './controllers/Judge0Controller';
 
 const router = Router();
 
@@ -64,6 +80,10 @@ router.post('/interview/session-token', authLimiter, createInterviewSessionToken
 router.post('/portal/auth/login', authLimiter, loginPortal);
 router.post('/portal/auth/register', authLimiter, registerPeserta);
 router.post('/portal/auth/token-login', authLimiter, tokenLogin);
+router.post('/portal/auth/forgot-password', authLimiter, forgotPassword);
+router.post('/portal/auth/reset-password', authLimiter, resetPassword);
+router.post('/portal/auth/refresh', refreshPortalSession);
+router.post('/portal/auth/logout', authenticatePortal, logoutPortal);
 router.get('/portal/auth/me', authenticatePortal, getPortalMe);
 router.put('/portal/profile', authenticatePortal, updateProfile);
 router.put('/portal/password', authenticatePortal, changePassword);
@@ -72,6 +92,15 @@ router.post('/portal/device-check', authenticatePortal, completeDeviceCheck);
 router.post('/portal/device-check/complete', authenticatePortal, completeDeviceCheckSession);
 router.get('/portal/dashboard', authenticatePortal, getPortalDashboard);
 router.get('/portal/waiting-room', authenticatePortal, requirePortalRole('peserta'), getWaitingRoomStatus);
+router.get('/portal/waiting-room/stream', authenticatePortal, requirePortalRole('peserta'), streamWaitingRoom);
+router.get('/portal/history', authenticatePortal, getAssessmentHistory);
+router.get('/portal/classes', authenticatePortal, listMyClasses);
+router.post('/portal/interview/recording', authenticatePortal, requirePortalRole('peserta'), audioUpload.single('audio'), uploadInterviewRecording);
+router.post('/portal/interview/transcript', authenticatePortal, requirePortalRole('peserta'), saveInterviewTranscript);
+router.get('/portal/interview/recordings', authenticatePortal, listMyRecordings);
+router.get('/portal/recordings/:id/file', authenticatePortal, downloadRecording);
+router.get('/portal/judge0/status', authenticatePortal, judge0Status);
+router.post('/portal/judge0/execute', authenticatePortal, requirePortalRole('peserta'), executeJudge0);
 router.get('/portal/materials', authenticatePortal, requirePortalRole('peserta'), getPortalMaterials);
 router.post('/asesor/interview/:candidateCode/complete-and-call-next', authenticatePortal, requirePortalRole('asesor'), completeAndCallNext);
 
@@ -115,10 +144,17 @@ router.post('/interview/save', interviewLimiter, saveInterview);
 router.get('/interview/result', getInterviewResultByEmail);
 router.get('/admin/applicants/ranking', authenticateToken, getApplicantRanking);
 router.post('/admin/applicants/:id/score-interview', authenticateToken, scoreInterview);
-router.post('/interview/gemini-turn', evaluateInterviewTurn);
-router.post('/interview/langchain-turn', evaluateInterviewTurn);
-router.post('/interview/transcribe-audio', audioUpload.single('audio'), transcribeAudioHandler);
-router.post('/interview/tts', synthesizeSpeechHandler);
+const aiTurnLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Terlalu banyak permintaan evaluasi AI. Silakan coba lagi beberapa saat.' }
+});
+router.post('/interview/gemini-turn', aiTurnLimiter, evaluateInterviewTurn);
+router.post('/interview/langchain-turn', aiTurnLimiter, evaluateInterviewTurn);
+router.post('/interview/transcribe-audio', aiTurnLimiter, audioUpload.single('audio'), transcribeAudioHandler);
+router.post('/interview/tts', aiTurnLimiter, synthesizeSpeechHandler);
 
 // Admin master data (bank soal, materi, program builder, company matrix, AI config)
 router.get('/admin/master/:scope', authenticateToken, getMasterScope);
@@ -137,6 +173,17 @@ router.post('/admin/programs/:programCode/publish', authenticateToken, publishPr
 // Current admin session
 router.get('/admin/me', authenticateToken, getCurrentAdmin);
 
+// Two-factor authentication for admin accounts
+router.post('/admin/2fa/setup', authenticateToken, setupTwoFactor);
+router.post('/admin/2fa/enable', authenticateToken, enableTwoFactor);
+router.post('/admin/2fa/disable', authenticateToken, disableTwoFactor);
+
+// Study-case document uploads (BR-EX-08 / BR-IB-03)
+router.post('/admin/questions/attachment', authenticateToken, caseFileUpload.single('file'), uploadQuestionAttachment);
+router.post('/admin/programs/:programCode/case-files', authenticateToken, caseFileUpload.single('file'), uploadProgramCaseFile);
+router.delete('/admin/programs/:programCode/case-files/:fileName', authenticateToken, deleteProgramCaseFile);
+router.get('/case-files/:fileName', getCaseFile);
+
 // Portal user management (peserta & asesor accounts)
 router.get('/admin/portal-users/template', authenticateToken, requireSuperadmin, downloadPortalUserTemplate);
 router.post('/admin/portal-users/import', authenticateToken, requireSuperadmin, uploadExcel, importPortalUsers);
@@ -144,6 +191,22 @@ router.get('/admin/portal-users', authenticateToken, listPortalUsers);
 router.post('/admin/portal-users', authenticateToken, createPortalUser);
 router.put('/admin/portal-users/:id', authenticateToken, updatePortalUser);
 router.delete('/admin/portal-users/:id', authenticateToken, deletePortalUser);
+router.post('/admin/portal-users/:id/send-credentials', authenticateToken, sendPortalUserCredentials);
+router.put('/admin/portal-users/:userId/department', authenticateToken, assignUserDepartment);
+router.put('/admin/portal-users/:userId/classes', authenticateToken, assignUserClasses);
+
+// Organization hierarchy & multi-class assignment (BR-MT-01, M3, M4)
+router.get('/admin/departments', authenticateToken, listDepartments);
+router.post('/admin/departments', authenticateToken, createDepartment);
+router.put('/admin/departments/:id', authenticateToken, updateDepartment);
+router.delete('/admin/departments/:id', authenticateToken, deleteDepartment);
+router.get('/admin/classes', authenticateToken, listClassGroups);
+router.post('/admin/classes', authenticateToken, createClassGroup);
+router.put('/admin/classes/:id', authenticateToken, updateClassGroup);
+router.delete('/admin/classes/:id', authenticateToken, deleteClassGroup);
+router.get('/admin/classes/:id/members', authenticateToken, listClassMembers);
+router.post('/admin/classes/:id/members', authenticateToken, addClassMembers);
+router.delete('/admin/classes/:id/members/:userId', authenticateToken, removeClassMember);
 
 router.get('/asesor/candidates', authenticatePortal, requirePortalRole('asesor'), listAssessorCandidates);
 router.get('/asesor/candidates/:candidateCode', authenticatePortal, requirePortalRole('asesor'), getAssessorCandidate);
@@ -157,6 +220,8 @@ router.post('/asesor/scores', authenticatePortal, requirePortalRole('asesor'), u
 router.get('/asesor/scores', authenticateAny, listAssessorScores);
 router.get('/asesor/scores/:candidateCode', authenticateAny, getAssessorScore);
 router.get('/asesor/lha/:candidateCode', authenticateAny, getSignedLha);
+router.get('/asesor/lha/:candidateCode/pdf', authenticateAny, downloadLhaPdf);
+router.get('/asesor/candidates/:candidateCode/recordings', authenticatePortal, requirePortalRole('asesor'), listCandidateRecordings);
 
 // Admin Management routes (superadmin only)
 router.get('/admin/users', authenticateToken, requireSuperadmin, getAdmins);
@@ -172,6 +237,7 @@ router.get('/admin/ai/ping', authenticateToken, requireSuperadmin, testAiLatency
 router.get('/admin/billing/overview', authenticateToken, getBillingOverview);
 router.post('/admin/billing/topup', authenticateToken, requestTopUpQuota);
 router.put('/admin/billing/invoices/:invoiceId/approve', authenticateToken, requireSuperadmin, approveInvoice);
+router.get('/admin/billing/invoices/:invoiceId/pdf', authenticateToken, downloadInvoicePdf);
 
 // In-Basket AI Fact Sheet Matching (BRD BR-FS-04, BR-IB-03)
 // Called from the Asesor scoring console, which has no backend session identity yet,

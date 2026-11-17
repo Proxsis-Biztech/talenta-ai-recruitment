@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { type AuthRequest } from '../middleware/auth';
 import { resolveAdminTenantId } from '../middleware/tenant';
+import { buildPdf, formatDateId, rupiah, type PdfBlock } from '../services/pdfService';
 
 const prisma = new PrismaClient();
 
@@ -421,5 +422,69 @@ export const verifyLhaPublic = async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     return res.status(500).json({ valid: false, error: err.message || 'Gagal memverifikasi LHA' });
+  }
+};
+
+
+export const downloadInvoicePdf = async (req: AuthRequest, res: Response) => {
+  try {
+    await ensureBillingSeeded();
+    const invoice = await prisma.billingInvoice.findUnique({
+      where: { id: String(req.params.invoiceId) },
+      include: { tenant: true }
+    });
+    if (!invoice) return res.status(404).json({ error: 'Invoice tidak ditemukan' });
+
+    const tenant = invoice.tenant;
+    const blocks: PdfBlock[] = [
+      { type: 'heading' as const, text: 'INVOICE TAGIHAN' },
+      { type: 'kv' as const, label: 'Nomor Invoice', value: invoice.invoiceNumber },
+      { type: 'kv' as const, label: 'Tanggal Terbit', value: formatDateId(invoice.date) },
+      { type: 'kv' as const, label: 'Jatuh Tempo', value: formatDateId(invoice.dueDate) },
+      { type: 'kv' as const, label: 'Status', value: invoice.status === 'PAID_APPROVED' ? 'LUNAS / DISETUJUI' : invoice.status === 'REJECTED' ? 'DITOLAK' : 'MENUNGGU PERSETUJUAN' },
+      { type: 'rule' as const },
+      { type: 'heading' as const, text: 'Ditagihkan Kepada', size: 11 },
+      { type: 'text' as const, text: tenant.name },
+      { type: 'text' as const, text: `${tenant.industry} - ${tenant.contactPerson}` },
+      { type: 'text' as const, text: tenant.email },
+      { type: 'spacer' as const, height: 6 },
+      { type: 'heading' as const, text: 'Rincian Layanan', size: 11 },
+      {
+        type: 'table' as const,
+        columns: ['Deskripsi', 'Volume', 'Harga Satuan', 'Jumlah'],
+        widths: [0.46, 0.14, 0.2, 0.2],
+        rows: [[
+          'Kuota asesmen kandidat Talenta+',
+          `${invoice.requestedQuota} kandidat`,
+          rupiah(tenant.ratePerCandidate),
+          rupiah(invoice.subtotal)
+        ]]
+      },
+      { type: 'kv' as const, label: 'Subtotal', value: rupiah(invoice.subtotal) },
+      { type: 'kv' as const, label: 'PPN 11%', value: rupiah(invoice.ppn11) },
+      { type: 'kv' as const, label: 'Total Tagihan', value: rupiah(invoice.totalAmount) },
+      { type: 'spacer' as const, height: 8 },
+      { type: 'heading' as const, text: 'Instruksi Pembayaran', size: 11 },
+      { type: 'text' as const, text: invoice.paymentMethod },
+      { type: 'text' as const, text: invoice.bankAccount },
+      { type: 'text' as const, text: 'Cantumkan nomor invoice pada berita transfer. Bukti pembayaran diunggah melalui portal billing untuk proses verifikasi.' },
+    ];
+
+    if (invoice.approvedAt) {
+      blocks.push({ type: 'spacer' as const, height: 6 });
+      blocks.push({ type: 'text' as const, text: `Disetujui oleh ${invoice.approvedBy || 'superadmin'} pada ${formatDateId(invoice.approvedAt)}.` });
+    }
+
+    const pdf = buildPdf(blocks, {
+      title: 'Talenta+ - Invoice Resmi',
+      subtitle: invoice.invoiceNumber,
+      footer: 'Dokumen diterbitkan otomatis oleh sistem billing Talenta+'
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.invoiceNumber.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf"`);
+    return res.send(pdf);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Gagal membuat PDF invoice' });
   }
 };

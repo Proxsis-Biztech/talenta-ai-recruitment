@@ -35,9 +35,21 @@ export const getJwtSecret = (): string => {
 
 const extractToken = (req: Request): string | null => {
   const authHeader = req.headers['authorization'];
-  if (!authHeader) return null;
-  const [scheme, token] = authHeader.split(' ');
-  return scheme?.toLowerCase() === 'bearer' && token ? token : null;
+  if (authHeader) {
+    const [scheme, token] = authHeader.split(' ');
+    if (scheme?.toLowerCase() === 'bearer' && token) return token;
+  }
+  // EventSource cannot set headers; only accept query tokens on SSE stream endpoints.
+  if (req.method === 'GET' && req.path.endsWith('/stream') && typeof req.query.token === 'string') {
+    return req.query.token;
+  }
+  return null;
+};
+
+export const portalTokenTtl = (role: string): string => {
+  if (role === 'asesor') return '24h';
+  if (role === 'admin' || role === 'superadmin') return '12h';
+  return '8h';
 };
 
 export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {

@@ -97,7 +97,13 @@ export default function PesertaInterviewLive() {
   const volumeAnimRef = useRef<number | null>(null);
   const aiAudioElementRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  useEffect(() => {
+    sessionStartedAtRef.current = Date.now();
+  }, []);
+
   const audioChunksRef = useRef<Blob[]>([]);
+  const sessionAudioRef = useRef<Blob[]>([]);
+  const sessionStartedAtRef = useRef<number>(0);
   const speechRecognitionRef = useRef<any>(null);
   const isListeningRef = useRef<boolean>(false);
   const liveTurnHandledRef = useRef(0);
@@ -830,6 +836,10 @@ export default function PesertaInterviewLive() {
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
           audioChunksRef.current.push(e.data);
+          if (e.data && e.data.size > 0) {
+            sessionAudioRef.current.push(e.data);
+            if (sessionAudioRef.current.length > 600) sessionAudioRef.current.shift();
+          }
         }
       };
       mediaRecorderRef.current = recorder;
@@ -1331,6 +1341,42 @@ export default function PesertaInterviewLive() {
           proctor: [{ type: 'face_verified', timestamp: new Date().toISOString() }]
         })
       });
+
+      const token = getPortalToken();
+      if (token) {
+        const durationSec = Math.max(1, Math.round((Date.now() - sessionStartedAtRef.current) / 1000));
+        try {
+          await axios.post(
+            '/api/portal/interview/transcript',
+            {
+              transcript: formattedTranscript,
+              programCode: sessionUser.assessmentId,
+              durationSec
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        } catch (transcriptError) {
+          console.warn('Save transcript error:', transcriptError);
+        }
+
+        const audioChunks = sessionAudioRef.current;
+        if (audioChunks.length > 0) {
+          const audioBlob = new Blob(audioChunks, { type: audioChunks[0]?.type || 'audio/webm' });
+          if (audioBlob.size > 1500 && audioBlob.size <= 25 * 1024 * 1024) {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, `interview-${sessionUser.id || 'peserta'}.webm`);
+            formData.append('durationSec', String(durationSec));
+            if (sessionUser.assessmentId) formData.append('programCode', sessionUser.assessmentId);
+            try {
+              await axios.post('/api/portal/interview/recording', formData, {
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+              });
+            } catch (recordingError) {
+              console.warn('Upload recording error:', recordingError);
+            }
+          }
+        }
+      }
     } catch (e) {
       console.warn('Save interview error:', e);
     }

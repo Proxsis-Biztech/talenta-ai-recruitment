@@ -8,7 +8,7 @@ import {
   X, Menu, Brain, Radio, Sun, Mail, Phone,
   GraduationCap, MapPin, BookOpen, Award, Building,
   Star, Eye, Printer, ShieldAlert, BarChart3, AlertTriangle, Target, Activity,
-  Copy, Check, Send, Layers, Loader2, FileCheck, ArrowUpRight, CheckSquare, Video, Sliders, Plus
+  Copy, Check, Send, Layers, Loader2, FileCheck, ArrowUpRight, CheckSquare, Video, Sliders, Plus, Network
 } from 'lucide-react';
 import UserManagement from './UserManagement';
 import JobManagement from './JobManagement';
@@ -25,6 +25,8 @@ import { AdminVerticalTimeline } from './admin/AdminVerticalTimeline';
 import { AdminMasterMateriTree } from './admin/AdminMasterMateriTree';
 import { AdminBankSoalEditor } from './admin/AdminBankSoalEditor';
 import { AdminCompanyMatrix } from './admin/AdminCompanyMatrix';
+import AdminOrgStructure from './admin/AdminOrgStructure';
+import AdminSecurityCard from './admin/AdminSecurityCard';
 import AdminBillingCredit from './admin/AdminBillingCredit';
 import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
 import Swal from 'sweetalert2';
@@ -906,6 +908,7 @@ ${app.interviewResult ? `
         { key: 'dashboard', label: 'Dashboard Utama', icon: LayoutDashboard },
         { key: 'pipeline', label: 'Pipeline Seleksi', icon: Layers, badge: 'Kanban' },
         { key: 'jobs', label: 'Lowongan Kerja', icon: Briefcase },
+        { key: 'organisasi', label: 'Organisasi & Kelas', icon: Network },
       ]
     },
     {
@@ -1811,6 +1814,7 @@ ${app.interviewResult ? `
             </div>
           ) : activeMenu === 'users' ? (
             <div className="animate-fade-in">
+              <AdminSecurityCard />
               <UserManagement />
             </div>
           ) : activeMenu === 'ai-config' ? (
@@ -1834,6 +1838,10 @@ ${app.interviewResult ? `
           ) : activeMenu === 'bank-soal' ? (
             <div className="animate-fade-in">
               <AdminBankSoalEditor />
+            </div>
+          ) : activeMenu === 'organisasi' ? (
+            <div className="animate-fade-in">
+              <AdminOrgStructure />
             </div>
           ) : activeMenu === 'perusahaan' ? (
             <div className="animate-fade-in">

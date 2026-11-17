@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import { type AuthRequest } from '../middleware/auth';
 import { resolveAdminTenantId } from '../middleware/tenant';
+import { buildPdf, formatDateId, type PdfBlock } from '../services/pdfService';
 
 const prisma = new PrismaClient();
 
@@ -229,5 +230,75 @@ export const getSignedLha = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Get signed LHA error:', error);
     return res.status(500).json({ error: 'Gagal memuat LHA.' });
+  }
+};
+
+export const downloadLhaPdf = async (req: AuthRequest, res: Response) => {
+  try {
+    const candidateCode = String(req.params.candidateCode).trim();
+    if (!candidateCode) return res.status(400).json({ error: 'Kode kandidat wajib diisi.' });
+
+    if (req.portalUser?.role === 'peserta' && req.portalUser.candidateCode !== candidateCode) {
+      return res.status(403).json({ error: 'Anda hanya dapat mengunduh LHA milik sendiri.' });
+    }
+
+    const tenantId = tenantForRequest(req);
+    const candidateCodes = await candidateCodesForTenant(tenantId);
+    const score = await prisma.assessorScore.findFirst({
+      where: {
+        candidateCode,
+        status: 'signed',
+        ...(candidateCodes ? { candidateCode: { in: candidateCodes } } : {})
+      },
+      orderBy: { signedAt: 'desc' }
+    });
+    if (!score) return res.status(404).json({ error: 'LHA bertanda tangan belum tersedia.' });
+
+    const competencies = parseJson<Array<Record<string, unknown>>>(score.competencies, []);
+    const blocks: PdfBlock[] = [
+      { type: 'heading', text: 'LAPORAN HASIL ASESMEN (LHA)' },
+      { type: 'kv', label: 'Nomor LHA', value: score.lhaNumber || '-' },
+      { type: 'kv', label: 'Kode Kandidat', value: score.candidateCode },
+      { type: 'kv', label: 'Nama Kandidat', value: score.candidateName },
+      { type: 'kv', label: 'Program Asesmen', value: score.programTitle },
+      { type: 'kv', label: 'Tanggal Ditandatangani', value: formatDateId(score.signedAt) },
+      { type: 'rule' },
+      { type: 'heading', text: 'Skor Kompetensi', size: 11 },
+      {
+        type: 'table',
+        columns: ['Kompetensi', 'Rating', 'Catatan'],
+        widths: [0.42, 0.14, 0.44],
+        rows: competencies.length
+          ? competencies.map((item) => [
+              String(item.name || item.competency || item.label || '-'),
+              String(item.rating ?? item.score ?? '-'),
+              String(item.note || item.notes || item.evidence || '-')
+            ])
+          : [['Belum ada rincian kompetensi', '-', '-']]
+      },
+      { type: 'kv', label: 'Skor Wawancara', value: String(score.interviewScore) },
+      { type: 'kv', label: 'Skor Komposit', value: String(score.compositeScore) },
+      { type: 'kv', label: 'Rekomendasi Asesor', value: score.recommendation },
+      { type: 'spacer', height: 6 },
+      { type: 'heading', text: 'Catatan Asesor', size: 11 },
+      { type: 'text', text: score.notes || 'Tidak ada catatan tambahan.' },
+      { type: 'rule' },
+      { type: 'text', text: 'Dokumen ini ditandatangani secara elektronik. Verifikasi keaslian melalui hash SHA-256 berikut:' },
+      { type: 'text', text: score.lhaHash || '-', size: 9 },
+      { type: 'text', text: 'Hasil asesmen bersifat rekomendasi profesional asesor. Keputusan akhir mengikuti kebijakan pemberi tugas.' }
+    ];
+
+    const pdf = buildPdf(blocks, {
+      title: 'Talenta+ - Laporan Hasil Asesmen',
+      subtitle: score.lhaNumber || score.candidateCode,
+      footer: 'Solusi Asesmen Indonesia (SAI) & Proxsis Talent Force'
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="LHA-${score.candidateCode}.pdf"`);
+    return res.send(pdf);
+  } catch (error) {
+    console.error('Download LHA PDF error:', error);
+    return res.status(500).json({ error: 'Gagal membuat PDF LHA.' });
   }
 };

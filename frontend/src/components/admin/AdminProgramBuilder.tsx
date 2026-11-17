@@ -174,7 +174,9 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
           description: programInfo.name,
           durationMinutes: catStage?.durationMin || 90,
           passingScore: programInfo.passingGrade,
-          status: 'active'
+          status: 'active',
+          assessmentDate: programInfo.startDate || null,
+          assessmentEndDate: programInfo.endDate || null
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -324,7 +326,7 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block font-bold text-ink mb-1">Mulai</label>
+                <label className="block font-bold text-ink mb-1">Tanggal Asesmen</label>
                 <input
                   type="date"
                   value={programInfo.startDate}
@@ -333,7 +335,7 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
                 />
               </div>
               <div>
-                <label className="block font-bold text-ink mb-1">Selesai</label>
+                <label className="block font-bold text-ink mb-1">Tanggal Selesai</label>
                 <input
                   type="date"
                   value={programInfo.endDate}
@@ -518,9 +520,14 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
                 {/* Preview Ringkas Card */}
                 <div className="mt-4 pt-3 border-t border-slate-100 p-3 bg-slate-50 rounded-xl space-y-2">
                   <span className="text-[10px] uppercase font-bold text-slate-400">Preview Tampilan Kandidat:</span>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-ink">{current.name}</span>
-                    <span className="text-emerald-700 font-bold font-mono">Min: {current.passingScore}</span>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="font-bold text-ink min-w-0 truncate">{current.name}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge variant={programInfo.status === 'Published' ? 'success' : 'neutral'} format="soft" className="text-[10px]">
+                        {programInfo.status === 'Published' ? 'Aktif' : 'Draft'}
+                      </Badge>
+                      <span className="text-emerald-700 font-bold font-mono">Min: {current.passingScore}</span>
+                    </div>
                   </div>
                   <p className="text-[11px] text-muted-slate line-clamp-2">{current.description}</p>
                 </div>

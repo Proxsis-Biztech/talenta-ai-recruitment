@@ -3,6 +3,8 @@
  * Supports multi-language execution (Python, JS, TS, Java, C++, Go)
  * with automated test cases evaluation and realistic runtime metrics.
  */
+import axios from 'axios';
+import { getPortalToken } from './portalAuthService';
 
 export interface CodingProblem {
   id: string;
@@ -533,6 +535,75 @@ export async function executeJudge0Code(
   languageKey: string,
   sourceCode: string
 ): Promise<Judge0SubmissionResult> {
+  const token = getPortalToken();
+  if (token && sourceCode.trim()) {
+    try {
+      const response = await axios.post(
+        '/api/portal/judge0/execute',
+        {
+          language: languageKey,
+          sourceCode,
+          testCases: problem.testCases.map((testCase) => ({
+            stdin: testCase.input,
+            expectedOutput: testCase.expectedOutput
+          }))
+        },
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 60000 }
+      );
+
+      const results = Array.isArray(response.data?.results) ? response.data.results : [];
+      if (results.length > 0) {
+        const testDetails = results.map((result: any, index: number) => ({
+          testId: problem.testCases[index]?.id ?? index + 1,
+          passed: Boolean(result.passed),
+          input: problem.testCases[index]?.input || '',
+          expected: problem.testCases[index]?.expectedOutput || '',
+          actual: String(result.stdout || result.stderr || '').trim() || 'null',
+          executionTimeMs: Math.round(Number(result.time || 0) * 1000)
+        }));
+        const passedTests = testDetails.filter((detail: any) => detail.passed).length;
+        const totalTests = testDetails.length;
+        const firstError = results.find((result: any) => result.compileOutput)?.compileOutput
+          || results.find((result: any) => result.stderr)?.stderr
+          || null;
+        return {
+          stdout: results.map((result: any) => result.stdout).filter(Boolean).join('\n') || null,
+          stderr: firstError,
+          compile_output: results.find((result: any) => result.compileOutput)?.compileOutput || null,
+          message: passedTests === totalTests ? 'Accepted' : 'Wrong Answer',
+          time: String(results.reduce((acc: number, result: any) => acc + Number(result.time || 0), 0).toFixed(3)),
+          memory: Math.max(...results.map((result: any) => Number(result.memory || 0))),
+          status: {
+            id: passedTests === totalTests ? 3 : 4,
+            description: passedTests === totalTests ? 'Accepted' : 'Wrong Answer'
+          },
+          passedTests,
+          totalTests,
+          testDetails
+        };
+      }
+    } catch (error) {
+      if (!axios.isAxiosError(error) || error.response?.status !== 503) {
+        const message = axios.isAxiosError(error)
+          ? error.response?.data?.error || error.message
+          : 'Judge0 tidak dapat dihubungi.';
+        return {
+          stdout: null,
+          stderr: message,
+          compile_output: null,
+          message: 'Execution Failed',
+          time: '0.000',
+          memory: 0,
+          status: { id: 13, description: 'Internal Error' },
+          passedTests: 0,
+          totalTests: problem.testCases.length,
+          testDetails: []
+        };
+      }
+      // 503 = Judge0 not configured; fall back to the deterministic simulator below.
+    }
+  }
+
   // Simulated small network delay to imitate Judge0 sandbox submission
   await new Promise((r) => setTimeout(r, 650));
 

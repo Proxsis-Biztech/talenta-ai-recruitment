@@ -39,6 +39,7 @@ export type AdminMenuKey =
   | 'materi'
   | 'bank-soal'
   | 'perusahaan'
+  | 'organisasi'
   | 'billing'
   | 'ranking'
   | 'pipeline'

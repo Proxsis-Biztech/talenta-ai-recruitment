@@ -14,6 +14,7 @@ export interface ProctoringViolationEvent {
     | 'OBJECT_DETECTED'
     | 'SHARE_SCREEN_STOPPED'
     | 'VIRTUAL_BG_DETECTED'
+    | 'VIRTUAL_CAMERA'
     | 'AUTO_SUBMIT_LEAVE';
   timestamp: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
@@ -39,13 +40,53 @@ export interface ProctoringConfig {
   onMaxViolationsReached?: () => void;
 }
 
+const VIRTUAL_CAMERA_PATTERNS = [
+  'virtual',
+  'obs',
+  'manycam',
+  'xsplit',
+  'snap camera',
+  'snapcamera',
+  'droidcam',
+  'ivcam',
+  'epoccam',
+  'camo',
+  'youcam',
+  'splitcam',
+  'vcam',
+  'screen capture',
+  'ndi',
+  'fake',
+  'dummy',
+  'avatar',
+  'prism',
+  'mmhmm',
+];
+
+export const isVirtualCameraLabel = (label: string | undefined | null): boolean => {
+  const normalized = String(label || '').toLowerCase();
+  if (!normalized) return false;
+  return VIRTUAL_CAMERA_PATTERNS.some((pattern) => normalized.includes(pattern));
+};
+
+export interface CameraAuditResult {
+  ok: boolean;
+  label: string;
+  deviceId?: string;
+  virtual: boolean;
+  videoInputs: number;
+  reason?: string;
+}
+
 export class ProctoringEngine {
   private config: ProctoringConfig;
   private violationCount: number = 0;
   private isListening: boolean = false;
   private events: ProctoringViolationEvent[] = [];
   private faceCheckInterval: any = null;
+  private deviceWatchInterval: any = null;
   private blurTimeout: any = null;
+  private lastCameraLabel: string | null = null;
 
   constructor(config: ProctoringConfig = {}) {
     const preset = config.preset || 'Sedang';
@@ -147,6 +188,10 @@ export class ProctoringEngine {
     if (this.faceCheckInterval) {
       clearInterval(this.faceCheckInterval);
       this.faceCheckInterval = null;
+    }
+    if (this.deviceWatchInterval) {
+      clearInterval(this.deviceWatchInterval);
+      this.deviceWatchInterval = null;
     }
     if (this.blurTimeout) {
       clearTimeout(this.blurTimeout);
@@ -356,6 +401,69 @@ export class ProctoringEngine {
       'Wajah peserta tidak terdeteksi di webcam lebih dari 10 detik',
       'high'
     );
+  }
+
+  /**
+   * Audits the active camera track and the enumerated video inputs for virtual
+   * camera devices (OBS, ManyCam, DroidCam, Snap Camera, etc.).
+   * Must run after camera permission has been granted, otherwise labels are empty.
+   */
+  public async auditCamera(stream?: MediaStream | null): Promise<CameraAuditResult> {
+    let label = '';
+    let deviceId: string | undefined;
+    let videoInputs = 0;
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter((device) => device.kind === 'videoinput');
+      videoInputs = cameras.length;
+      const activeTrack = stream?.getVideoTracks?.()[0];
+      const settings = activeTrack?.getSettings?.();
+      deviceId = settings?.deviceId;
+      label = activeTrack?.label || cameras.find((device) => device.deviceId === deviceId)?.label || cameras[0]?.label || '';
+    } catch {
+      label = '';
+    }
+
+    const virtual = isVirtualCameraLabel(label);
+    this.lastCameraLabel = label;
+
+    if (virtual && this.config.forbidVirtualBg) {
+      this.recordManualViolation(
+        'VIRTUAL_CAMERA',
+        `Kamera virtual terdeteksi: "${label}". Gunakan kamera fisik perangkat tanpa virtual camera, background, atau blur.`,
+        'critical'
+      );
+    }
+
+    return {
+      ok: !virtual,
+      label,
+      deviceId,
+      virtual,
+      videoInputs,
+      reason: virtual ? 'virtual-camera' : videoInputs === 0 ? 'no-camera' : undefined,
+    };
+  }
+
+  /**
+   * Re-audits the camera every `intervalMs` and raises a violation when the
+   * device label changes mid-session (candidate switching to a virtual device).
+   */
+  public startDeviceWatch(streamProvider: () => MediaStream | null, intervalMs = 20000): void {
+    if (this.deviceWatchInterval) clearInterval(this.deviceWatchInterval);
+    this.deviceWatchInterval = setInterval(async () => {
+      const previousLabel = this.lastCameraLabel;
+      const result = await this.auditCamera(streamProvider());
+      if (previousLabel && result.label && result.label !== previousLabel && !result.virtual) {
+        this.recordManualViolation(
+          'VIRTUAL_CAMERA',
+          `Perangkat kamera berubah dari "${previousLabel}" menjadi "${result.label}" saat sesi berlangsung.`,
+          'high'
+        );
+      }
+      this.lastCameraLabel = result.label;
+    }, intervalMs);
   }
 
   public triggerVirtualBgViolation(): void {

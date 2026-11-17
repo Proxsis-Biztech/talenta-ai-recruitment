@@ -44,6 +44,8 @@ interface Job {
   status: string;
   interviewDuration: number | null;
   interviewPassingScore: number | null;
+  assessmentDate: string | null;
+  assessmentEndDate: string | null;
   createdAt: string;
 }
 
@@ -133,6 +135,8 @@ export default function JobManagement() {
   const [newStatus, setNewStatus] = useState<'active' | 'inactive'>('active');
   const [newDuration, setNewDuration] = useState<number | ''>(15);
   const [newPassingScore, setNewPassingScore] = useState<number | ''>(70);
+  const [newAssessmentDate, setNewAssessmentDate] = useState('');
+  const [newAssessmentEndDate, setNewAssessmentEndDate] = useState('');
   const [addError, setAddError] = useState('');
   const [addLoading, setAddLoading] = useState(false);
 
@@ -144,6 +148,8 @@ export default function JobManagement() {
   const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
   const [editDuration, setEditDuration] = useState<number | ''>('');
   const [editPassingScore, setEditPassingScore] = useState<number | ''>('');
+  const [editAssessmentDate, setEditAssessmentDate] = useState('');
+  const [editAssessmentEndDate, setEditAssessmentEndDate] = useState('');
   const [editError, setEditError] = useState('');
   const [editLoading, setEditLoading] = useState(false);
 
@@ -338,6 +344,8 @@ export default function JobManagement() {
           status: 'active',
           interviewDuration: p.durationMinutes,
           interviewPassingScore: p.passingScore,
+          assessmentDate: null,
+          assessmentEndDate: null,
           createdAt: new Date().toISOString()
         }));
         setJobs(fallbackJobs);
@@ -352,6 +360,8 @@ export default function JobManagement() {
         status: 'active',
         interviewDuration: p.durationMinutes,
         interviewPassingScore: p.passingScore,
+        assessmentDate: null,
+        assessmentEndDate: null,
         createdAt: new Date().toISOString()
       }));
       setJobs(fallbackJobs);
@@ -381,6 +391,8 @@ export default function JobManagement() {
         status: newStatus,
         interviewDuration: newDuration === '' ? null : Number(newDuration),
         interviewPassingScore: newPassingScore === '' ? null : Number(newPassingScore),
+        assessmentDate: newAssessmentDate || null,
+        assessmentEndDate: newAssessmentEndDate || null,
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -392,6 +404,8 @@ export default function JobManagement() {
       setNewStatus('active');
       setNewDuration(15);
       setNewPassingScore(70);
+      setNewAssessmentDate('');
+      setNewAssessmentEndDate('');
       Swal.fire({
         icon: 'success',
         title: 'Formasi Berhasil Dibuat',
@@ -415,6 +429,8 @@ export default function JobManagement() {
     setEditStatus((job.status as 'active' | 'inactive') || 'active');
     setEditDuration(job.interviewDuration ?? 15);
     setEditPassingScore(job.interviewPassingScore ?? 70);
+    setEditAssessmentDate(job.assessmentDate ? job.assessmentDate.slice(0, 10) : '');
+    setEditAssessmentEndDate(job.assessmentEndDate ? job.assessmentEndDate.slice(0, 10) : '');
     setEditError('');
 
     // Muat soal & materi untuk formasi ini sehingga aksi Ubah bisa melihat dan menyunting konten yang terintegrasi.
@@ -580,6 +596,8 @@ export default function JobManagement() {
         status: editStatus,
         interviewDuration: editDuration === '' ? null : Number(editDuration),
         interviewPassingScore: editPassingScore === '' ? null : Number(editPassingScore),
+        assessmentDate: editAssessmentDate || null,
+        assessmentEndDate: editAssessmentEndDate || null,
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -902,6 +920,7 @@ export default function JobManagement() {
             <TableHead>Formasi Lowongan</TableHead>
             <TableHead>Konfigurasi Interview AI</TableHead>
             <TableHead>Status Perekrutan</TableHead>
+            <TableHead>Periode Asesmen</TableHead>
             <TableHead>Tanggal Rilis</TableHead>
             <TableHead className="text-right">Opsi Pengelolaan</TableHead>
           </TableRow>
@@ -909,13 +928,13 @@ export default function JobManagement() {
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={6} className="py-12 text-center text-slate-400 font-sans text-sm">
+              <TableCell colSpan={7} className="py-12 text-center text-slate-400 font-sans text-sm">
                 Memuat daftar formasi lowongan...
               </TableCell>
             </TableRow>
           ) : filteredJobs.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="py-14 text-center">
+              <TableCell colSpan={7} className="py-14 text-center">
                 <div className="flex flex-col items-center gap-2.5">
                   <div className="w-11 h-11 rounded-full bg-slate-100 text-muted-slate flex items-center justify-center">
                     <Briefcase className="w-5 h-5 text-slate-400" />
@@ -937,7 +956,17 @@ export default function JobManagement() {
                       <Briefcase className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="font-semibold text-slate-900 leading-snug">{job.title}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-900 leading-snug">{job.title}</span>
+                        <Badge
+                          variant={job.status === 'active' ? 'success' : 'neutral'}
+                          format="soft"
+                          hasDot={job.status === 'active'}
+                          className="text-[10px]"
+                        >
+                          {job.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                        </Badge>
+                      </div>
                       <p className="text-xs text-slate-500 line-clamp-1 mt-0.5 font-sans">
                         {job.description}
                       </p>
@@ -984,6 +1013,24 @@ export default function JobManagement() {
                   >
                     {job.status === 'active' ? 'AKTIF' : 'NONAKTIF'}
                   </Badge>
+                </TableCell>
+                <TableCell className="text-slate-600 text-xs font-mono">
+                  {job.assessmentDate || job.assessmentEndDate ? (
+                    <div className="space-y-0.5">
+                      <div className="whitespace-nowrap">
+                        {job.assessmentDate
+                          ? new Date(job.assessmentDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' })
+                          : '—'}
+                        {' – '}
+                        {job.assessmentEndDate
+                          ? new Date(job.assessmentEndDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' })
+                          : '—'}
+                      </div>
+                      <div className="text-[10px] text-slate-400">Rentang pelaksanaan</div>
+                    </div>
+                  ) : (
+                    '—'
+                  )}
                 </TableCell>
                 <TableCell className="text-slate-500 whitespace-nowrap text-xs">
                   {new Date(job.createdAt).toLocaleDateString('id-ID', {
@@ -1104,6 +1151,33 @@ export default function JobManagement() {
               />
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-800 mb-1.5">
+                Tanggal Mulai Asesmen
+              </label>
+              <input
+                type="date"
+                value={newAssessmentDate}
+                onChange={(e) => setNewAssessmentDate(e.target.value)}
+                className="w-full h-11 px-3.5 py-2 text-sm font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-800 mb-1.5">
+                Tanggal Selesai Asesmen
+              </label>
+              <input
+                type="date"
+                value={newAssessmentEndDate}
+                min={newAssessmentDate || undefined}
+                onChange={(e) => setNewAssessmentEndDate(e.target.value)}
+                className="w-full h-11 px-3.5 py-2 text-sm font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500 -mt-2">Rentang tanggal pelaksanaan asesmen. Dapat diubah kapan saja.</p>
 
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">
@@ -1250,6 +1324,29 @@ export default function JobManagement() {
                     />
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-800 mb-1.5">Tanggal Mulai Asesmen</label>
+                    <input
+                      type="date"
+                      value={editAssessmentDate}
+                      onChange={(e) => setEditAssessmentDate(e.target.value)}
+                      className="w-full h-11 px-3.5 py-2 text-sm font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-800 mb-1.5">Tanggal Selesai Asesmen</label>
+                    <input
+                      type="date"
+                      value={editAssessmentEndDate}
+                      min={editAssessmentDate || undefined}
+                      onChange={(e) => setEditAssessmentEndDate(e.target.value)}
+                      className="w-full h-11 px-3.5 py-2 text-sm font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 -mt-2">Kosongkan bila jadwal asesmen belum ditentukan.</p>
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-800 mb-1.5">Status Formasi</label>
@@ -2013,6 +2110,27 @@ export default function JobManagement() {
                   </span>
                   <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                     Durasi: {selectedJobDetail.job.interviewDuration || 90} Menit
+                  </span>
+                  <Badge
+                    variant={selectedJobDetail.job.status === 'active' ? 'success' : 'neutral'}
+                    format="soft"
+                    hasDot={selectedJobDetail.job.status === 'active'}
+                    className="text-[11px]"
+                  >
+                    {selectedJobDetail.job.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                  </Badge>
+                  <span className="font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                    Periode Asesmen: {selectedJobDetail.job.assessmentDate
+                      ? new Date(selectedJobDetail.job.assessmentDate).toLocaleDateString('id-ID', {
+                          year: 'numeric', month: 'long', day: 'numeric'
+                        })
+                      : 'Belum diatur'}
+                    {' – '}
+                    {selectedJobDetail.job.assessmentEndDate
+                      ? new Date(selectedJobDetail.job.assessmentEndDate).toLocaleDateString('id-ID', {
+                          year: 'numeric', month: 'long', day: 'numeric'
+                        })
+                      : 'Belum diatur'}
                   </span>
                 </div>
               </div>

@@ -13,8 +13,31 @@ const jobSchema = z.object({
   description: z.string().min(1, "Job deskripsi wajib diisi"),
   status: z.enum(["active", "inactive"]).default("active"),
   interviewDuration: z.coerce.number().int().min(1).max(180).optional().nullable(),
-  interviewPassingScore: z.coerce.number().int().min(0).max(100).optional().nullable()
+  interviewPassingScore: z.coerce.number().int().min(0).max(100).optional().nullable(),
+  assessmentDate: z.preprocess(
+    (value) => {
+      if (value === '' || value === null || value === undefined) return null;
+      const date = new Date(String(value));
+      return Number.isNaN(date.getTime()) ? null : date;
+    },
+    z.date().nullable().optional()
+  ),
+  assessmentEndDate: z.preprocess(
+    (value) => {
+      if (value === '' || value === null || value === undefined) return null;
+      const date = new Date(String(value));
+      return Number.isNaN(date.getTime()) ? null : date;
+    },
+    z.date().nullable().optional()
+  )
 });
+
+const validateDateRange = (start?: Date | null, end?: Date | null): string | null => {
+  if (start && end && end.getTime() < start.getTime()) {
+    return 'Tanggal selesai asesmen tidak boleh lebih awal dari tanggal mulai.';
+  }
+  return null;
+};
 
 // Public: Get all active jobs
 export const getActiveJobs = async (req: AuthRequest, res: Response) => {
@@ -86,7 +109,9 @@ export const getAdminJobs = async (req: AuthRequest, res: Response) => {
 export const createJob = async (req: AuthRequest, res: Response) => {
   try {
     const validatedData = jobSchema.parse(req.body);
-    
+    const rangeError = validateDateRange(validatedData.assessmentDate, validatedData.assessmentEndDate);
+    if (rangeError) return res.status(400).json({ error: rangeError });
+
     const existingJob = await prisma.job.findUnique({
       where: { title: validatedData.title }
     });
@@ -123,7 +148,9 @@ export const updateJob = async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
     const validatedData = jobSchema.parse(req.body);
-    
+    const rangeError = validateDateRange(validatedData.assessmentDate, validatedData.assessmentEndDate);
+    if (rangeError) return res.status(400).json({ error: rangeError });
+
     const existingJob = await prisma.job.findFirst({
       where: { 
         title: validatedData.title,

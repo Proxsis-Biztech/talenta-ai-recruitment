@@ -1320,6 +1320,26 @@ export default function PesertaAsesmenList() {
                         </div>
                       </div>
 
+                      {/* Status Pengerjaan Asesmen */}
+                      <div
+                        className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-between ${
+                          item.status === 'selesai'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                            : item.status === 'berjalan'
+                              ? 'bg-blue-50 border-blue-200 text-blue-800'
+                              : 'bg-amber-50 border-amber-200 text-amber-800'
+                        }`}
+                      >
+                        <span>Status Pengerjaan</span>
+                        <span>
+                          {item.status === 'selesai'
+                            ? '✓ Sudah dikerjakan'
+                            : item.status === 'berjalan'
+                              ? '• Sedang dikerjakan'
+                              : '• Belum dikerjakan'}
+                        </span>
+                      </div>
+
                       {/* Status Ujian CAT */}
                       <div
                         className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-between ${

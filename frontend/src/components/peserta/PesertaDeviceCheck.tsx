@@ -30,6 +30,7 @@ import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { clearPortalSession, getPortalToken, getPortalUser, savePortalSession } from '../../services/portalAuthService';
 import { getProgramById, DEFAULT_ASSESSMENT_PROGRAMS } from '../../services/assessmentCatalog';
+import { isVirtualCameraLabel } from '../../utils/proctoringEngine';
 
 export default function PesertaDeviceCheck() {
   const navigate = useNavigate();
@@ -53,6 +54,7 @@ export default function PesertaDeviceCheck() {
   const [micStatus, setMicStatus] = useState<'testing' | 'active' | 'denied' | 'simulated'>('testing');
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [cameraAudit, setCameraAudit] = useState<{ label: string; virtual: boolean; videoInputs: number } | null>(null);
 
   // Diagnostics states (sequential system diagnostic simulation on entry)
   const [pingMs, setPingMs] = useState<number | null>(null);
@@ -128,6 +130,23 @@ export default function PesertaDeviceCheck() {
 
       setCameraStatus('active');
       setMicStatus('active');
+
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cameras = devices.filter((device) => device.kind === 'videoinput');
+        const track = stream.getVideoTracks()[0];
+        const label = track?.label || cameras[0]?.label || '';
+        const virtual = isVirtualCameraLabel(label);
+        setCameraAudit({ label, virtual, videoInputs: cameras.length });
+        if (virtual) {
+          setErrorMessage(
+            `Kamera virtual terdeteksi ("${label}"). Ujian hanya mengizinkan kamera fisik perangkat — nonaktifkan OBS/ManyCam/DroidCam atau virtual background, lalu muat ulang halaman.`
+          );
+          setCameraVerified(false);
+        }
+      } catch (auditErr) {
+        console.warn('Camera audit warning:', auditErr);
+      }
 
       // Set up real AudioContext and AnalyserNode for volume visualizer
       try {
@@ -458,6 +477,10 @@ export default function PesertaDeviceCheck() {
   };
 
   const handleProceedToAsesmen = () => {
+    if (cameraAudit?.virtual) {
+      setFaceError('Kamera virtual terdeteksi. Gunakan kamera fisik perangkat sebelum melanjutkan.');
+      return;
+    }
     if (!allPointsVerified || (!validationSuccess && !getPortalUser()?.deviceCheckCompletedAt)) {
       setFaceError('Lengkapi seluruh 6 poin validasi KYC perangkat dan klik "Konfirmasi & Validasi Kesiapan Perangkat" terlebih dahulu.');
       const btn = document.getElementById('btn-confirm-device');
@@ -1051,7 +1074,7 @@ export default function PesertaDeviceCheck() {
               <Button
                 id="btn-confirm-device"
                 variant="primary"
-                disabled={isValidating || autoDiagRunning}
+                disabled={isValidating || autoDiagRunning || Boolean(cameraAudit?.virtual)}
                 onClick={handleConfirmDeviceCheck}
                 className="w-full lg:w-auto py-2.5 px-5 text-xs font-bold flex items-center justify-center gap-2 shadow-sm rounded-xl cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white transition-all"
               >

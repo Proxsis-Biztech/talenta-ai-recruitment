@@ -475,7 +475,9 @@ export default function PesertaDashboard() {
                   Asesmen Saya<span className="text-[#F95B2B]">.</span>
                 </h1>
                 <p className="text-xs font-medium text-slate-500">
-                  {loadingDashboard ? 'Memuat program...' : programHeaderLabel}
+                  {loadingDashboard
+                    ? 'Memuat program...'
+                    : `${programHeaderLabel} • ${Number(isCatCompleted) + Number(isInterviewCompleted)} sudah dikerjakan, ${2 - Number(isCatCompleted) - Number(isInterviewCompleted)} belum dikerjakan`}
                 </p>
               </div>
 
@@ -500,7 +502,7 @@ export default function PesertaDashboard() {
                         : 'bg-amber-100 text-amber-800 border-amber-200'
                     }`}
                   >
-                    {isCatCompleted ? 'Sudah Ujian CAT' : 'Belum Ujian CAT'}
+                    {isCatCompleted ? '✓ Sudah dikerjakan' : '• Belum dikerjakan'}
                   </span>
                   <p className="text-xs text-slate-500 mt-1.5 mb-4">
                     {isCatCompleted
@@ -531,6 +533,15 @@ export default function PesertaDashboard() {
                     />
                   </div>
                   <h2 className="text-base font-bold text-slate-900">Wawancara</h2>
+                  <span
+                    className={`mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                      isInterviewCompleted
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                        : 'bg-amber-100 text-amber-800 border-amber-200'
+                    }`}
+                  >
+                    {isInterviewCompleted ? '✓ Sudah dikerjakan' : '• Belum dikerjakan'}
+                  </span>
                   <p className="text-xs text-slate-500 mt-1 mb-5">
                     {isInterviewCompleted
                       ? interview.score != null

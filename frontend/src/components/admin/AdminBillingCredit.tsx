@@ -312,6 +312,27 @@ export default function AdminBillingCredit() {
     }
   };
 
+  const downloadInvoicePdf = async (invId: string, invoiceNumber: string) => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    try {
+      const response = await axios.get(`/api/admin/billing/invoices/${invId}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${invoiceNumber.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.alert('Gagal mengunduh PDF invoice.');
+    }
+  };
+
   const handleApproveInvoice = async (invId: string) => {
     setActionFeedback(null);
     try {
@@ -615,6 +636,16 @@ export default function AdminBillingCredit() {
                           >
                             <FileText className="w-3.5 h-3.5 mr-1" />
                             <span>Lihat Invoice</span>
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => void downloadInvoicePdf(inv.id, inv.invoiceNumber)}
+                            className="text-xs text-blue-700"
+                          >
+                            <Download className="w-3.5 h-3.5 mr-1" />
+                            <span>PDF</span>
                           </Button>
 
                           {inv.status === 'PENDING_APPROVAL' && (
@@ -948,6 +979,13 @@ export default function AdminBillingCredit() {
             </div>
 
             <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void downloadInvoicePdf(selectedInvoicePreview.id, selectedInvoicePreview.invoiceNumber)}
+              >
+                <Download className="w-4 h-4 mr-1.5" />
+                Unduh PDF Resmi
+              </Button>
               <Button variant="outline" onClick={() => setSelectedInvoicePreview(null)}>
                 Tutup
               </Button>

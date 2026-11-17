@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { type AuthRequest } from '../middleware/auth';
+import { openSseStream, publish, publishToUser } from '../services/realtimeService';
 
 const prisma = new PrismaClient();
 const ENTRY_WINDOW_MS = 5 * 60 * 1000;
@@ -275,6 +276,22 @@ export const completeAndCallNext = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    if (result.completed.assessmentId) {
+      const channel = `queue:${result.completed.assessmentId}`;
+      publish(channel, 'queue-update', {
+        at: new Date().toISOString(),
+        completed: result.completed.name,
+        nextCandidateCode: result.next?.candidateCode ?? null
+      });
+      if (result.next) {
+        publishToUser(result.next.id, 'called', {
+          at: new Date().toISOString(),
+          message: 'Giliran Anda tiba. Sesi peserta sebelumnya sudah selesai. Silakan masuk ruang wawancara.',
+          canEnter: true
+        });
+      }
+    }
+
     return res.json({
       completed: { id: result.completed.id, name: result.completed.name },
       next: result.next,
@@ -285,4 +302,14 @@ export const completeAndCallNext = async (req: AuthRequest, res: Response) => {
     console.error('Complete and call next error:', error);
     return res.status(500).json({ error: 'Gagal memanggil peserta berikutnya.' });
   }
+};
+
+export const streamWaitingRoom = async (req: AuthRequest, res: Response) => {
+  if (!req.portalUser) return res.status(401).end();
+  const user = await prisma.portalUser.findUnique({
+    where: { id: req.portalUser.id },
+    select: { assessmentId: true }
+  });
+  const channel = `queue:${user?.assessmentId || req.portalUser.id}`;
+  openSseStream(req, res, channel, req.portalUser.id);
 };
