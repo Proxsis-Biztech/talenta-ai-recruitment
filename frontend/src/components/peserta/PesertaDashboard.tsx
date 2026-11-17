@@ -542,7 +542,7 @@ export default function PesertaDashboard() {
               </div>
 
               {dashboardPrograms.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1" role="tablist" aria-label="Pilih program asesmen">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-1" role="tablist" aria-label="Pilih program asesmen">
                   {dashboardPrograms.map((program: any) => {
                     const isActive = activeProgram?.code === program.code;
                     const done = isProgramDone(program.code);
