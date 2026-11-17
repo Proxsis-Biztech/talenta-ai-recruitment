@@ -310,63 +310,52 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#060A18] flex items-center justify-center px-4 py-14 font-sans antialiased">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-40 -left-32 h-[420px] w-[420px] rounded-full bg-blue-600/30 blur-[130px]" />
-        <div className="absolute -bottom-40 -right-24 h-[460px] w-[460px] rounded-full bg-cyan-400/20 blur-[140px]" />
-        <div
-          className="absolute inset-0 opacity-[0.08]"
-          style={{
-            backgroundImage:
-              'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)',
-            backgroundSize: '56px 56px'
-          }}
-        />
-      </div>
-
-      <div className="relative w-full max-w-[430px]" style={{ perspective: '1200px' }}>
-        <div className="absolute inset-0 translate-x-3 translate-y-4 rotate-2 rounded-[34px] border border-white/10 bg-white/[0.04]" />
-        <div className="absolute inset-0 -translate-x-2 -translate-y-2 -rotate-1 rounded-[34px] border border-white/[0.06] bg-white/[0.02]" />
-
-        <div
-          onMouseMove={handleCardTilt}
-          onMouseLeave={resetCardTilt}
-          className="relative rounded-[34px] border border-white/15 bg-white/[0.07] p-6 sm:p-8 backdrop-blur-2xl shadow-[0_50px_100px_-30px_rgba(0,0,0,0.9)] transition-transform duration-200 ease-out"
-          style={{ transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`, transformStyle: 'preserve-3d' }}
-        >
-          <div className="flex justify-center -mt-16 mb-5" style={{ transform: 'translateZ(60px)' }}>
-            <div className="h-20 w-20 rounded-[22px] bg-white p-2 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.8)] border border-white/40 flex items-center justify-center">
-              <img
-                src="/img/logoRIght.jpeg"
-                alt="RIGHT Assessment Platform"
-                className="h-12 w-auto max-w-[64px] object-contain"
-              />
-            </div>
-          </div>
-
-          <div className="text-center mb-6" style={{ transform: 'translateZ(30px)' }}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              RIGHT Assessment Platform
+    <div className="min-h-screen bg-[#E6E5E2] flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans antialiased">
+      <div className="w-full max-w-[980px] bg-white rounded-[32px] p-4 sm:p-5 shadow-[0_24px_60px_-20px_rgba(15,39,92,0.14)] border border-white/80 grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-stretch">
+        {/* Left Visual Panel */}
+        <div className="lg:col-span-6 relative rounded-[24px] overflow-hidden bg-[#E8E6E1] min-h-[260px] lg:min-h-[560px]">
+          <img
+            src="/img/login-hero.jpg"
+            alt="RIGHT Assessment Platform"
+            className="w-full h-full object-cover object-center"
+          />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#0F275C]/35 via-transparent to-transparent" />
+          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between gap-2 rounded-2xl bg-white/85 backdrop-blur-md px-3.5 py-2.5 border border-white/70 shadow-xs">
+            <span className="text-[11px] font-bold text-[#0F275C]">
+              Portal Asesmen &amp; Seleksi Terpadu
             </span>
-            <h1 className="mt-3 text-2xl font-extrabold text-white font-heading tracking-tight">
-              Masuk ke Portal
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#0F275C] text-white">
+              CAT • AI
+            </span>
+          </div>
+        </div>
+
+        {/* Right Form Panel */}
+        <div className="lg:col-span-6 flex flex-col justify-center px-4 sm:px-8 lg:px-10 py-6 sm:py-8">
+          <div className="flex flex-col items-center text-center mb-6">
+            <img
+              src="/img/logoRIght.jpeg"
+              alt="RIGHT Assessment Platform"
+              className="h-10 w-auto max-w-[160px] object-contain mb-4"
+            />
+            <h1 className="text-2xl font-extrabold text-slate-900 font-heading tracking-tight">
+              Masuk ke Akun Anda
             </h1>
-            <p className="text-xs text-slate-300/80 mt-1.5 leading-relaxed">
-              Akses terpadu Peserta, Dewan Asesor, dan Administrator.
+            <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+              Selamat datang kembali! Masukkan detail akun Anda untuk masuk
             </p>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-rose-500/10 border border-rose-400/30 rounded-xl text-xs text-rose-200 flex items-center gap-2.5 animate-shake">
-              <AlertCircle className="w-4 h-4 text-rose-300 shrink-0" />
+            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-700 flex items-center gap-2.5 animate-shake">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successRole && (
-            <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-400/30 rounded-xl text-xs text-emerald-100 flex items-center gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
+            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <div>
                 <p className="font-bold">
                   Terverifikasi:{' '}
@@ -376,83 +365,92 @@ export default function AuthLoginPage() {
                       ? 'Dewan Asesor Independen'
                       : 'Peserta Ujian (Kandidat)'}
                 </p>
-                <p className="text-[11px] text-emerald-200/80">Mengalihkan ke portal...</p>
+                <p className="text-[11px] text-emerald-700">Mengalihkan ke portal...</p>
               </div>
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4" style={{ transform: 'translateZ(20px)' }}>
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                Username / Email
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">
+                Username atau Email
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <User className="h-4 w-4 text-slate-400" />
                 </div>
                 <input
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="superadmin / asesor / nama@kandidat.id"
+                  placeholder="Masukkan username atau email"
                   required
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/15 bg-white/[0.08] text-xs sm:text-sm font-medium text-white placeholder:text-slate-500 outline-none transition-all focus:border-cyan-400/60 focus:ring-4 focus:ring-cyan-400/15"
+                  className="w-full pl-11 pr-4 py-3 rounded-full border border-slate-200 bg-white text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0F275C] focus:ring-4 focus:ring-[#0F275C]/10"
                 />
               </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-300">
-                  Kata Sandi
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setResetOpen(true);
-                    setResetError('');
-                    setResetNotice('');
-                    setResetEmail(identifier.includes('@') ? identifier.trim() : '');
-                  }}
-                  className="text-[11px] text-cyan-300 hover:text-cyan-200 hover:underline font-semibold cursor-pointer"
-                >
-                  Lupa sandi?
-                </button>
-              </div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">
+                Kata Sandi
+              </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <Lock className="h-4 w-4 text-slate-400" />
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Masukkan kata sandi"
                   required
-                  className="w-full pl-10 pr-10 py-3 rounded-xl border border-white/15 bg-white/[0.08] text-xs sm:text-sm font-medium text-white placeholder:text-slate-500 outline-none transition-all focus:border-cyan-400/60 focus:ring-4 focus:ring-cyan-400/15"
+                  className="w-full pl-11 pr-11 py-3 rounded-full border border-slate-200 bg-white text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0F275C] focus:ring-4 focus:ring-[#0F275C]/10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
+            <div className="flex items-center justify-between text-xs px-1">
+              <label className="inline-flex items-center gap-2 text-slate-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="rounded border-slate-300 text-[#0F275C] focus:ring-[#0F275C]"
+                />
+                <span>Ingat saya</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setResetOpen(true);
+                  setResetError('');
+                  setResetNotice('');
+                  setResetEmail(identifier.includes('@') ? identifier.trim() : '');
+                }}
+                className="text-[#0F275C] hover:underline font-semibold cursor-pointer"
+              >
+                Lupa Kata Sandi?
+              </button>
+            </div>
+
             <div className="pt-1">
               <Button
                 type="submit"
                 variant="primary"
-                className="w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#F95B2B] to-[#ff8a5c] border-0 shadow-[0_18px_30px_-12px_rgba(249,91,43,0.8)] hover:brightness-105 cursor-pointer"
+                className="w-full py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-full bg-[#0F275C] hover:bg-[#16367d] border-0 shadow-sm cursor-pointer"
                 disabled={isLoading}
               >
                 {isLoading ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <span>Masuk ke Portal</span>
+                    <span>Masuk</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -460,36 +458,35 @@ export default function AuthLoginPage() {
             </div>
           </form>
 
-          <div className="mt-6 flex items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-slate-500">
-            <span className="h-px flex-1 bg-white/10" />
-            Aman &amp; Terenkripsi
-            <span className="h-px flex-1 bg-white/10" />
-          </div>
+          {googleReady && (
+            <>
+              <div className="my-5 flex items-center gap-3 text-[11px] text-slate-400">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span>Atau lanjutkan dengan</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
-              <ShieldCheck className="mx-auto h-4 w-4 text-emerald-300" />
-              <p className="mt-1 text-[10px] font-semibold text-slate-300">SSL 256-bit</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
-              <Sparkles className="mx-auto h-4 w-4 text-cyan-300" />
-              <p className="mt-1 text-[10px] font-semibold text-slate-300">Proctoring AI</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
-              <Award className="mx-auto h-4 w-4 text-amber-300" />
-              <p className="mt-1 text-[10px] font-semibold text-slate-300">LHA Resmi</p>
-            </div>
-          </div>
+              <div className="flex flex-col items-center gap-2">
+                <div id="google-signin-button" className="w-full flex justify-center" />
+                {googleLoading && (
+                  <p className="text-[11px] text-slate-500">Memverifikasi akun Google...</p>
+                )}
+              </div>
+            </>
+          )}
 
-          <p className="mt-5 text-center text-[11px] text-slate-400">
-            Akun peserta dibuat oleh admin melalui email undangan.
+          <p className="mt-6 text-center text-[11px] text-slate-500">
+            Akun peserta dibuat oleh admin melalui email undangan.{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="font-semibold text-[#0F275C] hover:underline cursor-pointer"
+            >
+              Beranda
+            </button>
           </p>
         </div>
       </div>
-
-      <p className="absolute bottom-5 left-0 right-0 text-center text-[10px] text-slate-500">
-        © 2026 Right • Dilindungi enkripsi SSL 256-bit dan Sistem Anti-Cheat AI.
-      </p>
 
       <Modal
         isOpen={twoFactorRequired}
