@@ -1262,7 +1262,9 @@ export default function PesertaAsesmenList() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredPrograms.map((item) => (
+                {filteredPrograms.map((item) => {
+                  const catDone = isProgramCatCompleted(item.id);
+                  return (
                   <div
                     key={item.id}
                     onClick={() => handleSelectProgram(item.id)}
@@ -1318,6 +1320,18 @@ export default function PesertaAsesmenList() {
                         </div>
                       </div>
 
+                      {/* Status Ujian CAT */}
+                      <div
+                        className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-between ${
+                          catDone
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                            : 'bg-amber-50 border-amber-200 text-amber-800'
+                        }`}
+                      >
+                        <span>Status Ujian CAT</span>
+                        <span>{catDone ? '✓ Sudah Ujian CAT' : '• Belum Ujian CAT'}</span>
+                      </div>
+
                       {/* Progress Bar */}
                       <div className="space-y-1.5 pt-2">
                         <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
@@ -1353,7 +1367,8 @@ export default function PesertaAsesmenList() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
