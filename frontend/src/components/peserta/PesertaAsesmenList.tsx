@@ -117,6 +117,14 @@ export default function PesertaAsesmenList() {
   }));
   const [activeModalModule, setActiveModalModule] = useState<MasterMateriItem | null>(null);
   const [showLiveCoding, setShowLiveCoding] = useState(false);
+  const [liveCodingCompletedMap, setLiveCodingCompletedMap] = useState<Record<string, { score: number; completedAt: string }>>(() => {
+    try {
+      const saved = localStorage.getItem('talenta_live_coding_completed_map_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
   const activeUser = useMemo(() => getActiveSessionUser(), []);
   const activeProg = useMemo(() => {
@@ -259,7 +267,27 @@ export default function PesertaAsesmenList() {
 
   const activeProgramCode = selectedProgramId || activeProg.id;
   const isCatCompleted = isProgramCatCompleted(activeProgramCode);
+  const isLiveCodingCompleted = Boolean(
+    liveCodingCompletedMap[String(activeProgramCode || '').trim().toUpperCase()]
+  );
   const isInterviewCompleted = isProgramInterviewCompleted(activeProgramCode);
+
+  const handleCompleteLiveCoding = useCallback(
+    (score: number) => {
+      const key = String(activeProgramCode || '').trim().toUpperCase();
+      setLiveCodingCompletedMap((prev) => {
+        const next = {
+          ...prev,
+          [key]: { score, completedAt: new Date().toISOString() }
+        };
+        try {
+          localStorage.setItem('talenta_live_coding_completed_map_v1', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    },
+    [activeProgramCode]
+  );
 
   // Sync tab with URL & enforce sequential progression
   useEffect(() => {
@@ -458,6 +486,7 @@ export default function PesertaAsesmenList() {
             const doneUnits =
               completedCount +
               (isCatCompleted ? 1 : 0) +
+              (isLiveCodingCompleted ? 1 : 0) +
               (isInterviewCompleted ? 1 : 0);
             const overallPct = Math.round((doneUnits / (totalUnits || 1)) * 100);
 
@@ -548,7 +577,7 @@ export default function PesertaAsesmenList() {
                         </div>
                         <div className="bg-white/10 rounded-xl py-2 px-1.5 border border-white/10">
                           <span className="block text-sm font-extrabold text-white">
-                            {isCatCompleted ? '1/2' : '0/2'}
+                            {(isCatCompleted ? 1 : 0) + (isLiveCodingCompleted ? 1 : 0)}/2
                           </span>
                           <span className="text-[10px] text-blue-200">Tes Teknis</span>
                         </div>
@@ -760,11 +789,11 @@ export default function PesertaAsesmenList() {
                         </h2>
                         <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-500 mt-0.5">
                           <span>2 sesi • terjadwal</span>
-                          <span>{isCatCompleted ? '1/2' : '0/2'} selesai</span>
+                          <span>{(isCatCompleted ? 1 : 0) + (isLiveCodingCompleted ? 1 : 0)}/2 selesai</span>
                           <span className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden inline-block">
                             <span
                               className="block h-full bg-emerald-500 rounded-full"
-                              style={{ width: isCatCompleted ? '50%' : '0%' }}
+                              style={{ width: `${(isCatCompleted ? 50 : 0) + (isLiveCodingCompleted ? 50 : 0)}%` }}
                             />
                           </span>
                         </div>
@@ -855,28 +884,40 @@ export default function PesertaAsesmenList() {
                         <div className="flex items-start gap-3.5 min-w-0">
                           <span
                             className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                              isCatCompleted
-                                ? 'border-2 border-amber-400 text-amber-500'
-                                : 'bg-slate-100 text-slate-400'
+                              isLiveCodingCompleted
+                                ? 'bg-emerald-500 text-white'
+                                : isCatCompleted
+                                  ? 'border-2 border-amber-400 text-amber-500'
+                                  : 'bg-slate-100 text-slate-400'
                             }`}
                           >
-                            {isCatCompleted ? (
+                            {isLiveCodingCompleted ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : isCatCompleted ? (
                               <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
                             ) : (
                               <Lock className="w-3 h-3" />
                             )}
                           </span>
                           <div className="space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                              LIVE CODING • JUDGE0
+                            <span
+                              className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                isLiveCodingCompleted
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {isLiveCodingCompleted ? 'LIVE CODING SELESAI' : 'LIVE CODING • JUDGE0'}
                             </span>
                             <h3 className="text-sm font-bold text-slate-900">
                               Uji Praktik Pemrograman (Live Coding Sandbox)
                             </h3>
                             <p className="text-xs text-slate-500">
-                              {isCatCompleted
-                                ? 'Sandbox Judge0 aktif. Kerjakan studi kasus algoritma & struktur data.'
-                                : 'Terkunci — selesaikan Ujian CAT terlebih dahulu untuk membuka sesi Live Coding.'}
+                              {isLiveCodingCompleted
+                                ? 'Solusi Anda telah dievaluasi (Accepted) dan Live Coding tercatat selesai.'
+                                : isCatCompleted
+                                  ? 'Sandbox Judge0 aktif. Kerjakan studi kasus algoritma & struktur data.'
+                                  : 'Terkunci — selesaikan Ujian CAT terlebih dahulu untuk membuka sesi Live Coding.'}
                             </p>
                           </div>
                         </div>
@@ -888,7 +929,7 @@ export default function PesertaAsesmenList() {
                               onClick={() => setShowLiveCoding((v) => !v)}
                               className="px-4 py-1.5 rounded-lg bg-[#0F275C] hover:bg-[#16367d] text-white text-xs font-bold cursor-pointer shadow-2xs"
                             >
-                              {showLiveCoding ? 'Tutup Sandbox' : 'Buka Live Coding'}
+                              {showLiveCoding ? 'Tutup Sandbox' : isLiveCodingCompleted ? 'Lihat Sandbox' : 'Buka Live Coding'}
                             </button>
                           ) : (
                             <span className="px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-xs font-bold">
@@ -900,7 +941,10 @@ export default function PesertaAsesmenList() {
 
                       {isCatCompleted && showLiveCoding && (
                         <div className="p-5 bg-slate-50/70">
-                          <PesertaLiveCodingJudge0 programTitle={currentProgram.title} />
+                          <PesertaLiveCodingJudge0
+                            programTitle={currentProgram.title}
+                            onCompleteCoding={handleCompleteLiveCoding}
+                          />
                         </div>
                       )}
                     </div>

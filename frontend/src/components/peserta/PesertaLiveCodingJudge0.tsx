@@ -31,6 +31,8 @@ export default function PesertaLiveCodingJudge0({
   const [activeConsoleTab, setActiveConsoleTab] = useState<'tests' | 'output'>('tests');
   const [selectedTestCaseIdx, setSelectedTestCaseIdx] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [submittedProblems, setSubmittedProblems] = useState<string[]>([]);
+  const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
 
   // Sync starter code when language or problem changes
   useEffect(() => {
@@ -52,12 +54,25 @@ export default function PesertaLiveCodingJudge0({
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setSubmissionNotice(null);
     try {
       const res = await executeJudge0Code(selectedProblem, selectedLanguage.key, code);
       setResult(res);
       setActiveConsoleTab('tests');
-      if (res.status.id === 3 && onCompleteCoding) {
-        onCompleteCoding(100);
+      const passedCount = res.passedTests;
+      const totalCount = res.totalTests;
+      if (res.status.id === 3) {
+        setSubmittedProblems((prev) =>
+          prev.includes(selectedProblem.id) ? prev : [...prev, selectedProblem.id]
+        );
+        setSubmissionNotice(
+          `Solusi ${selectedProblem.id} (${selectedProblem.title}) diterima (Accepted ${passedCount}/${totalCount} test case) dan status Live Coding telah ditandai selesai.`
+        );
+        onCompleteCoding?.(100);
+      } else {
+        setSubmissionNotice(
+          `Evaluasi ${selectedProblem.id}: ${passedCount}/${totalCount} test case lulus. Perbaiki kode hingga semua test case Accepted untuk menyelesaikan Live Coding.`
+        );
       }
     } finally {
       setIsSubmitting(false);
@@ -80,6 +95,22 @@ export default function PesertaLiveCodingJudge0({
   return (
     <div className="space-y-5 antialiased">
       {/* ─── Top Control Bar: Problem Picker & Language Selector ─── */}
+      {submissionNotice && (
+        <div
+          className={`p-3.5 rounded-xl border text-xs flex items-center gap-2.5 ${
+            submittedProblems.length > 0 && result?.status.id === 3
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-amber-50 border-amber-200 text-amber-900'
+          }`}
+        >
+          {result?.status.id === 3 ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+          )}
+          <span className="font-semibold">{submissionNotice}</span>
+        </div>
+      )}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Problem selector pills */}
         <div className="flex flex-wrap items-center gap-2">
@@ -88,6 +119,7 @@ export default function PesertaLiveCodingJudge0({
           </span>
           {CODING_PROBLEMS.map((prob) => {
             const isSelected = prob.id === selectedProblem.id;
+            const isSolved = submittedProblems.includes(prob.id);
             return (
               <button
                 key={prob.id}
@@ -95,9 +127,12 @@ export default function PesertaLiveCodingJudge0({
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                   isSelected
                     ? 'bg-primary-navy text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    : isSolved
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
+                {isSolved && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
                 <span>{prob.id}:</span>
                 <span className="truncate max-w-[140px] sm:max-w-none">{prob.title}</span>
               </button>
