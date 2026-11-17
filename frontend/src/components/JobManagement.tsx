@@ -930,16 +930,16 @@ export default function JobManagement() {
       )}
 
       {/* Jobs Table */}
-      <Table>
+      <Table className="table-fixed min-w-[980px]">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-16 text-center">#</TableHead>
-            <TableHead>Formasi Lowongan</TableHead>
-            <TableHead>Konfigurasi Interview AI</TableHead>
-            <TableHead>Status Perekrutan</TableHead>
-            <TableHead>Periode Asesmen</TableHead>
-            <TableHead>Tanggal Rilis</TableHead>
-            <TableHead className="text-right">Opsi Pengelolaan</TableHead>
+            <TableHead className="w-[48px] text-center">#</TableHead>
+            <TableHead className="w-[34%]">Formasi Lowongan</TableHead>
+            <TableHead className="w-[18%]">Konfigurasi Interview AI</TableHead>
+            <TableHead className="w-[11%]">Status Perekrutan</TableHead>
+            <TableHead className="w-[15%]">Periode Asesmen</TableHead>
+            <TableHead className="w-[10%]">Tanggal Rilis</TableHead>
+            <TableHead className="w-[12%] text-right">Opsi Pengelolaan</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -967,8 +967,8 @@ export default function JobManagement() {
                 <TableCell className="text-center font-mono text-muted-slate">
                   {(idx + 1).toString().padStart(2, '0')}
                 </TableCell>
-                <TableCell className="max-w-sm">
-                  <div className="flex items-center gap-3">
+                <TableCell className="align-top">
+                  <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-lg bg-soft-blue border border-accent-border flex items-center justify-center text-primary-navy shrink-0">
                       <Briefcase className="w-4 h-4" />
                     </div>
