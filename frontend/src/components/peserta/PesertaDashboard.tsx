@@ -20,7 +20,7 @@ import { PesertaLayout } from './PesertaLayout';
 import { Button } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById } from '../../services/assessmentCatalog';
-import { getPortalToken, getPortalUser } from '../../services/portalAuthService';
+import { getPortalToken } from '../../services/portalAuthService';
 
 interface AssessmentHistoryItem {
   programCode: string;
@@ -91,28 +91,6 @@ export default function PesertaDashboard() {
   });
 
   const [history, setHistory] = useState<AssessmentHistoryItem[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
-
-  const downloadLhaPdf = async (candidateCode: string | null | undefined) => {
-    const token = getPortalToken();
-    if (!token || !candidateCode) return;
-    try {
-      const response = await axios.get(`/api/asesor/lha/${encodeURIComponent(candidateCode)}/pdf`, {
-        headers: { Authorization: `Bearer ${token}` },
-        responseType: 'blob'
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `LHA-${candidateCode}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      window.alert('LHA belum tersedia atau belum ditandatangani asesor.');
-    }
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -140,7 +118,6 @@ export default function PesertaDashboard() {
       } finally {
         if (!cancelled) {
           setLoadingDashboard(false);
-          setHistoryLoading(false);
         }
       }
     };
@@ -620,67 +597,7 @@ export default function PesertaDashboard() {
               </div>
             </section>
 
-            {/* Section 2: Program Asesmen */}
-            {dashboardPrograms.length > 0 && (
-              <section className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="text-xl sm:text-2xl font-extrabold font-heading text-slate-900 tracking-tight">
-                    Program Asesmen<span className="text-[#F95B2B]">.</span>
-                  </h2>
-                  <span className="text-xs font-semibold text-slate-500">
-                    {dashboardPrograms.filter((program: any) => isProgramDone(program.code)).length}/
-                    {dashboardPrograms.length} sudah dikerjakan
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {dashboardPrograms.map((program: any) => {
-                    const exam = examForProgram(program.code);
-                    const done = isProgramDone(program.code);
-                    return (
-                      <div
-                        key={program.code}
-                        className="rounded-2xl bg-white border border-slate-200/80 p-4 flex flex-col gap-3 hover:shadow-sm transition-shadow"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <span className="inline-block font-mono text-[10px] font-bold text-primary-navy bg-blue-50 px-2 py-0.5 rounded border border-blue-200/60">
-                              {program.code}
-                            </span>
-                            <p className="text-sm font-bold text-slate-900 mt-1.5 line-clamp-2">{program.title}</p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
-                              {program.durationMinutes || 90} menit • Pass {program.passingScore || 70}
-                            </p>
-                          </div>
-                          <span
-                            className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                              done
-                                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                                : 'bg-amber-100 text-amber-800 border-amber-200'
-                            }`}
-                          >
-                            {done ? '✓ Sudah dikerjakan' : '• Belum dikerjakan'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                          <span className="text-[11px] font-semibold text-slate-500">
-                            {exam?.score != null ? `Skor: ${exam.score}/100` : done ? 'Sudah dikumpulkan' : 'Belum ada nilai'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => navigate('/peserta/asesmen')}
-                            className="px-3 py-1.5 rounded-lg bg-primary-navy text-white text-[11px] font-bold hover:bg-slate-800 cursor-pointer"
-                          >
-                            Buka Asesmen
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
-            {/* Section 3: Tahapan Asesmen */}
+            {/* Section 2: Tahapan Asesmen */}
             <section className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-xl sm:text-2xl font-extrabold font-heading text-slate-900 tracking-tight">
@@ -978,65 +895,73 @@ export default function PesertaDashboard() {
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            {/* Daftar Asesmen */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-extrabold font-heading text-slate-900">
+                  Daftar Asesmen<span className="text-[#F95B2B]">.</span>
+                </h2>
+                <span className="text-[11px] font-bold text-slate-500">
+                  {dashboardPrograms.filter((program: any) => isProgramDone(program.code)).length}/
+                  {dashboardPrograms.length} selesai
+                </span>
+              </div>
+
+              {dashboardPrograms.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center">
+                  <p className="text-xs text-slate-500">Belum ada program asesmen yang ditugaskan.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {dashboardPrograms.map((program: any) => {
+                    const exam = examForProgram(program.code);
+                    const done = isProgramDone(program.code);
+                    const historyItem = history.find(
+                      (item) => String(item.programCode).toUpperCase() === String(program.code).toUpperCase()
+                    );
+                    return (
+                      <button
+                        key={program.code}
+                        type="button"
+                        onClick={() => navigate('/peserta/asesmen')}
+                        className="w-full text-left rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-primary-navy/40 p-3 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 line-clamp-1">{program.title}</p>
+                            <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                              {program.code} • {program.durationMinutes || 90} menit
+                            </p>
+                          </div>
+                          <span
+                            className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              done
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                : 'bg-amber-100 text-amber-800 border-amber-200'
+                            }`}
+                          >
+                            {done ? '✓ Sudah dikerjakan' : '• Belum dikerjakan'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-1.5">
+                          {done
+                            ? exam?.submittedAt
+                              ? `Dikerjakan ${formatShortDate(exam.submittedAt)}`
+                              : 'Sudah dikerjakan'
+                            : 'Belum dikerjakan'}
+                          {exam?.score != null ? ` • Skor ${exam.score}/100` : ''}
+                          {historyItem?.lha?.status === 'signed' ? ' • LHA tersedia' : ''}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </aside>
         </div>
 
-        <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <div>
-              <h2 className="text-base sm:text-lg font-extrabold font-heading text-slate-900">Riwayat Asesmen</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Arsip program yang pernah Anda ikuti beserta status hasil dan LHA.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/peserta/hasil')}
-              className="text-xs font-bold text-[#F95B2B] hover:text-[#e34d20] inline-flex items-center gap-1 cursor-pointer"
-            >
-              Lihat Scorecard
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {historyLoading ? (
-            <p className="text-xs text-slate-500">Memuat riwayat...</p>
-          ) : history.length === 0 ? (
-            <p className="text-xs text-slate-500">Belum ada riwayat asesmen.</p>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {history.map((item) => (
-                <div key={item.programCode} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-800 truncate">{item.programTitle}</p>
-                    <p className="text-[11px] text-slate-500 font-mono">
-                      {item.programCode} • {item.submittedAt ? new Date(item.submittedAt).toLocaleString('id-ID') : 'Belum dikerjakan'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 capitalize">
-                      {item.status.replace('_', ' ')}
-                    </span>
-                    <span className="text-xs font-bold text-slate-800">
-                      {item.score !== null ? `${item.score}/100` : '—'}
-                    </span>
-                    {item.lha?.status === 'signed' ? (
-                      <button
-                        type="button"
-                        onClick={() => downloadLhaPdf(getPortalUser()?.candidateCode)}
-                        className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-primary-navy text-white hover:bg-slate-800 cursor-pointer"
-                      >
-                        Unduh LHA
-                      </button>
-                    ) : (
-                      <span className="text-[11px] text-slate-400">LHA belum tersedia</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
       </div>
     </PesertaLayout>
   );
