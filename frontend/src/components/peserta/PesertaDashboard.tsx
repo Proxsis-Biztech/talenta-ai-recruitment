@@ -493,12 +493,21 @@ export default function PesertaDashboard() {
                     />
                   </div>
                   <h2 className="text-base font-bold text-slate-900">Ujian CAT</h2>
-                  <p className="text-xs text-slate-500 mt-1 mb-5">
+                  <span
+                    className={`mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                      isCatCompleted
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                        : 'bg-amber-100 text-amber-800 border-amber-200'
+                    }`}
+                  >
+                    {isCatCompleted ? 'Sudah Ujian CAT' : 'Belum Ujian CAT'}
+                  </span>
+                  <p className="text-xs text-slate-500 mt-1.5 mb-4">
                     {isCatCompleted
                       ? dashboard?.exam?.score != null
                         ? `Skor: ${dashboard.exam.score}/100 • Selesai`
                         : 'Selesai & Tersimpan'
-                      : `${programDuration} Menit • Siap Dikerjakan`}
+                      : `${programDuration} Menit • Belum Dikerjakan`}
                   </p>
                   <button
                     type="button"
