@@ -330,32 +330,32 @@ export default function AuthLoginPage() {
       </div>
 
       {/* Right Form Panel */}
-      <div className="lg:col-span-6 flex flex-col justify-center px-3 sm:px-8 lg:px-12 py-2 sm:py-4 lg:h-full lg:overflow-y-auto">
-        <div className="w-full max-w-[420px] mx-auto">
-          <div className="flex flex-col items-center text-center mb-4 sm:mb-5">
+      <div className="lg:col-span-6 flex flex-col justify-center px-4 sm:px-10 lg:px-14 py-4 lg:h-full lg:overflow-y-auto">
+        <div className="w-full max-w-[520px] mx-auto">
+          <div className="flex flex-col items-center text-center mb-6 sm:mb-7">
             <img
               src="/img/logoRIght.jpeg"
               alt="RIGHT Assessment Platform"
-              className="h-9 w-auto max-w-[150px] object-contain mb-3"
+              className="h-14 w-auto max-w-[210px] object-contain mb-4"
             />
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-heading tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-heading tracking-tight">
               Masuk ke Akun Anda
             </h1>
-            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            <p className="text-sm sm:text-base text-slate-500 mt-2 leading-relaxed">
               Selamat datang kembali! Masukkan detail akun Anda untuk masuk
             </p>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-700 flex items-center gap-2.5 animate-shake">
+            <div className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-sm text-rose-700 flex items-center gap-2.5 animate-shake">
               <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successRole && (
-            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 flex items-center gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm text-emerald-800 flex items-center gap-2.5">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
               <div>
                 <p className="font-bold">
                   Terverifikasi:{' '}
@@ -365,19 +365,19 @@ export default function AuthLoginPage() {
                       ? 'Dewan Asesor Independen'
                       : 'Peserta Ujian (Kandidat)'}
                 </p>
-                <p className="text-[11px] text-emerald-700">Mengalihkan ke portal...</p>
+                <p className="text-xs text-emerald-700">Mengalihkan ke portal...</p>
               </div>
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-2 pl-1">
                 Username atau Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <User className="h-4 w-4 text-slate-400" />
+                  <User className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
                   type="text"
@@ -385,18 +385,18 @@ export default function AuthLoginPage() {
                   onChange={(e) => setIdentifier(e.target.value)}
                   placeholder="Masukkan username atau email"
                   required
-                  className="w-full pl-11 pr-4 py-3 rounded-full border border-slate-200 bg-white text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0F275C] focus:ring-4 focus:ring-[#0F275C]/10"
+                  className="w-full pl-12 pr-5 py-4 rounded-full border border-slate-200 bg-white text-sm sm:text-base font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0F275C] focus:ring-4 focus:ring-[#0F275C]/10"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-2 pl-1">
                 Kata Sandi
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock className="h-4 w-4 text-slate-400" />
+                  <Lock className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -404,24 +404,24 @@ export default function AuthLoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Masukkan kata sandi"
                   required
-                  className="w-full pl-11 pr-11 py-3 rounded-full border border-slate-200 bg-white text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0F275C] focus:ring-4 focus:ring-[#0F275C]/10"
+                  className="w-full pl-12 pr-12 py-4 rounded-full border border-slate-200 bg-white text-sm sm:text-base font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0F275C] focus:ring-4 focus:ring-[#0F275C]/10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs px-1">
+            <div className="flex items-center justify-between text-sm px-1">
               <label className="inline-flex items-center gap-2 text-slate-600 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   defaultChecked
-                  className="rounded border-slate-300 text-[#0F275C] focus:ring-[#0F275C]"
+                  className="w-4 h-4 rounded border-slate-300 text-[#0F275C] focus:ring-[#0F275C]"
                 />
                 <span>Ingat saya</span>
               </label>
@@ -443,15 +443,15 @@ export default function AuthLoginPage() {
               <Button
                 type="submit"
                 variant="primary"
-                className="w-full py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-full bg-[#0F275C] hover:bg-[#16367d] border-0 shadow-sm cursor-pointer"
+                className="w-full py-4 text-sm sm:text-base font-bold flex items-center justify-center gap-2 rounded-full bg-[#0F275C] hover:bg-[#16367d] border-0 shadow-md cursor-pointer"
                 disabled={isLoading}
               >
                 {isLoading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     <span>Masuk</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-5 h-5" />
                   </>
                 )}
               </Button>
@@ -460,7 +460,7 @@ export default function AuthLoginPage() {
 
           {googleReady && (
             <>
-              <div className="my-5 flex items-center gap-3 text-[11px] text-slate-400">
+              <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
                 <span className="h-px flex-1 bg-slate-200" />
                 <span>Atau lanjutkan dengan</span>
                 <span className="h-px flex-1 bg-slate-200" />
@@ -469,13 +469,13 @@ export default function AuthLoginPage() {
               <div className="flex flex-col items-center gap-2">
                 <div id="google-signin-button" className="w-full flex justify-center" />
                 {googleLoading && (
-                  <p className="text-[11px] text-slate-500">Memverifikasi akun Google...</p>
+                  <p className="text-xs text-slate-500">Memverifikasi akun Google...</p>
                 )}
               </div>
             </>
           )}
 
-          <p className="mt-6 text-center text-[11px] text-slate-500">
+          <p className="mt-7 text-center text-xs sm:text-sm text-slate-500">
             Akun peserta dibuat oleh admin melalui email undangan.{' '}
             <button
               type="button"
