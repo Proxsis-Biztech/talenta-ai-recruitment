@@ -136,8 +136,13 @@ export default function PesertaDashboard() {
       }
     };
     void loadDashboard();
+    const handleFocus = () => {
+      if (!cancelled) void loadDashboard();
+    };
+    window.addEventListener('focus', handleFocus);
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
@@ -214,6 +219,7 @@ export default function PesertaDashboard() {
       : null;
 
   const isCatCompleted = ['submitted', 'graded', 'completed'].includes(activeExam?.status || '');
+  const activeScore = activeExam?.score ?? activeHistory?.score ?? null;
   const isInterviewCompleted = dashboard?.interview?.status === 'completed';
   const faceVerified = Boolean(dashboard?.user?.faceVerifiedAt || dashboard?.user?.deviceCheckCompletedAt);
   const profileComplete = dashboard
@@ -278,7 +284,7 @@ export default function PesertaDashboard() {
         title: `Ujian Kompetensi CAT — ${activeProgramTitle}`,
         subtitle: isCatCompleted
           ? `Selesai dikumpulkan • ${formatDate(dashboard?.exam?.submittedAt)}${
-              dashboard?.exam?.score != null ? ` • Skor ${dashboard.exam.score}` : ''
+              activeScore != null ? ` • Skor ${activeScore}` : ''
             }`
           : `Durasi ${activeProgramDuration} Menit • Akses melalui Asesmen Saya`,
         category: 'Asesmen',
@@ -588,8 +594,8 @@ export default function PesertaDashboard() {
                   </span>
                   <p className="text-xs text-slate-500 mt-1.5 mb-4">
                     {isCatCompleted
-                      ? activeExam?.score != null
-                        ? `Skor: ${activeExam.score}/100 • Selesai`
+                      ? activeScore != null
+                        ? `Skor: ${activeScore}/100 • Selesai`
                         : 'Selesai & Tersimpan'
                       : `${activeProgramDuration} Menit • Belum Dikerjakan`}
                   </p>
@@ -657,8 +663,10 @@ export default function PesertaDashboard() {
                   <h2 className="text-base font-bold text-slate-900">Hasil &amp; LHA</h2>
                   <p className="text-xs text-slate-500 mt-1 mb-5">
                     {lha?.signed
-                      ? `LHA Resmi • Skor ${lha.compositeScore ?? '-'}`
-                      : `${completedCount}/${tasks.length} Tahap Selesai`}
+                      ? `LHA Resmi • Skor ${lha.compositeScore ?? activeScore ?? '-'}`
+                      : activeScore != null
+                        ? `Skor CAT ${activeScore}/100 • ${completedCount}/${tasks.length} Tahap`
+                        : `${completedCount}/${tasks.length} Tahap Selesai`}
                   </p>
                   <button
                     type="button"
@@ -988,7 +996,7 @@ export default function PesertaDashboard() {
                   agendaItems.push({
                     id: 'exam',
                     title: 'Ujian CAT dikumpulkan',
-                    detail: dashboard?.exam?.score != null ? `Skor ${dashboard.exam.score}/100` : 'Jawaban tersimpan',
+                    detail: activeScore != null ? `Skor ${activeScore}/100` : 'Jawaban tersimpan',
                     tone: 'emerald'
                   });
                 }

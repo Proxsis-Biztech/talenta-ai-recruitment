@@ -363,7 +363,9 @@ export default function PesertaAsesmenList() {
       const catalogData = allCatalog.find((c) => c.id === pId);
       const catDone = isProgramCatCompleted(pId);
       const intDone = isProgramInterviewCompleted(pId);
-      const progExamScore = serverExamsByProgram[pId]?.score;
+      const progExamScore =
+        serverExamsByProgram[pId]?.score ??
+        serverExamsByProgram[String(pId).trim().toUpperCase()]?.score;
 
       const primaryServer = serverPrograms.find((item) => item.code === activeProg.id);
       if (isPrimary) {
@@ -1401,7 +1403,13 @@ export default function PesertaAsesmenList() {
                         }`}
                       >
                         <span>Status Ujian CAT</span>
-                        <span>{catDone ? '✓ Sudah Ujian CAT' : '• Belum Ujian CAT'}</span>
+                        <span>
+                          {catDone
+                            ? item.score != null
+                              ? `✓ Sudah Ujian CAT • Skor ${item.score}/100`
+                              : '✓ Sudah Ujian CAT'
+                            : '• Belum Ujian CAT'}
+                        </span>
                       </div>
 
                       {/* Progress Bar */}
