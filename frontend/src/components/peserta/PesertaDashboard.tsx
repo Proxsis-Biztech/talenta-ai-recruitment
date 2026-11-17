@@ -20,7 +20,18 @@ import { PesertaLayout } from './PesertaLayout';
 import { Button } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById } from '../../services/assessmentCatalog';
-import { getPortalToken } from '../../services/portalAuthService';
+import { getPortalToken, getPortalUser } from '../../services/portalAuthService';
+
+interface AssessmentHistoryItem {
+  programCode: string;
+  programTitle: string;
+  status: string;
+  score: number | null;
+  integrityScore: number | null;
+  violationCount: number;
+  submittedAt: string | null;
+  lha: { status: string; recommendation: string; compositeScore: number; lhaNumber: string | null } | null;
+}
 
 type TaskFilterTab = 'all' | 'pending' | 'completed';
 
@@ -79,6 +90,30 @@ export default function PesertaDashboard() {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
+  const [history, setHistory] = useState<AssessmentHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  const downloadLhaPdf = async (candidateCode: string | null | undefined) => {
+    const token = getPortalToken();
+    if (!token || !candidateCode) return;
+    try {
+      const response = await axios.get(`/api/asesor/lha/${encodeURIComponent(candidateCode)}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `LHA-${candidateCode}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.alert('LHA belum tersedia atau belum ditandatangani asesor.');
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const loadDashboard = async () => {
@@ -92,10 +127,21 @@ export default function PesertaDashboard() {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (!cancelled) setDashboard(response.data);
+        try {
+          const historyResponse = await axios.get('/api/portal/history', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (!cancelled) setHistory(historyResponse.data?.data || []);
+        } catch {
+          if (!cancelled) setHistory([]);
+        }
       } catch {
         if (!cancelled) setDashboard(null);
       } finally {
-        if (!cancelled) setLoadingDashboard(false);
+        if (!cancelled) {
+          setLoadingDashboard(false);
+          setHistoryLoading(false);
+        }
       }
     };
     void loadDashboard();
@@ -116,7 +162,12 @@ export default function PesertaDashboard() {
     ? programTitle
     : `${programTitle} • ${companyName}`;
 
-  const isCatCompleted = ['submitted', 'graded'].includes(dashboard?.exam?.status || '');
+  const isCatCompleted =
+    ['submitted', 'graded', 'completed'].includes(dashboard?.exam?.status || '') ||
+    Object.values(dashboard?.examsByProgram || {}).some((item: any) =>
+      ['submitted', 'graded', 'completed'].includes(String(item?.status || ''))
+    ) ||
+    localStorage.getItem('talenta_cat_completed') === 'true';
   const isInterviewCompleted = dashboard?.interview?.status === 'completed';
   const faceVerified = Boolean(dashboard?.user?.faceVerifiedAt || dashboard?.user?.deviceCheckCompletedAt);
   const profileComplete = dashboard
@@ -765,6 +816,63 @@ export default function PesertaDashboard() {
             </div>
           </aside>
         </div>
+
+        <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 className="text-base sm:text-lg font-extrabold font-heading text-slate-900">Riwayat Asesmen</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Arsip program yang pernah Anda ikuti beserta status hasil dan LHA.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/peserta/hasil')}
+              className="text-xs font-bold text-[#F95B2B] hover:text-[#e34d20] inline-flex items-center gap-1 cursor-pointer"
+            >
+              Lihat Scorecard
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {historyLoading ? (
+            <p className="text-xs text-slate-500">Memuat riwayat...</p>
+          ) : history.length === 0 ? (
+            <p className="text-xs text-slate-500">Belum ada riwayat asesmen.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {history.map((item) => (
+                <div key={item.programCode} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-800 truncate">{item.programTitle}</p>
+                    <p className="text-[11px] text-slate-500 font-mono">
+                      {item.programCode} • {item.submittedAt ? new Date(item.submittedAt).toLocaleString('id-ID') : 'Belum dikerjakan'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 capitalize">
+                      {item.status.replace('_', ' ')}
+                    </span>
+                    <span className="text-xs font-bold text-slate-800">
+                      {item.score !== null ? `${item.score}/100` : '—'}
+                    </span>
+                    {item.lha?.status === 'signed' ? (
+                      <button
+                        type="button"
+                        onClick={() => downloadLhaPdf(getPortalUser()?.candidateCode)}
+                        className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-primary-navy text-white hover:bg-slate-800 cursor-pointer"
+                      >
+                        Unduh LHA
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-slate-400">LHA belum tersedia</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </PesertaLayout>
   );

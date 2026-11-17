@@ -1,11 +1,13 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import { type AuthRequest, getJwtSecret } from '../middleware/auth';
+import { type AuthRequest, getJwtSecret, portalTokenTtl } from '../middleware/auth';
 import { resolveAdminTenantId } from '../middleware/tenant';
 import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
+import { sendCredentialsEmail, sendPasswordResetEmail } from '../services/mailService';
 
 const prisma = new PrismaClient();
 
@@ -51,8 +53,40 @@ const signPortalToken = (user: { id: string; email: string; name: string; role: 
   jwt.sign(
     { id: user.id, email: user.email, name: user.name, role: user.role, tenantId: user.tenantId, type: 'portal' },
     getJwtSecret(),
-    { expiresIn: '12h' }
+    { expiresIn: portalTokenTtl(user.role) as jwt.SignOptions['expiresIn'] }
   );
+
+const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const RESET_TTL_MS = 30 * 60 * 1000;
+
+const hashToken = (token: string): string => crypto.createHash('sha256').update(token).digest('hex');
+
+const appBaseUrl = (): string => {
+  const explicit = process.env.APP_BASE_URL || process.env.FRONTEND_URL;
+  if (explicit) return explicit.replace(/\/$/, '');
+  const origin = (process.env.CORS_ORIGIN || '').split(',').map((item) => item.trim()).filter(Boolean)[0];
+  return (origin || 'http://localhost:5173').replace(/\/$/, '');
+};
+
+const issueRefreshToken = async (userId: string): Promise<string> => {
+  const token = crypto.randomBytes(48).toString('base64url');
+  await prisma.portalRefreshToken.create({
+    data: { userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + REFRESH_TTL_MS) }
+  });
+  return token;
+};
+
+const buildSession = async (user: { id: string; email: string; name: string; role: string; tenantId?: string | null }) => {
+  const token = signPortalToken(user);
+  const refreshToken = await issueRefreshToken(user.id);
+  const safeUser = await prisma.portalUser.findUnique({ where: { id: user.id }, select: userSelect });
+  return {
+    token,
+    refreshToken,
+    user: safeUser,
+    requiresOnboarding: Boolean(safeUser && (!safeUser.profileCompleted || safeUser.mustChangePassword))
+  };
+};
 
 const normalizeProgram = (job: { code: string | null; title: string; interviewPassingScore: number | null } | null) => {
   if (!job) return {};
@@ -87,13 +121,8 @@ export const loginPortal = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Akun Anda sedang dinonaktifkan. Hubungi administrator.' });
     }
 
-    const token = signPortalToken(user);
-    const safeUser = await prisma.portalUser.findUnique({ where: { id: user.id }, select: userSelect });
-    return res.json({
-      token,
-      user: safeUser,
-      requiresOnboarding: Boolean(safeUser && (!safeUser.profileCompleted || safeUser.mustChangePassword))
-    });
+    const session = await buildSession(user);
+    return res.json(session);
   } catch (error) {
     console.error('Portal login error:', error);
     return res.status(500).json({ error: 'Terjadi kesalahan pada server.' });
@@ -132,13 +161,8 @@ export const googleLogin = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Akun Anda sedang dinonaktifkan.' });
     }
 
-    const token = signPortalToken(user);
-    const safeUser = await prisma.portalUser.findUnique({ where: { id: user.id }, select: userSelect });
-    return res.json({
-      token,
-      user: safeUser,
-      requiresOnboarding: Boolean(safeUser && (!safeUser.profileCompleted || safeUser.mustChangePassword))
-    });
+    const session = await buildSession(user);
+    return res.json(session);
   } catch (error) {
     console.error('Google login error:', error);
     return res.status(500).json({ error: 'Gagal masuk dengan Google.' });
@@ -184,7 +208,7 @@ export const registerPeserta = async (req: AuthRequest, res: Response) => {
     });
 
     await ensureApplicantForPortalUser(user.id);
-    return res.status(201).json({ token: signPortalToken(user), user });
+    return res.status(201).json(await buildSession(user));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.issues[0]?.message || 'Data pendaftaran tidak valid.' });
@@ -252,8 +276,7 @@ export const tokenLogin = async (req: AuthRequest, res: Response) => {
     }
 
     await ensureApplicantForPortalUser(user.id);
-    const safeUser = await prisma.portalUser.findUnique({ where: { id: user.id }, select: userSelect });
-    return res.json({ token: signPortalToken(user), user: safeUser });
+    return res.json(await buildSession(user));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.issues[0]?.message || 'Data tidak valid.' });
@@ -460,11 +483,17 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
       : [];
     const job = jobs.find((item) => item.code === programCode) || jobs[0] || null;
     const allAttempts = await prisma.examAttempt.findMany({
-      where: { userId: user.id }
+      where: { userId: user.id },
+      orderBy: { submittedAt: 'desc' }
     });
-    const attempt = programCode
-      ? allAttempts.find((item) => item.programCode === programCode) || null
-      : null;
+    const normalizedProgramCode = String(programCode || '').trim().toUpperCase();
+    const attempt =
+      (normalizedProgramCode
+        ? allAttempts.find((item) => item.programCode.toUpperCase() === normalizedProgramCode)
+        : null) ||
+      allAttempts.find((item) => ['submitted', 'graded', 'completed'].includes(item.status)) ||
+      allAttempts[0] ||
+      null;
 
     if (
       attempt &&
@@ -544,7 +573,7 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
         : { status: 'not_started', score: null, integrityScore: null, submittedAt: null, violationCount: 0 },
       examsByProgram: Object.fromEntries(
         allAttempts.map((item) => [
-          item.programCode,
+          String(item.programCode || '').trim().toUpperCase(),
           {
             status: item.status,
             score: item.score,
@@ -663,7 +692,16 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
       select: userSelect
     });
     if (role === 'peserta') await ensureApplicantForPortalUser(user.id);
-    return res.status(201).json({ data: user });
+    let mail: Awaited<ReturnType<typeof sendCredentialsEmail>> | null = null;
+    if (req.body.sendEmail !== false) {
+      mail = await sendCredentialsEmail(user.email, user.name, {
+        loginUrl: `${appBaseUrl()}/login`,
+        programTitle: user.assessmentTitle || user.assessmentId || undefined,
+        username: user.username || undefined,
+        temporaryPassword: password
+      });
+    }
+    return res.status(201).json({ data: user, mail });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.issues[0]?.message || 'Data tidak valid.' });
@@ -737,5 +775,231 @@ export const deletePortalUser = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Delete portal user error:', error);
     return res.status(500).json({ error: 'Gagal menghapus pengguna portal.' });
+  }
+};
+export const forgotPassword = async (req: AuthRequest, res: Response) => {
+  try {
+    const email = emailSchema.parse(req.body.email);
+    const user = await prisma.portalUser.findUnique({ where: { email } });
+    const generic = {
+      message: 'Jika email terdaftar, tautan pengaturan ulang kata sandi telah dikirim. Periksa kotak masuk Anda.'
+    };
+
+    if (!user) return res.json(generic);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(token),
+        expiresAt: new Date(Date.now() + RESET_TTL_MS)
+      }
+    });
+
+    const resetUrl = `${appBaseUrl()}/login?reset=${token}`;
+    const mail = await sendPasswordResetEmail(user.email, user.name, token, resetUrl);
+    const payload: Record<string, unknown> = { ...generic, mailDelivered: mail.delivered, mailProvider: mail.provider };
+    if (process.env.NODE_ENV !== 'production' && !mail.delivered) {
+      payload.devResetToken = token;
+      payload.resetUrl = resetUrl;
+    }
+    return res.json(payload);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.issues[0]?.message || 'Email tidak valid.' });
+    }
+    console.error('Forgot password error:', error);
+    return res.status(500).json({ error: 'Gagal memproses permintaan reset kata sandi.' });
+  }
+};
+
+export const resetPassword = async (req: AuthRequest, res: Response) => {
+  try {
+    const token = String(req.body.token || '').trim();
+    const newPassword = passwordSchema.parse(req.body.password ?? req.body.newPassword);
+    if (!token) return res.status(400).json({ error: 'Token reset wajib diisi.' });
+
+    const record = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash: hashToken(token) }
+    });
+    if (!record || record.usedAt || record.expiresAt.getTime() < Date.now()) {
+      return res.status(400).json({ error: 'Tautan reset tidak valid atau sudah kedaluwarsa. Minta tautan baru.' });
+    }
+
+    const user = await prisma.portalUser.findUnique({ where: { id: record.userId } });
+    if (!user) return res.status(404).json({ error: 'Akun tidak ditemukan.' });
+
+    await prisma.$transaction([
+      prisma.portalUser.update({
+        where: { id: user.id },
+        data: { password: await bcrypt.hash(newPassword, 10), mustChangePassword: false }
+      }),
+      prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+      prisma.portalRefreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() }
+      })
+    ]);
+
+    return res.json({ message: 'Kata sandi berhasil diperbarui. Silakan masuk dengan kata sandi baru.' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.issues[0]?.message || 'Kata sandi baru tidak valid.' });
+    }
+    console.error('Reset password error:', error);
+    return res.status(500).json({ error: 'Gagal mengatur ulang kata sandi.' });
+  }
+};
+
+export const refreshPortalSession = async (req: AuthRequest, res: Response) => {
+  try {
+    const refreshToken = String(req.body.refreshToken || '').trim();
+    if (!refreshToken) return res.status(400).json({ error: 'Refresh token wajib dikirim.' });
+
+    const record = await prisma.portalRefreshToken.findUnique({ where: { tokenHash: hashToken(refreshToken) } });
+    if (!record || record.revokedAt || record.expiresAt.getTime() < Date.now()) {
+      return res.status(401).json({ error: 'Sesi Anda berakhir. Silakan masuk kembali.' });
+    }
+
+    const user = await prisma.portalUser.findUnique({ where: { id: record.userId } });
+    if (!user || user.status !== 'Aktif') {
+      return res.status(401).json({ error: 'Akun tidak ditemukan atau sudah dinonaktifkan.' });
+    }
+
+    await prisma.portalRefreshToken.update({ where: { id: record.id }, data: { revokedAt: new Date() } });
+    return res.json(await buildSession(user));
+  } catch (error) {
+    console.error('Refresh portal session error:', error);
+    return res.status(500).json({ error: 'Gagal memperbarui sesi.' });
+  }
+};
+
+export const logoutPortal = async (req: AuthRequest, res: Response) => {
+  try {
+    const refreshToken = String(req.body?.refreshToken || '').trim();
+    if (refreshToken) {
+      await prisma.portalRefreshToken.updateMany({
+        where: { tokenHash: hashToken(refreshToken), revokedAt: null },
+        data: { revokedAt: new Date() }
+      });
+    } else if (req.portalUser) {
+      await prisma.portalRefreshToken.updateMany({
+        where: { userId: req.portalUser.id, revokedAt: null },
+        data: { revokedAt: new Date() }
+      });
+    }
+    return res.json({ message: 'Sesi berhasil diakhiri.' });
+  } catch (error) {
+    console.error('Logout portal error:', error);
+    return res.status(500).json({ error: 'Gagal mengakhiri sesi.' });
+  }
+};
+
+export const getAssessmentHistory = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    const user = await prisma.portalUser.findUnique({
+      where: { id: req.portalUser.id },
+      select: { candidateCode: true, assessmentId: true, assessmentIds: true }
+    });
+    if (!user) return res.status(404).json({ error: 'Akun tidak ditemukan.' });
+
+    const attempts = await prisma.examAttempt.findMany({
+      where: { userId: req.portalUser.id },
+      orderBy: { startedAt: 'desc' }
+    });
+
+    const assignedCodes = new Set<string>(attempts.map((item) => item.programCode));
+    if (user.assessmentId) assignedCodes.add(user.assessmentId);
+    if (user.assessmentIds) {
+      try {
+        const parsed = JSON.parse(user.assessmentIds);
+        if (Array.isArray(parsed)) parsed.forEach((code) => assignedCodes.add(String(code)));
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+
+    const jobs = await prisma.job.findMany({
+      where: { code: { in: Array.from(assignedCodes) } },
+      select: { code: true, title: true, interviewDuration: true, interviewPassingScore: true }
+    });
+    const jobByCode = new Map(jobs.map((job) => [job.code || '', job]));
+
+    const scores = user.candidateCode
+      ? await prisma.assessorScore.findMany({
+          where: { candidateCode: user.candidateCode },
+          orderBy: { updatedAt: 'desc' }
+        })
+      : [];
+
+    const history = Array.from(assignedCodes).map((code) => {
+      const attempt = attempts.find((item) => item.programCode === code) || null;
+      const job = jobByCode.get(code);
+      const score = scores.find((item) => item.programCode === code || item.programTitle === job?.title);
+      return {
+        programCode: code,
+        programTitle: job?.title || code,
+        durationMinutes: job?.interviewDuration || 90,
+        passingScore: job?.interviewPassingScore || 70,
+        status: attempt?.status || 'not_started',
+        score: attempt?.score ?? null,
+        integrityScore: attempt?.integrityScore ?? null,
+        violationCount: (() => {
+          try {
+            const parsed = JSON.parse(attempt?.violations || '[]');
+            return Array.isArray(parsed) ? parsed.length : 0;
+          } catch {
+            return 0;
+          }
+        })(),
+        startedAt: attempt?.startedAt || null,
+        submittedAt: attempt?.submittedAt || null,
+        lha: score
+          ? {
+              status: score.status,
+              recommendation: score.recommendation,
+              compositeScore: score.compositeScore,
+              interviewScore: score.interviewScore,
+              lhaNumber: score.lhaNumber,
+              signedAt: score.signedAt
+            }
+          : null
+      };
+    });
+
+    history.sort((a, b) => {
+      const left = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+      const right = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+      return right - left;
+    });
+
+    return res.json({ data: history });
+  } catch (error) {
+    console.error('Get assessment history error:', error);
+    return res.status(500).json({ error: 'Gagal memuat riwayat asesmen.' });
+  }
+};
+
+export const sendPortalUserCredentials = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const existing = await prisma.portalUser.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Pengguna portal tidak ditemukan.' });
+    const tenantId = resolveAdminTenantId(req);
+    if (tenantId && existing.tenantId !== tenantId) {
+      return res.status(403).json({ error: 'Pengguna bukan milik tenant Anda.' });
+    }
+
+    const programTitle = existing.assessmentTitle || existing.assessmentId || undefined;
+    const mail = await sendCredentialsEmail(existing.email, existing.name, {
+      loginUrl: `${appBaseUrl()}/login`,
+      programTitle: programTitle || undefined,
+      username: existing.username || undefined
+    });
+    return res.json({ message: 'Email kredensial diproses.', mail });
+  } catch (error) {
+    console.error('Send credentials error:', error);
+    return res.status(500).json({ error: 'Gagal mengirim email kredensial.' });
   }
 };

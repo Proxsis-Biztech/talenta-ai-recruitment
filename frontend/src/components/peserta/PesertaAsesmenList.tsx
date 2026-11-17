@@ -148,22 +148,28 @@ export default function PesertaAsesmenList() {
     let cancelled = false;
     const token = getPortalToken();
     if (!token) return;
-    axios
-      .get('/api/portal/dashboard', { headers: { Authorization: `Bearer ${token}` } })
-      .then((response) => {
-        if (cancelled) return;
-        setServerExam(response.data?.exam || null);
-        setServerExamsByProgram(response.data?.examsByProgram || {});
-        setServerInterview(response.data?.interview || null);
-        if (Array.isArray(response.data?.programs)) {
-          setServerPrograms(response.data.programs);
-        }
-      })
-      .catch(() => undefined);
+    const fetchDashboardStatus = () => {
+      axios
+        .get('/api/portal/dashboard', { headers: { Authorization: `Bearer ${token}` } })
+        .then((response) => {
+          if (cancelled) return;
+          setServerExam(response.data?.exam || null);
+          setServerExamsByProgram(response.data?.examsByProgram || {});
+          setServerInterview(response.data?.interview || null);
+          if (Array.isArray(response.data?.programs)) {
+            setServerPrograms(response.data.programs);
+          }
+        })
+        .catch(() => undefined);
+    };
+    fetchDashboardStatus();
+    const handleFocus = () => fetchDashboardStatus();
+    window.addEventListener('focus', handleFocus);
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [selectedProgramId]);
 
   // Fetch materials for current program
   useEffect(() => {
@@ -178,17 +184,18 @@ export default function PesertaAsesmenList() {
       } catch {}
 
       const pool = savedList.length > 0 ? savedList : INITIAL_MATERI_LIST;
-      const currentProgId = selectedProgramId || activeProg.id;
-      let matched = pool.filter(
-        (m) =>
-          m.code === currentProgId ||
-          (activeProg.companyName && m.companyName.toLowerCase().includes(activeProg.companyName.toLowerCase().slice(0, 8)))
-      );
+      const currentProgId = (selectedProgramId || activeProg.id || '').trim().toUpperCase();
+      let matched = pool.filter((m) => String(m.code || '').trim().toUpperCase() === currentProgId);
+      if (matched.length === 0 && activeProg.companyName) {
+        matched = pool.filter((m) =>
+          m.companyName.toLowerCase().includes(activeProg.companyName.toLowerCase().slice(0, 8))
+        );
+      }
       if (matched.length === 0) {
         matched = pool.slice(0, 4);
       }
       setMaterials(matched);
-      if (matched.length > 0 && !selectedModule) {
+      if (matched.length > 0) {
         setSelectedModule(matched[0]);
       }
     };
@@ -222,11 +229,16 @@ export default function PesertaAsesmenList() {
 
   const isProgramCatCompleted = useCallback(
     (code: string) => {
-      const progExam = serverExamsByProgram[code];
-      if (progExam) {
-        return ['submitted', 'graded', 'completed'].includes(String(progExam.status || ''));
+      const upper = String(code || '').trim().toUpperCase();
+      const progExam = serverExamsByProgram[code] || serverExamsByProgram[upper];
+      if (progExam && ['submitted', 'graded', 'completed'].includes(String(progExam.status || ''))) {
+        return true;
       }
-      if (code === activeProg.id && Object.keys(serverExamsByProgram).length === 0) {
+      const localSubmitted =
+        Boolean(localStorage.getItem(`talenta_cat_submitted_${code}`)) ||
+        Boolean(localStorage.getItem(`talenta_cat_submitted_${upper}`));
+      if (localSubmitted) return true;
+      if (upper === String(activeProg.id || '').trim().toUpperCase() && Object.keys(serverExamsByProgram).length === 0) {
         return (
           ['submitted', 'graded', 'completed'].includes(String(serverExam?.status || '')) ||
           localStorage.getItem('talenta_cat_completed') === 'true'

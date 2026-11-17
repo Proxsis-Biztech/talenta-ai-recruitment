@@ -34,14 +34,17 @@ import {
   Video,
   Lock,
   RotateCcw,
-  Award
+  Award,
+  PanelRightOpen,
+  ExternalLink,
+  Paperclip
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
 import { ProctoringEngine, type ProctoringViolationEvent } from '../../utils/proctoringEngine';
 import { Button, Badge, Modal, Card, CardContent } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getPortalToken, getPortalUser } from '../../services/portalAuthService';
-import { CameraProctorTile } from './CameraProctorTile';
+import { CameraProctorTile, type ProctorStatus } from './CameraProctorTile';
 import { getProgramById, type AssessmentProgram } from '../../services/assessmentCatalog';
 
 // Mock 40 questions covering realistic IT & Engineering competencies for CAT mode
@@ -54,6 +57,15 @@ interface Question {
   codeSnippet?: string;
   options?: { key: string; label: string }[];
   matchingPairs?: { left: string; rightOptions: string[] }[];
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentMime?: string | null;
+}
+
+interface CaseFile {
+  name: string;
+  url: string;
+  mime?: string;
 }
 
 const MOCK_QUESTIONS: Question[] = [
@@ -180,8 +192,12 @@ export default function PesertaExamPlayer() {
   // Font Size Accessibility Setting: 'normal' (16px), 'large' (18px), 'xlarge' (20px)
   const [fontSize, setFontSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
 
-  // Exam timer follows the program duration from the server (fallback to catalog value)
+  // Exam timer is anchored to the server deadline so a page reload cannot reset it.
   const [timeLeft, setTimeLeft] = useState(() => (activeProgram.durationMinutes || 90) * 60);
+  const [serverEndsAt, setServerEndsAt] = useState<number | null>(null);
+  const [serverClockSkewMs, setServerClockSkewMs] = useState<number>(0);
+  const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
+  const [docPanelState, setDocPanelState] = useState<{ questionId: number; open: boolean } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Active question index (0..39)
@@ -228,6 +244,7 @@ export default function PesertaExamPlayer() {
   const [violationAlertOpen, setViolationAlertOpen] = useState(false);
   const [latestViolation, setLatestViolation] = useState<ProctoringViolationEvent | null>(null);
   const [violations, setViolations] = useState<ProctoringViolationEvent[]>([]);
+  const [cameraStatus, setCameraStatus] = useState<ProctorStatus>('loading');
 
   // Live Helpdesk Chat
   const [liveChatOpen, setLiveChatOpen] = useState(false);
@@ -287,9 +304,17 @@ export default function PesertaExamPlayer() {
         setServerQuestions(response.data.questions || []);
         setAnswers(response.data.attempt?.answers || {});
         setMarkedDoubt(response.data.attempt?.markedDoubt || {});
-        if (response.data.program?.durationMinutes) {
+        const serverNow = response.data.serverTime ? Date.parse(response.data.serverTime) : Date.now();
+        setServerClockSkewMs(serverNow - Date.now());
+        const endsAtRaw = response.data.attempt?.endsAt || null;
+        if (endsAtRaw) {
+          const endsAtMs = Date.parse(endsAtRaw);
+          setServerEndsAt(endsAtMs);
+          setTimeLeft(Math.max(0, Math.round((endsAtMs - serverNow) / 1000)));
+        } else if (response.data.program?.durationMinutes) {
           setTimeLeft(Number(response.data.program.durationMinutes) * 60);
         }
+        setCaseFiles(Array.isArray(response.data.program?.caseFiles) ? response.data.program.caseFiles : []);
         setExamReady(true);
         setAutoSaveStatus('Tersimpan otomatis');
       } catch (err) {
@@ -319,6 +344,14 @@ export default function PesertaExamPlayer() {
 
   const totalQuestions = questions.length;
   const currentQ = questions[currentIdx] || questions[0];
+  const docPanelOpen =
+    docPanelState?.questionId === currentQ?.id
+      ? docPanelState.open
+      : Boolean(currentQ?.attachmentUrl);
+  const setDocPanelOpen = (open: boolean) => {
+    if (!currentQ) return;
+    setDocPanelState({ questionId: currentQ.id, open });
+  };
 
   const answeredCount = useMemo(() => {
     return Array.from({ length: totalQuestions }).filter((_, i) => isQuestionAnswered(i + 1)).length;
@@ -343,6 +376,7 @@ export default function PesertaExamPlayer() {
       blockContextMenu: true,
       blockCopyPaste: true,
       detectFace: false,
+      forbidVirtualBg: true,
       onViolation: (evt) => {
         setLatestViolation(evt);
         setViolations((prev) => [evt, ...prev]);
@@ -356,6 +390,17 @@ export default function PesertaExamPlayer() {
 
     engine.start();
     proctoringRef.current = engine;
+
+    void (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        await engine.auditCamera(stream);
+        stream.getTracks().forEach((track) => track.stop());
+        engine.startDeviceWatch(() => null, 30000);
+      } catch {
+        // Camera permission handled by the device-check stage; skip silently here.
+      }
+    })();
 
     return () => {
       engine.stop();
@@ -389,15 +434,20 @@ export default function PesertaExamPlayer() {
     };
   }, [examReady, isExamLocked]);
 
-  // Timer Countdown
+  // Timer Countdown — recomputed from the authoritative server deadline.
   useEffect(() => {
     if (isExamLocked) return;
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      if (serverEndsAt) {
+        const remaining = Math.max(0, Math.round((serverEndsAt - (Date.now() + serverClockSkewMs)) / 1000));
+        setTimeLeft(remaining);
+      } else {
+        setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      }
     }, 1000);
     return () => clearInterval(timer);
-  }, [isExamLocked]);
+  }, [isExamLocked, serverEndsAt, serverClockSkewMs]);
 
   // Periodic server auto-save
   useEffect(() => {
@@ -413,7 +463,12 @@ export default function PesertaExamPlayer() {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setAutoSaveStatus(`Tersimpan aman • ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`);
-      } catch {
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 409) {
+          setTimeLeft(0);
+          setAutoSaveStatus('Waktu ujian berakhir — jawaban dikunci');
+          return;
+        }
         setAutoSaveStatus('Gagal menyimpan • mencoba lagi');
       }
     }, 8000);
@@ -470,13 +525,28 @@ export default function PesertaExamPlayer() {
       if (!token) {
         throw new Error('Sesi Anda telah berakhir. Silakan masuk kembali.');
       }
+      const cameraInactive = cameraStatus === 'inactive' || cameraStatus === 'error';
+      const effectiveViolations = cameraInactive
+        ? [
+            ...violations,
+            {
+              type: 'camera_inactive',
+              message: 'Kamera proctoring tidak aktif selama sesi ujian.',
+              timestamp: new Date().toISOString()
+            }
+          ]
+        : violations;
+      const computedIntegrity = Math.max(
+        60,
+        100 - violations.length * 5 - (cameraInactive ? 15 : 0)
+      );
       const response = await axios.post(
         `/api/exam/${activeProgram.id}/submit`,
         {
           answers,
           markedDoubt,
-          violations,
-          integrityScore: Math.max(70, 100 - violations.length * 5)
+          violations: effectiveViolations,
+          integrityScore: computedIntegrity
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -509,6 +579,12 @@ export default function PesertaExamPlayer() {
       setSummaryModalOpen(false);
       setSubmitSuccessModalOpen(true);
     } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409 && err.response.data?.status) {
+        setIsExamLocked(true);
+        setSubmitSuccessModalOpen(true);
+        setAutoSaveStatus('Ujian sudah dikumpulkan sebelumnya.');
+        return;
+      }
       const message = axios.isAxiosError(err)
         ? err.response?.data?.error || 'Gagal mengumpulkan ujian.'
         : err instanceof Error
@@ -757,7 +833,62 @@ export default function PesertaExamPlayer() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans select-none antialiased">
-      {!isExamLocked && <CameraProctorTile floating />}
+      {!isExamLocked && <CameraProctorTile floating onStatusChange={setCameraStatus} />}
+
+      {/* Split-view document panel (BR-EX-08) */}
+      {!isExamLocked && docPanelOpen && currentQ.attachmentUrl && (
+        <aside className="hidden lg:flex fixed right-0 top-18 bottom-0 w-[40vw] max-w-2xl bg-white border-l border-slate-200 shadow-xl z-30 flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+            <div className="flex items-center gap-2 min-w-0">
+              <Paperclip className="w-4 h-4 text-primary-navy shrink-0" />
+              <span className="text-xs font-semibold text-slate-700 truncate">
+                {currentQ.attachmentName || 'Dokumen studi kasus'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <a
+                href={currentQ.attachmentUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
+                title="Buka di tab baru"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <button
+                type="button"
+                onClick={() => setDocPanelOpen(false)}
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
+                title="Tutup panel dokumen"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 bg-slate-50">
+            {currentQ.attachmentMime === 'application/pdf' ? (
+              <iframe
+                src={currentQ.attachmentUrl}
+                title={currentQ.attachmentName || 'Dokumen studi kasus'}
+                className="w-full h-full"
+              />
+            ) : (
+              <div className="p-6 text-xs text-slate-600 space-y-3">
+                <p>Dokumen ini tidak dapat dipratinjau langsung di panel. Buka melalui tautan berikut:</p>
+                <a
+                  href={currentQ.attachmentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-navy text-white font-semibold"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Unduh {currentQ.attachmentName || 'dokumen'}
+                </a>
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
       {/* ─── Topbar / Header (Calm, Professional, User-Friendly) ─── */}
       <header className="h-18 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40 shadow-xs">
         {/* Left: Program Info & Candidate Name */}
@@ -906,7 +1037,11 @@ export default function PesertaExamPlayer() {
       {/* ─── Main Content Container (Question Area + Navigator Sidebar) ─── */}
       <div className="flex-1 flex overflow-hidden" style={{ minHeight: 'calc(100vh - 7rem)' }}>
         {/* ◄ SISI KIRI: LEMBAR PERTANYAAN (Scrollable, Spacious, Comfortable) ► */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12 flex flex-col items-center">
+        <main
+          className={`flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12 flex flex-col items-center transition-[padding] ${
+            docPanelOpen && currentQ.attachmentUrl ? 'lg:pr-[42vw]' : ''
+          }`}
+        >
           <div className="w-full max-w-3xl space-y-7">
             {/* Top Question Metadata Card */}
             <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -943,6 +1078,48 @@ export default function PesertaExamPlayer() {
                 <p className={`font-medium text-slate-900 ${questionTextClass}`}>
                   {currentQ.text}
                 </p>
+
+                {/* Program-level case files */}
+                {caseFiles.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                      <FileText className="w-3.5 h-3.5 text-primary-navy" />
+                      Dokumen pendukung program
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {caseFiles.map((file) => (
+                        <a
+                          key={file.url}
+                          href={file.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-medium text-slate-700 hover:border-primary-navy"
+                        >
+                          <Paperclip className="w-3 h-3" />
+                          {file.name}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Per-question attachment (split view) */}
+                {currentQ.attachmentUrl && (
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/70 px-3.5 py-2.5">
+                    <span className="text-xs text-blue-900 font-medium flex items-center gap-1.5 min-w-0">
+                      <Paperclip className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{currentQ.attachmentName || 'Lampiran studi kasus'}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDocPanelOpen(!docPanelOpen)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-blue-200 text-xs font-semibold text-blue-800 hover:bg-blue-100 cursor-pointer shrink-0"
+                    >
+                      <PanelRightOpen className="w-3.5 h-3.5" />
+                      {docPanelOpen ? 'Sembunyikan' : 'Buka Dokumen'}
+                    </button>
+                  </div>
+                )}
 
                 {/* Optional Code Snippet Block */}
                 {currentQ.codeSnippet && (

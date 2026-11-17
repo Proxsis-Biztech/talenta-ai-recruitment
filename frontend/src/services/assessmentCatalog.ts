@@ -13,6 +13,9 @@ export interface QuestionItem {
   matchingPairs?: { left: string; rightOptions: string[]; correctRight?: string }[];
   explanation?: string;
   correctAnswer?: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentMime?: string | null;
 }
 
 export interface AssessmentProgram {
@@ -150,33 +153,307 @@ export function generateProgramQuestions(
     }
   ];
 
+  const variedSinglePrompts: Array<{
+    competency: string;
+    text: string;
+    options: [string, string, string, string];
+    explanation: string;
+  }> = [
+    {
+      competency: 'System Architecture',
+      text: 'Strategi deployment manakah yang paling tepat untuk melakukan rollback instan tanpa downtime jika rilis versi terbaru mengalami error rate tinggi?',
+      options: [
+        'Blue-Green Deployment dengan health-check otomatis pada load balancer sebelum memindahkan 100% trafik.',
+        'Melakukan SSH manual ke setiap container produksi dan menimpa binary aplikasi saat trafik puncak.',
+        'Menghapus database lama terlebih dahulu baru menjalankan migrasi skema baru.',
+        'Menonaktifkan monitoring APM agar CPU server tidak terbebani saat rilis.'
+      ],
+      explanation: 'Blue-Green Deployment menjaga lingkungan stabil tetap aktif sehingga perpindahan trafik dan rollback berlangsung instan.'
+    },
+    {
+      competency: 'Security & Auth',
+      text: 'Mengapa penyimpanan Access Token JWT berumur pendek yang dipasangkan dengan HttpOnly Refresh Token lebih aman dibanding menyimpan token permanen di localStorage?',
+      options: [
+        'HttpOnly cookie tidak dapat dibaca oleh JavaScript sehingga memitigasi pencurian sesi melalui serangan XSS.',
+        'LocalStorage hanya mampu menyimpan string maksimal 64 karakter.',
+        'JWT yang disimpan di cookie otomatis terenkripsi oleh DNS resolver.',
+        'HttpOnly cookie menonaktifkan seluruh kebutuhan validasi CSRF dan CORS.'
+      ],
+      explanation: 'Atribut HttpOnly mencegah akses script sisi klien terhadap refresh token saat terjadi celah XSS.'
+    },
+    {
+      competency: 'Database Engineering',
+      text: 'Pada PostgreSQL dengan beban transaksi tulis tinggi, apa dampak utama pembuatan terlalu banyak B-Tree index pada satu tabel?',
+      options: [
+        'Mempercepat query SELECT tetapi memperlambat operasi INSERT, UPDATE, dan DELETE karena setiap index harus ikut diperbarui.',
+        'Menghapus seluruh foreign key constraint secara otomatis.',
+        'Mengubah isolation level transaksi menjadi Serializable.',
+        'Memaksa query planner selalu melakukan Sequential Scan.'
+      ],
+      explanation: 'Setiap modifikasi baris membutuhkan pemeliharaan struktur seluruh index yang terpasang pada tabel tersebut.'
+    },
+    {
+      competency: 'API & Integration',
+      text: 'Kapan penggunaan Idempotency-Key header pada endpoint HTTP POST pembayaran sangat krusial?',
+      options: [
+        'Saat klien melakukan retry otomatis akibat network timeout agar transaksi tidak terproses ganda.',
+        'Saat endpoint hanya digunakan untuk membaca data statis (read-only).',
+        'Saat payload request berukuran kurang dari 1 KB.',
+        'Saat server ingin melewati proses autentikasi bearer token.'
+      ],
+      explanation: 'Idempotency-Key memastikan permintaan ulang yang identik mengembalikan hasil transaksi pertama tanpa membuat duplikasi.'
+    },
+    {
+      competency: 'Observability & SRE',
+      text: 'Manakah kombinasi metrik yang paling tepat untuk mendeteksi bottleneck pada antrean background worker secara proaktif?',
+      options: [
+        'Queue depth, consumer lag, processing latency P95/P99, dan dead-letter queue rate.',
+        'Ukuran file favicon.ico dan jumlah baris CSS pada frontend.',
+        'Total commit Git harian tanpa metrik runtime.',
+        'Jumlah tab browser yang dibuka oleh pengguna.'
+      ],
+      explanation: 'Queue depth, lag, tail latency, dan DLQ rate langsung menunjukkan ketidakseimbangan antara producer dan consumer.'
+    },
+    {
+      competency: 'Concurrency & Performance',
+      text: 'Bagaimana cara paling efektif mencegah N+1 Query Problem saat mengambil daftar pesanan beserta detail item-nya dari ORM?',
+      options: [
+        'Menggunakan eager loading (JOIN / IN-clause batching) atau DataLoader untuk mengambil relasi dalam 1-2 query.',
+        'Membuka koneksi database baru di dalam setiap iterasi loop.',
+        'Menambahkan Thread.sleep(100) di antara setiap query loop.',
+        'Menghapus primary key dari tabel detail item.'
+      ],
+      explanation: 'Eager loading dan batching meminimalkan round-trip jaringan ke database.'
+    }
+  ];
+
+  const variedMultiPrompts: Array<{
+    competency: string;
+    text: string;
+    options: Array<{ text: string; isCorrect: boolean }>;
+    explanation: string;
+  }> = [
+    {
+      competency: 'Cloud & Resilience',
+      text: 'Pilihlah DUA praktik terbaik saat merancang microservice yang berkomunikasi dengan layanan eksternal berlatensi tidak stabil:',
+      options: [
+        { text: 'Menerapkan timeout eksplisit dan Circuit Breaker agar kegagalan downstream tidak menghabiskan thread pool.', isCorrect: true },
+        { text: 'Menggunakan exponential backoff dengan jitter pada mekanisme retry.', isCorrect: true },
+        { text: 'Melakukan infinite retry tanpa jeda waktu hingga layanan eksternal pulih.', isCorrect: false },
+        { text: 'Menyimpan credential API eksternal secara plaintext di repositori publik.', isCorrect: false }
+      ],
+      explanation: 'Timeout + Circuit Breaker mencegah cascading failure, sementara jitter mencegah thundering herd saat retry.'
+    },
+    {
+      competency: 'Application Security',
+      text: 'Pilihlah DUA langkah mitigasi yang efektif terhadap kerentanan SQL Injection dan Broken Object Level Authorization (BOLA):',
+      options: [
+        { text: 'Menggunakan parameterized queries / prepared statements di seluruh lapisan akses data.', isCorrect: true },
+        { text: 'Memverifikasi kepemilikan resource (userId/tenantId) di backend pada setiap endpoint detail.', isCorrect: true },
+        { text: 'Mengandalkan validasi JavaScript di sisi browser saja tanpa pengecekan server.', isCorrect: false },
+        { text: 'Menggabungkan input user langsung ke string SQL menggunakan template literal.', isCorrect: false }
+      ],
+      explanation: 'Prepared statement memisahkan kode SQL dari data, dan otorisasi per-objek di backend mencegah akses lintas akun.'
+    },
+    {
+      competency: 'Testing & Quality',
+      text: 'Pilihlah DUA karakteristik utama dari Automated Integration Test yang andal dalam pipeline CI/CD:',
+      options: [
+        { text: 'Bersifat deterministik dan mengisolasi state database antar test case (rollback/truncate).', isCorrect: true },
+        { text: 'Memverifikasi kontrak API, status HTTP, serta efek samping pada persistensi data.', isCorrect: true },
+        { text: 'Bergantung pada data produksi live milik pelanggan aktif.', isCorrect: false },
+        { text: 'Mengabaikan assertion error agar pipeline selalu hijau.', isCorrect: false }
+      ],
+      explanation: 'Tes integrasi yang deterministik dan terisolasi menjaga keandalan rilis berkelanjutan.'
+    }
+  ];
+
+  const variedShortPrompts: Array<{
+    competency: string;
+    text: string;
+    correctAnswer: string;
+    explanation: string;
+  }> = [
+    {
+      competency: 'HTTP & Caching',
+      text: 'Sebutkan nama HTTP Response Header yang digunakan server untuk memvalidasi apakah resource yang di-cache klien masih sama berdasarkan hash/versi konten (conditional GET):',
+      correctAnswer: 'ETag',
+      explanation: 'Header ETag dipasangkan dengan If-None-Match untuk mengembalikan 304 Not Modified jika konten belum berubah.'
+    },
+    {
+      competency: 'Database & Transactions',
+      text: 'Dalam konsep transaksi database ACID, huruf "I" merujuk pada properti yang mencegah transaksi paralel saling membaca data kotor (dirty read). Sebutkan istilah properti tersebut:',
+      correctAnswer: 'Isolation',
+      explanation: 'Isolation menjamin eksekusi transaksi konkuren menghasilkan state yang konsisten seolah dijalankan berurutan.'
+    },
+    {
+      competency: 'Network & Security',
+      text: 'Sebutkan nomor port standar default untuk protokol HTTPS (TLS):',
+      correctAnswer: '443',
+      explanation: 'HTTPS secara standar beroperasi pada port TCP 443.'
+    },
+    {
+      competency: 'DevOps & Container',
+      text: 'Pada Dockerfile, instruksi apa yang digunakan pada multi-stage build untuk menyalin artefak hasil compile dari stage builder ke image runtime yang lebih ramping?',
+      correctAnswer: 'COPY --from',
+      explanation: 'COPY --from=<stage> mengambil hanya hasil build tanpa membawa toolchain kompilasi ke image produksi.'
+    }
+  ];
+
+  const variedEssayPrompts: Array<{
+    competency: string;
+    text: string;
+    explanation: string;
+  }> = [
+    {
+      competency: 'Incident Response & Root Cause',
+      text: `Pada jam sibuk ${programTitle}, terjadi lonjakan error HTTP 504 Gateway Timeout akibat connection pool database habis. Jelaskan langkah triase 15 menit pertama dan perbaikan arsitektur jangka panjangnya.`,
+      explanation: 'Kandidat perlu memaparkan cek slow query/lock, pooling (PgBouncer), read replica, serta circuit breaker/timeout.'
+    },
+    {
+      competency: 'Data Consistency & Migration',
+      text: `Bagaimana Anda merancang migrasi skema tabel berkapasitas 80 juta baris di ${companyName} tanpa menyebabkan table lock yang menghentikan transaksi pengguna aktif?`,
+      explanation: 'Pendekatan expand-and-contract, penambahan kolom nullable terlebih dahulu, backfill bertahap, dan index CONCURRENTLY.'
+    },
+    {
+      competency: 'Security & Audit Compliance',
+      text: `Jika ditemukan indikasi kebocoran credential API internal pada log aplikasi ${programTitle}, urutkan prosedur containment, rotasi rahasia, dan pencegahan berulang (secret scanning).`,
+      explanation: 'Revoke/rotate segera, audit akses log, bersihkan log/riwayat git, dan terapkan secret masking + pre-commit scanning.'
+    },
+    {
+      competency: 'Performance & Caching Strategy',
+      text: `Rancang strategi invalidasi cache untuk katalog data dinamis pada ${programTitle} agar pengguna tidak melihat harga/kuota usang namun beban database tetap turun minimal 70%.`,
+      explanation: 'Kombinasi write-through/event-driven invalidation, TTL pendek dengan stale-while-revalidate, dan key versioning.'
+    },
+    {
+      competency: 'Scalability & Event-Driven Design',
+      text: `Bandingkan arsitektur sinkron REST vs asinkron Message Broker untuk pemrosesan dokumen massal pada ${programTitle}, beserta penanganan failure (DLQ & idempotency).`,
+      explanation: 'Pemrosesan berat dipindah ke worker asinkron dengan ACK/NACK, retry backoff, DLQ, dan idempotent state machine.'
+    }
+  ];
+
+  const variedMatchingPrompts: Array<{
+    competency: string;
+    text: string;
+    pairs: Array<{ left: string; rightOptions: string[]; correctRight: string }>;
+    explanation: string;
+  }> = [
+    {
+      competency: 'Resilience & Traffic Control',
+      text: 'Pasangkan komponen pengaman sistem terdistribusi di sebelah kiri dengan fungsi utamanya di sebelah kanan:',
+      pairs: [
+        { left: 'Rate Limiter (Token Bucket)', rightOptions: ['Membatasi laju request per klien', 'Menyimpan pesan gagal permanen', 'Mengalihkan trafik saat dependency down'], correctRight: 'Membatasi laju request per klien' },
+        { left: 'Circuit Breaker', rightOptions: ['Mengalihkan trafik saat dependency down', 'Membatasi laju request per klien', 'Menyimpan pesan gagal permanen'], correctRight: 'Mengalihkan trafik saat dependency down' },
+        { left: 'Dead Letter Queue (DLQ)', rightOptions: ['Menyimpan pesan gagal permanen', 'Membatasi laju request per klien', 'Mengalihkan trafik saat dependency down'], correctRight: 'Menyimpan pesan gagal permanen' }
+      ],
+      explanation: 'Rate Limiter melindungi kapasitas, Circuit Breaker memutus cascading failure, dan DLQ mengisolasi pesan bermasalah.'
+    },
+    {
+      competency: 'Database & Storage Patterns',
+      text: 'Pasangkan mekanisme penyimpanan data di sebelah kiri dengan karakteristik penggunaannya di sebelah kanan:',
+      pairs: [
+        { left: 'Write-Ahead Log (WAL)', rightOptions: ['Menjamin durabilitas & crash recovery', 'Menyimpan session sementara berkecepatan tinggi', 'Menjalankan query analitik historis'], correctRight: 'Menjamin durabilitas & crash recovery' },
+        { left: 'In-Memory Key-Value Store', rightOptions: ['Menyimpan session sementara berkecepatan tinggi', 'Menjamin durabilitas & crash recovery', 'Menjalankan query analitik historis'], correctRight: 'Menyimpan session sementara berkecepatan tinggi' },
+        { left: 'Columnar Data Warehouse', rightOptions: ['Menjalankan query analitik historis', 'Menjamin durabilitas & crash recovery', 'Menyimpan session sementara berkecepatan tinggi'], correctRight: 'Menjalankan query analitik historis' }
+      ],
+      explanation: 'WAL menjaga durabilitas transaksi ACID, in-memory store mempercepat akses session/cache, dan columnar store optimal untuk agregasi analitik.'
+    },
+    {
+      competency: 'Security & Network Protocols',
+      text: 'Pasangkan mekanisme keamanan di sebelah kiri dengan perannya pada arsitektur modern di sebelah kanan:',
+      pairs: [
+        { left: 'Mutual TLS (mTLS)', rightOptions: ['Autentikasi dua arah antar microservice', 'Hashing password satu arah dengan salt', 'Pembatasan akses resource berbasis peran'], correctRight: 'Autentikasi dua arah antar microservice' },
+        { left: 'Argon2id / bcrypt', rightOptions: ['Hashing password satu arah dengan salt', 'Autentikasi dua arah antar microservice', 'Pembatasan akses resource berbasis peran'], correctRight: 'Hashing password satu arah dengan salt' },
+        { left: 'RBAC Middleware', rightOptions: ['Pembatasan akses resource berbasis peran', 'Autentikasi dua arah antar microservice', 'Hashing password satu arah dengan salt'], correctRight: 'Pembatasan akses resource berbasis peran' }
+      ],
+      explanation: 'mTLS mengamankan komunikasi antar layanan, Argon2id/bcrypt melindungi kredensial tersimpan, dan RBAC mengontrol otorisasi endpoint.'
+    }
+  ];
+
+  let singleIdx = 0;
+  let multiIdx = 0;
+  let shortIdx = 0;
+  let essayIdx = 0;
+  let matchingIdx = 0;
+
   for (let i = 6; i <= 40; i++) {
     const qType: QuestionItem['type'] =
       i % 8 === 0 ? 'matching' : i % 7 === 0 ? 'essay' : i % 5 === 0 ? 'short' : i % 4 === 0 ? 'multi' : 'single';
     const diff: QuestionItem['difficulty'] =
       i % 3 === 0 ? (isJunior ? 'Sedang' : 'Sulit') : i % 2 === 0 ? 'Sedang' : (isSenior ? 'Sedang' : 'Mudah');
 
-    const isMulti = qType === 'multi';
-
-    questions.push({
-      id: i,
-      type: qType,
-      competency: i % 3 === 0 ? 'Cloud & Engineering' : i % 2 === 0 ? 'Business Logic & Security' : 'Architecture & Quality',
-      difficulty: diff,
-      text: `Soal #${i} [${gradeLevel}]: Berdasarkan studi kasus ${programTitle} di ${companyName}, bagaimana pendekatan Anda dalam mengoptimalkan efisiensi komputasi, keamanan otorisasi data, dan ketahanan sistem (fault tolerance)?`,
-      explanation: `Jawaban standar terbaik menekankan pemisahan lapisan (separation of concerns), validasi otorisasi berlapis (RBAC/ABAC), dan ketersediaan observabilitas menyeluruh.`,
-      correctAnswer: qType === 'short' ? 'Separation of Concerns & Distributed Resilience' : undefined,
-      options: [
-        { key: 'A', label: 'Memisahkan concern antara lapisan bisnis murni dan lapisan integrasi, serta mengimplementasikan health-check otomatis.', isCorrect: true },
-        { key: 'B', label: isMulti ? 'Menerapkan token authentication tersertifikasi dengan masa berlaku terbatas dan audit trail.' : 'Menggabungkan semua query dan controller ke dalam satu file tunggal tanpa pemisahan modul.', isCorrect: isMulti },
-        { key: 'C', label: 'Mengabaikan exception handling dan membiarkan proses terminasi saat runtime exception.', isCorrect: false },
-        { key: 'D', label: 'Menonaktifkan autentikasi session token pada endpoint internal.', isCorrect: false }
-      ],
-      matchingPairs: qType === 'matching' ? [
-        { left: `Komponen Logika #${i}`, rightOptions: ['Business Rules Core', 'Infrastructure Driver', 'Transport Gateway'], correctRight: 'Business Rules Core' },
-        { left: `Komponen Database #${i}`, rightOptions: ['Infrastructure Driver', 'Business Rules Core', 'Transport Gateway'], correctRight: 'Infrastructure Driver' }
-      ] : undefined
-    });
+    if (qType === 'single') {
+      const tpl = variedSinglePrompts[singleIdx % variedSinglePrompts.length];
+      singleIdx += 1;
+      questions.push({
+        id: i,
+        type: 'single',
+        competency: tpl.competency,
+        difficulty: diff,
+        text: `[${gradeLevel}] ${tpl.text}`,
+        explanation: tpl.explanation,
+        options: [
+          { key: 'A', label: tpl.options[0], isCorrect: true },
+          { key: 'B', label: tpl.options[1], isCorrect: false },
+          { key: 'C', label: tpl.options[2], isCorrect: false },
+          { key: 'D', label: tpl.options[3], isCorrect: false }
+        ]
+      });
+    } else if (qType === 'multi') {
+      const tpl = variedMultiPrompts[multiIdx % variedMultiPrompts.length];
+      multiIdx += 1;
+      questions.push({
+        id: i,
+        type: 'multi',
+        competency: tpl.competency,
+        difficulty: diff,
+        text: `[${gradeLevel}] ${tpl.text}`,
+        explanation: tpl.explanation,
+        options: tpl.options.map((opt, idx) => ({
+          key: ['A', 'B', 'C', 'D'][idx],
+          label: opt.text,
+          isCorrect: opt.isCorrect
+        }))
+      });
+    } else if (qType === 'short') {
+      const tpl = variedShortPrompts[shortIdx % variedShortPrompts.length];
+      shortIdx += 1;
+      questions.push({
+        id: i,
+        type: 'short',
+        competency: tpl.competency,
+        difficulty: diff,
+        text: tpl.text,
+        explanation: tpl.explanation,
+        correctAnswer: tpl.correctAnswer,
+        options: []
+      });
+    } else if (qType === 'essay') {
+      const tpl = variedEssayPrompts[essayIdx % variedEssayPrompts.length];
+      essayIdx += 1;
+      questions.push({
+        id: i,
+        type: 'essay',
+        competency: tpl.competency,
+        difficulty: diff,
+        text: tpl.text,
+        explanation: tpl.explanation,
+        options: []
+      });
+    } else {
+      const tpl = variedMatchingPrompts[matchingIdx % variedMatchingPrompts.length];
+      matchingIdx += 1;
+      questions.push({
+        id: i,
+        type: 'matching',
+        competency: tpl.competency,
+        difficulty: diff,
+        text: tpl.text,
+        explanation: tpl.explanation,
+        options: [],
+        matchingPairs: tpl.pairs
+      });
+    }
   }
 
   return questions;

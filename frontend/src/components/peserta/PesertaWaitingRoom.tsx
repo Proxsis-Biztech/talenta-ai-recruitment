@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -35,9 +35,16 @@ export default function PesertaWaitingRoom() {
   const [assessorName, setAssessorName] = useState('Tim Asesor Right');
   const [isReady, setIsReady] = useState(false);
   const [activeTab, setActiveTab] = useState<'tips' | 'rubrik' | 'perangkat'>('tips');
-  const [catEligible, setCatEligible] = useState(false);
+  const [catEligible, setCatEligible] = useState(() => localStorage.getItem('talenta_cat_completed') === 'true');
   const [catChecked, setCatChecked] = useState(false);
-  const [queueState, setQueueState] = useState<any>(null);
+  const [queueState, setQueueState] = useState<any>(() => {
+    try {
+      const cached = sessionStorage.getItem('talenta_waiting_room_queue');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [toastDismissed, setToastDismissed] = useState(false);
   const [toastSeconds, setToastSeconds] = useState(0);
 
@@ -57,10 +64,15 @@ export default function PesertaWaitingRoom() {
         return;
       }
       try {
-        const response = await axios.get(`/api/exam/${activeProgram.id}/result`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!cancelled) setCatEligible(['submitted', 'graded'].includes(response.data.status));
+        let eligible = false;
+        try {
+          const response = await axios.get(`/api/exam/${activeProgram.id}/result`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          eligible = ['submitted', 'graded', 'completed'].includes(String(response.data?.status || ''));
+        } catch {
+          eligible = false;
+        }
         try {
           const dashboardResponse = await axios.get('/api/portal/dashboard', {
             headers: { Authorization: `Bearer ${token}` }
@@ -70,12 +82,24 @@ export default function PesertaWaitingRoom() {
             setScheduledAt(interview?.scheduledAt || null);
             setQueuePosition(interview?.queuePosition || null);
             setAssessorName(interview?.assessorName || 'Tim Asesor Right');
+            if (!eligible) {
+              const examOk = ['submitted', 'graded', 'completed'].includes(
+                String(dashboardResponse.data?.exam?.status || '')
+              );
+              const anyOk = Object.values(dashboardResponse.data?.examsByProgram || {}).some((item: any) =>
+                ['submitted', 'graded', 'completed'].includes(String(item?.status || ''))
+              );
+              eligible = examOk || anyOk;
+            }
           }
         } catch {
           if (!cancelled) setScheduledAt(null);
         }
+        if (!cancelled) {
+          setCatEligible(eligible || localStorage.getItem('talenta_cat_completed') === 'true');
+        }
       } catch {
-        if (!cancelled) setCatEligible(false);
+        if (!cancelled) setCatEligible(localStorage.getItem('talenta_cat_completed') === 'true');
       } finally {
         if (!cancelled) setCatChecked(true);
       }
@@ -102,33 +126,52 @@ export default function PesertaWaitingRoom() {
     return () => clearInterval(timer);
   }, [scheduledAt]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadQueue = useCallback(async () => {
     const token = getPortalToken();
     if (!token) return;
-    const loadQueue = async () => {
+    try {
+      const response = await axios.get('/api/portal/waiting-room', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setQueueState(response.data);
       try {
-        const response = await axios.get('/api/portal/waiting-room', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!cancelled) {
-          setQueueState(response.data);
-          if (response.data?.status !== 'called') {
-            localStorage.removeItem('peserta_interview_called');
-            window.dispatchEvent(new Event('interview-called'));
-          }
-        }
-      } catch {
-        if (!cancelled) setQueueState(null);
+        sessionStorage.setItem('talenta_waiting_room_queue', JSON.stringify(response.data));
+      } catch {}
+      if (response.data?.status !== 'called') {
+        localStorage.removeItem('peserta_interview_called');
+        window.dispatchEvent(new Event('interview-called'));
       }
-    };
-    void loadQueue();
-    const timer = setInterval(loadQueue, 10000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
+    } catch {
+      // Keep cached queueState on transient network errors so reload doesn't flash #02
+    }
   }, []);
+
+  useEffect(() => {
+    void loadQueue();
+    const timer = setInterval(() => void loadQueue(), 10000);
+    return () => clearInterval(timer);
+  }, [loadQueue]);
+
+  // Server-sent events push the call instantly; polling above stays as fallback.
+  useEffect(() => {
+    const token = getPortalToken();
+    if (!token || typeof window === 'undefined' || !('EventSource' in window)) return;
+    let source: EventSource | null = null;
+    try {
+      source = new EventSource(`/api/portal/waiting-room/stream?token=${encodeURIComponent(token)}`);
+      const handleUpdate = () => void loadQueue();
+      source.addEventListener('queue-update', handleUpdate);
+      source.addEventListener('called', handleUpdate);
+      source.onerror = () => {
+        // EventSource auto-reconnects; polling keeps the UI fresh meanwhile.
+      };
+    } catch {
+      source = null;
+    }
+    return () => {
+      source?.close();
+    };
+  }, [loadQueue]);
 
   useEffect(() => {
     if (queueState?.status !== 'called') return;
@@ -263,7 +306,7 @@ export default function PesertaWaitingRoom() {
                       ? `#${queueState.position}`
                       : queuePosition
                         ? `#${queuePosition}`
-                        : '#02'}
+                        : '...'}
                 </div>
                 <div className="text-left">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-muted-slate">
@@ -298,7 +341,7 @@ export default function PesertaWaitingRoom() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto text-xs sm:text-sm text-slate-600">
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <Users className="w-4 h-4 text-blue-accent shrink-0" />
-                <span className="truncate">Nomor Antrean: <strong className="text-ink">{queueState?.status === 'called' ? 'Giliran Anda' : queueState?.position ? `#${queueState.position}` : queuePosition ? `#${queuePosition}` : '#02'}</strong></span>
+                <span className="truncate">Nomor Antrean: <strong className="text-ink">{queueState?.status === 'called' ? 'Giliran Anda' : queueState?.position ? `#${queueState.position}` : queuePosition ? `#${queuePosition}` : 'Memuat...'}</strong></span>
               </div>
               <div className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/80 transition-colors hover:border-accent-border hover:bg-white">
                 <Clock className="w-4 h-4 text-amber-600 shrink-0" />
@@ -325,9 +368,19 @@ export default function PesertaWaitingRoom() {
                 />
                 {!mediaActive && <CameraProctorTile compact active={false} />}
 
-                <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg text-[11px] text-emerald-400 font-mono flex items-center gap-2 border border-emerald-500/30">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Kamera &amp; Mic Terhubung</span>
+                <div
+                  className={`absolute top-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg text-[11px] font-mono flex items-center gap-2 border ${
+                    mediaActive
+                      ? 'text-emerald-400 border-emerald-500/30'
+                      : 'text-amber-300 border-amber-500/30'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      mediaActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                    }`}
+                  />
+                  <span>{mediaActive ? 'Kamera & Mic Terhubung' : 'Kamera Belum Aktif (Simulasi)'}</span>
                 </div>
 
                 <div className="absolute bottom-3 left-3 right-3 bg-black/60 backdrop-blur-xs px-3 py-1.5 rounded-lg text-[11px] text-slate-300 flex items-center justify-between">
@@ -444,12 +497,17 @@ export default function PesertaWaitingRoom() {
                   )}
                   <Button
                     variant="primary"
-                    disabled={!catEligible || !scheduledAt || (queueState && !queueState.canEnter)}
+                    disabled={
+                      !catEligible ||
+                      (queueState
+                        ? !queueState.canEnter && queueState.status !== 'called'
+                        : !scheduledAt)
+                    }
                     onClick={() => navigate('/peserta/interview')}
                     className="w-full py-3 sm:py-3.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs rounded-xl cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Video className="w-4 h-4 shrink-0" />
-                    <span>{!catEligible ? 'Selesaikan CAT Terlebih Dahulu' : !scheduledAt ? 'Menunggu Jadwal dari Admin' : queueState?.status === 'called' ? 'Giliran Anda Tiba • Masuk Sesi Wawancara' : queueState?.status === 'waiting' || queueState?.status === 'next' ? 'Menunggu Sesi Sebelumnya Selesai' : 'Masuk ke Ruang Sesi Sekarang'}</span>
+                    <span>{!catEligible ? 'Selesaikan CAT Terlebih Dahulu' : queueState?.status === 'called' || queueState?.canEnter ? 'Giliran Anda Tiba • Masuk Sesi Wawancara' : !scheduledAt ? 'Menunggu Jadwal dari Admin' : queueState?.status === 'waiting' || queueState?.status === 'next' ? 'Menunggu Sesi Sebelumnya Selesai' : 'Masuk ke Ruang Sesi Sekarang'}</span>
                   </Button>
                 </div>
                 <Button

@@ -1,23 +1,29 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CameraOff, ShieldCheck } from 'lucide-react';
 
-type ProctorStatus = 'loading' | 'ok' | 'warning' | 'error' | 'inactive';
+export type ProctorStatus = 'loading' | 'ok' | 'warning' | 'error' | 'inactive';
 
 export function CameraProctorTile({
   active = true,
   compact = false,
   floating = false,
-  className = ''
+  className = '',
+  onStatusChange
 }: {
   active?: boolean;
   compact?: boolean;
   floating?: boolean;
   className?: string;
+  onStatusChange?: (status: ProctorStatus) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<ProctorStatus>(active ? 'loading' : 'inactive');
   const [message, setMessage] = useState(active ? 'Menyiapkan kamera...' : 'Kamera belum aktif');
+
+  useEffect(() => {
+    onStatusChange?.(status);
+  }, [status, onStatusChange]);
 
   useEffect(() => {
     if (!active) {
