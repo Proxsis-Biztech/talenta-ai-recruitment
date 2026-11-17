@@ -99,6 +99,9 @@ const sanitizeQuestions = (questions: Array<{
   codeSnippet: string | null;
   options: string | null;
   matchingPairs: string | null;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentMime?: string | null;
 }>) =>
   questions.map((question) => ({
     id: question.orderNo,
@@ -108,8 +111,22 @@ const sanitizeQuestions = (questions: Array<{
     text: question.text,
     codeSnippet: question.codeSnippet,
     options: parseJson(question.options, []),
-    matchingPairs: parseJson(question.matchingPairs, [])
+    matchingPairs: parseJson(question.matchingPairs, []),
+    attachmentUrl: question.attachmentUrl || null,
+    attachmentName: question.attachmentName || null,
+    attachmentMime: question.attachmentMime || null
   }));
+
+const examDurationMinutes = (job: { interviewDuration: number | null }): number =>
+  job.interviewDuration && job.interviewDuration > 0 ? job.interviewDuration : 90;
+
+const resolveEndsAt = (
+  attempt: { startedAt: Date; endsAt: Date | null },
+  job: { interviewDuration: number | null }
+): Date => attempt.endsAt || new Date(attempt.startedAt.getTime() + examDurationMinutes(job) * 60 * 1000);
+
+const isExpired = (endsAt: Date, graceSeconds = 15): boolean =>
+  Date.now() > endsAt.getTime() + graceSeconds * 1000;
 
 const isPortalProfileComplete = async (userId: string) => {
   const user = await prisma.portalUser.findUnique({
@@ -178,7 +195,12 @@ export const startExam = async (req: AuthRequest, res: Response) => {
       where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } }
     });
 
-    if (existing && ['submitted', 'graded'].includes(existing.status)) {
+    if (
+      existing &&
+      (['submitted', 'graded', 'completed'].includes(existing.status) ||
+        Boolean(existing.submittedAt) ||
+        existing.score !== null)
+    ) {
       const savedAnswers = parseJson<Record<string, unknown>>(existing.answers, {});
       const totalAnswered = Object.values(savedAnswers).filter((value) => {
         if (value === null || value === undefined || value === '') return false;
@@ -202,14 +224,54 @@ export const startExam = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const durationMinutes = examDurationMinutes(program.job);
     const attempt = existing ?? (await prisma.examAttempt.create({
       data: {
         userId: req.portalUser.id,
         programCode: program.code,
         answers: '{}',
-        markedDoubt: '{}'
+        markedDoubt: '{}',
+        endsAt: new Date(Date.now() + durationMinutes * 60 * 1000)
       }
     }));
+
+    if (!attempt.endsAt) {
+      const endsAt = resolveEndsAt(attempt, program.job);
+      await prisma.examAttempt.update({ where: { id: attempt.id }, data: { endsAt } });
+      attempt.endsAt = endsAt;
+    }
+
+    const endsAt = attempt.endsAt as Date;
+    if (isExpired(endsAt, 0)) {
+      const savedAnswers = parseJson<Record<string, unknown>>(attempt.answers, {});
+      const result = scoreAnswers(program.questions, savedAnswers);
+      const graded = await prisma.examAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          score: attempt.score ?? result.score,
+          autoGradedCount: result.autoGraded,
+          manualReviewCount: result.manualReview,
+          competencyScores: attempt.competencyScores || JSON.stringify(result.competencyScores),
+          status: 'submitted',
+          submittedAt: attempt.submittedAt || endsAt
+        }
+      });
+      return res.json({
+        locked: true,
+        expired: true,
+        attempt: {
+          id: graded.id,
+          status: graded.status,
+          score: graded.score,
+          integrityScore: graded.integrityScore,
+          submittedAt: graded.submittedAt,
+          totalAnswered: Object.keys(savedAnswers).length,
+          totalQuestions: program.questions.length
+        },
+        program: { code: program.code, title: program.job.title },
+        questions: []
+      });
+    }
 
     return res.json({
       locked: false,
@@ -218,13 +280,16 @@ export const startExam = async (req: AuthRequest, res: Response) => {
         status: attempt.status,
         answers: parseJson<Record<string, unknown>>(attempt.answers, {}),
         markedDoubt: parseJson<Record<string, boolean>>(attempt.markedDoubt, {}),
-        startedAt: attempt.startedAt
+        startedAt: attempt.startedAt,
+        endsAt
       },
+      serverTime: new Date().toISOString(),
       program: {
         code: program.code,
         title: program.job.title,
-        durationMinutes: program.job.interviewDuration || 90,
-        passingScore: program.job.interviewPassingScore || 70
+        durationMinutes,
+        passingScore: program.job.interviewPassingScore || 70,
+        caseFiles: parseJson<Array<{ name: string; url: string; mime?: string }>>(program.job.caseFiles, [])
       },
       questions: sanitizeQuestions(program.questions)
     });
@@ -243,25 +308,71 @@ export const saveAnswers = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Anda tidak terdaftar pada program asesmen ini.' });
     }
 
+    const current = await prisma.examAttempt.findUnique({
+      where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } }
+    });
+    if (current) {
+      const endsAt = resolveEndsAt(current, program.job);
+      if (
+        current.status !== 'in_progress' ||
+        Boolean(current.submittedAt) ||
+        current.score !== null ||
+        isExpired(endsAt)
+      ) {
+        return res.status(409).json({
+          error: 'Waktu ujian sudah berakhir. Jawaban tidak dapat diubah lagi.',
+          expired: true,
+          endsAt,
+          status: current.submittedAt || current.score !== null ? 'submitted' : current.status
+        });
+      }
+    }
+
     const answers = req.body.answers && typeof req.body.answers === 'object' ? req.body.answers : {};
     const markedDoubt = req.body.markedDoubt && typeof req.body.markedDoubt === 'object' ? req.body.markedDoubt : {};
 
-    const attempt = await prisma.examAttempt.upsert({
-      where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } },
-      update: {
-        answers: JSON.stringify(answers),
-        markedDoubt: JSON.stringify(markedDoubt),
-        status: 'in_progress'
-      },
-      create: {
-        userId: req.portalUser.id,
-        programCode: program.code,
-        answers: JSON.stringify(answers),
-        markedDoubt: JSON.stringify(markedDoubt)
+    let attempt = current;
+    if (current) {
+      const updated = await prisma.examAttempt.updateMany({
+        where: {
+          userId: req.portalUser.id,
+          programCode: program.code,
+          status: 'in_progress',
+          submittedAt: null,
+          score: null
+        },
+        data: {
+          answers: JSON.stringify(answers),
+          markedDoubt: JSON.stringify(markedDoubt)
+        }
+      });
+      if (updated.count === 0) {
+        return res.status(409).json({
+          error: 'Ujian sudah dikumpulkan. Jawaban tidak dapat diubah lagi.',
+          expired: true,
+          status: 'submitted'
+        });
       }
-    });
+      attempt = await prisma.examAttempt.findUnique({
+        where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } }
+      });
+    } else {
+      attempt = await prisma.examAttempt.create({
+        data: {
+          userId: req.portalUser.id,
+          programCode: program.code,
+          answers: JSON.stringify(answers),
+          markedDoubt: JSON.stringify(markedDoubt)
+        }
+      });
+    }
 
-    return res.json({ savedAt: attempt.updatedAt, status: attempt.status });
+    return res.json({
+      savedAt: attempt?.updatedAt || new Date(),
+      status: attempt?.status || 'in_progress',
+      endsAt: attempt?.endsAt || null,
+      serverTime: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Save exam answers error:', error);
     return res.status(500).json({ error: 'Gagal menyimpan jawaban.' });
@@ -287,18 +398,41 @@ export const submitExam = async (req: AuthRequest, res: Response) => {
       ? Math.max(0, Math.min(100, Math.round(Number(req.body.integrityScore))))
       : Math.max(0, 100 - violations.length * 5);
 
-    const result = scoreAnswers(program.questions, answers);
     const existingAttempt = await prisma.examAttempt.findUnique({
-      where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } },
-      select: { status: true }
+      where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } }
     });
+    if (
+      existingAttempt &&
+      (['submitted', 'graded', 'completed'].includes(existingAttempt.status) ||
+        Boolean(existingAttempt.submittedAt) ||
+        existingAttempt.score !== null)
+    ) {
+      return res.status(409).json({
+        error: 'Ujian sudah dikumpulkan sebelumnya.',
+        status: existingAttempt.status,
+        score: existingAttempt.score,
+        submittedAt: existingAttempt.submittedAt
+      });
+    }
+
+    const endsAt = existingAttempt ? resolveEndsAt(existingAttempt, program.job) : null;
+    const lateSubmission = endsAt ? isExpired(endsAt) : false;
+    const effectiveAnswers = Object.keys(answers).length > 0
+      ? answers
+      : parseJson<Record<string, unknown>>(existingAttempt?.answers, {});
+    const effectiveViolations = [...violations];
+    if (lateSubmission) {
+      effectiveViolations.push({ type: 'late_submission', timestamp: new Date().toISOString() });
+    }
+
+    const result = scoreAnswers(program.questions, effectiveAnswers);
 
     const attempt = await prisma.examAttempt.upsert({
       where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } },
       update: {
-        answers: JSON.stringify(answers),
+        answers: JSON.stringify(effectiveAnswers),
         markedDoubt: JSON.stringify(markedDoubt),
-        violations: JSON.stringify(violations),
+        violations: JSON.stringify(effectiveViolations),
         score: result.score,
         integrityScore,
         autoGradedCount: result.autoGraded,
@@ -310,9 +444,9 @@ export const submitExam = async (req: AuthRequest, res: Response) => {
       create: {
         userId: req.portalUser.id,
         programCode: program.code,
-        answers: JSON.stringify(answers),
+        answers: JSON.stringify(effectiveAnswers),
         markedDoubt: JSON.stringify(markedDoubt),
-        violations: JSON.stringify(violations),
+        violations: JSON.stringify(effectiveViolations),
         score: result.score,
         integrityScore,
         autoGradedCount: result.autoGraded,
@@ -331,14 +465,12 @@ export const submitExam = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    if (!existingAttempt || existingAttempt.status !== 'submitted') {
-      void deductQuotaForExam({
-        candidateCode: req.portalUser.candidateCode,
-        candidateName: req.portalUser.name,
-        candidateEmail: req.portalUser.email,
-        programCode: program.code
-      });
-    }
+    void deductQuotaForExam({
+      candidateCode: req.portalUser.candidateCode,
+      candidateName: req.portalUser.name,
+      candidateEmail: req.portalUser.email,
+      programCode: program.code
+    });
 
     return res.json({
       score: attempt.score,
@@ -348,7 +480,9 @@ export const submitExam = async (req: AuthRequest, res: Response) => {
       competencyScores: parseJson(attempt.competencyScores, []),
       totalQuestions: program.questions.length,
       status: attempt.status,
-      submittedAt: attempt.submittedAt
+      submittedAt: attempt.submittedAt,
+      lateSubmission,
+      endsAt: attempt.endsAt
     });
   } catch (error) {
     console.error('Submit exam error:', error);
@@ -376,7 +510,9 @@ export const getExamResult = async (req: AuthRequest, res: Response) => {
       autoGradedCount: attempt.autoGradedCount,
       manualReviewCount: attempt.manualReviewCount,
       competencyScores: parseJson(attempt.competencyScores, []),
-      submittedAt: attempt.submittedAt
+      submittedAt: attempt.submittedAt,
+      startedAt: attempt.startedAt,
+      endsAt: attempt.endsAt
     });
   } catch (error) {
     console.error('Get exam result error:', error);

@@ -487,17 +487,24 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
       orderBy: { submittedAt: 'desc' }
     });
     const normalizedProgramCode = String(programCode || '').trim().toUpperCase();
+    const normalizeAttemptStatus = (item: { status: string; submittedAt: Date | null; score: number | null }) =>
+      ['submitted', 'graded', 'completed'].includes(item.status) || Boolean(item.submittedAt) || item.score !== null
+        ? item.status === 'in_progress'
+          ? 'submitted'
+          : item.status
+        : item.status;
+
     const attempt =
       (normalizedProgramCode
         ? allAttempts.find((item) => item.programCode.toUpperCase() === normalizedProgramCode)
         : null) ||
-      allAttempts.find((item) => ['submitted', 'graded', 'completed'].includes(item.status)) ||
+      allAttempts.find((item) => ['submitted', 'graded', 'completed'].includes(normalizeAttemptStatus(item))) ||
       allAttempts[0] ||
       null;
 
     if (
       attempt &&
-      ['submitted', 'graded'].includes(attempt.status) &&
+      ['submitted', 'graded', 'completed'].includes(normalizeAttemptStatus(attempt)) &&
       !user.interviewScheduledAt
     ) {
       const scheduledAt = new Date(new Date(attempt.submittedAt || Date.now()).getTime() + 5 * 60 * 1000);
@@ -564,7 +571,7 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
       })),
       exam: attempt
         ? {
-            status: attempt.status,
+            status: normalizeAttemptStatus(attempt),
             score: attempt.score,
             integrityScore: attempt.integrityScore,
             submittedAt: attempt.submittedAt,
@@ -575,7 +582,7 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
         allAttempts.map((item) => [
           String(item.programCode || '').trim().toUpperCase(),
           {
-            status: item.status,
+            status: normalizeAttemptStatus(item),
             score: item.score,
             integrityScore: item.integrityScore,
             submittedAt: item.submittedAt,
