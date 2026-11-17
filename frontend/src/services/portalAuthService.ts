@@ -37,6 +37,7 @@ export interface PortalUser {
 
 export interface PortalSession {
   token: string;
+  refreshToken?: string;
   user: PortalUser;
   requiresOnboarding?: boolean;
 }
@@ -45,6 +46,7 @@ export const needsOnboarding = (user: PortalUser | null | undefined): boolean =>
   Boolean(user && user.profileCompleted === false);
 
 const PORTAL_TOKEN_KEY = 'portalToken';
+const PORTAL_REFRESH_KEY = 'portalRefreshToken';
 const PORTAL_USER_KEY = 'portalUser';
 const SESSION_USER_KEY = 'talenta_active_session_user';
 
@@ -70,8 +72,26 @@ export const getPortalRole = (): string | null => {
 
 export const isPortalAuthenticated = (): boolean => Boolean(getPortalToken() && getPortalUser());
 
-export const savePortalSession = ({ token, user }: PortalSession): void => {
+export const getAuthenticatedHomeRoute = (): string | null => {
+  const adminToken = localStorage.getItem('adminToken');
+  const adminRole = localStorage.getItem('adminRole');
+  if (adminToken && (adminRole === 'admin' || adminRole === 'superadmin')) {
+    return '/admin/dashboard';
+  }
+  if (isPortalAuthenticated()) {
+    const user = getPortalUser();
+    if (user?.role === 'asesor') return '/asesor';
+    if (user?.role === 'peserta') {
+      return user.profileCompleted === false ? '/peserta/profile' : '/peserta/dashboard';
+    }
+    if (user?.role === 'admin' || user?.role === 'superadmin') return '/admin/dashboard';
+  }
+  return null;
+};
+
+export const savePortalSession = ({ token, refreshToken, user }: PortalSession): void => {
   localStorage.setItem(PORTAL_TOKEN_KEY, token);
+  if (refreshToken) localStorage.setItem(PORTAL_REFRESH_KEY, refreshToken);
   localStorage.setItem(PORTAL_USER_KEY, JSON.stringify(user));
   localStorage.setItem('authRole', user.role);
   const assignedProgramIds = (() => {
@@ -113,6 +133,7 @@ export const savePortalSession = ({ token, user }: PortalSession): void => {
 export const clearPortalSession = (): void => {
   for (const key of [
     PORTAL_TOKEN_KEY,
+    PORTAL_REFRESH_KEY,
     PORTAL_USER_KEY,
     SESSION_USER_KEY,
     'authRole',
@@ -131,13 +152,16 @@ const authHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+const mapSession = (data: any): PortalSession => ({
+  token: data.token,
+  refreshToken: data.refreshToken,
+  user: data.user,
+  requiresOnboarding: data.requiresOnboarding ?? needsOnboarding(data.user)
+});
+
 export const loginPortal = async (identifier: string, password: string): Promise<PortalSession> => {
   const response = await axios.post('/api/portal/auth/login', { identifier, password });
-  return {
-    token: response.data.token,
-    user: response.data.user,
-    requiresOnboarding: response.data.requiresOnboarding ?? needsOnboarding(response.data.user)
-  };
+  return mapSession(response.data);
 };
 
 export const registerPeserta = async (payload: {
@@ -151,11 +175,7 @@ export const registerPeserta = async (payload: {
   gradeLevel?: string;
 }): Promise<PortalSession> => {
   const response = await axios.post('/api/portal/auth/register', payload);
-  return {
-    token: response.data.token,
-    user: response.data.user,
-    requiresOnboarding: needsOnboarding(response.data.user)
-  };
+  return mapSession(response.data);
 };
 
 export const tokenLogin = async (payload: {
@@ -167,11 +187,7 @@ export const tokenLogin = async (payload: {
   gradeLevel?: string;
 }): Promise<PortalSession> => {
   const response = await axios.post('/api/portal/auth/token-login', payload);
-  return {
-    token: response.data.token,
-    user: response.data.user,
-    requiresOnboarding: needsOnboarding(response.data.user)
-  };
+  return mapSession(response.data);
 };
 
 export const fetchPortalMe = async (): Promise<PortalUser | null> => {
@@ -188,3 +204,65 @@ export const fetchAdminMe = async () => {
   const response = await axios.get('/api/admin/me', { headers: { Authorization: `Bearer ${token}` } });
   return response.data.data as { id: string; username: string; role: string };
 };
+
+export const refreshPortalSession = async (): Promise<PortalSession | null> => {
+  const refreshToken = localStorage.getItem(PORTAL_REFRESH_KEY);
+  if (!refreshToken) return null;
+  try {
+    const response = await axios.post('/api/portal/auth/refresh', { refreshToken });
+    const session = mapSession(response.data);
+    savePortalSession(session);
+    return session;
+  } catch {
+    return null;
+  }
+};
+
+export const logoutPortal = async (): Promise<void> => {
+  const refreshToken = localStorage.getItem(PORTAL_REFRESH_KEY);
+  try {
+    await axios.post('/api/portal/auth/logout', { refreshToken }, { headers: authHeaders() });
+  } catch {
+    // best effort
+  }
+  clearPortalSession();
+};
+
+export const requestPasswordReset = async (email: string) => {
+  const response = await axios.post('/api/portal/auth/forgot-password', { email });
+  return response.data as {
+    message: string;
+    mailDelivered?: boolean;
+    mailProvider?: string;
+    devResetToken?: string;
+    resetUrl?: string;
+  };
+};
+
+export const resetPasswordWithToken = async (token: string, password: string) => {
+  const response = await axios.post('/api/portal/auth/reset-password', { token, password });
+  return response.data as { message: string };
+};
+
+let refreshing: Promise<PortalSession | null> | null = null;
+
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error?.config;
+    const status = error?.response?.status;
+    const url: string = config?.url || '';
+    const isAuthEndpoint = url.includes('/api/portal/auth/');
+    if (status === 401 && config && !config.__portalRetry && !isAuthEndpoint && getPortalToken()) {
+      config.__portalRetry = true;
+      if (!refreshing) refreshing = refreshPortalSession().finally(() => { refreshing = null; });
+      const session = await refreshing;
+      if (session?.token) {
+        config.headers = { ...(config.headers || {}), Authorization: `Bearer ${session.token}` };
+        return axios(config);
+      }
+      clearPortalSession();
+    }
+    return Promise.reject(error);
+  }
+);

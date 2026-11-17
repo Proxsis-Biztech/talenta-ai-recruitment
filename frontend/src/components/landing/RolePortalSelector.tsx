@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getAuthenticatedHomeRoute } from '../../services/portalAuthService';
 import {
   GraduationCap,
   Scale,
@@ -26,6 +27,13 @@ const pipelineStages = [
 
 export default function RolePortalSelector() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const homeRoute = getAuthenticatedHomeRoute();
+    if (homeRoute) {
+      navigate(homeRoute, { replace: true });
+    }
+  }, [navigate]);
 
   const roles = [
     {

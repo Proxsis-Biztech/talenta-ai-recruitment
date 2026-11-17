@@ -161,7 +161,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           ) : (
             <>
               <div
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/asesor/dashboard')}
                 className="flex items-center gap-2.5 min-w-0 cursor-pointer group"
               >
                 <img

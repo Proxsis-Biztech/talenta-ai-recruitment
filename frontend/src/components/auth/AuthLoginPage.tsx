@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   ArrowRight,
@@ -17,14 +17,22 @@ import {
   Building2,
   Check
 } from 'lucide-react';
-import { Button, Badge } from '../ui';
+import { Button, Badge, Modal } from '../ui';
 import { setActiveSessionUser } from '../../services/userRegistryService';
-import { clearPortalSession, loginPortal, savePortalSession } from '../../services/portalAuthService';
+import {
+  clearPortalSession,
+  getAuthenticatedHomeRoute,
+  loginPortal,
+  savePortalSession,
+  requestPasswordReset,
+  resetPasswordWithToken
+} from '../../services/portalAuthService';
 
 const SHOW_DEMO_ACCESS = false;
 
 export default function AuthLoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -35,6 +43,70 @@ export default function AuthLoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
+  // Password reset flow
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetNotice, setResetNotice] = useState('');
+  const [resetError, setResetError] = useState('');
+
+  // Two-factor (TOTP) challenge for admin accounts
+  const [twoFactorRequired, setTwoFactorRequired] = useState(false);
+  const [totpCode, setTotpCode] = useState('');
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+  const [twoFactorError, setTwoFactorError] = useState('');
+
+  useEffect(() => {
+    const homeRoute = getAuthenticatedHomeRoute();
+    if (homeRoute) {
+      navigate(homeRoute, { replace: true });
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    const tokenFromUrl = searchParams.get('reset');
+    if (tokenFromUrl) {
+      setResetToken(tokenFromUrl);
+      setResetOpen(true);
+    }
+  }, [searchParams]);
+
+  const handleRequestReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    setResetNotice('');
+    setResetLoading(true);
+    try {
+      const result = await requestPasswordReset(resetEmail.trim());
+      setResetNotice(result.message);
+      if (result.devResetToken) setResetToken(result.devResetToken);
+    } catch (err) {
+      setResetError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal mengirim tautan reset.' : 'Gagal mengirim tautan reset.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleSubmitNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    setResetNotice('');
+    setResetLoading(true);
+    try {
+      const result = await resetPasswordWithToken(resetToken.trim(), resetPassword);
+      setResetNotice(result.message);
+      setResetPassword('');
+      setResetToken('');
+      setTimeout(() => setResetOpen(false), 1200);
+    } catch (err) {
+      setResetError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal mengatur ulang kata sandi.' : 'Gagal mengatur ulang kata sandi.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   const handleGoogleLogin = async (credential: string) => {
     setError('');
     setGoogleLoading(true);
@@ -42,6 +114,7 @@ export default function AuthLoginPage() {
       const response = await axios.post('/api/portal/auth/google', { credential });
       const session = {
         token: response.data.token,
+        refreshToken: response.data.refreshToken,
         user: response.data.user,
         requiresOnboarding: response.data.requiresOnboarding
       };
@@ -68,7 +141,7 @@ export default function AuthLoginPage() {
       const nextUrl = session.requiresOnboarding || !isProfileComplete
         ? '/peserta/profile'
         : '/peserta/device-check';
-      navigate(nextUrl);
+      navigate(nextUrl, { replace: true });
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal masuk dengan Google.' : 'Gagal masuk dengan Google.');
     } finally {
@@ -136,22 +209,7 @@ export default function AuthLoginPage() {
 
       if (isAdminAccount) {
         clearPortalSession();
-        const res = await axios.post('/api/admin/login', {
-          username: identifier.trim(),
-          password
-        });
-        localStorage.setItem('adminToken', res.data.token);
-        localStorage.setItem('adminRole', res.data.role || 'admin');
-        localStorage.setItem('adminUsername', res.data.username);
-        localStorage.setItem('authRole', res.data.role || 'admin');
-        setActiveSessionUser({
-          id: 'ADM-01',
-          name: res.data.username,
-          username: res.data.username,
-          role: res.data.role || 'admin'
-        });
-        setSuccessRole('admin');
-        setTimeout(() => navigate('/admin/dashboard'), 300);
+        await completeAdminLogin();
         return;
       }
 
@@ -163,7 +221,7 @@ export default function AuthLoginPage() {
       savePortalSession(session);
       setSuccessRole(session.user.role === 'asesor' ? 'asesor' : 'peserta');
       if (session.user.role === 'asesor') {
-        setTimeout(() => navigate('/asesor'), 300);
+        setTimeout(() => navigate('/asesor', { replace: true }), 300);
       } else {
         const isPlaceholder = (n?: string | null) => {
           if (!n) return true;
@@ -182,7 +240,7 @@ export default function AuthLoginPage() {
         const nextUrl = session.requiresOnboarding || !isProfileComplete
           ? '/peserta/profile'
           : '/peserta/device-check';
-        setTimeout(() => navigate(nextUrl), 300);
+        setTimeout(() => navigate(nextUrl, { replace: true }), 300);
       }
     } catch (err) {
       const message = axios.isAxiosError(err)
@@ -193,9 +251,52 @@ export default function AuthLoginPage() {
         : err instanceof Error
           ? err.message
           : 'Gagal masuk. Silakan coba lagi.';
+      if (axios.isAxiosError(err) && err.response?.data?.twoFactorRequired) {
+        setTwoFactorRequired(true);
+        setError('');
+        return;
+      }
       setError(message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const completeAdminLogin = async (totp?: string) => {
+    const res = await axios.post('/api/admin/login', {
+      username: identifier.trim(),
+      password,
+      ...(totp ? { totp } : {})
+    });
+    localStorage.setItem('adminToken', res.data.token);
+    localStorage.setItem('adminRole', res.data.role || 'admin');
+    localStorage.setItem('adminUsername', res.data.username);
+    localStorage.setItem('authRole', res.data.role || 'admin');
+    setActiveSessionUser({
+      id: 'ADM-01',
+      name: res.data.username,
+      username: res.data.username,
+      role: res.data.role || 'admin'
+    });
+    setSuccessRole('admin');
+    setTwoFactorRequired(false);
+    setTimeout(() => navigate('/admin/dashboard', { replace: true }), 300);
+  };
+
+  const handleTwoFactorSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTwoFactorError('');
+    setTwoFactorLoading(true);
+    try {
+      await completeAdminLogin(totpCode.trim());
+    } catch (err) {
+      setTwoFactorError(
+        axios.isAxiosError(err)
+          ? err.response?.data?.error || 'Kode verifikasi tidak valid.'
+          : 'Kode verifikasi tidak valid.'
+      );
+    } finally {
+      setTwoFactorLoading(false);
     }
   };
 
@@ -280,9 +381,12 @@ export default function AuthLoginPage() {
                   </label>
                   <button
                     type="button"
-                    onClick={() =>
-                      setError('Reset kata sandi ditangani oleh panitia. Hubungi admin institusi untuk pemulihan akun.')
-                    }
+                    onClick={() => {
+                      setResetOpen(true);
+                      setResetError('');
+                      setResetNotice('');
+                      setResetEmail(identifier.includes('@') ? identifier.trim() : '');
+                    }}
                     className="text-[11px] text-blue-accent hover:underline font-semibold cursor-pointer"
                   >
                     Lupa sandi?
@@ -510,6 +614,100 @@ export default function AuthLoginPage() {
           <span className="font-mono text-white/50">Right v2.0</span>
         </div>
       </div>
+      <Modal
+        isOpen={twoFactorRequired}
+        onClose={() => setTwoFactorRequired(false)}
+        title="Verifikasi Dua Langkah"
+        description="Masukkan kode 6 digit dari aplikasi authenticator Anda untuk melanjutkan."
+        size="sm"
+      >
+        <form onSubmit={handleTwoFactorSubmit} className="space-y-4 p-1">
+          <input
+            value={totpCode}
+            onChange={(event) => setTotpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+            inputMode="numeric"
+            autoFocus
+            placeholder="000000"
+            className="w-full text-center tracking-[0.5em] font-mono text-lg px-3.5 py-3 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 outline-none"
+          />
+          {twoFactorError && (
+            <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">{twoFactorError}</p>
+          )}
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={twoFactorLoading || totpCode.length !== 6}
+            className="w-full py-2.5 text-xs font-bold rounded-xl"
+          >
+            {twoFactorLoading ? 'Memverifikasi...' : 'Verifikasi & Masuk'}
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={resetOpen}
+        onClose={() => setResetOpen(false)}
+        title="Pemulihan Akun"
+        description="Minta tautan reset melalui email terdaftar, atau tempel kode reset yang Anda terima."
+        size="md"
+      >
+        <div className="space-y-5 p-1">
+          <form onSubmit={handleRequestReset} className="space-y-3">
+            <label className="block text-xs font-semibold text-slate-700">Email terdaftar</label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="email"
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                placeholder="nama@email.com"
+                className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm outline-none"
+              />
+              <Button type="submit" variant="primary" disabled={resetLoading || !resetEmail.trim()} className="px-4 py-2.5 text-xs font-bold rounded-xl">
+                {resetLoading ? 'Memproses...' : 'Kirim Tautan'}
+              </Button>
+            </div>
+          </form>
+
+          <div className="border-t border-slate-200 pt-4 space-y-3">
+            <form onSubmit={handleSubmitNewPassword} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Kode reset</label>
+                <input
+                  value={resetToken}
+                  onChange={(event) => setResetToken(event.target.value)}
+                  placeholder="Tempel kode dari email"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs font-mono outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Kata sandi baru</label>
+                <input
+                  type="password"
+                  value={resetPassword}
+                  onChange={(event) => setResetPassword(event.target.value)}
+                  placeholder="Minimal 8 karakter"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm outline-none"
+                />
+              </div>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={resetLoading || !resetToken.trim() || resetPassword.length < 8}
+                className="w-full py-2.5 text-xs font-bold rounded-xl"
+              >
+                {resetLoading ? 'Menyimpan...' : 'Atur Kata Sandi Baru'}
+              </Button>
+            </form>
+          </div>
+
+          {resetNotice && (
+            <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">{resetNotice}</p>
+          )}
+          {resetError && (
+            <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">{resetError}</p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
