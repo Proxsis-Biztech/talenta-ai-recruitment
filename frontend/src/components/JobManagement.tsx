@@ -973,17 +973,7 @@ export default function JobManagement() {
                       <Briefcase className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-slate-900 leading-snug">{job.title}</span>
-                        <Badge
-                          variant={getJobScheduleStatus(job).variant}
-                          format="soft"
-                          hasDot={getJobScheduleStatus(job).key === 'active'}
-                          className="text-[10px]"
-                        >
-                          {getJobScheduleStatus(job).label}
-                        </Badge>
-                      </div>
+                      <div className="font-semibold text-slate-900 leading-snug">{job.title}</div>
                       <p className="text-xs text-slate-500 line-clamp-1 mt-0.5 font-sans">
                         {job.description}
                       </p>
