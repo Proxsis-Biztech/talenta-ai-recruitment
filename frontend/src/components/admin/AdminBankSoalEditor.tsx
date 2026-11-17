@@ -23,7 +23,9 @@ import {
   Database,
   Upload,
   Paperclip,
-  Brain
+  Brain,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import axios from 'axios';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
@@ -57,6 +59,7 @@ export interface BankQuestion {
   pValue: number; // 0.0 to 1.0 item difficulty index
   distractorStats: { label: string; pct: number }[];
   options: { key: string; text: string; isCorrect: boolean }[];
+  matchingPairs?: { left: string; rightOptions: string[]; correctRight?: string }[];
   explanation: string;
   attachmentUrl?: string | null;
   attachmentName?: string | null;
@@ -213,7 +216,10 @@ const syncProgramQuestions = async (programCode: string, allQuestions: BankQuest
     } else if (question.type === 'Isian Singkat') {
       correctAnswer = options[0]?.text || question.explanation || null;
     } else if (question.type === 'Matching') {
-      correctAnswer = (question as any).matchingPairs || [];
+      correctAnswer = ((question as any).matchingPairs || []).map((pair: any) => ({
+        left: pair.left,
+        correctRight: pair.correctRight || pair.rightOptions?.[0] || ''
+      }));
     }
     return {
       type: question.type,
@@ -274,6 +280,8 @@ export function AdminBankSoalEditor() {
   const [caseFiles, setCaseFiles] = useState<Array<{ name: string; url: string; mime?: string }>>([]);
   const [caseUploading, setCaseUploading] = useState(false);
   const [caseMessage, setCaseMessage] = useState('');
+  const [questionImporting, setQuestionImporting] = useState(false);
+  const [questionImportMessage, setQuestionImportMessage] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -604,6 +612,84 @@ export function AdminBankSoalEditor() {
       cancelled = true;
     };
   }, [selectedProgramCode]);
+
+
+  const handleDownloadQuestionTemplate = async () => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    try {
+      const response = await axios.get(
+        `/api/admin/programs/${selectedProgramCode}/questions/template`,
+        { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob' }
+      );
+      const url = window.URL.createObjectURL(
+        new Blob([response.data], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        })
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Template_Bank_Soal_${selectedProgramCode}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setQuestionImportMessage('Gagal mengunduh template Excel.');
+    }
+  };
+
+  const handleImportQuestions = async (file: File) => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    setQuestionImporting(true);
+    setQuestionImportMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await axios.post(
+        `/api/admin/programs/${selectedProgramCode}/questions/import`,
+        formData,
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
+      );
+      const rows = Array.isArray(response.data?.data) ? response.data.data : [];
+      const imported: BankQuestion[] = rows.map((row: any, index: number) => ({
+        id: `IMP-${Date.now()}-${index + 1}`,
+        category: row.category === 'psikotes' ? 'psikotes' : 'kompetensi',
+        type: row.type,
+        programCode: selectedProgramCode,
+        text: row.text,
+        competency: row.competency || 'General',
+        difficulty: row.difficulty || 'Sedang',
+        status: 'Published',
+        pValue: 0,
+        distractorStats: [],
+        options: Array.isArray(row.options) ? row.options : [],
+        matchingPairs: Array.isArray(row.matchingPairs) ? row.matchingPairs : [],
+        explanation: row.explanation || ''
+      }));
+      if (imported.length === 0) {
+        setQuestionImportMessage('Tidak ada soal valid pada berkas.');
+        return;
+      }
+      const next = [...questions, ...imported];
+      setQuestions(next);
+      await saveMasterRecord('bank-soal', 'questions', next);
+      await syncProgramQuestions(selectedProgramCode, next);
+      const skipped = Number(response.data?.skipped) || 0;
+      setQuestionImportMessage(
+        `${imported.length} soal berhasil diimpor${skipped ? `, ${skipped} baris dilewati` : ''}.`
+      );
+    } catch (error) {
+      setQuestionImportMessage(
+        axios.isAxiosError(error)
+          ? error.response?.data?.error || 'Gagal mengimpor soal.'
+          : 'Gagal mengimpor soal.'
+      );
+    } finally {
+      setQuestionImporting(false);
+    }
+  };
 
   const handleCaseFileUpload = async (file: File) => {
     const token = localStorage.getItem('adminToken');
@@ -978,6 +1064,46 @@ export function AdminBankSoalEditor() {
                 </span>
               </button>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  Import Soal dari Excel [{selectedProgramCode}]
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Unduh template, isi soal berbagai tipe (PG, multi-select, isian, esai, matching), lalu unggah kembali.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => void handleDownloadQuestionTemplate()}>
+                  <Download className="w-3.5 h-3.5 mr-1.5" />
+                  Unduh Template
+                </Button>
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-50">
+                  <Upload className="w-3.5 h-3.5" />
+                  {questionImporting ? 'Mengimpor...' : 'Import Excel'}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".xlsx,.xls,.csv"
+                    disabled={questionImporting}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void handleImportQuestions(file);
+                      event.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+            {questionImportMessage && (
+              <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                {questionImportMessage}
+              </p>
+            )}
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">

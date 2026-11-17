@@ -110,7 +110,7 @@ export default function PesertaAsesmenList() {
   });
 
 
-  const [filter, setFilter] = useState<'semua' | 'aktif' | 'selesai'>('semua');
+  const [filter, setFilter] = useState<'semua' | 'belum' | 'berjalan' | 'selesai'>('semua');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Course materials state for LMS view
@@ -470,7 +470,8 @@ export default function PesertaAsesmenList() {
 
   const filteredPrograms = useMemo(() => {
     return programs.filter((p) => {
-      if (filter === 'aktif' && p.status === 'selesai') return false;
+      if (filter === 'belum' && p.status !== 'belum') return false;
+      if (filter === 'berjalan' && p.status !== 'berjalan') return false;
       if (filter === 'selesai' && p.status !== 'selesai') return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -1217,10 +1218,10 @@ export default function PesertaAsesmenList() {
                     <span className="text-xs text-blue-200">Program Asesmen</span>
                   </div>
                   <div className="pt-2 border-t border-white/15 flex items-center justify-between text-[11px] text-blue-100">
-                    <span>{programs.filter((p) => p.status === 'selesai').length} Selesai</span>
+                    <span>{programs.filter((p) => p.status === 'selesai').length} Sudah dikerjakan</span>
                     <span>•</span>
                     <span className="text-emerald-300 font-semibold">
-                      {programs.filter((p) => p.status !== 'selesai').length} Aktif / Tersedia
+                      {programs.filter((p) => p.status !== 'selesai').length} Belum selesai
                     </span>
                   </div>
                 </div>
@@ -1253,8 +1254,9 @@ export default function PesertaAsesmenList() {
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 shrink-0">
                 {[
                   { key: 'semua', label: 'Semua Program', count: programs.length },
-                  { key: 'aktif', label: 'Aktif / Berjalan', count: programs.filter((p) => p.status !== 'selesai').length },
-                  { key: 'selesai', label: 'Selesai', count: programs.filter((p) => p.status === 'selesai').length }
+                  { key: 'belum', label: 'Belum dikerjakan', count: programs.filter((p) => p.status === 'belum').length },
+                  { key: 'berjalan', label: 'Sedang dikerjakan', count: programs.filter((p) => p.status === 'berjalan').length },
+                  { key: 'selesai', label: 'Sudah dikerjakan', count: programs.filter((p) => p.status === 'selesai').length }
                 ].map((tab) => (
                   <button
                     key={tab.key}

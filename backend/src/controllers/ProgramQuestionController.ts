@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import * as XLSX from 'xlsx';
 import { type AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
@@ -339,5 +340,244 @@ export const getCaseFile = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Get case file error:', error);
     return res.status(500).json({ error: 'Gagal memuat berkas.' });
+  }
+};
+
+const IMPORT_HEADERS = [
+  'No',
+  'Tipe Soal',
+  'Kategori',
+  'Kompetensi',
+  'Tingkat',
+  'Pertanyaan',
+  'Opsi A',
+  'Opsi B',
+  'Opsi C',
+  'Opsi D',
+  'Opsi E',
+  'Jawaban Benar',
+  'Pasangan Kiri',
+  'Pasangan Kanan',
+  'Poin',
+  'Penjelasan'
+];
+
+const IMPORT_EXAMPLES: Array<Array<string | number>> = [
+  [1, 'Pilihan Ganda', 'kompetensi', 'Software Design', 'Sedang', 'Prinsip SOLID yang memastikan kelas hanya memiliki satu alasan untuk berubah adalah?', 'Single Responsibility', 'Open Closed', 'Liskov Substitution', 'Interface Segregation', 'Dependency Inversion', 'A', '', '', 1, 'SRP: satu kelas satu tanggung jawab.'],
+  [2, 'Multi-Select', 'kompetensi', 'Cloud Architecture', 'Sulit', 'Pilih komponen yang termasuk layanan terkelola pada cloud publik.', 'Object Storage', 'Virtual Machine', 'Managed Database', 'Bare Metal Server', '', 'A,C', '', '', 1, 'Object storage dan managed database dikelola penyedia.'],
+  [3, 'Isian Singkat', 'kompetensi', 'Networking', 'Mudah', 'Protokol yang digunakan untuk menerjemahkan nama domain menjadi alamat IP adalah?', '', '', '', '', '', 'DNS', '', '', 1, 'DNS = Domain Name System.'],
+  [4, 'Esai', 'kompetensi', 'System Design', 'Sulit', 'Jelaskan strategi mitigasi single point of failure pada arsitektur microservices.', '', '', '', '', '', '', '', '', 2, 'Dinilai manual oleh asesor.'],
+  [5, 'Matching', 'kompetensi', 'Networking', 'Sedang', 'Pasangkan protokol dengan karakteristiknya.', '', '', '', '', '', '', 'HTTP|TCP|DNS', 'Port 80|Handshake tiga arah|Resolusi nama domain', 1, 'Gunakan pemisah | untuk setiap pasangan.']
+];
+
+const normalizeImportType = (value: string): string | null => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return null;
+  if (['pilihan ganda', 'single', 'pg'].includes(raw)) return 'single';
+  if (['multi-select', 'multi select', 'multi jawaban', 'multi', 'multi-select'].includes(raw)) return 'multi';
+  if (['isian singkat', 'short', 'isian'].includes(raw)) return 'short';
+  if (['esai', 'essay', 'uraian'].includes(raw)) return 'essay';
+  if (['matching', 'menjodohkan', 'pasangan'].includes(raw)) return 'matching';
+  return null;
+};
+
+const typeLabel: Record<string, string> = {
+  single: 'Pilihan Ganda',
+  multi: 'Multi-Select',
+  short: 'Isian Singkat',
+  essay: 'Esai',
+  matching: 'Matching'
+};
+
+const normalizeDifficulty = (value: string): string => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['mudah', 'easy'].includes(raw)) return 'Mudah';
+  if (['sulit', 'susah', 'hard', 'tinggi'].includes(raw)) return 'Sulit';
+  return 'Sedang';
+};
+
+export const downloadQuestionTemplate = async (req: AuthRequest, res: Response) => {
+  try {
+    const programCode = String(req.params.programCode || '').trim().toUpperCase() || 'PROGRAM';
+    const worksheet = XLSX.utils.aoa_to_sheet([IMPORT_HEADERS, ...IMPORT_EXAMPLES]);
+    worksheet['!cols'] = [
+      { wch: 5 }, { wch: 16 }, { wch: 12 }, { wch: 22 }, { wch: 10 },
+      { wch: 60 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
+      { wch: 20 }, { wch: 16 }, { wch: 28 }, { wch: 32 }, { wch: 7 }, { wch: 40 }
+    ];
+
+    const guide = XLSX.utils.aoa_to_sheet([
+      ['PETUNJUK IMPORT BANK SOAL'],
+      [''],
+      ['1. Isi sheet "Soal" sesuai header. Jangan mengubah urutan kolom.'],
+      ['2. Tipe Soal yang didukung: Pilihan Ganda, Multi-Select, Isian Singkat, Esai, Matching.'],
+      ['3. Pilihan Ganda: isi Opsi A-E, lalu Jawaban Benar dengan huruf opsi (contoh: B).'],
+      ['4. Multi-Select: Jawaban Benar dipisah koma (contoh: A,C).'],
+      ['5. Isian Singkat: tulis jawaban pada kolom Jawaban Benar.'],
+      ['6. Esai: kolom Jawaban Benar boleh kosong (dinilai manual).'],
+      ['7. Matching: Pasangan Kiri dan Pasangan Kanan dipisah tanda | dan jumlahnya harus sama.'],
+      ['8. Kolom Poin default 1 bila kosong. Kategori: psikotes atau kompetensi.'],
+      ['9. Baris tanpa Pertanyaan akan dilewati otomatis.'],
+      [''],
+      [`Kode Program: ${programCode}`]
+    ]);
+    guide['!cols'] = [{ wch: 110 }];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Soal');
+    XLSX.utils.book_append_sheet(workbook, guide, 'Petunjuk');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Template_Bank_Soal_${programCode}.xlsx"`);
+    return res.send(buffer);
+  } catch (error) {
+    console.error('Download question template error:', error);
+    return res.status(500).json({ error: 'Gagal membuat template Excel.' });
+  }
+};
+
+export const importProgramQuestions = async (req: AuthRequest, res: Response) => {
+  try {
+    const programCode = String(req.params.programCode || '').trim().toUpperCase();
+    if (!programCode) return res.status(400).json({ error: 'Kode program wajib diisi.' });
+    const file = req.file;
+    if (!file || !file.buffer) return res.status(400).json({ error: 'Berkas Excel/CSV tidak ditemukan.' });
+    if (file.size > 10 * 1024 * 1024) return res.status(413).json({ error: 'Ukuran berkas maksimal 10MB.' });
+
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames.includes('Soal') ? 'Soal' : workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    if (!worksheet) return res.status(400).json({ error: 'Sheet soal tidak ditemukan pada berkas.' });
+
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+    const parsed: Array<Record<string, unknown>> = [];
+    const errors: Array<{ row: number; message: string }> = [];
+
+    rows.forEach((row, index) => {
+      const rowNumber = index + 2;
+      const text = String(row['Pertanyaan'] ?? row['Question'] ?? '').trim();
+      if (!text) return;
+
+      const type = normalizeImportType(String(row['Tipe Soal'] ?? row['Type'] ?? 'Pilihan Ganda'));
+      if (!type) {
+        errors.push({ row: rowNumber, message: 'Tipe soal tidak dikenali.' });
+        return;
+      }
+
+      const category = String(row['Kategori'] ?? 'kompetensi').trim().toLowerCase() === 'psikotes'
+        ? 'psikotes'
+        : 'kompetensi';
+      const competency = String(row['Kompetensi'] ?? 'General').trim() || 'General';
+      const difficulty = normalizeDifficulty(String(row['Tingkat'] ?? 'Sedang'));
+      const points = Number(row['Poin'] ?? 1) || 1;
+      const explanation = String(row['Penjelasan'] ?? '').trim();
+      const answerRaw = String(row['Jawaban Benar'] ?? '').trim();
+
+      const optionColumns = [
+        ['A', String(row['Opsi A'] ?? '').trim()],
+        ['B', String(row['Opsi B'] ?? '').trim()],
+        ['C', String(row['Opsi C'] ?? '').trim()],
+        ['D', String(row['Opsi D'] ?? '').trim()],
+        ['E', String(row['Opsi E'] ?? '').trim()]
+      ].filter(([, value]) => value);
+
+      const options = optionColumns.map(([key, value]) => ({
+        key,
+        text: value,
+        isCorrect: false
+      }));
+
+      if (['single', 'multi'].includes(type) && options.length < 2) {
+        errors.push({ row: rowNumber, message: 'Minimal dua opsi untuk soal pilihan.' });
+        return;
+      }
+
+      if (type === 'single') {
+        const key = answerRaw.replace(/[^A-Ea-e]/g, '').toUpperCase().slice(0, 1);
+        if (!key || !options.some((option) => option.key === key)) {
+          errors.push({ row: rowNumber, message: 'Jawaban benar pilihan ganda harus A-E dan sesuai opsi.' });
+          return;
+        }
+        options.forEach((option) => {
+          option.isCorrect = option.key === key;
+        });
+      } else if (type === 'multi') {
+        const keys = answerRaw
+          .split(/[,;\/\s]+/)
+          .map((item) => item.trim().toUpperCase())
+          .filter((item) => /^[A-E]$/.test(item));
+        if (keys.length === 0) {
+          errors.push({ row: rowNumber, message: 'Jawaban multi-select minimal satu huruf (contoh: A,C).' });
+          return;
+        }
+        options.forEach((option) => {
+          option.isCorrect = keys.includes(option.key);
+        });
+      }
+
+      let matchingPairs: Array<{ left: string; rightOptions: string[]; correctRight: string }> = [];
+      if (type === 'matching') {
+        const lefts = String(row['Pasangan Kiri'] ?? '').split('|').map((item) => item.trim()).filter(Boolean);
+        const rights = String(row['Pasangan Kanan'] ?? '').split('|').map((item) => item.trim()).filter(Boolean);
+        if (lefts.length === 0 || lefts.length !== rights.length) {
+          errors.push({ row: rowNumber, message: 'Pasangan Kiri dan Kanan harus sama jumlahnya (pemisah |).' });
+          return;
+        }
+        const uniqueRights = Array.from(new Set(rights));
+        matchingPairs = lefts.map((left, pairIndex) => ({
+          left,
+          rightOptions: uniqueRights,
+          correctRight: rights[pairIndex]
+        }));
+      }
+
+      if (type === 'short' && !answerRaw) {
+        errors.push({ row: rowNumber, message: 'Soal isian singkat wajib memiliki Jawaban Benar.' });
+        return;
+      }
+
+      parsed.push({
+        type: typeLabel[type],
+        rawType: type,
+        category,
+        competency,
+        difficulty,
+        text,
+        options,
+        matchingPairs,
+        correctAnswer:
+          type === 'single'
+            ? options.find((option) => option.isCorrect)?.key || null
+            : type === 'multi'
+              ? options.filter((option) => option.isCorrect).map((option) => option.key)
+              : type === 'short'
+                ? answerRaw
+                : type === 'matching'
+                  ? matchingPairs.map((pair) => ({ left: pair.left, correctRight: pair.correctRight }))
+                  : null,
+        points,
+        explanation
+      });
+    });
+
+    if (parsed.length === 0) {
+      return res.status(400).json({
+        error: 'Tidak ada soal valid yang dapat diimpor.',
+        errors,
+        count: 0
+      });
+    }
+
+    return res.json({
+      message: `${parsed.length} soal berhasil dibaca dari template.`,
+      count: parsed.length,
+      skipped: errors.length,
+      errors,
+      data: parsed
+    });
+  } catch (error) {
+    console.error('Import program questions error:', error);
+    return res.status(500).json({ error: 'Gagal membaca berkas import soal.' });
   }
 };

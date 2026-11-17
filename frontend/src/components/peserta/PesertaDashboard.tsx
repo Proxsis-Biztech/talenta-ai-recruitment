@@ -441,46 +441,66 @@ export default function PesertaDashboard() {
       dotColor: string;
       iconBg: string;
       icon: React.ComponentType<{ className?: string }>;
+      sortAt: number;
     }> = [];
 
-    if (!isCatCompleted) {
-      list.push({
-        id: 'ev-cat',
-        title: 'Ujian CAT Kompetensi',
-        desc: `Akses melalui menu Asesmen Saya`,
-        dateLabel: 'Tersedia',
-        durationLabel: `${activeProgramDuration} Menit`,
-        dotColor: 'bg-[#F95B2B]',
-        iconBg: 'bg-[#F2F0FE] text-[#5B4CE4]',
-        icon: FileText
-      });
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+    const isFuture = (date: Date) => date.getTime() >= tomorrowStart.getTime();
+
+    dashboardPrograms.forEach((program: any) => {
+      const startDate = program.assessmentDate ? new Date(program.assessmentDate) : null;
+      const endDate = program.assessmentEndDate ? new Date(program.assessmentEndDate) : null;
+
+      if (startDate && isFuture(startDate)) {
+        list.push({
+          id: `start-${program.code}`,
+          title: program.title,
+          desc: `Asesmen dimulai • ${program.code}`,
+          dateLabel: formatDate(startDate.toISOString()),
+          durationLabel: `${program.durationMinutes || 90} Menit`,
+          dotColor: 'bg-[#F95B2B]',
+          iconBg: 'bg-[#F2F0FE] text-[#5B4CE4]',
+          icon: FileText,
+          sortAt: startDate.getTime()
+        });
+      }
+
+      if (endDate && isFuture(endDate)) {
+        list.push({
+          id: `end-${program.code}`,
+          title: `Batas Akhir • ${program.title}`,
+          desc: 'Selesaikan seluruh tahapan sebelum tanggal ini',
+          dateLabel: formatDate(endDate.toISOString()),
+          durationLabel: 'Deadline',
+          dotColor: 'bg-rose-400',
+          iconBg: 'bg-[#FDECE6] text-[#F95B2B]',
+          icon: Clock,
+          sortAt: endDate.getTime()
+        });
+      }
+    });
+
+    if (!isInterviewCompleted && interview.scheduledAt) {
+      const scheduled = new Date(interview.scheduledAt);
+      if (isFuture(scheduled)) {
+        list.push({
+          id: 'ev-interview',
+          title: 'Wawancara Panel Asesor',
+          desc: interview.assessorName ? `Asesor: ${interview.assessorName}` : 'Sesi tatap muka daring',
+          dateLabel: formatDate(scheduled.toISOString()),
+          durationLabel: interview.queuePosition ? `Antrean #${interview.queuePosition}` : 'Terjadwal',
+          dotColor: 'bg-amber-400',
+          iconBg: 'bg-[#FEF7E6] text-[#D97706]',
+          icon: Video,
+          sortAt: scheduled.getTime()
+        });
+      }
     }
 
-    if (!isInterviewCompleted) {
-      list.push({
-        id: 'ev-interview',
-        title: 'Wawancara Panel Asesor',
-        desc: interview.assessorName ? `Asesor: ${interview.assessorName}` : 'Sesi tatap muka daring',
-        dateLabel: interview.scheduledAt ? formatShortDate(interview.scheduledAt) : 'Menunggu',
-        durationLabel: interview.queuePosition ? `Antrean #${interview.queuePosition}` : 'Terjadwal',
-        dotColor: 'bg-amber-400',
-        iconBg: 'bg-[#FEF7E6] text-[#D97706]',
-        icon: Video
-      });
-    }
-
-    if (!lha?.signed) {
-      list.push({
-        id: 'ev-lha',
-        title: 'Penerbitan Hasil (LHA)',
-        desc: 'Menunggu tanda tangan digital asesor',
-        dateLabel: 'Pasca Sesi',
-        durationLabel: 'Belum Terbit',
-        dotColor: 'bg-[#0F9D8A]',
-        iconBg: 'bg-[#EAF8F5] text-[#0F9D8A]',
-        icon: ShieldCheck
-      });
-    }
+    list.sort((a, b) => a.sortAt - b.sortAt);
 
     const q = searchQuery.trim().toLowerCase();
     if (!q) return list;
@@ -488,13 +508,11 @@ export default function PesertaDashboard() {
       (ev) => ev.title.toLowerCase().includes(q) || ev.desc.toLowerCase().includes(q)
     );
   }, [
+    dashboardPrograms,
     interview.assessorName,
     interview.queuePosition,
     interview.scheduledAt,
-    isCatCompleted,
     isInterviewCompleted,
-    lha?.signed,
-    programDuration,
     searchQuery
   ]);
 
@@ -1026,10 +1044,10 @@ export default function PesertaDashboard() {
                 <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200/70 p-4 text-center space-y-1">
                   <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto" />
                   <p className="text-xs font-bold text-emerald-900">
-                    Semua tahapan asesmen telah selesai
+                    Belum ada jadwal untuk besok atau setelahnya
                   </p>
                   <p className="text-[11px] text-emerald-700">
-                    Hasil &amp; LHA resmi Anda sudah tersedia.
+                    Jadwal hari ini dapat dilihat pada kalender di atas.
                   </p>
                 </div>
               ) : (

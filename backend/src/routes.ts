@@ -40,7 +40,7 @@ import { getWaitingRoomStatus, completeAndCallNext, streamWaitingRoom } from './
 import { getPortalMaterials } from './controllers/PortalMaterialController';
 import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
 import { listTenants } from './controllers/TenantController';
-import { syncProgramQuestions, publishProgram, uploadQuestionAttachment, uploadProgramCaseFile, deleteProgramCaseFile, getCaseFile } from './controllers/ProgramQuestionController';
+import { syncProgramQuestions, publishProgram, uploadQuestionAttachment, uploadProgramCaseFile, deleteProgramCaseFile, getCaseFile, downloadQuestionTemplate, importProgramQuestions } from './controllers/ProgramQuestionController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
 import { uploadExcel, downloadPortalUserTemplate, importPortalUsers } from './controllers/BulkImportController';
 import { runFactSheetMatching } from './services/factSheetService';
@@ -168,6 +168,8 @@ router.put('/admin/access-codes/:code', authenticateToken, updateAccessCode);
 
 router.get('/admin/tenants', authenticateToken, listTenants);
 router.post('/admin/programs/:programCode/questions/sync', authenticateToken, syncProgramQuestions);
+router.get('/admin/programs/:programCode/questions/template', authenticateToken, downloadQuestionTemplate);
+router.post('/admin/programs/:programCode/questions/import', authenticateToken, caseFileUpload.single('file'), importProgramQuestions);
 router.post('/admin/programs/:programCode/publish', authenticateToken, publishProgram);
 
 // Current admin session
