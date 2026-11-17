@@ -57,6 +57,15 @@ export default function AuthLoginPage() {
   const [totpCode, setTotpCode] = useState('');
   const [twoFactorLoading, setTwoFactorLoading] = useState(false);
   const [twoFactorError, setTwoFactorError] = useState('');
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+
+  const handleCardTilt = (event: React.MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const px = (event.clientX - rect.left) / rect.width - 0.5;
+    const py = (event.clientY - rect.top) / rect.height - 0.5;
+    setTilt({ x: -py * 8, y: px * 8 });
+  };
+  const resetCardTilt = () => setTilt({ x: 0, y: 0 });
 
   useEffect(() => {
     const homeRoute = getAuthenticatedHomeRoute();
@@ -301,319 +310,187 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col lg:flex-row font-sans antialiased">
-      {/* ─── Left Panel: Clean, Focused, & Simple Access Controls ─── */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-between p-6 sm:p-12 lg:p-16 xl:p-20 bg-white border-r border-slate-100">
-        <div>
-          {/* Brand header */}
-          <div
-            onClick={() => navigate('/')}
-            className="inline-flex items-center gap-3 cursor-pointer mb-8 group"
-          >
-            <img
-              src="/img/logoRIght.jpeg"
-              alt="RIGHT Assessment Platform"
-              className="h-11 sm:h-12 w-auto max-w-[260px] object-contain group-hover:opacity-90 transition-opacity"
-            />
+    <div className="relative min-h-screen overflow-hidden bg-[#060A18] flex items-center justify-center px-4 py-14 font-sans antialiased">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-40 -left-32 h-[420px] w-[420px] rounded-full bg-blue-600/30 blur-[130px]" />
+        <div className="absolute -bottom-40 -right-24 h-[460px] w-[460px] rounded-full bg-cyan-400/20 blur-[140px]" />
+        <div
+          className="absolute inset-0 opacity-[0.08]"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)',
+            backgroundSize: '56px 56px'
+          }}
+        />
+      </div>
+
+      <div className="relative w-full max-w-[430px]" style={{ perspective: '1200px' }}>
+        <div className="absolute inset-0 translate-x-3 translate-y-4 rotate-2 rounded-[34px] border border-white/10 bg-white/[0.04]" />
+        <div className="absolute inset-0 -translate-x-2 -translate-y-2 -rotate-1 rounded-[34px] border border-white/[0.06] bg-white/[0.02]" />
+
+        <div
+          onMouseMove={handleCardTilt}
+          onMouseLeave={resetCardTilt}
+          className="relative rounded-[34px] border border-white/15 bg-white/[0.07] p-6 sm:p-8 backdrop-blur-2xl shadow-[0_50px_100px_-30px_rgba(0,0,0,0.9)] transition-transform duration-200 ease-out"
+          style={{ transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`, transformStyle: 'preserve-3d' }}
+        >
+          <div className="flex justify-center -mt-16 mb-5" style={{ transform: 'translateZ(60px)' }}>
+            <div className="h-20 w-20 rounded-[22px] bg-white p-2 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.8)] border border-white/40 flex items-center justify-center">
+              <img
+                src="/img/logoRIght.jpeg"
+                alt="RIGHT Assessment Platform"
+                className="h-12 w-auto max-w-[64px] object-contain"
+              />
+            </div>
           </div>
 
-          <div className="max-w-md">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-ink font-heading tracking-tight">
+          <div className="text-center mb-6" style={{ transform: 'translateZ(30px)' }}>
+            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              RIGHT Assessment Platform
+            </span>
+            <h1 className="mt-3 text-2xl font-extrabold text-white font-heading tracking-tight">
               Masuk ke Portal
             </h1>
-            <p className="text-xs sm:text-sm text-muted-slate mt-1.5 leading-relaxed">
-              Akses terpadu untuk Peserta Seleksi, Dewan Asesor, dan Administrator.
+            <p className="text-xs text-slate-300/80 mt-1.5 leading-relaxed">
+              Akses terpadu Peserta, Dewan Asesor, dan Administrator.
             </p>
+          </div>
 
+          {error && (
+            <div className="mb-4 p-3 bg-rose-500/10 border border-rose-400/30 rounded-xl text-xs text-rose-200 flex items-center gap-2.5 animate-shake">
+              <AlertCircle className="w-4 h-4 text-rose-300 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
-
-            {/* Error Notification */}
-            {error && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-center gap-2.5 animate-shake">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {/* Success Validation Notification */}
-            {successRole && (
-              <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <div>
-                  <p className="font-bold">
-                    Terverifikasi:{' '}
-                    {successRole === 'admin'
-                      ? 'Administrator / Superadmin'
-                      : successRole === 'asesor'
+          {successRole && (
+            <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-400/30 rounded-xl text-xs text-emerald-100 flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
+              <div>
+                <p className="font-bold">
+                  Terverifikasi:{' '}
+                  {successRole === 'admin'
+                    ? 'Administrator / Superadmin'
+                    : successRole === 'asesor'
                       ? 'Dewan Asesor Independen'
                       : 'Peserta Ujian (Kandidat)'}
-                  </p>
-                  <p className="text-[11px] text-emerald-700">Mengalihkan ke portal...</p>
-                </div>
+                </p>
+                <p className="text-[11px] text-emerald-200/80">Mengalihkan ke portal...</p>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Main Login Form */}
-            <form onSubmit={handleLogin} className="mt-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Username / Email
+          <form onSubmit={handleLogin} className="space-y-4" style={{ transform: 'translateZ(20px)' }}>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                Username / Email
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <User className="h-4 w-4 text-slate-400" />
+                </div>
+                <input
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="superadmin / asesor / nama@kandidat.id"
+                  required
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/15 bg-white/[0.08] text-xs sm:text-sm font-medium text-white placeholder:text-slate-500 outline-none transition-all focus:border-cyan-400/60 focus:ring-4 focus:ring-cyan-400/15"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                  Kata Sandi
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <User className="h-4 w-4 text-slate-400" />
-                  </div>
-                  <input
-                    type="text"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="superadmin / asesor / budi@kandidat.id"
-                    required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none transition-all bg-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Kata Sandi
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetOpen(true);
-                      setResetError('');
-                      setResetNotice('');
-                      setResetEmail(identifier.includes('@') ? identifier.trim() : '');
-                    }}
-                    className="text-[11px] text-blue-accent hover:underline font-semibold cursor-pointer"
-                  >
-                    Lupa sandi?
-                  </button>
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <Lock className="h-4 w-4 text-slate-400" />
-                  </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none transition-all bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  className="w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl shadow-sm cursor-pointer"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span>Masuk ke Portal</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-
-            {SHOW_DEMO_ACCESS && (
-            <div className="mt-6 pt-5 border-t border-slate-100">
-              <div className="flex items-center justify-between text-xs text-slate-500 mb-2.5">
-                <span className="font-semibold flex items-center gap-1.5 text-slate-700 text-[11px] uppercase tracking-wider">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  Uji Coba 1-Klik Peran:
-                </span>
-                <span className="text-[10px] text-slate-400">Pilih salah satu</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => handleFillDemo('peserta-telkom')}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer flex items-center gap-1.5 ${
-                    identifier === 'farhan@kandidat.id'
-                      ? 'bg-blue-50 border-blue-400 text-primary-navy font-bold shadow-2xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
+                  onClick={() => {
+                    setResetOpen(true);
+                    setResetError('');
+                    setResetNotice('');
+                    setResetEmail(identifier.includes('@') ? identifier.trim() : '');
+                  }}
+                  className="text-[11px] text-cyan-300 hover:text-cyan-200 hover:underline font-semibold cursor-pointer"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                  <span>Peserta Telkom</span>
+                  Lupa sandi?
                 </button>
-
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <Lock className="h-4 w-4 text-slate-400" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full pl-10 pr-10 py-3 rounded-xl border border-white/15 bg-white/[0.08] text-xs sm:text-sm font-medium text-white placeholder:text-slate-500 outline-none transition-all focus:border-cyan-400/60 focus:ring-4 focus:ring-cyan-400/15"
+                />
                 <button
                   type="button"
-                  onClick={() => handleFillDemo('peserta-mandiri')}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer flex items-center gap-1.5 ${
-                    identifier === 'budi.mandiri@kandidat.id'
-                      ? 'bg-blue-50 border-blue-400 text-primary-navy font-bold shadow-2xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                  <span>Peserta Mandiri</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleFillDemo('asesor')}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer flex items-center gap-1.5 ${
-                    identifier === 'asesor'
-                      ? 'bg-amber-50 border-amber-400 text-amber-900 font-bold shadow-2xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <Scale className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Asesor</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleFillDemo('superadmin')}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer flex items-center gap-1.5 ${
-                    identifier === 'superadmin'
-                      ? 'bg-purple-50 border-purple-400 text-purple-900 font-bold shadow-2xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <Crown className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Superadmin</span>
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            )}
+            <div className="pt-1">
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#F95B2B] to-[#ff8a5c] border-0 shadow-[0_18px_30px_-12px_rgba(249,91,43,0.8)] hover:brightness-105 cursor-pointer"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>Masuk ke Portal</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
 
-            <div className="mt-6 pt-4 border-t border-slate-100 text-xs text-muted-slate">
-              Akun peserta dibuat oleh admin melalui email undangan.
+          <div className="mt-6 flex items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-slate-500">
+            <span className="h-px flex-1 bg-white/10" />
+            Aman &amp; Terenkripsi
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
+              <ShieldCheck className="mx-auto h-4 w-4 text-emerald-300" />
+              <p className="mt-1 text-[10px] font-semibold text-slate-300">SSL 256-bit</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
+              <Sparkles className="mx-auto h-4 w-4 text-cyan-300" />
+              <p className="mt-1 text-[10px] font-semibold text-slate-300">Proctoring AI</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
+              <Award className="mx-auto h-4 w-4 text-amber-300" />
+              <p className="mt-1 text-[10px] font-semibold text-slate-300">LHA Resmi</p>
             </div>
           </div>
-        </div>
 
-        <div className="mt-8 text-[11px] text-slate-400">
-          © 2026 Right • Dilindungi enkripsi SSL 256-bit dan Sistem Anti-Cheat AI.
+          <p className="mt-5 text-center text-[11px] text-slate-400">
+            Akun peserta dibuat oleh admin melalui email undangan.
+          </p>
         </div>
       </div>
 
-      {/* ─── Right Panel: Premium Interactive Feature Showcase ─── */}
-      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-[#0A192F] via-[#0F2756] to-[#1E3A8A] text-white p-12 xl:p-16 flex-col justify-between relative overflow-hidden">
-        {/* Subtle decorative glowing mesh orbs */}
-        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-blue-500/20 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-cyan-400/15 blur-3xl pointer-events-none" />
+      <p className="absolute bottom-5 left-0 right-0 text-center text-[10px] text-slate-500">
+        © 2026 Right • Dilindungi enkripsi SSL 256-bit dan Sistem Anti-Cheat AI.
+      </p>
 
-        {/* Top Header Tags */}
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-medium text-blue-100 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Enterprise Assessment Engine</span>
-          </div>
-          <span className="text-xs text-blue-200/80 font-mono tracking-wide">
-            ISO 27001 • Anti-Cheat AI v2.4
-          </span>
-        </div>
-
-        {/* Center Showcase: Glassmorphism Live Exam Simulator Card */}
-        <div className="relative z-10 my-auto py-8 space-y-6">
-          <div className="space-y-3">
-            <h2 className="text-3xl xl:text-4xl font-extrabold font-heading leading-tight tracking-tight text-white">
-              Platform Asesmen &amp; Seleksi Right Berbasis AI
-            </h2>
-            <p className="text-blue-100/90 text-sm xl:text-base leading-relaxed max-w-lg">
-              Solusi asesmen terpadu: tes adaptif, pengawasan kamera, dan penilaian asesor dengan LHA terverifikasi.
-            </p>
-          </div>
-
-          {/* Interactive Floating Glass Card */}
-          <div className="p-5 xl:p-6 rounded-3xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl space-y-4 max-w-lg">
-            {/* Card Header */}
-            <div className="flex items-center justify-between pb-3.5 border-b border-white/15 text-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/30 border border-blue-400/40 flex items-center justify-center text-white font-bold text-xs">
-                  CAT
-                </div>
-                <div>
-                  <span className="font-bold text-white block text-xs">Simulasi Ujian Adaptif</span>
-                  <span className="text-blue-200 text-[11px]">PT Telkom • Software Engineer</span>
-                </div>
-              </div>
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live Sesi
-              </span>
-            </div>
-
-            {/* Simulated Live Question Sneak-Peek */}
-            <div className="p-3.5 rounded-2xl bg-black/20 border border-white/10 space-y-2 text-xs">
-              <div className="flex items-center justify-between text-[11px] text-blue-200 font-mono">
-                <span>SOAL #04 (Grade B - Specialist)</span>
-                <span className="text-amber-300 font-semibold">Tersisa: 01:24:18</span>
-              </div>
-              <p className="text-white/95 text-xs leading-relaxed font-medium">
-                Penerapan asynchronous event-driven queue dengan backpressure handling pada transaksi berskala tinggi.
-              </p>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <div className="p-2 rounded-xl bg-blue-500/20 border border-blue-400/30 text-white font-medium text-[11px] flex items-center gap-1.5">
-                  <span className="w-4 h-4 rounded-full bg-blue-400 text-slate-900 font-bold text-[10px] flex items-center justify-center">A</span>
-                  <span className="truncate">Distributed Outbox</span>
-                </div>
-                <div className="p-2 rounded-xl bg-white/5 border border-white/10 text-white/70 text-[11px] flex items-center gap-1.5">
-                  <span className="w-4 h-4 rounded-full bg-white/20 text-white font-bold text-[10px] flex items-center justify-center">B</span>
-                  <span className="truncate">Synchronous Lock</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Proctoring telemetry footer */}
-            <div className="flex items-center justify-between text-xs pt-1 text-blue-200">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span className="text-[11px]">Proctoring: kamera & tab dipantau</span>
-              </div>
-              <span className="text-[11px] font-mono text-cyan-300">Status real-time</span>
-            </div>
-          </div>
-
-          {/* Key Metrics Ribbon */}
-          <div className="grid grid-cols-3 gap-3 max-w-lg">
-            <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
-              <span className="font-mono text-xl xl:text-2xl font-black text-white block">LHA</span>
-              <span className="text-[11px] text-blue-200">Terverifikasi</span>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
-              <span className="font-mono text-xl xl:text-2xl font-black text-cyan-300 block">Adaptif</span>
-              <span className="text-[11px] text-blue-200">Paket soal</span>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
-              <span className="font-mono text-xl xl:text-2xl font-black text-emerald-300 block">5 PT</span>
-              <span className="text-[11px] text-blue-200">Multi-Company</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Partner Trust Bar */}
-        <div className="relative z-10 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-blue-200/70">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold text-white/80">Dipercaya oleh:</span>
-            <span className="text-white/60">Telkom • Mandiri • CIMB • Astra • Pertamina</span>
-          </div>
-          <span className="font-mono text-white/50">Right v2.0</span>
-        </div>
-      </div>
       <Modal
         isOpen={twoFactorRequired}
         onClose={() => setTwoFactorRequired(false)}

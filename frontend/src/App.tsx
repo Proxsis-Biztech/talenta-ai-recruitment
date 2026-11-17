@@ -44,7 +44,6 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
 }
 
 // Landing & Auth
-const RolePortalSelector = lazyWithRetry(() => import('./components/landing/RolePortalSelector'), 'RolePortalSelector');
 const AuthLoginPage = lazyWithRetry(() => import('./components/auth/AuthLoginPage'), 'AuthLoginPage');
 const { Error403Page, Error404Page, OfflinePage } = {
   Error403Page: lazyWithRetry(() => import('./components/auth/StatePages').then(m => ({ default: m.Error403Page })), 'Error403Page'),
@@ -199,10 +198,8 @@ function App() {
       <ErrorBoundary>
         <Suspense fallback={<Loader />}>
           <Routes>
-            {/* Landing: Multi-Role Hub Selector */}
-            <Route path="/" element={<RolePortalSelector />} />
-
             {/* Auth & Static States */}
+            <Route path="/" element={<AuthLoginPage />} />
             <Route path="/login" element={<AuthLoginPage />} />
             <Route path="/register" element={<Navigate to="/login" replace />} />
             <Route path="/403" element={<Error403Page />} />
