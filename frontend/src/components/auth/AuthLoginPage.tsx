@@ -310,38 +310,38 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-white p-3 sm:p-5 font-sans antialiased grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 items-stretch">
+    <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden w-full bg-white p-3 sm:p-4 lg:p-5 font-sans antialiased grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-stretch">
       {/* Left Visual Panel */}
-      <div className="lg:col-span-6 relative rounded-[24px] overflow-hidden bg-[#E8E6E1] min-h-[280px] lg:min-h-[calc(100vh-2.5rem)]">
+      <div className="lg:col-span-6 relative rounded-[24px] overflow-hidden bg-[#E8E6E1] h-44 sm:h-56 lg:h-full">
         <img
           src="/img/login-hero-3d.jpg"
           alt="RIGHT Assessment Platform"
-          className="w-full h-full object-cover object-center"
+          className="absolute inset-0 w-full h-full object-cover object-center"
         />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#0F275C]/35 via-transparent to-transparent" />
-        <div className="absolute bottom-5 left-5 right-5 flex items-center justify-between gap-2 rounded-2xl bg-white/85 backdrop-blur-md px-4 py-3 border border-white/70 shadow-xs">
-          <span className="text-xs font-bold text-[#0F275C]">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#0F275C]/35 via-transparent to-transparent" />
+        <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-4 sm:right-4 flex items-center justify-between gap-2 rounded-2xl bg-white/85 backdrop-blur-md px-3.5 py-2 border border-white/70 shadow-xs">
+          <span className="text-[11px] sm:text-xs font-bold text-[#0F275C] truncate">
             Portal Asesmen &amp; Seleksi Terpadu
           </span>
-          <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#0F275C] text-white">
+          <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#0F275C] text-white shrink-0">
             CAT • AI
           </span>
         </div>
       </div>
 
       {/* Right Form Panel */}
-      <div className="lg:col-span-6 flex flex-col justify-center px-4 sm:px-10 lg:px-14 py-6 sm:py-8">
-        <div className="w-full max-w-[440px] mx-auto">
-          <div className="flex flex-col items-center text-center mb-6">
+      <div className="lg:col-span-6 flex flex-col justify-center px-3 sm:px-8 lg:px-12 py-2 sm:py-4 lg:h-full lg:overflow-y-auto">
+        <div className="w-full max-w-[420px] mx-auto">
+          <div className="flex flex-col items-center text-center mb-4 sm:mb-5">
             <img
               src="/img/logoRIght.jpeg"
               alt="RIGHT Assessment Platform"
-              className="h-10 w-auto max-w-[160px] object-contain mb-4"
+              className="h-9 w-auto max-w-[150px] object-contain mb-3"
             />
-            <h1 className="text-2xl font-extrabold text-slate-900 font-heading tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-heading tracking-tight">
               Masuk ke Akun Anda
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
               Selamat datang kembali! Masukkan detail akun Anda untuk masuk
             </p>
           </div>
