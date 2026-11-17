@@ -195,6 +195,35 @@ export const startExam = async (req: AuthRequest, res: Response) => {
       where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } }
     });
 
+    const alreadySubmitted = Boolean(
+      existing &&
+        (['submitted', 'graded', 'completed'].includes(existing.status) ||
+          existing.submittedAt ||
+          existing.score !== null)
+    );
+    if (!alreadySubmitted) {
+      const startAt = program.job.assessmentDate ? new Date(program.job.assessmentDate) : null;
+      const endAt = program.job.assessmentEndDate ? new Date(program.job.assessmentEndDate) : null;
+      if (endAt) endAt.setHours(23, 59, 59, 999);
+      const now = Date.now();
+      if (startAt && now < startAt.getTime()) {
+        return res.status(403).json({
+          error: `Asesmen belum dimulai. Jadwal mulai ${startAt.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}.`,
+          notStarted: true,
+          assessmentDate: startAt,
+          assessmentEndDate: endAt
+        });
+      }
+      if (endAt && now > endAt.getTime()) {
+        return res.status(403).json({
+          error: `Masa asesmen telah berakhir pada ${endAt.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}.`,
+          ended: true,
+          assessmentDate: startAt,
+          assessmentEndDate: endAt
+        });
+      }
+    }
+
     if (
       existing &&
       (['submitted', 'graded', 'completed'].includes(existing.status) ||

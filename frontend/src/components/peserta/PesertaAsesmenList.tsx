@@ -40,7 +40,8 @@ import {
   GraduationCap,
   FileCode,
   Camera,
-  UserCheck
+  UserCheck,
+  CalendarDays
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
 import { Button, Badge, Card } from '../ui';
@@ -49,6 +50,22 @@ import { getProgramById, getAllPrograms } from '../../services/assessmentCatalog
 import { getPortalToken } from '../../services/portalAuthService';
 import { INITIAL_MATERI_LIST, type MasterMateriItem } from '../admin/AdminMasterMateriTree';
 import PesertaLiveCodingJudge0 from './PesertaLiveCodingJudge0';
+
+
+const formatRangeDate = (value?: string | null): string =>
+  value
+    ? new Date(value).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '-';
+
+const getScheduleStatus = (start?: string | null, end?: string | null): 'active' | 'upcoming' | 'ended' | 'none' => {
+  if (!start && !end) return 'none';
+  const now = Date.now();
+  const startMs = start ? new Date(start).setHours(0, 0, 0, 0) : null;
+  const endMs = end ? new Date(end).setHours(23, 59, 59, 999) : null;
+  if (startMs && now < startMs) return 'upcoming';
+  if (endMs && now > endMs) return 'ended';
+  return 'active';
+};
 
 interface AsesmenItem {
   id: string;
@@ -66,6 +83,9 @@ interface AsesmenItem {
   currentStageNumber: number; // 1: Cek Perangkat, 2: CAT, 3: Wawancara, 4: Selesai
   score?: number;
   description: string;
+  assessmentDate?: string | null;
+  assessmentEndDate?: string | null;
+  scheduleStatus?: 'active' | 'upcoming' | 'ended' | 'none';
   isAssigned?: boolean;
   interviewInfo: {
     assessorName: string;
@@ -150,7 +170,14 @@ export default function PesertaAsesmenList() {
     Record<string, { status?: string; score?: number | null }>
   >({});
   const [serverInterview, setServerInterview] = useState<{ status?: string; score?: number | null } | null>(null);
-  const [serverPrograms, setServerPrograms] = useState<Array<{ code: string; title: string; durationMinutes?: number; passingScore?: number }>>([]);
+  const [serverPrograms, setServerPrograms] = useState<Array<{
+    code: string;
+    title: string;
+    durationMinutes?: number;
+    passingScore?: number;
+    assessmentDate?: string | null;
+    assessmentEndDate?: string | null;
+  }>>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -338,6 +365,7 @@ export default function PesertaAsesmenList() {
       const intDone = isProgramInterviewCompleted(pId);
       const progExamScore = serverExamsByProgram[pId]?.score;
 
+      const primaryServer = serverPrograms.find((item) => item.code === activeProg.id);
       if (isPrimary) {
         items.push({
           id: activeProg.id,
@@ -359,6 +387,9 @@ export default function PesertaAsesmenList() {
           currentStageNumber: intDone ? 4 : catDone ? 3 : 2,
           score: (intDone ? serverInterview?.score : undefined) ?? progExamScore ?? serverExam?.score ?? undefined,
           description: activeProg.description,
+          assessmentDate: primaryServer?.assessmentDate || null,
+          assessmentEndDate: primaryServer?.assessmentEndDate || null,
+          scheduleStatus: getScheduleStatus(primaryServer?.assessmentDate, primaryServer?.assessmentEndDate),
           isAssigned: true,
           interviewInfo: {
             assessorName: 'Dr. Ir. Dwi Hartanto, M.Kom / Ava AI',
@@ -395,6 +426,9 @@ export default function PesertaAsesmenList() {
             description:
               catalogData?.description ||
               'Evaluasi komprehensif mencakup kompetensi teknis dan wawancara asesor terakreditasi.',
+            assessmentDate: sp?.assessmentDate || null,
+            assessmentEndDate: sp?.assessmentEndDate || null,
+            scheduleStatus: getScheduleStatus(sp?.assessmentDate, sp?.assessmentEndDate),
             isAssigned: true,
             interviewInfo: {
               assessorName: 'Dewan Asesor Terakreditasi',
@@ -1311,6 +1345,32 @@ export default function PesertaAsesmenList() {
                       <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
                         {item.description}
                       </p>
+
+                      {(item.assessmentDate || item.assessmentEndDate) && (
+                        <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-slate-50 px-2.5 py-1.5">
+                          <span className="text-[11px] text-slate-600 flex items-center gap-1.5 min-w-0">
+                            <CalendarDays className="w-3.5 h-3.5 text-primary-navy shrink-0" />
+                            <span className="truncate">
+                              {formatRangeDate(item.assessmentDate)} – {formatRangeDate(item.assessmentEndDate)}
+                            </span>
+                          </span>
+                          <span
+                            className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              item.scheduleStatus === 'active'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                : item.scheduleStatus === 'upcoming'
+                                  ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                  : 'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}
+                          >
+                            {item.scheduleStatus === 'active'
+                              ? 'Aktif'
+                              : item.scheduleStatus === 'upcoming'
+                                ? 'Belum dimulai'
+                                : 'Berakhir'}
+                          </span>
+                        </div>
+                      )}
 
                       {/* Feature Component Badges */}
                       <div className="grid grid-cols-2 gap-2 pt-1">

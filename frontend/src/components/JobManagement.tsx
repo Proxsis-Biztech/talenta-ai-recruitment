@@ -49,6 +49,23 @@ interface Job {
   createdAt: string;
 }
 
+
+function getJobScheduleStatus(job: Job): {
+  key: 'active' | 'inactive' | 'scheduled' | 'ended';
+  label: string;
+  variant: 'success' | 'neutral' | 'navy' | 'warning';
+} {
+  const now = Date.now();
+  const start = job.assessmentDate ? new Date(job.assessmentDate).setHours(0, 0, 0, 0) : null;
+  const end = job.assessmentEndDate ? new Date(job.assessmentEndDate).setHours(23, 59, 59, 999) : null;
+  if (start && now < start) return { key: 'scheduled', label: 'Terjadwal', variant: 'navy' };
+  if (end && now > end) return { key: 'ended', label: 'Berakhir', variant: 'warning' };
+  if (start || end) return { key: 'active', label: 'Aktif', variant: 'success' };
+  return job.status === 'active'
+    ? { key: 'active', label: 'Aktif', variant: 'success' }
+    : { key: 'inactive', label: 'Nonaktif', variant: 'neutral' };
+}
+
 /** Override materi khusus per formasi (hasil edit di modal Ubah Formasi) */
 const MATERI_OVERRIDES_KEY = 'talenta_job_materi_overrides_v1';
 
@@ -959,12 +976,12 @@ export default function JobManagement() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-slate-900 leading-snug">{job.title}</span>
                         <Badge
-                          variant={job.status === 'active' ? 'success' : 'neutral'}
+                          variant={getJobScheduleStatus(job).variant}
                           format="soft"
-                          hasDot={job.status === 'active'}
+                          hasDot={getJobScheduleStatus(job).key === 'active'}
                           className="text-[10px]"
                         >
-                          {job.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                          {getJobScheduleStatus(job).label}
                         </Badge>
                       </div>
                       <p className="text-xs text-slate-500 line-clamp-1 mt-0.5 font-sans">
@@ -1007,11 +1024,11 @@ export default function JobManagement() {
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={job.status === 'active' ? 'success' : 'neutral'}
+                    variant={getJobScheduleStatus(job).variant}
                     format="soft"
-                    hasDot={job.status === 'active'}
+                    hasDot={getJobScheduleStatus(job).key === 'active'}
                   >
-                    {job.status === 'active' ? 'AKTIF' : 'NONAKTIF'}
+                    {getJobScheduleStatus(job).label.toUpperCase()}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-slate-600 text-xs font-mono">
@@ -2112,12 +2129,12 @@ export default function JobManagement() {
                     Durasi: {selectedJobDetail.job.interviewDuration || 90} Menit
                   </span>
                   <Badge
-                    variant={selectedJobDetail.job.status === 'active' ? 'success' : 'neutral'}
+                    variant={getJobScheduleStatus(selectedJobDetail.job).variant}
                     format="soft"
-                    hasDot={selectedJobDetail.job.status === 'active'}
+                    hasDot={getJobScheduleStatus(selectedJobDetail.job).key === 'active'}
                     className="text-[11px]"
                   >
-                    {selectedJobDetail.job.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                    {getJobScheduleStatus(selectedJobDetail.job).label}
                   </Badge>
                   <span className="font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
                     Periode Asesmen: {selectedJobDetail.job.assessmentDate

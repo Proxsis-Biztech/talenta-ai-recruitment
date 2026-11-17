@@ -567,7 +567,10 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
         code: item.code,
         title: item.title,
         durationMinutes: item.interviewDuration || 30,
-        passingScore: item.interviewPassingScore || 70
+        passingScore: item.interviewPassingScore || 70,
+        status: item.status,
+        assessmentDate: item.assessmentDate,
+        assessmentEndDate: item.assessmentEndDate
       })),
       exam: attempt
         ? {
@@ -929,7 +932,14 @@ export const getAssessmentHistory = async (req: AuthRequest, res: Response) => {
 
     const jobs = await prisma.job.findMany({
       where: { code: { in: Array.from(assignedCodes) } },
-      select: { code: true, title: true, interviewDuration: true, interviewPassingScore: true }
+      select: {
+        code: true,
+        title: true,
+        interviewDuration: true,
+        interviewPassingScore: true,
+        assessmentDate: true,
+        assessmentEndDate: true
+      }
     });
     const jobByCode = new Map(jobs.map((job) => [job.code || '', job]));
 
@@ -949,6 +959,8 @@ export const getAssessmentHistory = async (req: AuthRequest, res: Response) => {
         programTitle: job?.title || code,
         durationMinutes: job?.interviewDuration || 90,
         passingScore: job?.interviewPassingScore || 70,
+        assessmentDate: job?.assessmentDate || null,
+        assessmentEndDate: job?.assessmentEndDate || null,
         status: attempt?.status || 'not_started',
         score: attempt?.score ?? null,
         integrityScore: attempt?.integrityScore ?? null,

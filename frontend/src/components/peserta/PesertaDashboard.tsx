@@ -30,6 +30,8 @@ interface AssessmentHistoryItem {
   integrityScore: number | null;
   violationCount: number;
   submittedAt: string | null;
+  assessmentDate?: string | null;
+  assessmentEndDate?: string | null;
   lha: { status: string; recommendation: string; compositeScore: number; lhaNumber: string | null } | null;
 }
 
@@ -85,6 +87,7 @@ export default function PesertaDashboard() {
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [taskTab, setTaskTab] = useState<TaskFilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [calendarCursor, setCalendarCursor] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -149,7 +152,9 @@ export default function PesertaDashboard() {
         code: item.programCode,
         title: item.programTitle,
         durationMinutes: 90,
-        passingScore: 70
+        passingScore: 70,
+        assessmentDate: item.assessmentDate || null,
+        assessmentEndDate: item.assessmentEndDate || null
       }));
     }
     return dashboard?.program?.code ? [dashboard.program] : [];
@@ -718,131 +723,6 @@ export default function PesertaDashboard() {
               />
             </div>
 
-            {/* Interactive Monthly Calendar */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-[#F95B2B]" />
-                  {MONTHS_ID[calendarCursor.getMonth()]} {calendarCursor.getFullYear()}
-                </h2>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label="Bulan sebelumnya"
-                    onClick={() =>
-                      setCalendarCursor(
-                        (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
-                      )
-                    }
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 cursor-pointer"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Bulan berikutnya"
-                    onClick={() =>
-                      setCalendarCursor(
-                        (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
-                      )
-                    }
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 cursor-pointer"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-7 gap-y-1.5 text-center">
-                {WEEKDAYS_ID.map((day) => (
-                  <div key={day} className="text-[11px] font-semibold text-slate-400 pb-1">
-                    {day}
-                  </div>
-                ))}
-                {calendarDays.map(({ date, inMonth }, idx) => {
-                  const isToday = isSameDay(date, today);
-                  const isInterviewDay = interviewDate ? isSameDay(date, interviewDate) : false;
-                  const isExamDay = examSubmittedDate ? isSameDay(date, examSubmittedDate) : false;
-
-                  return (
-                    <div key={idx} className="flex items-center justify-center py-0.5">
-                      <span
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
-                          isToday
-                            ? 'bg-[#F95B2B] text-white font-bold shadow-xs'
-                            : isInterviewDay || isExamDay
-                              ? 'bg-[#FDECE6] text-[#F95B2B] font-bold'
-                              : inMonth
-                                ? 'text-slate-700 hover:bg-slate-100'
-                                : 'text-slate-300'
-                        }`}
-                      >
-                        {date.getDate()}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Jadwal Mendatang (Real Pending Schedule Only) */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-extrabold font-heading text-slate-900">
-                Jadwal Mendatang<span className="text-[#F95B2B]">.</span>
-              </h2>
-
-              {upcomingEvents.length === 0 ? (
-                <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200/70 p-4 text-center space-y-1">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto" />
-                  <p className="text-xs font-bold text-emerald-900">
-                    Semua tahapan asesmen telah selesai
-                  </p>
-                  <p className="text-[11px] text-emerald-700">
-                    Hasil &amp; LHA resmi Anda sudah tersedia.
-                  </p>
-                </div>
-              ) : (
-                <div className="relative pl-4 space-y-5 before:content-[''] before:absolute before:left-[5px] before:top-2 before:bottom-2 before:w-px before:bg-slate-200">
-                  {upcomingEvents.map((ev) => {
-                    const EvIcon = ev.icon;
-                    return (
-                      <div key={ev.id} className="relative flex items-start justify-between gap-3">
-                        <span
-                          className={`absolute -left-4 top-1.5 w-2.5 h-2.5 rounded-full ring-4 ring-white ${ev.dotColor}`}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-slate-900 leading-snug">{ev.title}</p>
-                          <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{ev.desc}</p>
-                        </div>
-
-                        <div className="flex items-center gap-2.5 shrink-0">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${ev.iconBg}`}>
-                            <EvIcon className="w-4 h-4" />
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs font-bold text-[#F95B2B]">{ev.dateLabel}</p>
-                            <p className="text-[11px] font-medium text-slate-500 flex items-center justify-end gap-1">
-                              <Clock className="w-3 h-3" />
-                              {ev.durationLabel}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => navigate(upcomingEvents.length === 0 ? '/peserta/hasil' : '/peserta/asesmen')}
-                className="inline-flex items-center gap-1 text-xs font-bold text-[#F95B2B] hover:text-[#e34d20] pt-1 cursor-pointer"
-              >
-                {upcomingEvents.length === 0 ? 'Lihat Hasil & LHA' : 'Lihat semua jadwal Asesmen'}
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
             {/* Daftar Asesmen */}
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
@@ -906,6 +786,212 @@ export default function PesertaDashboard() {
                 </div>
               )}
             </div>
+
+            {/* Interactive Monthly Calendar */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-[#F95B2B]" />
+                  {MONTHS_ID[calendarCursor.getMonth()]} {calendarCursor.getFullYear()}
+                </h2>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label="Bulan sebelumnya"
+                    onClick={() =>
+                      setCalendarCursor(
+                        (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                      )
+                    }
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Bulan berikutnya"
+                    onClick={() =>
+                      setCalendarCursor(
+                        (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                      )
+                    }
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-7 gap-y-1.5 text-center">
+                {WEEKDAYS_ID.map((day) => (
+                  <div key={day} className="text-[11px] font-semibold text-slate-400 pb-1">
+                    {day}
+                  </div>
+                ))}
+                {calendarDays.map(({ date, inMonth }, idx) => {
+                  const isToday = isSameDay(date, today);
+                  const isSelected = isSameDay(date, selectedDate);
+                  const isInterviewDay = interviewDate ? isSameDay(date, interviewDate) : false;
+                  const isExamDay = examSubmittedDate ? isSameDay(date, examSubmittedDate) : false;
+                  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+                  const hasSchedule = dashboardPrograms.some((program: any) => {
+                    const start = program.assessmentDate ? new Date(program.assessmentDate) : null;
+                    const end = program.assessmentEndDate ? new Date(program.assessmentEndDate) : null;
+                    const startDay = start ? new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime() : null;
+                    const endDay = end ? new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime() : null;
+                    return (startDay === null || dayStart >= startDay) && (endDay === null || dayStart <= endDay) && Boolean(startDay || endDay);
+                  });
+
+                  return (
+                    <div key={idx} className="flex items-center justify-center py-0.5 relative">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDate(date)}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#0F275C] text-white font-bold shadow-xs ring-2 ring-[#F95B2B]/40'
+                            : isToday
+                              ? 'bg-[#F95B2B] text-white font-bold shadow-xs'
+                              : isInterviewDay || isExamDay
+                                ? 'bg-[#FDECE6] text-[#F95B2B] font-bold'
+                                : inMonth
+                                  ? 'text-slate-700 hover:bg-slate-100'
+                                  : 'text-slate-300'
+                        }`}
+                      >
+                        {date.getDate()}
+                      </button>
+                      {(hasSchedule || isInterviewDay || isExamDay) && (
+                        <span className={`absolute bottom-0 w-1 h-1 rounded-full ${isSelected ? 'bg-[#F95B2B]' : 'bg-slate-400'}`} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Agenda tanggal terpilih */}
+            <div className="pt-4 border-t border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-extrabold text-slate-900">
+                  Agenda {selectedDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(new Date())}
+                  className="text-[10px] font-bold text-[#F95B2B] hover:underline cursor-pointer"
+                >
+                  Hari ini
+                </button>
+              </div>
+              {(() => {
+                const dayKey = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()).getTime();
+                const agendaItems: Array<{ id: string; title: string; detail: string; tone: 'blue' | 'emerald' | 'amber' }> = [];
+                dashboardPrograms.forEach((program: any) => {
+                  const start = program.assessmentDate ? new Date(program.assessmentDate) : null;
+                  const end = program.assessmentEndDate ? new Date(program.assessmentEndDate) : null;
+                  const startDay = start ? new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime() : null;
+                  const endDay = end ? new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime() : null;
+                  const inRange = (startDay === null || dayKey >= startDay) && (endDay === null || dayKey <= endDay);
+                  if ((startDay || endDay) && inRange) {
+                    agendaItems.push({
+                      id: `program-${program.code}`,
+                      title: program.title,
+                      detail: `${program.code} • ${start ? formatShortDate(program.assessmentDate) : '-'} – ${end ? formatShortDate(program.assessmentEndDate) : '-'}`,
+                      tone: 'blue'
+                    });
+                  }
+                });
+                if (interviewDate && isSameDay(interviewDate, selectedDate)) {
+                  agendaItems.push({
+                    id: 'interview',
+                    title: 'Wawancara dengan asesor',
+                    detail: interview.assessorName ? `Asesor: ${interview.assessorName}` : 'Sesi wawancara',
+                    tone: 'amber'
+                  });
+                }
+                if (examSubmittedDate && isSameDay(examSubmittedDate, selectedDate)) {
+                  agendaItems.push({
+                    id: 'exam',
+                    title: 'Ujian CAT dikumpulkan',
+                    detail: dashboard?.exam?.score != null ? `Skor ${dashboard.exam.score}/100` : 'Jawaban tersimpan',
+                    tone: 'emerald'
+                  });
+                }
+                if (agendaItems.length === 0) {
+                  return <p className="text-[11px] text-slate-500">Tidak ada agenda pada tanggal ini.</p>;
+                }
+                return (
+                  <div className="space-y-1.5">
+                    {agendaItems.map((item) => (
+                      <div key={item.id} className="rounded-lg border border-slate-200/80 bg-slate-50/60 px-2.5 py-2">
+                        <p className="text-[11px] font-bold text-slate-800 line-clamp-1">{item.title}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{item.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Jadwal Mendatang (Real Pending Schedule Only) */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-extrabold font-heading text-slate-900">
+                Jadwal Mendatang<span className="text-[#F95B2B]">.</span>
+              </h2>
+
+              {upcomingEvents.length === 0 ? (
+                <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200/70 p-4 text-center space-y-1">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto" />
+                  <p className="text-xs font-bold text-emerald-900">
+                    Semua tahapan asesmen telah selesai
+                  </p>
+                  <p className="text-[11px] text-emerald-700">
+                    Hasil &amp; LHA resmi Anda sudah tersedia.
+                  </p>
+                </div>
+              ) : (
+                <div className="relative pl-4 space-y-5 before:content-[''] before:absolute before:left-[5px] before:top-2 before:bottom-2 before:w-px before:bg-slate-200">
+                  {upcomingEvents.map((ev) => {
+                    const EvIcon = ev.icon;
+                    return (
+                      <div key={ev.id} className="relative flex items-start justify-between gap-3">
+                        <span
+                          className={`absolute -left-4 top-1.5 w-2.5 h-2.5 rounded-full ring-4 ring-white ${ev.dotColor}`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-slate-900 leading-snug">{ev.title}</p>
+                          <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{ev.desc}</p>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${ev.iconBg}`}>
+                            <EvIcon className="w-4 h-4" />
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-bold text-[#F95B2B]">{ev.dateLabel}</p>
+                            <p className="text-[11px] font-medium text-slate-500 flex items-center justify-end gap-1">
+                              <Clock className="w-3 h-3" />
+                              {ev.durationLabel}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => navigate(upcomingEvents.length === 0 ? '/peserta/hasil' : '/peserta/asesmen')}
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#F95B2B] hover:text-[#e34d20] pt-1 cursor-pointer"
+              >
+                {upcomingEvents.length === 0 ? 'Lihat Hasil & LHA' : 'Lihat semua jadwal Asesmen'}
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
           </aside>
         </div>
 
