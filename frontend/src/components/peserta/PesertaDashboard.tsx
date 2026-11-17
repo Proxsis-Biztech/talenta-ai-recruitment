@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search,
   ChevronLeft,
@@ -67,6 +67,17 @@ const MONTHS_ID = [
 
 export default function PesertaDashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedProgramCode, setSelectedProgramCode] = useState<string | null>(
+    () => searchParams.get('program')
+  );
+
+  const selectProgram = (code: string) => {
+    setSelectedProgramCode(code);
+    const next = new URLSearchParams(searchParams);
+    next.set('program', code);
+    setSearchParams(next, { replace: true });
+  };
 
   const activeUser = useMemo(() => getActiveSessionUser(), []);
 
@@ -138,10 +149,6 @@ export default function PesertaDashboard() {
   const programDuration =
     dashboard?.program?.durationMinutes || fallbackProgram.durationMinutes || 90;
 
-  const programHeaderLabel = programTitle.toLowerCase().includes(companyName.toLowerCase())
-    ? programTitle
-    : `${programTitle} • ${companyName}`;
-
   const dashboardPrograms = useMemo(() => {
     const fromApi = Array.isArray(dashboard?.programs)
       ? dashboard.programs.filter((item: any) => item?.code)
@@ -179,10 +186,34 @@ export default function PesertaDashboard() {
     return ['submitted', 'graded', 'completed'].includes(String(exam?.status || ''));
   };
 
-  const primaryExam = examForProgram(dashboard?.program?.code) || dashboard?.exam;
-  const isCatCompleted =
-    ['submitted', 'graded', 'completed'].includes(primaryExam?.status || '') ||
-    localStorage.getItem('talenta_cat_completed') === 'true';
+  const activeProgram = useMemo(() => {
+    if (dashboardPrograms.length === 0) return null;
+    const fromUrl = dashboardPrograms.find(
+      (program: any) => program.code === selectedProgramCode
+    );
+    if (fromUrl) return fromUrl;
+    return (
+      dashboardPrograms.find((program: any) => !isProgramDone(program.code)) ||
+      dashboardPrograms[0]
+    );
+  }, [dashboardPrograms, selectedProgramCode, dashboard, history]);
+
+  const activeCode = activeProgram?.code || dashboard?.program?.code || null;
+  const activeExam = examForProgram(activeCode) || dashboard?.exam;
+  const activeHistory = history.find(
+    (item) => String(item.programCode).toUpperCase() === String(activeCode || '').toUpperCase()
+  );
+  const activeLha = activeHistory?.lha
+    ? {
+        signed: activeHistory.lha.status === 'signed',
+        compositeScore: activeHistory.lha.compositeScore,
+        recommendation: activeHistory.lha.recommendation
+      }
+    : String(activeCode || '').toUpperCase() === String(dashboard?.program?.code || '').toUpperCase()
+      ? dashboard?.lha
+      : null;
+
+  const isCatCompleted = ['submitted', 'graded', 'completed'].includes(activeExam?.status || '');
   const isInterviewCompleted = dashboard?.interview?.status === 'completed';
   const faceVerified = Boolean(dashboard?.user?.faceVerifiedAt || dashboard?.user?.deviceCheckCompletedAt);
   const profileComplete = dashboard
@@ -196,7 +227,15 @@ export default function PesertaDashboard() {
       )
     : true;
   const interview = dashboard?.interview || {};
-  const lha = dashboard?.lha;
+  const lha = activeLha;
+  const activeProgramTitle = activeProgram?.title || programTitle;
+  const activeProgramDuration = activeProgram?.durationMinutes || programDuration;
+  const activeProgramHeaderLabel = activeProgramTitle.toLowerCase().includes(companyName.toLowerCase())
+    ? activeProgramTitle
+    : `${activeProgramTitle} • ${companyName}`;
+
+  const openAssessment = () =>
+    navigate(activeCode ? `/peserta/asesmen?id=${encodeURIComponent(activeCode)}` : '/peserta/asesmen');
 
   const formatShortDate = (value?: string | null) =>
     value
@@ -236,18 +275,18 @@ export default function PesertaDashboard() {
       },
       {
         id: 'cat',
-        title: `Ujian Kompetensi CAT — ${programTitle}`,
+        title: `Ujian Kompetensi CAT — ${activeProgramTitle}`,
         subtitle: isCatCompleted
           ? `Selesai dikumpulkan • ${formatDate(dashboard?.exam?.submittedAt)}${
               dashboard?.exam?.score != null ? ` • Skor ${dashboard.exam.score}` : ''
             }`
-          : `Durasi ${programDuration} Menit • Akses melalui Asesmen Saya`,
+          : `Durasi ${activeProgramDuration} Menit • Akses melalui Asesmen Saya`,
         category: 'Asesmen',
         status: isCatCompleted ? 'completed' : 'pending',
         actionLabel: isCatCompleted ? 'Selesai' : 'Buka Asesmen',
         tone: 'lavender',
         icon: FileText,
-        onAction: () => navigate('/peserta/asesmen')
+        onAction: openAssessment
       },
       {
         id: 'interview',
@@ -310,6 +349,8 @@ export default function PesertaDashboard() {
       profileComplete,
       programDuration,
       programTitle,
+      activeProgramDuration,
+      activeProgramTitle,
       realUser?.name
     ]
   );
@@ -402,7 +443,7 @@ export default function PesertaDashboard() {
         title: 'Ujian CAT Kompetensi',
         desc: `Akses melalui menu Asesmen Saya`,
         dateLabel: 'Tersedia',
-        durationLabel: `${programDuration} Menit`,
+        durationLabel: `${activeProgramDuration} Menit`,
         dotColor: 'bg-[#F95B2B]',
         iconBg: 'bg-[#F2F0FE] text-[#5B4CE4]',
         icon: FileText
@@ -490,9 +531,37 @@ export default function PesertaDashboard() {
                   Asesmen Saya<span className="text-[#F95B2B]">.</span>
                 </h1>
                 <p className="text-xs font-medium text-slate-500">
-                  {loadingDashboard ? 'Memuat program...' : programHeaderLabel}
+                  {loadingDashboard ? 'Memuat program...' : activeProgramHeaderLabel}
                 </p>
               </div>
+
+              {dashboardPrograms.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1" role="tablist" aria-label="Pilih program asesmen">
+                  {dashboardPrograms.map((program: any) => {
+                    const isActive = activeProgram?.code === program.code;
+                    const done = isProgramDone(program.code);
+                    return (
+                      <button
+                        key={program.code}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        onClick={() => selectProgram(program.code)}
+                        className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors cursor-pointer ${
+                          isActive
+                            ? 'bg-primary-navy text-white border-primary-navy shadow-xs'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${done ? 'bg-emerald-400' : isActive ? 'bg-amber-300' : 'bg-amber-400'}`} />
+                        <span className="font-mono">{program.code}</span>
+                        <span className="max-w-[150px] truncate">{program.title}</span>
+                        <span className={isActive ? 'text-white/80' : 'text-slate-400'}>{done ? '✓' : '•'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* Card 1: Mint — Ujian CAT */}
@@ -519,14 +588,14 @@ export default function PesertaDashboard() {
                   </span>
                   <p className="text-xs text-slate-500 mt-1.5 mb-4">
                     {isCatCompleted
-                      ? dashboard?.exam?.score != null
-                        ? `Skor: ${dashboard.exam.score}/100 • Selesai`
+                      ? activeExam?.score != null
+                        ? `Skor: ${activeExam.score}/100 • Selesai`
                         : 'Selesai & Tersimpan'
-                      : `${programDuration} Menit • Belum Dikerjakan`}
+                      : `${activeProgramDuration} Menit • Belum Dikerjakan`}
                   </p>
                   <button
                     type="button"
-                    onClick={() => navigate('/peserta/asesmen')}
+                    onClick={openAssessment}
                     className="w-full max-w-[150px] py-2 px-4 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 shadow-xs border border-slate-200/60 transition-colors cursor-pointer"
                   >
                     Buka Asesmen
@@ -566,7 +635,7 @@ export default function PesertaDashboard() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => navigate('/peserta/asesmen')}
+                    onClick={openAssessment}
                     className="w-full max-w-[150px] py-2 px-4 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 shadow-xs border border-slate-200/60 transition-colors cursor-pointer"
                   >
                     Lihat Tahapan
@@ -751,8 +820,13 @@ export default function PesertaDashboard() {
                       <button
                         key={program.code}
                         type="button"
-                        onClick={() => navigate('/peserta/asesmen')}
-                        className="w-full text-left rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-primary-navy/40 p-3 transition-colors cursor-pointer"
+                        aria-pressed={activeProgram?.code === program.code}
+                        onClick={() => selectProgram(program.code)}
+                        className={`w-full text-left rounded-xl border p-3 transition-colors cursor-pointer ${
+                          activeProgram?.code === program.code
+                            ? 'border-primary-navy/60 bg-blue-50/60'
+                            : 'border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-primary-navy/40'
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
