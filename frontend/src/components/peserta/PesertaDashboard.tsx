@@ -162,11 +162,44 @@ export default function PesertaDashboard() {
     ? programTitle
     : `${programTitle} • ${companyName}`;
 
+  const dashboardPrograms = useMemo(() => {
+    const fromApi = Array.isArray(dashboard?.programs)
+      ? dashboard.programs.filter((item: any) => item?.code)
+      : [];
+    if (fromApi.length > 0) return fromApi;
+    if (Array.isArray(history) && history.length > 0) {
+      return history.map((item) => ({
+        code: item.programCode,
+        title: item.programTitle,
+        durationMinutes: 90,
+        passingScore: 70
+      }));
+    }
+    return dashboard?.program?.code ? [dashboard.program] : [];
+  }, [dashboard, history]);
+
+  const examForProgram = (code?: string | null) => {
+    const normalized = String(code || '').trim().toUpperCase();
+    if (!normalized) return null;
+    const fromDashboard = dashboard?.examsByProgram?.[normalized];
+    if (fromDashboard) return fromDashboard;
+    const fromHistory = history.find((item) => String(item.programCode).toUpperCase() === normalized);
+    if (!fromHistory) return null;
+    return {
+      status: fromHistory.status,
+      score: fromHistory.score,
+      submittedAt: fromHistory.submittedAt
+    };
+  };
+
+  const isProgramDone = (code?: string | null) => {
+    const exam = examForProgram(code);
+    return ['submitted', 'graded', 'completed'].includes(String(exam?.status || ''));
+  };
+
+  const primaryExam = examForProgram(dashboard?.program?.code) || dashboard?.exam;
   const isCatCompleted =
-    ['submitted', 'graded', 'completed'].includes(dashboard?.exam?.status || '') ||
-    Object.values(dashboard?.examsByProgram || {}).some((item: any) =>
-      ['submitted', 'graded', 'completed'].includes(String(item?.status || ''))
-    ) ||
+    ['submitted', 'graded', 'completed'].includes(primaryExam?.status || '') ||
     localStorage.getItem('talenta_cat_completed') === 'true';
   const isInterviewCompleted = dashboard?.interview?.status === 'completed';
   const faceVerified = Boolean(dashboard?.user?.faceVerifiedAt || dashboard?.user?.deviceCheckCompletedAt);
@@ -587,7 +620,67 @@ export default function PesertaDashboard() {
               </div>
             </section>
 
-            {/* Section 2: Tahapan Asesmen */}
+            {/* Section 2: Program Asesmen */}
+            {dashboardPrograms.length > 0 && (
+              <section className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-xl sm:text-2xl font-extrabold font-heading text-slate-900 tracking-tight">
+                    Program Asesmen<span className="text-[#F95B2B]">.</span>
+                  </h2>
+                  <span className="text-xs font-semibold text-slate-500">
+                    {dashboardPrograms.filter((program: any) => isProgramDone(program.code)).length}/
+                    {dashboardPrograms.length} sudah dikerjakan
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {dashboardPrograms.map((program: any) => {
+                    const exam = examForProgram(program.code);
+                    const done = isProgramDone(program.code);
+                    return (
+                      <div
+                        key={program.code}
+                        className="rounded-2xl bg-white border border-slate-200/80 p-4 flex flex-col gap-3 hover:shadow-sm transition-shadow"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <span className="inline-block font-mono text-[10px] font-bold text-primary-navy bg-blue-50 px-2 py-0.5 rounded border border-blue-200/60">
+                              {program.code}
+                            </span>
+                            <p className="text-sm font-bold text-slate-900 mt-1.5 line-clamp-2">{program.title}</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              {program.durationMinutes || 90} menit • Pass {program.passingScore || 70}
+                            </p>
+                          </div>
+                          <span
+                            className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              done
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                : 'bg-amber-100 text-amber-800 border-amber-200'
+                            }`}
+                          >
+                            {done ? '✓ Sudah dikerjakan' : '• Belum dikerjakan'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                          <span className="text-[11px] font-semibold text-slate-500">
+                            {exam?.score != null ? `Skor: ${exam.score}/100` : done ? 'Sudah dikumpulkan' : 'Belum ada nilai'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/peserta/asesmen')}
+                            className="px-3 py-1.5 rounded-lg bg-primary-navy text-white text-[11px] font-bold hover:bg-slate-800 cursor-pointer"
+                          >
+                            Buka Asesmen
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Section 3: Tahapan Asesmen */}
             <section className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-xl sm:text-2xl font-extrabold font-heading text-slate-900 tracking-tight">
@@ -701,13 +794,22 @@ export default function PesertaDashboard() {
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-extrabold text-slate-900">Status Pengerjaan</h2>
                 <span className="text-[11px] font-bold text-slate-500">
-                  {Number(isCatCompleted) + Number(isInterviewCompleted)}/2 selesai
+                  {dashboardPrograms.filter((program: any) => isProgramDone(program.code)).length}/
+                  {dashboardPrograms.length || 0} program selesai
                 </span>
               </div>
               <div className="w-full h-1.5 bg-white rounded-full overflow-hidden border border-slate-200/60">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all"
-                  style={{ width: `${((Number(isCatCompleted) + Number(isInterviewCompleted)) / 2) * 100}%` }}
+                  style={{
+                    width: `${
+                      dashboardPrograms.length > 0
+                        ? (dashboardPrograms.filter((program: any) => isProgramDone(program.code)).length /
+                            dashboardPrograms.length) *
+                          100
+                        : 0
+                    }%`
+                  }}
                 />
               </div>
               <div className="space-y-2">
