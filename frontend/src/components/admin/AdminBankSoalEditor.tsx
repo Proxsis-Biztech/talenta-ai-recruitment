@@ -20,7 +20,10 @@ import {
   SlidersHorizontal,
   ChevronLeft,
   Layers,
-  Database
+  Database,
+  Upload,
+  Paperclip,
+  Brain
 } from 'lucide-react';
 import axios from 'axios';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
@@ -40,8 +43,11 @@ import {
   Modal
 } from '../ui';
 
+export type QuestionCategory = 'psikotes' | 'kompetensi';
+
 export interface BankQuestion {
   id: string;
+  category?: QuestionCategory;
   type: 'Pilihan Ganda' | 'Multi-Select' | 'Isian Singkat' | 'Esai' | 'Matching';
   programCode?: string;
   text: string;
@@ -52,6 +58,9 @@ export interface BankQuestion {
   distractorStats: { label: string; pct: number }[];
   options: { key: string; text: string; isCorrect: boolean }[];
   explanation: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentMime?: string | null;
 }
 
 export interface FactSheetItem {
@@ -224,8 +233,31 @@ const syncProgramQuestions = async (programCode: string, allQuestions: BankQuest
   );
 };
 
+const ALL_QUESTION_TYPES: BankQuestion['type'][] = [
+  'Pilihan Ganda',
+  'Multi-Select',
+  'Isian Singkat',
+  'Esai',
+  'Matching'
+];
+
+type CategoryTypeConfig = Record<
+  string,
+  Record<QuestionCategory, BankQuestion['type'][]>
+>;
+
+const DEFAULT_CATEGORY_TYPES: Record<QuestionCategory, BankQuestion['type'][]> = {
+  psikotes: ['Pilihan Ganda', 'Multi-Select', 'Isian Singkat'],
+  kompetensi: ['Pilihan Ganda', 'Multi-Select', 'Isian Singkat', 'Esai', 'Matching']
+};
+
+const getQuestionCategory = (question: Pick<BankQuestion, 'category'>): QuestionCategory =>
+  question.category === 'psikotes' ? 'psikotes' : 'kompetensi';
+
 export function AdminBankSoalEditor() {
   const [viewMode, setViewMode] = useState<'programs' | 'table' | 'editor' | 'stats' | 'factsheet'>('programs');
+  const [activeCategory, setActiveCategory] = useState<QuestionCategory>('psikotes');
+  const [typeConfig, setTypeConfig] = useState<CategoryTypeConfig>({});
   const [filterType, setFilterType] = useState('all');
   const [filterDiff, setFilterDiff] = useState('all');
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -239,6 +271,9 @@ export function AdminBankSoalEditor() {
   // Questions state
   const [programs, setPrograms] = useState(() => getAllPrograms());
   const [selectedProgramCode, setSelectedProgramCode] = useState(programs[0]?.id || 'SE-402');
+  const [caseFiles, setCaseFiles] = useState<Array<{ name: string; url: string; mime?: string }>>([]);
+  const [caseUploading, setCaseUploading] = useState(false);
+  const [caseMessage, setCaseMessage] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -312,6 +347,9 @@ export function AdminBankSoalEditor() {
         } else {
           void saveMasterRecord('bank-soal', 'preset', 'Ketat');
         }
+        if (data.typeConfig && typeof data.typeConfig === 'object') {
+          setTypeConfig(data.typeConfig);
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -338,18 +376,26 @@ export function AdminBankSoalEditor() {
   };
 
   const handleEdit = (q: BankQuestion) => {
-    setActiveQuestion(JSON.parse(JSON.stringify(q)));
+    setActiveQuestion({
+      ...JSON.parse(JSON.stringify(q)),
+      category: getQuestionCategory(q)
+    });
     setIsEditingExisting(true);
     setViewMode('editor');
   };
 
-  const handleCreateNew = (type: BankQuestion['type'] = 'Pilihan Ganda') => {
+  const handleCreateNew = (
+    type: BankQuestion['type'] = 'Pilihan Ganda',
+    categoryOverride?: QuestionCategory
+  ) => {
+    const targetCategory = categoryOverride || activeCategory;
     const newQ: BankQuestion = {
-      id: `SOAL-${Math.floor(400 + Math.random() * 500)}`,
+      id: `${targetCategory === 'psikotes' ? 'PSI' : 'SOAL'}-${Math.floor(400 + Math.random() * 500)}`,
+      category: targetCategory,
       type,
       programCode: selectedProgramCode,
       text: '',
-      competency: 'System Architecture',
+      competency: targetCategory === 'psikotes' ? 'Penalaran Logis & Analitik' : 'System Architecture',
       difficulty: 'Sedang',
       status: 'Published',
       pValue: 0.5,
@@ -393,17 +439,22 @@ export function AdminBankSoalEditor() {
       return;
     }
 
+    const normalizedActive: BankQuestion = {
+      ...activeQuestion,
+      category: getQuestionCategory(activeQuestion)
+    };
     let nextQuestions: BankQuestion[];
     if (isEditingExisting) {
-      nextQuestions = questions.map((q) => (q.id === activeQuestion.id ? activeQuestion : q));
+      nextQuestions = questions.map((q) => (q.id === normalizedActive.id ? normalizedActive : q));
     } else {
-      nextQuestions = [activeQuestion, ...questions];
+      nextQuestions = [normalizedActive, ...questions];
     }
 
     setQuestions(nextQuestions);
+    setActiveCategory(getQuestionCategory(normalizedActive));
     void saveMasterRecord('bank-soal', 'questions', nextQuestions);
-    void syncProgramQuestions(activeQuestion.programCode || selectedProgramCode, nextQuestions).catch(() => undefined);
-    showToast(`Butir soal ${activeQuestion.id} tersimpan dan disinkronkan ke lembar ujian.`);
+    void syncProgramQuestions(normalizedActive.programCode || selectedProgramCode, nextQuestions).catch(() => undefined);
+    showToast(`Butir soal ${normalizedActive.id} tersimpan dan disinkronkan ke lembar ujian.`);
     setViewMode('table');
   };
 
@@ -444,8 +495,55 @@ export function AdminBankSoalEditor() {
     }
   };
 
-  const filtered = questions.filter((q) => {
-    if ((q.programCode || programs[0]?.id || 'SE-402') !== selectedProgramCode) return false;
+  const programQuestionsForSelected = questions.filter(
+    (q) => (q.programCode || programs[0]?.id || 'SE-402') === selectedProgramCode
+  );
+
+  const categoryCounts = {
+    psikotes: programQuestionsForSelected.filter((q) => getQuestionCategory(q) === 'psikotes').length,
+    kompetensi: programQuestionsForSelected.filter((q) => getQuestionCategory(q) === 'kompetensi').length
+  };
+
+  const enabledTypesForActiveCategory: BankQuestion['type'][] =
+    typeConfig[selectedProgramCode]?.[activeCategory] || DEFAULT_CATEGORY_TYPES[activeCategory];
+
+  const toggleTypeEnabled = (type: BankQuestion['type']) => {
+    const currentProgramCfg = typeConfig[selectedProgramCode] || {
+      psikotes: [...DEFAULT_CATEGORY_TYPES.psikotes],
+      kompetensi: [...DEFAULT_CATEGORY_TYPES.kompetensi]
+    };
+    const currentList = currentProgramCfg[activeCategory] || DEFAULT_CATEGORY_TYPES[activeCategory];
+    const isEnabled = currentList.includes(type);
+    const nextList = isEnabled
+      ? currentList.filter((item) => item !== type)
+      : [...currentList, type];
+
+    if (nextList.length === 0) {
+      showToast('Minimal satu tipe soal harus aktif dalam kategori ini.');
+      return;
+    }
+
+    const nextConfig: CategoryTypeConfig = {
+      ...typeConfig,
+      [selectedProgramCode]: {
+        ...currentProgramCfg,
+        [activeCategory]: nextList
+      }
+    };
+    setTypeConfig(nextConfig);
+    if (isEnabled && filterType === type) {
+      setFilterType('all');
+    }
+    void saveMasterRecord('bank-soal', 'typeConfig', nextConfig);
+    showToast(
+      `Tipe soal ${type} ${isEnabled ? 'dinonaktifkan' : 'diaktifkan'} pada ${
+        activeCategory === 'psikotes' ? 'Soal Psikotes' : 'Uji Kompetensi'
+      }.`
+    );
+  };
+
+  const filtered = programQuestionsForSelected.filter((q) => {
+    if (getQuestionCategory(q) !== activeCategory) return false;
     if (filterType !== 'all' && q.type !== filterType) return false;
     if (filterDiff !== 'all' && q.difficulty !== filterDiff) return false;
     if (
@@ -458,21 +556,135 @@ export function AdminBankSoalEditor() {
     return true;
   });
 
-  const QUESTION_TYPES: BankQuestion['type'][] = ['Pilihan Ganda', 'Multi-Select', 'Isian Singkat', 'Esai', 'Matching'];
-  const typeCounts = QUESTION_TYPES.map((type) => ({
+  const typeCounts = ALL_QUESTION_TYPES.map((type) => ({
     type,
-    count: questions.filter((question) => (question.programCode || programs[0]?.id || 'SE-402') === selectedProgramCode && question.type === type).length
+    enabled: enabledTypesForActiveCategory.includes(type),
+    count: programQuestionsForSelected.filter(
+      (question) => getQuestionCategory(question) === activeCategory && question.type === type
+    ).length
   }));
 
   const programRows = programs.map((program) => {
-    const programQuestions = questions.filter((question) => (question.programCode || programs[0]?.id || 'SE-402') === program.id);
+    const programQuestions = questions.filter(
+      (question) => (question.programCode || programs[0]?.id || 'SE-402') === program.id
+    );
+    const psikotesCount = programQuestions.filter((q) => getQuestionCategory(q) === 'psikotes').length;
+    const kompetensiCount = programQuestions.filter((q) => getQuestionCategory(q) === 'kompetensi').length;
     return {
       ...program,
       total: programQuestions.length,
+      psikotesCount,
+      kompetensiCount,
       published: programQuestions.filter((question) => question.status === 'Published').length,
       typeCount: new Set(programQuestions.map((question) => question.type)).size
     };
   });
+
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token || !selectedProgramCode) return;
+    let cancelled = false;
+    axios
+      .get('/api/admin/jobs', { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => {
+        if (cancelled) return;
+        const jobs = response.data?.data || [];
+        const job = jobs.find((item: any) => item.code === selectedProgramCode);
+        try {
+          const parsed = job?.caseFiles ? JSON.parse(job.caseFiles) : [];
+          setCaseFiles(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          setCaseFiles([]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCaseFiles([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProgramCode]);
+
+  const handleCaseFileUpload = async (file: File) => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    setCaseUploading(true);
+    setCaseMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await axios.post(
+        `/api/admin/programs/${selectedProgramCode}/case-files`,
+        formData,
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
+      );
+      setCaseFiles(response.data?.caseFiles || []);
+      setCaseMessage('Dokumen studi kasus berhasil diunggah.');
+    } catch (error) {
+      setCaseMessage(
+        axios.isAxiosError(error)
+          ? error.response?.data?.error || 'Gagal mengunggah dokumen.'
+          : 'Gagal mengunggah dokumen.'
+      );
+    } finally {
+      setCaseUploading(false);
+    }
+  };
+
+  const handleQuestionAttachmentUpload = async (file: File) => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    const programCode = activeQuestion.programCode || selectedProgramCode;
+    const programQuestions = questions.filter(
+      (question) => (question.programCode || programs[0]?.id || 'SE-402') === programCode
+    );
+    const orderNo = programQuestions.findIndex((question) => question.id === activeQuestion.id) + 1;
+    if (orderNo <= 0) {
+      setCaseMessage('Simpan butir soal terlebih dahulu sebelum mengunggah lampiran.');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('programCode', programCode);
+    formData.append('orderNo', String(orderNo));
+    try {
+      const response = await axios.post('/api/admin/questions/attachment', formData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+      });
+      const stored = response.data?.data;
+      if (stored) {
+        setActiveQuestion((prev) => ({
+          ...prev,
+          attachmentUrl: stored.url,
+          attachmentName: stored.name,
+          attachmentMime: stored.mime
+        }));
+      }
+      setCaseMessage('Lampiran soal terunggah.');
+    } catch (error) {
+      setCaseMessage(
+        axios.isAxiosError(error)
+          ? error.response?.data?.error || 'Gagal mengunggah lampiran soal.'
+          : 'Gagal mengunggah lampiran soal.'
+      );
+    }
+  };
+
+  const handleCaseFileDelete = async (url: string) => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    const fileName = url.split('/').pop() || '';
+    try {
+      const response = await axios.delete(
+        `/api/admin/programs/${selectedProgramCode}/case-files/${encodeURIComponent(fileName)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCaseFiles(response.data?.caseFiles || []);
+      setCaseMessage('Dokumen dihapus.');
+    } catch {
+      setCaseMessage('Gagal menghapus dokumen.');
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs space-y-6">
@@ -544,14 +756,24 @@ export function AdminBankSoalEditor() {
                       <p className="text-sm font-semibold text-slate-800">{program.title}</p>
                       <p className="text-[11px] text-slate-500">{program.companyName}</p>
                     </TableCell>
-                    <TableCell className="text-center font-mono font-bold text-slate-700">{program.total}</TableCell>
+                    <TableCell className="text-center">
+                      <span className="font-mono font-bold text-slate-700">{program.total}</span>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        Psikotes: <strong className="text-indigo-700">{program.psikotesCount}</strong> • Kompetensi:{' '}
+                        <strong className="text-primary-navy">{program.kompetensiCount}</strong>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-center text-sm text-slate-600">{program.typeCount}</TableCell>
                     <TableCell className="text-center text-sm text-emerald-700 font-semibold">{program.published}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="outline"
                         size="xs"
-                        onClick={() => { setSelectedProgramCode(program.id); setViewMode('table'); }}
+                        onClick={() => {
+                          setSelectedProgramCode(program.id);
+                          setFilterType('all');
+                          setViewMode('table');
+                        }}
                         className="text-xs"
                       >
                         Kelola Soal
@@ -622,23 +844,203 @@ export function AdminBankSoalEditor() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+                  <Paperclip className="w-4 h-4 text-primary-navy" />
+                  Dokumen Studi Kasus Program [{selectedProgramCode}]
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Unggah PDF/DOCX pendukung (BR-EX-08, BR-IB-03). Dokumen tampil pada panel split-view peserta saat ujian.
+                </p>
+              </div>
+              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-50">
+                <Upload className="w-3.5 h-3.5" />
+                {caseUploading ? 'Mengunggah...' : 'Unggah Dokumen'}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
+                  disabled={caseUploading}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void handleCaseFileUpload(file);
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+            {caseMessage && <p className="text-[11px] text-slate-600">{caseMessage}</p>}
+            {caseFiles.length === 0 ? (
+              <p className="text-[11px] text-slate-500">Belum ada dokumen studi kasus untuk program ini.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {caseFiles.map((file) => (
+                  <span key={file.url} className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-medium text-slate-700">
+                    <FileText className="w-3 h-3 text-primary-navy" />
+                    <a href={file.url} target="_blank" rel="noreferrer" className="hover:underline">
+                      {file.name}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => void handleCaseFileDelete(file.url)}
+                      className="text-rose-600 hover:text-rose-700 cursor-pointer"
+                      title="Hapus dokumen"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Kategori Soal Switcher: Soal Psikotes vs Uji Kompetensi */}
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory('psikotes');
+                  setFilterType('all');
+                }}
+                className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${
+                  activeCategory === 'psikotes'
+                    ? 'border-indigo-500 bg-indigo-50/80 shadow-xs'
+                    : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/70'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      activeCategory === 'psikotes'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white border border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <Brain className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900">Soal Psikotes</p>
+                    <p className="text-[11px] text-slate-500 truncate">
+                      Penalaran logis, numerik, verbal &amp; kepribadian
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ${
+                    activeCategory === 'psikotes'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white border border-slate-200 text-slate-700'
+                  }`}
+                >
+                  {categoryCounts.psikotes} Soal
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory('kompetensi');
+                  setFilterType('all');
+                }}
+                className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${
+                  activeCategory === 'kompetensi'
+                    ? 'border-primary-navy bg-soft-blue shadow-xs'
+                    : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/70'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      activeCategory === 'kompetensi'
+                        ? 'bg-primary-navy text-white'
+                        : 'bg-white border border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <CheckSquare className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900">Uji Kompetensi</p>
+                    <p className="text-[11px] text-slate-500 truncate">
+                      Teknis, studi kasus, arsitektur &amp; materi program
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ${
+                    activeCategory === 'kompetensi'
+                      ? 'bg-primary-navy text-white'
+                      : 'bg-white border border-slate-200 text-slate-700'
+                  }`}
+                >
+                  {categoryCounts.kompetensi} Soal
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <h3 className="text-sm font-bold text-ink">Konfigurasi Tipe Soal</h3>
-              <p className="text-[11px] text-slate-500">Klik tipe untuk memfilter; tombol + menambah soal langsung pada tipe tersebut.</p>
+              <div>
+                <h3 className="text-sm font-bold text-ink">
+                  Konfigurasi Tipe Soal — {activeCategory === 'psikotes' ? 'Soal Psikotes' : 'Uji Kompetensi'}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Atur tipe soal yang aktif pada kategori ini, klik kartu untuk memfilter, atau klik + untuk menambah soal.
+                </p>
+              </div>
+              <Badge variant={activeCategory === 'psikotes' ? 'navy' : 'navy'}>
+                {enabledTypesForActiveCategory.length}/{ALL_QUESTION_TYPES.length} Tipe Aktif
+              </Badge>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {typeCounts.map(({ type, count }) => (
-                <div key={type} className={`rounded-xl border p-3 space-y-2 ${filterType === type ? 'border-primary-navy bg-soft-blue' : 'border-slate-200 bg-slate-50/60'}`}>
+              {typeCounts.map(({ type, count, enabled }) => (
+                <div
+                  key={type}
+                  className={`rounded-xl border p-3 space-y-2 transition ${
+                    filterType === type
+                      ? 'border-primary-navy bg-soft-blue'
+                      : enabled
+                      ? 'border-slate-200 bg-slate-50/60'
+                      : 'border-dashed border-slate-200 bg-slate-50/30 opacity-70'
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-2">
-                    <button type="button" onClick={() => setFilterType(filterType === type ? 'all' : type)} className="text-left cursor-pointer min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setFilterType(filterType === type ? 'all' : type)}
+                      className="text-left cursor-pointer min-w-0"
+                    >
                       <span className="block text-xs font-bold text-slate-800 truncate">{type}</span>
-                      <span className="block font-mono text-lg font-extrabold text-primary-navy mt-0.5">{count}</span>
+                      <span className="block font-mono text-lg font-extrabold text-primary-navy mt-0.5">
+                        {count}
+                      </span>
                     </button>
-                    <button type="button" onClick={() => handleCreateNew(type)} className="w-7 h-7 rounded-lg bg-primary-navy text-white flex items-center justify-center hover:bg-navy-dark cursor-pointer shrink-0" title={`Tambah soal ${type}`}>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateNew(type, activeCategory)}
+                      className="w-7 h-7 rounded-lg bg-primary-navy text-white flex items-center justify-center hover:bg-navy-dark cursor-pointer shrink-0"
+                      title={`Tambah soal ${type} (${activeCategory === 'psikotes' ? 'Psikotes' : 'Uji Kompetensi'})`}
+                    >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500">soal tersimpan</p>
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
+                    <span className="text-[10px] text-slate-500">soal tersimpan</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleTypeEnabled(type)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition ${
+                        enabled
+                          ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                          : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                      }`}
+                      title={enabled ? 'Klik untuk nonaktifkan tipe ini' : 'Klik untuk aktifkan tipe ini'}
+                    >
+                      {enabled ? 'Aktif' : 'Nonaktif'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -662,6 +1064,9 @@ export function AdminBankSoalEditor() {
                       <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                       <span>Sumber: <strong className="text-blue-950 font-bold">Master Bank Soal CAT [{selectedProgramCode || 'Umum'}]</strong></span>
                     </span>
+                    <Badge variant={getQuestionCategory(q) === 'psikotes' ? 'warning' : 'navy'} format="soft">
+                      {getQuestionCategory(q) === 'psikotes' ? 'Psikotes' : 'Uji Kompetensi'}
+                    </Badge>
                     <Badge variant="navy" format="soft">{q.type}</Badge>
                     <Badge variant={q.difficulty === 'Sulit' ? 'danger' : q.difficulty === 'Sedang' ? 'warning' : 'success'} format="soft">{q.difficulty}</Badge>
                     <Badge variant={q.status === 'Published' ? 'success' : q.status === 'Review' ? 'warning' : 'neutral'} format="soft">{q.status}</Badge>
@@ -714,7 +1119,24 @@ export function AdminBankSoalEditor() {
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Kategori Soal</label>
+                <select
+                  value={getQuestionCategory(activeQuestion)}
+                  onChange={(e) =>
+                    setActiveQuestion({
+                      ...activeQuestion,
+                      category: e.target.value as QuestionCategory
+                    })
+                  }
+                  className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
+                >
+                  <option value="psikotes">Soal Psikotes</option>
+                  <option value="kompetensi">Uji Kompetensi</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Tipe Soal</label>
                 <select
@@ -778,6 +1200,47 @@ export function AdminBankSoalEditor() {
                 placeholder="Tuliskan butir soal secara lengkap..."
                 className="w-full p-3 rounded-xl border border-border-slate focus:border-primary-navy text-xs outline-none leading-relaxed"
               />
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="block font-bold text-ink flex items-center gap-1.5">
+                  <Paperclip className="w-3.5 h-3.5 text-primary-navy" />
+                  Lampiran butir soal (PDF/DOCX/gambar)
+                </label>
+                <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700 cursor-pointer hover:bg-slate-100">
+                  <Upload className="w-3 h-3" />
+                  Unggah
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void handleQuestionAttachmentUpload(file);
+                      event.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+              {activeQuestion.attachmentUrl ? (
+                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-700">
+                  <a href={activeQuestion.attachmentUrl} target="_blank" rel="noreferrer" className="truncate hover:underline">
+                    {activeQuestion.attachmentName || activeQuestion.attachmentUrl}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setActiveQuestion((prev) => ({ ...prev, attachmentUrl: null, attachmentName: null, attachmentMime: null }))}
+                    className="text-rose-600 hover:text-rose-700 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  Lampiran ditampilkan pada panel split-view peserta. Simpan soal terlebih dahulu bila baru dibuat.
+                </p>
+              )}
             </div>
 
             {/* Opsi Jawaban (for Pilihan Ganda / Multi-Select) */}
