@@ -655,7 +655,7 @@ export function AdminBankSoalEditor() {
       const rows = Array.isArray(response.data?.data) ? response.data.data : [];
       const imported: BankQuestion[] = rows.map((row: any, index: number) => ({
         id: `IMP-${Date.now()}-${index + 1}`,
-        category: row.category === 'psikotes' ? 'psikotes' : 'kompetensi',
+        category: activeCategory,
         type: row.type,
         programCode: selectedProgramCode,
         text: row.text,
@@ -1074,7 +1074,7 @@ export function AdminBankSoalEditor() {
                   Import Soal dari Excel [{selectedProgramCode}]
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Unduh template, isi soal berbagai tipe (PG, multi-select, isian, esai, matching), lalu unggah kembali.
+                  Unduh template, isi soal berbagai tipe (PG, multi-select, isian, esai, matching), lalu unggah kembali. Soal masuk ke kategori aktif: <strong>{activeCategory === 'psikotes' ? 'Soal Psikotes' : 'Uji Kompetensi'}</strong>.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
