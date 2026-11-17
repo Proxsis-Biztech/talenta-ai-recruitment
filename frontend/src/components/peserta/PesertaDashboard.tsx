@@ -494,78 +494,111 @@ export default function PesertaDashboard() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {dashboardPrograms.length === 0 ? (
-                  <div className="sm:col-span-2 xl:col-span-3 rounded-3xl border border-dashed border-slate-200 bg-white p-6 text-center">
-                    <p className="text-sm font-semibold text-slate-600">Belum ada program asesmen yang ditugaskan.</p>
-                    <p className="text-xs text-slate-400 mt-1">Hubungi admin bila Anda merasa sudah terdaftar.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Card 1: Mint — Ujian CAT */}
+                <div className="rounded-3xl bg-[#EAF8F5] p-5 flex flex-col items-center text-center transition-transform hover:-translate-y-0.5">
+                  <div className="relative mb-4 mt-1">
+                    <div className="w-14 h-14 rounded-2xl bg-[#0F9D8A] text-white flex items-center justify-center shadow-sm rotate-3">
+                      <FileText className="w-6 h-6 -rotate-3" />
+                    </div>
+                    <span
+                      className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-[#EAF8F5] ${
+                        isCatCompleted ? 'bg-emerald-500' : 'bg-[#F95B2B]'
+                      }`}
+                    />
                   </div>
-                ) : (
-                  dashboardPrograms.map((program: any) => {
-                    const exam = examForProgram(program.code);
-                    const done = isProgramDone(program.code);
-                    const rangeLabel =
-                      program.assessmentDate || program.assessmentEndDate
-                        ? `${formatShortDate(program.assessmentDate)} – ${formatShortDate(program.assessmentEndDate)}`
-                        : 'Jadwal belum diatur';
-                    return (
-                      <div
-                        key={program.code}
-                        className="rounded-3xl bg-white border border-slate-200/80 p-5 flex flex-col transition-transform hover:-translate-y-0.5 hover:shadow-sm"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="font-mono text-[10px] font-bold text-primary-navy bg-blue-50 px-2 py-0.5 rounded border border-blue-200/60">
-                            {program.code}
-                          </span>
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                              done
-                                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                                : 'bg-amber-100 text-amber-800 border-amber-200'
-                            }`}
-                          >
-                            {done ? '✓ Sudah dikerjakan' : '• Belum dikerjakan'}
-                          </span>
-                        </div>
+                  <h2 className="text-base font-bold text-slate-900">Ujian CAT</h2>
+                  <span
+                    className={`mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                      isCatCompleted
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                        : 'bg-amber-100 text-amber-800 border-amber-200'
+                    }`}
+                  >
+                    {isCatCompleted ? '✓ Sudah dikerjakan' : '• Belum dikerjakan'}
+                  </span>
+                  <p className="text-xs text-slate-500 mt-1.5 mb-4">
+                    {isCatCompleted
+                      ? dashboard?.exam?.score != null
+                        ? `Skor: ${dashboard.exam.score}/100 • Selesai`
+                        : 'Selesai & Tersimpan'
+                      : `${programDuration} Menit • Belum Dikerjakan`}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/peserta/asesmen')}
+                    className="w-full max-w-[150px] py-2 px-4 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 shadow-xs border border-slate-200/60 transition-colors cursor-pointer"
+                  >
+                    Buka Asesmen
+                  </button>
+                </div>
 
-                        <h2 className="text-sm sm:text-base font-bold text-slate-900 mt-2.5 line-clamp-2 leading-snug">
-                          {program.title}
-                        </h2>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{companyName}</p>
+                {/* Card 2: Warm Cream — Wawancara Asesor */}
+                <div className="rounded-3xl bg-[#FEF7E6] p-5 flex flex-col items-center text-center transition-transform hover:-translate-y-0.5">
+                  <div className="relative mb-4 mt-1">
+                    <div className="w-14 h-14 rounded-2xl bg-[#F59E0B] text-white flex items-center justify-center shadow-sm -rotate-3">
+                      <Video className="w-6 h-6 rotate-3" />
+                    </div>
+                    <span
+                      className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-[#FEF7E6] ${
+                        isInterviewCompleted ? 'bg-emerald-500' : 'bg-[#F95B2B]'
+                      }`}
+                    />
+                  </div>
+                  <h2 className="text-base font-bold text-slate-900">Wawancara</h2>
+                  <span
+                    className={`mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                      isInterviewCompleted
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                        : 'bg-amber-100 text-amber-800 border-amber-200'
+                    }`}
+                  >
+                    {isInterviewCompleted ? '✓ Sudah dikerjakan' : '• Belum dikerjakan'}
+                  </span>
+                  <p className="text-xs text-slate-500 mt-1 mb-5">
+                    {isInterviewCompleted
+                      ? interview.score != null
+                        ? `Skor: ${interview.score}/100 • Selesai`
+                        : 'Selesai Dinilai Asesor'
+                      : interview.scheduledAt
+                        ? `Jadwal: ${formatShortDate(interview.scheduledAt)}`
+                        : 'Menunggu Jadwal Asesor'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/peserta/asesmen')}
+                    className="w-full max-w-[150px] py-2 px-4 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 shadow-xs border border-slate-200/60 transition-colors cursor-pointer"
+                  >
+                    Lihat Tahapan
+                  </button>
+                </div>
 
-                        <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-slate-600">
-                          <CalendarIcon className="w-3.5 h-3.5 text-primary-navy shrink-0" />
-                          <span className="truncate">{rangeLabel}</span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 mt-1">
-                          {program.durationMinutes || 90} menit • Pass {program.passingScore || 70}
-                        </p>
-                        <p className="text-xs text-slate-700 mt-1.5 font-semibold">
-                          {exam?.score != null
-                            ? `Skor: ${exam.score}/100`
-                            : done
-                              ? 'Sudah dikumpulkan'
-                              : 'Belum ada nilai'}
-                        </p>
-
-                        <div className="mt-3 w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-emerald-500 rounded-full transition-all"
-                            style={{ width: done ? '100%' : '0%' }}
-                          />
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => navigate('/peserta/asesmen')}
-                          className="mt-4 w-full py-2 px-4 rounded-xl bg-primary-navy hover:bg-slate-800 text-xs font-bold text-white shadow-xs transition-colors cursor-pointer"
-                        >
-                          Buka Asesmen
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
+                {/* Card 3: Soft Lavender — Hasil & LHA */}
+                <div className="rounded-3xl bg-[#F2F0FE] p-5 flex flex-col items-center text-center transition-transform hover:-translate-y-0.5">
+                  <div className="relative mb-4 mt-1">
+                    <div className="w-14 h-14 rounded-2xl bg-[#5B4CE4] text-white flex items-center justify-center shadow-sm rotate-3">
+                      <Award className="w-6 h-6 -rotate-3" />
+                    </div>
+                    <span
+                      className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-[#F2F0FE] ${
+                        lha?.signed ? 'bg-emerald-500' : 'bg-indigo-400'
+                      }`}
+                    />
+                  </div>
+                  <h2 className="text-base font-bold text-slate-900">Hasil &amp; LHA</h2>
+                  <p className="text-xs text-slate-500 mt-1 mb-5">
+                    {lha?.signed
+                      ? `LHA Resmi • Skor ${lha.compositeScore ?? '-'}`
+                      : `${completedCount}/${tasks.length} Tahap Selesai`}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate(lha?.signed || profileComplete ? '/peserta/hasil' : '/peserta/profile')}
+                    className="w-full max-w-[150px] py-2 px-4 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 shadow-xs border border-slate-200/60 transition-colors cursor-pointer"
+                  >
+                    {lha?.signed || profileComplete ? 'Lihat Hasil' : 'Cek Profil'}
+                  </button>
+                </div>
               </div>
             </section>
 
