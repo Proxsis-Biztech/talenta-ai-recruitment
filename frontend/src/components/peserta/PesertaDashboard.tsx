@@ -475,9 +475,7 @@ export default function PesertaDashboard() {
                   Asesmen Saya<span className="text-[#F95B2B]">.</span>
                 </h1>
                 <p className="text-xs font-medium text-slate-500">
-                  {loadingDashboard
-                    ? 'Memuat program...'
-                    : `${programHeaderLabel} • ${Number(isCatCompleted) + Number(isInterviewCompleted)} sudah dikerjakan, ${2 - Number(isCatCompleted) - Number(isInterviewCompleted)} belum dikerjakan`}
+                  {loadingDashboard ? 'Memuat program...' : programHeaderLabel}
                 </p>
               </div>
 
@@ -698,6 +696,50 @@ export default function PesertaDashboard() {
 
           {/* ─── Panel Kanan (4/12): Search + Kalender + Jadwal Mendatang ─── */}
           <aside className="xl:col-span-4 bg-white rounded-3xl border border-slate-200/70 p-6 shadow-xs space-y-7">
+            {/* Card Ringkasan Pengerjaan */}
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-extrabold text-slate-900">Status Pengerjaan</h2>
+                <span className="text-[11px] font-bold text-slate-500">
+                  {Number(isCatCompleted) + Number(isInterviewCompleted)}/2 selesai
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-white rounded-full overflow-hidden border border-slate-200/60">
+                <div
+                  className="h-full bg-emerald-500 rounded-full transition-all"
+                  style={{ width: `${((Number(isCatCompleted) + Number(isInterviewCompleted)) / 2) * 100}%` }}
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-2 text-slate-600">
+                    <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                    Ujian CAT
+                  </span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                    isCatCompleted
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                      : 'bg-amber-100 text-amber-800 border-amber-200'
+                  }`}>
+                    {isCatCompleted ? '✓ Sudah dikerjakan' : '• Belum dikerjakan'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-2 text-slate-600">
+                    <Video className="w-3.5 h-3.5 text-amber-600" />
+                    Wawancara
+                  </span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                    isInterviewCompleted
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                      : 'bg-amber-100 text-amber-800 border-amber-200'
+                  }`}>
+                    {isInterviewCompleted ? '✓ Sudah dikerjakan' : '• Belum dikerjakan'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Search Input */}
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />

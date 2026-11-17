@@ -1270,15 +1270,27 @@ export default function PesertaAsesmenList() {
                     onClick={() => handleSelectProgram(item.id)}
                     className="group bg-white rounded-3xl border border-slate-200/90 hover:border-primary-navy/40 p-6 shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col justify-between cursor-pointer relative overflow-hidden"
                   >
-                    {item.isAssigned && (
-                      <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-amber-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-2xs flex items-center gap-1">
-                        <span>★ Ditugaskan</span>
-                      </div>
-                    )}
+                    <div
+                      className={`absolute top-0 right-0 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-2xs flex items-center gap-1 ${
+                        item.status === 'selesai'
+                          ? 'bg-gradient-to-l from-emerald-500 to-emerald-600'
+                          : item.status === 'berjalan'
+                            ? 'bg-gradient-to-l from-blue-500 to-blue-600'
+                            : 'bg-gradient-to-l from-amber-500 to-amber-600'
+                      }`}
+                    >
+                      <span>
+                        {item.status === 'selesai'
+                          ? '✓ Sudah dikerjakan'
+                          : item.status === 'berjalan'
+                            ? '• Sedang dikerjakan'
+                            : '• Belum dikerjakan'}
+                      </span>
+                    </div>
 
                     <div className="space-y-4">
                       {/* Header Badges */}
-                      <div className="flex items-center justify-between gap-2 pr-16">
+                      <div className="flex items-center justify-between gap-2 pr-32">
                         <span className="font-mono text-xs font-bold text-primary-navy bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200/60">
                           {item.id}
                         </span>
@@ -1318,26 +1330,6 @@ export default function PesertaAsesmenList() {
                           <Video className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                           <span className="truncate">Wawancara AI</span>
                         </div>
-                      </div>
-
-                      {/* Status Pengerjaan Asesmen */}
-                      <div
-                        className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-between ${
-                          item.status === 'selesai'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                            : item.status === 'berjalan'
-                              ? 'bg-blue-50 border-blue-200 text-blue-800'
-                              : 'bg-amber-50 border-amber-200 text-amber-800'
-                        }`}
-                      >
-                        <span>Status Pengerjaan</span>
-                        <span>
-                          {item.status === 'selesai'
-                            ? '✓ Sudah dikerjakan'
-                            : item.status === 'berjalan'
-                              ? '• Sedang dikerjakan'
-                              : '• Belum dikerjakan'}
-                        </span>
                       </div>
 
                       {/* Status Ujian CAT */}
