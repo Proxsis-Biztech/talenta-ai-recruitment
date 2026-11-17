@@ -310,28 +310,28 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#E6E5E2] flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans antialiased">
-      <div className="w-full max-w-[980px] bg-white rounded-[32px] p-4 sm:p-5 shadow-[0_24px_60px_-20px_rgba(15,39,92,0.14)] border border-white/80 grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-stretch">
-        {/* Left Visual Panel */}
-        <div className="lg:col-span-6 relative rounded-[24px] overflow-hidden bg-[#E8E6E1] min-h-[260px] lg:min-h-[560px]">
-          <img
-            src="/img/login-hero.jpg"
-            alt="RIGHT Assessment Platform"
-            className="w-full h-full object-cover object-center"
-          />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#0F275C]/35 via-transparent to-transparent" />
-          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between gap-2 rounded-2xl bg-white/85 backdrop-blur-md px-3.5 py-2.5 border border-white/70 shadow-xs">
-            <span className="text-[11px] font-bold text-[#0F275C]">
-              Portal Asesmen &amp; Seleksi Terpadu
-            </span>
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#0F275C] text-white">
-              CAT • AI
-            </span>
-          </div>
+    <div className="min-h-screen w-full bg-white p-3 sm:p-5 font-sans antialiased grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 items-stretch">
+      {/* Left Visual Panel */}
+      <div className="lg:col-span-6 relative rounded-[24px] overflow-hidden bg-[#E8E6E1] min-h-[280px] lg:min-h-[calc(100vh-2.5rem)]">
+        <img
+          src="/img/login-hero-3d.jpg"
+          alt="RIGHT Assessment Platform"
+          className="w-full h-full object-cover object-center"
+        />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#0F275C]/35 via-transparent to-transparent" />
+        <div className="absolute bottom-5 left-5 right-5 flex items-center justify-between gap-2 rounded-2xl bg-white/85 backdrop-blur-md px-4 py-3 border border-white/70 shadow-xs">
+          <span className="text-xs font-bold text-[#0F275C]">
+            Portal Asesmen &amp; Seleksi Terpadu
+          </span>
+          <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#0F275C] text-white">
+            CAT • AI
+          </span>
         </div>
+      </div>
 
-        {/* Right Form Panel */}
-        <div className="lg:col-span-6 flex flex-col justify-center px-4 sm:px-8 lg:px-10 py-6 sm:py-8">
+      {/* Right Form Panel */}
+      <div className="lg:col-span-6 flex flex-col justify-center px-4 sm:px-10 lg:px-14 py-6 sm:py-8">
+        <div className="w-full max-w-[440px] mx-auto">
           <div className="flex flex-col items-center text-center mb-6">
             <img
               src="/img/logoRIght.jpeg"
