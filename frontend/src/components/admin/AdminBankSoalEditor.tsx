@@ -260,6 +260,9 @@ const DEFAULT_CATEGORY_TYPES: Record<QuestionCategory, BankQuestion['type'][]> =
 const getQuestionCategory = (question: Pick<BankQuestion, 'category'>): QuestionCategory =>
   question.category === 'psikotes' ? 'psikotes' : 'kompetensi';
 
+const createQuestionId = (category: QuestionCategory): string =>
+  `${category === 'psikotes' ? 'PSI' : 'SOAL'}-${Math.floor(400 + Math.random() * 500)}`;
+
 export function AdminBankSoalEditor() {
   const [viewMode, setViewMode] = useState<'programs' | 'table' | 'editor' | 'stats' | 'factsheet'>('programs');
   const [activeCategory, setActiveCategory] = useState<QuestionCategory>('psikotes');
@@ -383,6 +386,12 @@ export function AdminBankSoalEditor() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const scrollToEditor = () => {
+    window.setTimeout(() => {
+      document.getElementById('question-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  };
+
   const handleEdit = (q: BankQuestion) => {
     setActiveQuestion({
       ...JSON.parse(JSON.stringify(q)),
@@ -390,6 +399,7 @@ export function AdminBankSoalEditor() {
     });
     setIsEditingExisting(true);
     setViewMode('editor');
+    scrollToEditor();
   };
 
   const handleCreateNew = (
@@ -398,7 +408,7 @@ export function AdminBankSoalEditor() {
   ) => {
     const targetCategory = categoryOverride || activeCategory;
     const newQ: BankQuestion = {
-      id: `${targetCategory === 'psikotes' ? 'PSI' : 'SOAL'}-${Math.floor(400 + Math.random() * 500)}`,
+      id: createQuestionId(targetCategory),
       category: targetCategory,
       type,
       programCode: selectedProgramCode,
@@ -424,6 +434,7 @@ export function AdminBankSoalEditor() {
     setActiveQuestion(newQ);
     setIsEditingExisting(false);
     setViewMode('editor');
+    scrollToEditor();
   };
 
   const handleStats = (q: BankQuestion) => {
@@ -875,7 +886,7 @@ export function AdminBankSoalEditor() {
       )}
 
       {/* ─── TAB 1: Tabel Soal ─── */}
-      {viewMode === 'table' && (
+      {(viewMode === 'table' || viewMode === 'editor') && (
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
@@ -893,10 +904,6 @@ export function AdminBankSoalEditor() {
                   </select>
                 </div>
               </div>
-              <Button variant="primary" size="md" onClick={() => handleCreateNew()} className="h-11 px-4 text-sm font-semibold rounded-xl flex items-center gap-2 cursor-pointer shadow-xs">
-                <Plus className="w-4 h-4" />
-                <span>Tambah Butir Soal</span>
-              </Button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
@@ -1228,12 +1235,27 @@ export function AdminBankSoalEditor() {
               </div>
             ))}
           </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-100">
+            <p className="text-[11px] text-slate-500">
+              Tambah satu butir soal, lalu atur detailnya pada form di bawah tanpa berpindah halaman.
+            </p>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => handleCreateNew('Pilihan Ganda', activeCategory)}
+              className="text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Tambah Soal Baru</span>
+            </Button>
+          </div>
         </div>
       )}
 
-      {/* ─── TAB 2: Soal Editor ─── */}
+      {/* ─── TAB 2: Soal Editor (inline di halaman yang sama) ─── */}
       {viewMode === 'editor' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div id="question-editor" className="grid grid-cols-1 lg:grid-cols-12 gap-6 scroll-mt-24">
           {/* Left Form (7 cols) */}
           <div className="lg:col-span-7 space-y-4 text-xs">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
