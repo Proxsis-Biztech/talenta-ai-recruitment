@@ -591,15 +591,6 @@ export default function PesertaDeviceCheck() {
               </span>
             )}
           </div>
-
-          <Button
-            variant="primary"
-            onClick={handleProceedToAsesmen}
-            className="py-2 px-4 text-xs font-bold flex items-center gap-1.5 shadow-xs rounded-xl cursor-pointer"
-          >
-            <span>Lanjut ke Asesmen Saya</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Button>
         </div>
 
         {/* ─── ROW 1: Wide Full-Width Camera Preview + Slim Mic Bar ─── */}
