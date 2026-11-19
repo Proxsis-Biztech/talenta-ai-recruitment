@@ -929,16 +929,17 @@ export default function JobManagement() {
         </div>
       )}
 
-      {/* Jobs Table */}
+      {/* Jobs Table (desktop) */}
+      <div className="hidden md:block">
       <Table className="w-full">
         <TableHeader>
           <TableRow>
             <TableHead className="hidden sm:table-cell w-[48px] text-center">#</TableHead>
-            <TableHead className="lg:w-[34%]">Formasi Lowongan</TableHead>
-            <TableHead className="hidden md:table-cell lg:w-[18%]">Konfigurasi Interview AI</TableHead>
-            <TableHead className="lg:w-[11%]">Status Perekrutan</TableHead>
-            <TableHead className="hidden lg:table-cell lg:w-[15%]">Periode Asesmen</TableHead>
-            <TableHead className="hidden xl:table-cell xl:w-[10%]">Tanggal Rilis</TableHead>
+            <TableHead className="lg:w-[40%]">Formasi Lowongan</TableHead>
+            <TableHead className="hidden md:table-cell lg:w-[16%]">Konfigurasi Interview AI</TableHead>
+            <TableHead className="lg:w-[10%]">Status Perekrutan</TableHead>
+            <TableHead className="hidden lg:table-cell lg:w-[14%]">Periode Asesmen</TableHead>
+            <TableHead className="hidden xl:table-cell xl:w-[8%]">Tanggal Rilis</TableHead>
             <TableHead className="lg:w-[12%] text-right">Opsi</TableHead>
           </TableRow>
         </TableHeader>
@@ -973,7 +974,7 @@ export default function JobManagement() {
                       <Briefcase className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="font-semibold text-slate-900 leading-snug">{job.title}</div>
+                      <div className="font-semibold text-slate-900 leading-snug line-clamp-2">{job.title}</div>
                       <p className="text-xs text-slate-500 line-clamp-1 mt-0.5 font-sans">
                         {job.description}
                       </p>
@@ -1071,6 +1072,62 @@ export default function JobManagement() {
           )}
         </TableBody>
       </Table>
+      </div>
+
+      {/* Program cards (mobile) */}
+      <div className="md:hidden space-y-3">
+        {filteredJobs.map((job) => (
+          <div key={job.id} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5 shadow-xs">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900 line-clamp-2">{job.title}</p>
+                <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{job.description}</p>
+              </div>
+              <Badge
+                variant={getJobScheduleStatus(job).variant}
+                format="soft"
+                hasDot={getJobScheduleStatus(job).key === 'active'}
+                className="shrink-0"
+              >
+                {getJobScheduleStatus(job).label}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600">
+              <span>{job.interviewDuration || 15} menit</span>
+              <span>Pass {job.interviewPassingScore ?? 70}%</span>
+              <span className="font-mono">
+                {job.assessmentDate || job.assessmentEndDate
+                  ? `${job.assessmentDate ? new Date(job.assessmentDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '—'} – ${
+                      job.assessmentEndDate
+                        ? new Date(job.assessmentEndDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : '—'
+                    }`
+                  : 'Jadwal belum diatur'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                variant="secondary"
+                size="xs"
+                onClick={() => openEditModal(job)}
+                leftIcon={<Edit2 className="w-3 h-3" />}
+                className="flex-1"
+              >
+                Ubah
+              </Button>
+              <Button
+                variant="danger"
+                size="xs"
+                onClick={() => handleDeleteJob(job.id, job.title)}
+                leftIcon={<Trash2 className="w-3 h-3" />}
+                className="flex-1"
+              >
+                Hapus
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Add Job Modal */}
       <Modal

@@ -271,6 +271,7 @@ function QuestionFormFields({
   onCancel,
   onUploadAttachment,
   onRemoveAttachment,
+  onDelete,
   headerLabel
 }: {
   question: BankQuestion;
@@ -279,6 +280,7 @@ function QuestionFormFields({
   onCancel?: () => void;
   onUploadAttachment?: (file: File) => void;
   onRemoveAttachment?: () => void;
+  onDelete?: () => void;
   headerLabel: string;
 }) {
   return (
@@ -458,7 +460,18 @@ function QuestionFormFields({
         />
       </div>
 
-      <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+      <div className="pt-2 flex flex-wrap justify-end gap-2 border-t border-slate-100">
+        {onDelete && (
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={onDelete}
+            className="flex items-center gap-1.5 cursor-pointer mr-auto"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Hapus Soal</span>
+          </Button>
+        )}
         {onCancel && (
           <Button variant="outline" size="sm" onClick={onCancel}>
             Batal
@@ -1405,17 +1418,6 @@ export function AdminBankSoalEditor() {
                     <Badge variant={q.difficulty === 'Sulit' ? 'danger' : q.difficulty === 'Sedang' ? 'warning' : 'success'} format="soft">{q.difficulty}</Badge>
                     <Badge variant={q.status === 'Published' ? 'success' : q.status === 'Review' ? 'warning' : 'neutral'} format="soft">{q.status}</Badge>
                   </div>
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
-                    <Button variant="ghost" size="icon" onClick={() => handleStats(q)} title="Statistik Butir Soal" className="cursor-pointer">
-                      <BarChart3 className="w-4 h-4 text-slate-500 hover:text-blue-600" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(q)} title="Edit Soal" className="cursor-pointer">
-                      <Edit className="w-4 h-4 text-slate-500 hover:text-primary-navy" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id)} title="Hapus Soal" className="cursor-pointer text-slate-400 hover:text-red-600">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/80 text-slate-600">
                   <span className="font-semibold text-slate-700 flex items-center gap-1.5">
@@ -1441,6 +1443,7 @@ export function AdminBankSoalEditor() {
                       )
                     )
                   }
+                  onDelete={() => handleDeleteQuestion(q.id)}
                   headerLabel={`Detail Soal #${index + 1}`}
                 />
               </div>
@@ -1480,6 +1483,14 @@ export function AdminBankSoalEditor() {
                 attachmentName: null,
                 attachmentMime: null
               }))
+            }
+            onDelete={
+              isEditingExisting
+                ? () => {
+                    handleDeleteQuestion(activeQuestion.id);
+                    setViewMode('table');
+                  }
+                : undefined
             }
             headerLabel={isEditingExisting ? `Edit Soal: ${activeQuestion.id}` : 'Tambah Butir Soal Baru'}
           />
