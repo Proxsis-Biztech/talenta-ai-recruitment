@@ -1461,7 +1461,81 @@ ${app.interviewResult ? `
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>Live • hasil ujian diperbarui otomatis setiap 15 detik</span>
             </div>
-            <Table>
+            {/* Mobile Responsive Cards (< md) */}
+            <div className="md:hidden space-y-3">
+              {loading ? (
+                <div className="py-10 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary-navy" />
+                  <span className="text-xs">Memuat data peserta...</span>
+                </div>
+              ) : applicants.length === 0 ? (
+                <div className="py-10 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+                  <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="font-semibold text-slate-600 text-sm">Belum ada data peserta</p>
+                </div>
+              ) : (
+                applicants
+                  .filter((app) => {
+                    if (ptFilter && !getCompanyForApplicant(app).toLowerCase().includes(ptFilter.toLowerCase())) return false;
+                    if (programFilter && !getProgramForApplicant(app).toLowerCase().includes(programFilter.toLowerCase())) return false;
+                    if (statusFilter) {
+                      const s = getStatusForApplicant(app);
+                      if (statusFilter.toLowerCase() === 'proses' && s.label !== 'Proses') return false;
+                      if (statusFilter.toLowerCase() === 'lulus' && s.label !== 'Lulus') return false;
+                      if (statusFilter.toLowerCase() === 'gagal' && s.label !== 'Gagal') return false;
+                    }
+                    return true;
+                  })
+                  .map((app) => {
+                    const statusObj = getStatusForApplicant(app);
+                    return (
+                      <div key={`m-${app.id}`} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-ink truncate">{app.fullName}</p>
+                            <p className="text-xs text-muted-slate truncate">{app.email}</p>
+                          </div>
+                          <Badge
+                            variant={statusObj.label === 'Lulus' ? 'success' : statusObj.label === 'Gagal' ? 'danger' : 'info'}
+                            format="soft"
+                            hasDot
+                          >
+                            {statusObj.label}
+                          </Badge>
+                        </div>
+                        <div className="text-xs space-y-1.5 text-slate-600">
+                          <p><span className="font-semibold text-slate-500">Perusahaan:</span> {getCompanyForApplicant(app)}</p>
+                          <p><span className="font-semibold text-slate-500">Program Asesmen:</span> {getProgramForApplicant(app)}</p>
+                          <div className="flex items-center justify-between pt-1">
+                            <span>
+                              <span className="font-semibold text-slate-500">Skor CAT:</span>{' '}
+                              {app.examAttempt?.score != null ? (
+                                <strong className="font-mono text-emerald-700">{app.examAttempt.score}/100</strong>
+                              ) : (
+                                'Belum'
+                              )}
+                            </span>
+                            <span className="font-semibold text-slate-700">{getStageForApplicant(app)}</span>
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-1">
+                          <button onClick={() => setSelectedApplicant(app)} className="px-2.5 py-1.5 text-xs font-semibold text-primary-navy bg-soft-blue rounded-lg cursor-pointer">Detail</button>
+                          {userRole === 'superadmin' && (
+                            <>
+                              <button onClick={() => setEditingApplicant(app)} className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg cursor-pointer">Edit</button>
+                              <button onClick={() => handleDelete(app.id)} className="px-2.5 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 rounded-lg cursor-pointer">Hapus</button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            {/* Desktop & Tablet Responsive Table */}
+            <div className="hidden md:block overflow-x-auto">
+            <Table className="min-w-[1160px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10 text-center">
@@ -1475,14 +1549,14 @@ ${app.interviewResult ? `
                       className="rounded border-slate-300 text-primary-navy focus:ring-primary-navy cursor-pointer"
                     />
                   </TableHead>
-                  <TableHead>Peserta</TableHead>
-                  <TableHead>Perusahaan</TableHead>
-                  <TableHead>Program</TableHead>
-                  <TableHead>Skor CAT</TableHead>
-                  <TableHead>Tahap</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Tanggal Daftar</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
+                  <TableHead className="min-w-[220px]">Peserta</TableHead>
+                  <TableHead className="min-w-[170px]">Perusahaan</TableHead>
+                  <TableHead className="min-w-[320px] lg:min-w-[380px]">Program Asesmen</TableHead>
+                  <TableHead className="min-w-[95px] whitespace-nowrap">Skor CAT</TableHead>
+                  <TableHead className="min-w-[100px] whitespace-nowrap">Tahap</TableHead>
+                  <TableHead className="min-w-[100px] whitespace-nowrap">Status</TableHead>
+                  <TableHead className="min-w-[120px] whitespace-nowrap">Tanggal Daftar</TableHead>
+                  <TableHead className="min-w-[170px] text-right whitespace-nowrap">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1578,9 +1652,9 @@ ${app.interviewResult ? `
                           </TableCell>
 
                           {/* Program */}
-                          <TableCell className="text-sm text-slate-600">
-                            <div className="space-y-1 max-w-[260px]">
-                              <span className="block line-clamp-2 font-medium text-slate-800" title={getProgramForApplicant(app)}>
+                          <TableCell className="text-sm text-slate-600 min-w-[320px] lg:min-w-[380px]">
+                            <div className="space-y-1.5">
+                              <span className="block line-clamp-2 font-medium text-slate-800 leading-snug" title={getProgramForApplicant(app)}>
                                 {getProgramForApplicant(app).replace(/\s*\([^)]*\)\s*$/, '')}
                               </span>
                               {getAssessmentCodesForApplicant(app).length > 0 && (
@@ -1714,6 +1788,7 @@ ${app.interviewResult ? `
                 )}
               </TableBody>
             </Table>
+            </div>
 
             {/* Pagination Controls */}
             {!loading && applicants.length > 0 && (
