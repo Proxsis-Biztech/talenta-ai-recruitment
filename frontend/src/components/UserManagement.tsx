@@ -1000,16 +1000,17 @@ export default function UserManagement() {
             </div>
           </div>
 
-          {/* Table of Peserta */}
-          <Table>
+          {/* Table of Peserta (desktop) */}
+          <div className="hidden md:block">
+          <Table className="w-full">
             <TableHeader>
               <TableRow>
-                <TableHead>Kandidat & Kontak</TableHead>
-                <TableHead>Perusahaan (PT)</TableHead>
-                <TableHead>Jenis Asesmen yang Dipilih</TableHead>
-                <TableHead>Grade & Format Soal</TableHead>
-                <TableHead>Jadwal Ujian</TableHead>
-                <TableHead className="text-right">Aksi Manajemen</TableHead>
+                <TableHead className="lg:w-[24%]">Kandidat &amp; Kontak</TableHead>
+                <TableHead className="hidden lg:table-cell lg:w-[16%]">Perusahaan (PT)</TableHead>
+                <TableHead className="md:w-[34%]">Jenis Asesmen yang Dipilih</TableHead>
+                <TableHead className="hidden xl:table-cell xl:w-[12%]">Grade &amp; Format Soal</TableHead>
+                <TableHead className="hidden lg:table-cell lg:w-[16%]">Jadwal Ujian</TableHead>
+                <TableHead className="lg:w-[14%] text-right">Aksi Manajemen</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1039,7 +1040,7 @@ export default function UserManagement() {
                         </div>
                       </TableCell>
 
-                      <TableCell>
+                      <TableCell className="hidden lg:table-cell">
                         <div className="space-y-1 whitespace-nowrap">
                           <Badge variant="neutral" format="outline" className="font-medium text-[11px] whitespace-nowrap">
                             <Building2 className="w-3 h-3 mr-1 text-slate-500 shrink-0" />
@@ -1054,8 +1055,8 @@ export default function UserManagement() {
                       </TableCell>
 
                       <TableCell>
-                        <div className="space-y-1 max-w-[240px]">
-                          <span className="font-semibold text-xs text-ink block truncate" title={p.assessmentTitle}>
+                        <div className="space-y-1">
+                          <span className="font-semibold text-xs text-ink block leading-snug" title={p.assessmentTitle}>
                             {p.assessmentTitle || '-'}
                           </span>
                           <div className="flex flex-wrap gap-1">
@@ -1076,7 +1077,7 @@ export default function UserManagement() {
                         </div>
                       </TableCell>
 
-                      <TableCell>
+                      <TableCell className="hidden xl:table-cell">
                         <div className="space-y-1 whitespace-nowrap">
                           <Badge variant={gradeBadgeVariant as any} format="soft" hasDot className="whitespace-nowrap">
                             {p.gradeLevel}
@@ -1087,7 +1088,7 @@ export default function UserManagement() {
                         </div>
                       </TableCell>
 
-                      <TableCell>
+                      <TableCell className="hidden lg:table-cell">
                         <div className="space-y-1 whitespace-nowrap">
                           <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                             <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
@@ -1142,6 +1143,63 @@ export default function UserManagement() {
               )}
             </TableBody>
           </Table>
+          </div>
+
+          {/* Peserta cards (mobile) */}
+          <div className="md:hidden space-y-3">
+            {filteredPeserta.map((p) => (
+              <div key={p.id} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5 shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">{p.name}</p>
+                    <p className="text-[11px] text-slate-500 truncate">{p.username}</p>
+                  </div>
+                  <Badge variant={p.status === 'Selesai' ? 'neutral' : 'teal'} format="soft" className="shrink-0 text-[10px]">
+                    {p.status}
+                  </Badge>
+                </div>
+                <div className="text-[11px] text-slate-600 space-y-1">
+                  <p className="flex items-center gap-1.5">
+                    <Building2 className="w-3 h-3 text-slate-400" />
+                    {p.companyName || '-'}
+                  </p>
+                  <p className="font-semibold text-slate-800 leading-snug">{p.assessmentTitle || '-'}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {(p.assignedProgramIds && p.assignedProgramIds.length > 0
+                      ? p.assignedProgramIds
+                      : p.assessmentId
+                        ? [p.assessmentId]
+                        : []
+                    ).map((code) => (
+                      <span key={code} className="text-[10px] font-mono bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                        {code}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    onClick={() => handleEditPeserta(p)}
+                    leftIcon={<Edit2 className="w-3 h-3" />}
+                    className="flex-1"
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="xs"
+                    onClick={() => handleDeletePeserta(p.id, p.name)}
+                    leftIcon={<Trash2 className="w-3 h-3" />}
+                    className="flex-1"
+                  >
+                    Hapus
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
 
           {/* Modal: Daftarkan Akun Peserta Baru */}
           <Modal
