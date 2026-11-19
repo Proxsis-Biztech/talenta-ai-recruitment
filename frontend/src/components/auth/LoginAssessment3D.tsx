@@ -1,9 +1,67 @@
 import React, { useState } from 'react';
-import { Award, CheckCircle2, Cpu, ShieldCheck, Sparkles } from 'lucide-react';
+import { Award, ShieldCheck, Sparkles } from 'lucide-react';
+
+const CUBE_FACES = [
+  'border-cyan-300/40 bg-gradient-to-br from-cyan-400/30 to-blue-500/10',
+  'border-blue-300/30 bg-gradient-to-br from-blue-500/25 to-indigo-600/10',
+  'border-indigo-300/30 bg-gradient-to-br from-indigo-400/25 to-blue-600/10',
+  'border-sky-300/25 bg-gradient-to-br from-sky-400/20 to-cyan-500/10',
+  'border-cyan-200/40 bg-gradient-to-br from-cyan-300/35 to-sky-500/15',
+  'border-blue-400/20 bg-gradient-to-br from-blue-600/20 to-slate-900/20'
+];
+
+function Cube({
+  size,
+  label,
+  accent = '',
+  spin = true,
+  className = '',
+  style
+}: {
+  size: number;
+  label: string;
+  accent?: string;
+  spin?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const half = size / 2;
+  const faces = [
+    `translateZ(${half}px)`,
+    `rotateY(180deg) translateZ(${half}px)`,
+    `rotateY(90deg) translateZ(${half}px)`,
+    `rotateY(-90deg) translateZ(${half}px)`,
+    `rotateX(90deg) translateZ(${half}px)`,
+    `rotateX(-90deg) translateZ(${half}px)`
+  ];
+
+  return (
+    <div
+      className={`${spin ? 'login-cube-spin' : ''} ${className}`}
+      style={{ width: size, height: size, transformStyle: 'preserve-3d', ...style }}
+    >
+      {faces.map((transform, index) => (
+        <div
+          key={transform}
+          className={`absolute inset-0 rounded-[14px] border backdrop-blur-[2px] shadow-[inset_0_0_24px_rgba(255,255,255,0.08)] flex items-center justify-center ${
+            accent || CUBE_FACES[index]
+          }`}
+          style={{ transform, backfaceVisibility: 'hidden' }}
+        >
+          {index === 0 && (
+            <span className="text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-white/85">
+              {label}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /**
- * Interactive 3D CSS/SVG assessment showcase for the login page left panel.
- * Responds to pointer movement with smooth 3D perspective tilt and layered depth.
+ * Animated 3D block scene for the login page left panel.
+ * Pure CSS transforms: rotating cubes, orbiting ring, floating glass chips.
  */
 export function LoginAssessment3D() {
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -12,7 +70,7 @@ export function LoginAssessment3D() {
     const rect = e.currentTarget.getBoundingClientRect();
     const px = (e.clientX - rect.left) / rect.width - 0.5;
     const py = (e.clientY - rect.top) / rect.height - 0.5;
-    setTilt({ x: -py * 10, y: px * 12 });
+    setTilt({ x: -py * 9, y: px * 11 });
   };
 
   const resetTilt = () => setTilt({ x: 0, y: 0 });
@@ -21,161 +79,123 @@ export function LoginAssessment3D() {
     <div
       onMouseMove={handleMouseMove}
       onMouseLeave={resetTilt}
-      className="relative w-full h-full overflow-hidden rounded-[24px] bg-gradient-to-br from-[#071330] via-[#0F275C] to-[#163880] flex items-center justify-center select-none"
-      style={{ perspective: '1200px' }}
+      className="relative w-full h-full overflow-hidden rounded-[24px] bg-gradient-to-br from-[#050B1F] via-[#0B1B45] to-[#163A85] select-none"
     >
-      {/* Ambient glowing mesh */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-24 -left-20 h-72 w-72 rounded-full bg-cyan-400/20 blur-[90px] animate-pulse" />
-        <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-indigo-400/25 blur-[100px] animate-pulse" />
-        {/* 3D perspective grid floor */}
+        <div className="absolute -top-24 -left-20 h-80 w-80 rounded-full bg-cyan-400/25 blur-[100px]" />
+        <div className="absolute -bottom-28 -right-16 h-96 w-96 rounded-full bg-indigo-500/30 blur-[110px]" />
+        <div className="absolute top-1/3 right-1/4 h-40 w-40 rounded-full bg-emerald-400/15 blur-[80px]" />
         <div
-          className="absolute inset-x-[-20%] bottom-[-15%] h-[55%] opacity-25"
+          className="absolute inset-x-[-25%] bottom-[-18%] h-[60%] opacity-25"
           style={{
             backgroundImage:
-              'linear-gradient(to right, rgba(148, 163, 184, 0.35) 1px, transparent 1px), linear-gradient(to bottom, rgba(148, 163, 184, 0.35) 1px, transparent 1px)',
-            backgroundSize: '36px 36px',
-            transform: 'rotateX(65deg)',
+              'linear-gradient(to right, rgba(148,163,184,0.4) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.4) 1px, transparent 1px)',
+            backgroundSize: '38px 38px',
+            transform: 'rotateX(66deg)',
             transformOrigin: 'bottom center'
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 20% 20%, #fff 0.6px, transparent 0.6px), radial-gradient(circle at 70% 60%, #fff 0.6px, transparent 0.6px)',
+            backgroundSize: '90px 90px, 130px 130px'
           }}
         />
       </div>
 
-      {/* Interactive 3D Stage */}
       <div
-        className="relative w-[84%] max-w-[390px] transition-transform duration-200 ease-out"
-        style={{
-          transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-          transformStyle: 'preserve-3d'
-        }}
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ perspective: '1100px' }}
       >
-        {/* Rotating orbital ring behind centerpiece */}
-        <svg
-          viewBox="0 0 320 320"
-          className="pointer-events-none absolute -inset-10 w-[calc(100%+5rem)] h-[calc(100%+5rem)] opacity-35 animate-[spin_28s_linear_infinite]"
-          style={{ transform: 'translateZ(-20px)' }}
-        >
-          <circle
-            cx="160"
-            cy="160"
-            r="142"
-            fill="none"
-            stroke="url(#orbitGrad)"
-            strokeWidth="1.5"
-            strokeDasharray="6 8"
-          />
-          <circle cx="160" cy="18" r="4" fill="#38BDF8" />
-          <circle cx="298" cy="185" r="3.5" fill="#34D399" />
-          <defs>
-            <linearGradient id="orbitGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#38BDF8" />
-              <stop offset="100%" stopColor="#34D399" />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        {/* Back depth card */}
         <div
-          className="hidden sm:block absolute inset-0 translate-x-4 translate-y-4 rounded-3xl border border-white/10 bg-white/[0.04]"
-          style={{ transform: 'translateZ(-15px) translate(16px, 16px)' }}
-        />
-
-        {/* Main 3D Glassmorphic Assessment Card */}
-        <div
-          className="relative rounded-3xl border border-white/20 bg-white/[0.10] backdrop-blur-xl p-5 sm:p-6 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.65)] text-white space-y-4"
-          style={{ transform: 'translateZ(35px)' }}
+          className="relative scale-[0.72] sm:scale-90 lg:scale-100 transition-transform duration-200 ease-out"
+          style={{
+            transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+            transformStyle: 'preserve-3d'
+          }}
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-cyan-400/20 border border-cyan-300/30 flex items-center justify-center">
-                <Cpu className="w-4 h-4 text-cyan-300" />
-              </div>
-              <div>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-200/80">
-                  Competency Engine
-                </p>
-                <p className="text-xs sm:text-sm font-bold text-white leading-tight">
-                  CAT &amp; AI Evaluation
-                </p>
-              </div>
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="login-pulse-ring h-72 w-72 rounded-full border border-cyan-300/20" />
+          </div>
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="h-56 w-56 rounded-full border border-dashed border-cyan-200/25 login-orbit-ring">
+              <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-cyan-300 shadow-[0_0_12px_#67e8f9]" />
+              <span className="absolute -bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-emerald-300 shadow-[0_0_10px_#6ee7b7]" />
             </div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-400/15 border border-emerald-400/30 text-[10px] font-mono font-bold text-emerald-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              LIVE
-            </span>
           </div>
 
-          {/* Animated Competency Bars */}
-          <div className="space-y-2.5 pt-1">
-            {[
-              { label: 'System Architecture', pct: 94, color: 'from-cyan-400 to-blue-400' },
-              { label: 'Problem Solving & BARS', pct: 88, color: 'from-indigo-400 to-cyan-300' },
-              { label: 'Integrity & Proctoring', pct: 100, color: 'from-emerald-400 to-teal-300' }
-            ].map((item) => (
-              <div key={item.label} className="space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-200 font-medium flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    {item.label}
-                  </span>
-                  <span className="font-mono font-bold text-white">{item.pct}%</span>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full bg-gradient-to-r ${item.color} transition-all duration-1000`}
-                    style={{ width: `${item.pct}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+          <div className="login-float-soft" style={{ transformStyle: 'preserve-3d' }}>
+            <Cube size={152} label="RIGHT" style={{ transform: 'translateZ(0px)' }} />
           </div>
 
-          {/* Mini 3D Footer inside card */}
-          <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-300">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              Adaptive Scoring Active
-            </span>
-            <span className="font-mono text-cyan-200 font-semibold">40 Soal • LHA</span>
+          <div
+            className="absolute -top-28 -left-28 login-float"
+            style={{ transform: 'translateZ(90px)' }}
+          >
+            <Cube
+              size={74}
+              label="CAT"
+              accent="border-amber-300/50 bg-gradient-to-br from-amber-300/40 to-orange-500/15"
+            />
           </div>
-        </div>
 
-        {/* Floating 3D Shield Badge (Top-Left) */}
-        <div
-          className="hidden sm:flex absolute -top-6 -left-6 items-center gap-2 rounded-2xl border border-emerald-300/30 bg-[#0B1D47]/90 backdrop-blur-md px-3.5 py-2 shadow-xl animate-[bounce_5s_ease-in-out_infinite]"
-          style={{ transform: 'translateZ(75px)' }}
-        >
-          <div className="w-7 h-7 rounded-xl bg-emerald-400/20 flex items-center justify-center">
-            <ShieldCheck className="w-4 h-4 text-emerald-300" />
+          <div
+            className="absolute -bottom-24 -right-24 login-float-soft"
+            style={{ transform: 'translateZ(110px)', animationDelay: '-3s' }}
+          >
+            <Cube
+              size={64}
+              label="AI"
+              accent="border-emerald-300/50 bg-gradient-to-br from-emerald-300/40 to-teal-500/15"
+            />
           </div>
-          <div>
-            <p className="text-[9px] font-mono uppercase tracking-wider text-emerald-300/90">
-              Verified Guard
-            </p>
-            <p className="text-[11px] font-bold text-white leading-tight">AI Proctoring</p>
-          </div>
-        </div>
 
-        {/* Floating 3D Score Badge (Bottom-Right) */}
-        <div
-          className="hidden sm:flex absolute -bottom-5 -right-5 items-center gap-2.5 rounded-2xl border border-cyan-300/30 bg-[#0B1D47]/90 backdrop-blur-md px-3.5 py-2 shadow-xl animate-[bounce_6s_ease-in-out_infinite]"
-          style={{ transform: 'translateZ(70px)' }}
-        >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-sm">
-            <Award className="w-4 h-4" />
+          <div
+            className="absolute -top-16 -right-24 login-float"
+            style={{ transform: 'translateZ(60px)', animationDelay: '-4.5s' }}
+          >
+            <Cube
+              size={52}
+              label="LHA"
+              accent="border-violet-300/50 bg-gradient-to-br from-violet-300/40 to-indigo-500/15"
+            />
           </div>
-          <div>
-            <p className="text-[9px] font-mono uppercase tracking-wider text-cyan-200">
-              Skor Komposit
-            </p>
-            <p className="text-xs font-extrabold font-mono text-white leading-tight">
-              92.4 <span className="text-[10px] font-normal text-slate-300">/ 100</span>
-            </p>
+
+          <div className="hidden sm:flex absolute -bottom-10 -left-24 items-center gap-2 rounded-2xl border border-emerald-300/30 bg-[#08152F]/85 backdrop-blur-md px-3.5 py-2 shadow-xl login-float">
+            <div className="w-7 h-7 rounded-xl bg-emerald-400/20 flex items-center justify-center">
+              <ShieldCheck className="w-4 h-4 text-emerald-300" />
+            </div>
+            <div>
+              <p className="text-[9px] font-mono uppercase tracking-wider text-emerald-300/90">
+                Verified Guard
+              </p>
+              <p className="text-[11px] font-bold text-white leading-tight">AI Proctoring</p>
+            </div>
+          </div>
+
+          <div className="hidden sm:flex absolute -top-10 left-16 items-center gap-2 rounded-2xl border border-amber-300/30 bg-[#08152F]/85 backdrop-blur-md px-3 py-1.5 shadow-xl login-float-soft">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span className="text-[10px] font-mono font-bold text-amber-100">Adaptive Scoring</span>
+          </div>
+
+          <div className="hidden sm:flex absolute bottom-16 -right-16 items-center gap-2.5 rounded-2xl border border-cyan-300/30 bg-[#08152F]/85 backdrop-blur-md px-3.5 py-2 shadow-xl login-float">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-sm">
+              <Award className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-[9px] font-mono uppercase tracking-wider text-cyan-200">
+                Skor Komposit
+              </p>
+              <p className="text-xs font-extrabold font-mono text-white leading-tight">
+                92.4 <span className="text-[10px] font-normal text-slate-300">/ 100</span>
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Bottom Label Bar */}
       <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-4 sm:right-4 flex items-center justify-between gap-2 rounded-2xl bg-white/90 backdrop-blur-md px-3.5 py-2 border border-white/70 shadow-xs">
         <span className="text-[11px] sm:text-xs font-bold text-[#0F275C] truncate">
           Portal Asesmen &amp; Seleksi Terpadu

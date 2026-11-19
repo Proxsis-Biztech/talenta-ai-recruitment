@@ -994,3 +994,42 @@ select optgroup {
   letter-spacing: 0.05em;
   color: #94a3b8;
 }
+
+@keyframes login-cube-spin {
+  from { transform: rotateX(-18deg) rotateY(0deg); }
+  to { transform: rotateX(-18deg) rotateY(360deg); }
+}
+
+@keyframes login-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -16px, 0); }
+}
+
+@keyframes login-float-soft {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-2deg); }
+  50% { transform: translate3d(0, -10px, 0) rotate(2deg); }
+}
+
+@keyframes login-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes login-pulse-ring {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.06); }
+}
+
+.login-cube-spin { animation: login-cube-spin 22s linear infinite; transform-style: preserve-3d; }
+.login-float { animation: login-float 7s ease-in-out infinite; }
+.login-float-soft { animation: login-float-soft 9s ease-in-out infinite; }
+.login-orbit-ring { animation: login-orbit 28s linear infinite; }
+.login-pulse-ring { animation: login-pulse-ring 6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .login-cube-spin,
+  .login-float,
+  .login-float-soft,
+  .login-orbit-ring,
+  .login-pulse-ring { animation: none; }
+}
