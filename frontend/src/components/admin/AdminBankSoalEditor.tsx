@@ -263,6 +263,221 @@ const getQuestionCategory = (question: Pick<BankQuestion, 'category'>): Question
 const createQuestionId = (category: QuestionCategory): string =>
   `${category === 'psikotes' ? 'PSI' : 'SOAL'}-${Math.floor(400 + Math.random() * 500)}`;
 
+
+function QuestionFormFields({
+  question,
+  onChange,
+  onSave,
+  onCancel,
+  onUploadAttachment,
+  onRemoveAttachment,
+  headerLabel
+}: {
+  question: BankQuestion;
+  onChange: (patch: Partial<BankQuestion>) => void;
+  onSave: () => void;
+  onCancel?: () => void;
+  onUploadAttachment?: (file: File) => void;
+  onRemoveAttachment?: () => void;
+  headerLabel: string;
+}) {
+  return (
+    <div className="space-y-4 text-xs">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+        <span className="font-bold text-ink text-sm">{headerLabel}</span>
+        <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-bold">
+          ID: {question.id}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div>
+          <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Kategori Soal</label>
+          <select
+            value={getQuestionCategory(question)}
+            onChange={(e) => onChange({ category: e.target.value as QuestionCategory })}
+            className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
+          >
+            <option value="psikotes">Soal Psikotes</option>
+            <option value="kompetensi">Uji Kompetensi</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Tipe Soal</label>
+          <select
+            value={question.type}
+            onChange={(e) => onChange({ type: e.target.value as BankQuestion['type'] })}
+            className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
+          >
+            <option value="Pilihan Ganda">Pilihan Ganda</option>
+            <option value="Multi-Select">Multi-Select</option>
+            <option value="Isian Singkat">Isian Singkat</option>
+            <option value="Esai">Esai</option>
+            <option value="Matching">Matching</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Tingkat Kesulitan</label>
+          <select
+            value={question.difficulty}
+            onChange={(e) => onChange({ difficulty: e.target.value as BankQuestion['difficulty'] })}
+            className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
+          >
+            <option value="Mudah">Mudah</option>
+            <option value="Sedang">Sedang</option>
+            <option value="Sulit">Sulit</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Status Butir</label>
+          <select
+            value={question.status}
+            onChange={(e) => onChange({ status: e.target.value as BankQuestion['status'] })}
+            className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
+          >
+            <option value="Published">Published</option>
+            <option value="Review">Review</option>
+            <option value="Draft">Draft</option>
+            <option value="Retired">Retired</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="block font-bold text-ink mb-1">Kompetensi yang Diuji</label>
+        <input
+          type="text"
+          value={question.competency}
+          onChange={(e) => onChange({ competency: e.target.value })}
+          placeholder="Contoh: Database Optimization, System Architecture..."
+          className="w-full px-3 py-2 rounded-lg border border-border-slate text-xs outline-none focus:border-primary-navy"
+        />
+      </div>
+
+      <div>
+        <label className="block font-bold text-ink mb-1">Teks Pertanyaan (Studi Kasus / Soal):</label>
+        <textarea
+          rows={4}
+          value={question.text}
+          onChange={(e) => onChange({ text: e.target.value })}
+          placeholder="Tuliskan butir soal secara lengkap..."
+          className="w-full p-3 rounded-xl border border-border-slate focus:border-primary-navy text-xs outline-none leading-relaxed"
+        />
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <label className="block font-bold text-ink flex items-center gap-1.5">
+            <Paperclip className="w-3.5 h-3.5 text-primary-navy" />
+            Lampiran butir soal (PDF/DOCX/gambar)
+          </label>
+          <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700 cursor-pointer hover:bg-slate-100">
+            <Upload className="w-3 h-3" />
+            Unggah
+            <input
+              type="file"
+              className="hidden"
+              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file && onUploadAttachment) onUploadAttachment(file);
+                event.target.value = '';
+              }}
+            />
+          </label>
+        </div>
+        {question.attachmentUrl ? (
+          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-700">
+            <a href={question.attachmentUrl} target="_blank" rel="noreferrer" className="truncate hover:underline">
+              {question.attachmentName || question.attachmentUrl}
+            </a>
+            <button
+              type="button"
+              onClick={() => onRemoveAttachment?.()}
+              className="text-rose-600 hover:text-rose-700 cursor-pointer"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-500">
+            Lampiran ditampilkan pada panel split-view peserta.
+          </p>
+        )}
+      </div>
+
+      {(question.type === 'Pilihan Ganda' || question.type === 'Multi-Select') && (
+        <div className="space-y-2">
+          <label className="block font-bold text-ink">
+            Opsi Pilihan Jawaban &amp; Kunci Benar (Klik huruf untuk set kunci):
+          </label>
+          {question.options.map((opt, oIdx) => (
+            <div key={opt.key} className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const newOpts =
+                    question.type === 'Pilihan Ganda'
+                      ? question.options.map((o, i) => ({ ...o, isCorrect: i === oIdx }))
+                      : question.options.map((o, i) =>
+                          i === oIdx ? { ...o, isCorrect: !o.isCorrect } : o
+                        );
+                  onChange({ options: newOpts });
+                }}
+                className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 cursor-pointer ${
+                  opt.isCorrect ? 'bg-success-green text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+                title="Klik untuk set kunci benar"
+              >
+                {opt.key}
+              </button>
+              <input
+                type="text"
+                value={opt.text}
+                onChange={(e) => {
+                  const newOpts = question.options.map((o, i) =>
+                    i === oIdx ? { ...o, text: e.target.value } : o
+                  );
+                  onChange({ options: newOpts });
+                }}
+                className="flex-1 px-3 py-2 rounded-lg border border-border-slate text-xs outline-none"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div>
+        <label className="block font-bold text-ink mb-1">Kunci &amp; Pembahasan Soal:</label>
+        <textarea
+          rows={2}
+          value={question.explanation}
+          onChange={(e) => onChange({ explanation: e.target.value })}
+          placeholder="Penjelasan teknis kenapa opsi tersebut benar..."
+          className="w-full p-2.5 rounded-lg border border-border-slate focus:border-primary-navy text-xs outline-none leading-relaxed"
+        />
+      </div>
+
+      <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+        {onCancel && (
+          <Button variant="outline" size="sm" onClick={onCancel}>
+            Batal
+          </Button>
+        )}
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={onSave}
+          className="flex items-center gap-1.5 cursor-pointer shadow-xs"
+        >
+          <Save className="w-3.5 h-3.5" />
+          <span>Simpan Butir Soal</span>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function AdminBankSoalEditor() {
   const [viewMode, setViewMode] = useState<'programs' | 'table' | 'editor' | 'stats' | 'factsheet'>('programs');
   const [activeCategory, setActiveCategory] = useState<QuestionCategory>('psikotes');
@@ -456,10 +671,52 @@ export function AdminBankSoalEditor() {
     setQuestions((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   };
 
-  const handleInlineCommit = () => {
-    void saveMasterRecord('bank-soal', 'questions', questions);
-    void syncProgramQuestions(selectedProgramCode, questions).catch(() => undefined);
+  const commitQuestions = (next: BankQuestion[]) => {
+    setQuestions(next);
+    void saveMasterRecord('bank-soal', 'questions', next);
+    void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
     showToast('Perubahan soal tersimpan dan disinkronkan.');
+  };
+
+  const handleInlineCommit = () => commitQuestions(questions);
+
+  const handleInlineAttachmentUpload = async (question: BankQuestion, file: File) => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    const programQuestions = questions.filter(
+      (item) => (item.programCode || programs[0]?.id || 'SE-402') === selectedProgramCode
+    );
+    const orderNo = programQuestions.findIndex((item) => item.id === question.id) + 1;
+    if (orderNo <= 0) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('programCode', selectedProgramCode);
+    formData.append('orderNo', String(orderNo));
+    try {
+      const response = await axios.post('/api/admin/questions/attachment', formData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+      });
+      const stored = response.data?.data;
+      if (!stored) return;
+      commitQuestions(
+        questions.map((item) =>
+          item.id === question.id
+            ? {
+                ...item,
+                attachmentUrl: stored.url,
+                attachmentName: stored.name,
+                attachmentMime: stored.mime
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      setCaseMessage(
+        axios.isAxiosError(error)
+          ? error.response?.data?.error || 'Gagal mengunggah lampiran soal.'
+          : 'Gagal mengunggah lampiran soal.'
+      );
+    }
   };
 
   const handleSaveQuestion = () => {
@@ -1170,67 +1427,22 @@ export function AdminBankSoalEditor() {
                   <span className="font-semibold text-slate-700">ID Soal:</span>
                   <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300">{q.id}</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Tipe Soal</label>
-                    <select
-                      value={q.type}
-                      onChange={(e) =>
-                        handleInlineFieldChange(q.id, { type: e.target.value as BankQuestion['type'] })
-                      }
-                      onBlur={handleInlineCommit}
-                      className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 bg-white cursor-pointer focus:outline-none focus:border-primary-navy"
-                    >
-                      <option value="Pilihan Ganda">Pilihan Ganda</option>
-                      <option value="Multi-Select">Multi-Select</option>
-                      <option value="Isian Singkat">Isian Singkat</option>
-                      <option value="Esai">Esai</option>
-                      <option value="Matching">Matching</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Kompetensi</label>
-                    <input
-                      value={q.competency}
-                      onChange={(e) => handleInlineFieldChange(q.id, { competency: e.target.value })}
-                      onBlur={handleInlineCommit}
-                      className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs text-slate-800 bg-white focus:outline-none focus:border-primary-navy"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Tingkat</label>
-                    <select
-                      value={q.difficulty}
-                      onChange={(e) =>
-                        handleInlineFieldChange(q.id, { difficulty: e.target.value as BankQuestion['difficulty'] })
-                      }
-                      onBlur={handleInlineCommit}
-                      className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 bg-white cursor-pointer focus:outline-none focus:border-primary-navy"
-                    >
-                      <option value="Mudah">Mudah</option>
-                      <option value="Sedang">Sedang</option>
-                      <option value="Sulit">Sulit</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Pertanyaan</label>
-                  <textarea
-                    rows={2}
-                    value={q.text}
-                    onChange={(e) => handleInlineFieldChange(q.id, { text: e.target.value })}
-                    onBlur={handleInlineCommit}
-                    placeholder="Tuliskan teks soal..."
-                    className="w-full p-2.5 rounded-lg border border-slate-300 text-xs text-slate-800 leading-relaxed focus:outline-none focus:border-primary-navy"
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
-                  <span>P-value: <strong className="font-mono text-slate-700">{Number.isFinite(Number(q.pValue)) ? Number(q.pValue).toFixed(2) : '—'}</strong></span>
-                  {q.options.length > 0 && <span>{q.options.length} opsi</span>}
-                  <span className="text-slate-400">Perubahan tersimpan otomatis saat keluar dari kolom.</span>
-                </div>
+                <QuestionFormFields
+                  question={q}
+                  onChange={(patch) => handleInlineFieldChange(q.id, patch)}
+                  onSave={handleInlineCommit}
+                  onUploadAttachment={(file) => void handleInlineAttachmentUpload(q, file)}
+                  onRemoveAttachment={() =>
+                    commitQuestions(
+                      questions.map((item) =>
+                        item.id === q.id
+                          ? { ...item, attachmentUrl: null, attachmentName: null, attachmentMime: null }
+                          : item
+                      )
+                    )
+                  }
+                  headerLabel={`Detail Soal #${index + 1}`}
+                />
               </div>
             ))}
           </div>
@@ -1254,269 +1466,23 @@ export function AdminBankSoalEditor() {
 
       {/* ─── TAB 2: Soal Editor (inline di halaman yang sama) ─── */}
       {viewMode === 'editor' && (
-        <div id="question-editor" className="grid grid-cols-1 lg:grid-cols-12 gap-6 scroll-mt-24">
-          {/* Left Form (7 cols) */}
-          <div className="lg:col-span-7 space-y-4 text-xs">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <span className="font-bold text-ink text-sm">
-                {isEditingExisting ? `Edit Soal: ${activeQuestion.id}` : 'Tambah Butir Soal Baru'}
-              </span>
-              <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-bold">
-                ID: {activeQuestion.id}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Kategori Soal</label>
-                <select
-                  value={getQuestionCategory(activeQuestion)}
-                  onChange={(e) =>
-                    setActiveQuestion({
-                      ...activeQuestion,
-                      category: e.target.value as QuestionCategory
-                    })
-                  }
-                  className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
-                >
-                  <option value="psikotes">Soal Psikotes</option>
-                  <option value="kompetensi">Uji Kompetensi</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Tipe Soal</label>
-                <select
-                  value={activeQuestion.type}
-                  onChange={(e) => setActiveQuestion({ ...activeQuestion, type: e.target.value as any })}
-                  className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
-                >
-                  <option value="Pilihan Ganda">Pilihan Ganda</option>
-                  <option value="Multi-Select">Multi-Select</option>
-                  <option value="Isian Singkat">Isian Singkat</option>
-                  <option value="Esai">Esai</option>
-                  <option value="Matching">Matching</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Tingkat Kesulitan</label>
-                <select
-                  value={activeQuestion.difficulty}
-                  onChange={(e) => setActiveQuestion({ ...activeQuestion, difficulty: e.target.value as any })}
-                  className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
-                >
-                  <option value="Mudah">Mudah</option>
-                  <option value="Sedang">Sedang</option>
-                  <option value="Sulit">Sulit</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Status Butir</label>
-                <select
-                  value={activeQuestion.status}
-                  onChange={(e) => setActiveQuestion({ ...activeQuestion, status: e.target.value as any })}
-                  className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
-                >
-                  <option value="Published">Published</option>
-                  <option value="Review">Review</option>
-                  <option value="Draft">Draft</option>
-                  <option value="Retired">Retired</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block font-bold text-ink mb-1">Kompetensi yang Diuji</label>
-              <input
-                type="text"
-                value={activeQuestion.competency}
-                onChange={(e) => setActiveQuestion({ ...activeQuestion, competency: e.target.value })}
-                placeholder="Contoh: Database Optimization, System Architecture..."
-                className="w-full px-3 py-2 rounded-lg border border-border-slate text-xs outline-none focus:border-primary-navy"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-ink mb-1">Teks Pertanyaan (Studi Kasus / Soal):</label>
-              <textarea
-                rows={4}
-                value={activeQuestion.text}
-                onChange={(e) => setActiveQuestion({ ...activeQuestion, text: e.target.value })}
-                placeholder="Tuliskan butir soal secara lengkap..."
-                className="w-full p-3 rounded-xl border border-border-slate focus:border-primary-navy text-xs outline-none leading-relaxed"
-              />
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <label className="block font-bold text-ink flex items-center gap-1.5">
-                  <Paperclip className="w-3.5 h-3.5 text-primary-navy" />
-                  Lampiran butir soal (PDF/DOCX/gambar)
-                </label>
-                <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700 cursor-pointer hover:bg-slate-100">
-                  <Upload className="w-3 h-3" />
-                  Unggah
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void handleQuestionAttachmentUpload(file);
-                      event.target.value = '';
-                    }}
-                  />
-                </label>
-              </div>
-              {activeQuestion.attachmentUrl ? (
-                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-700">
-                  <a href={activeQuestion.attachmentUrl} target="_blank" rel="noreferrer" className="truncate hover:underline">
-                    {activeQuestion.attachmentName || activeQuestion.attachmentUrl}
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => setActiveQuestion((prev) => ({ ...prev, attachmentUrl: null, attachmentName: null, attachmentMime: null }))}
-                    className="text-rose-600 hover:text-rose-700 cursor-pointer"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-500">
-                  Lampiran ditampilkan pada panel split-view peserta. Simpan soal terlebih dahulu bila baru dibuat.
-                </p>
-              )}
-            </div>
-
-            {/* Opsi Jawaban (for Pilihan Ganda / Multi-Select) */}
-            {(activeQuestion.type === 'Pilihan Ganda' || activeQuestion.type === 'Multi-Select') && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block font-bold text-ink">
-                    Opsi Pilihan Jawaban &amp; Kunci Benar (Klik huruf untuk set kunci):
-                  </label>
-                </div>
-                {activeQuestion.options.map((opt, oIdx) => (
-                  <div key={opt.key} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        let newOpts: typeof activeQuestion.options;
-                        if (activeQuestion.type === 'Pilihan Ganda') {
-                          newOpts = activeQuestion.options.map((o, i) => ({
-                            ...o,
-                            isCorrect: i === oIdx
-                          }));
-                        } else {
-                          newOpts = activeQuestion.options.map((o, i) =>
-                            i === oIdx ? { ...o, isCorrect: !o.isCorrect } : o
-                          );
-                        }
-                        setActiveQuestion({ ...activeQuestion, options: newOpts });
-                      }}
-                      className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 cursor-pointer ${
-                        opt.isCorrect ? 'bg-success-green text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                      }`}
-                      title="Klik untuk set kunci benar"
-                    >
-                      {opt.key}
-                    </button>
-                    <input
-                      type="text"
-                      value={opt.text}
-                      onChange={(e) => {
-                        const newOpts = [...activeQuestion.options];
-                        newOpts[oIdx].text = e.target.value;
-                        setActiveQuestion({ ...activeQuestion, options: newOpts });
-                      }}
-                      className="flex-1 px-3 py-2 rounded-lg border border-border-slate text-xs outline-none"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div>
-              <label className="block font-bold text-ink mb-1">Kunci &amp; Pembahasan Soal:</label>
-              <textarea
-                rows={2}
-                value={activeQuestion.explanation}
-                onChange={(e) => setActiveQuestion({ ...activeQuestion, explanation: e.target.value })}
-                placeholder="Penjelasan teknis kenapa opsi tersebut benar..."
-                className="w-full p-2.5 rounded-lg border border-border-slate focus:border-primary-navy text-xs outline-none leading-relaxed"
-              />
-            </div>
-
-            <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
-              <Button variant="outline" size="sm" onClick={() => setViewMode('table')}>
-                Batal
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleSaveQuestion}
-                className="flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>Simpan Butir Soal</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Right Live Preview (5 cols) */}
-          <div className="lg:col-span-5 bg-slate-50 rounded-2xl border border-slate-200 p-5 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <span className="font-heading font-bold text-xs uppercase tracking-wider text-ink">
-                Live Preview (Tampilan Peserta CAT)
-              </span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
-                {activeQuestion.type}
-              </span>
-            </div>
-
-            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
-              <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                <span>{activeQuestion.id}</span>
-                <span className="text-amber-600 font-bold">{activeQuestion.difficulty}</span>
-              </div>
-              <p className="text-xs font-semibold text-slate-900 leading-relaxed">
-                {activeQuestion.text || '(Teks soal belum diisi)'}
-              </p>
-
-              {activeQuestion.options.length > 0 && (
-                <div className="space-y-1.5 pt-2">
-                  {activeQuestion.options.map((opt) => (
-                    <div
-                      key={opt.key}
-                      className={`p-2.5 rounded-lg border text-xs flex items-center gap-2.5 ${
-                        opt.isCorrect
-                          ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 font-medium'
-                          : 'border-slate-200 bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] ${
-                          opt.isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
-                        }`}
-                      >
-                        {opt.key}
-                      </span>
-                      <span>{opt.text}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {activeQuestion.explanation && (
-                <div className="mt-3 p-2.5 rounded-lg bg-blue-50/80 border border-blue-200/60 text-[11px] text-blue-950">
-                  <span className="font-bold block mb-0.5">💡 Pembahasan:</span>
-                  <span>{activeQuestion.explanation}</span>
-                </div>
-              )}
-            </div>
-          </div>
+        <div id="question-editor" className="scroll-mt-24 max-w-3xl">
+          <QuestionFormFields
+            question={activeQuestion}
+            onChange={(patch) => setActiveQuestion((prev) => ({ ...prev, ...patch }))}
+            onSave={handleSaveQuestion}
+            onCancel={() => setViewMode('table')}
+            onUploadAttachment={(file) => void handleQuestionAttachmentUpload(file)}
+            onRemoveAttachment={() =>
+              setActiveQuestion((prev) => ({
+                ...prev,
+                attachmentUrl: null,
+                attachmentName: null,
+                attachmentMime: null
+              }))
+            }
+            headerLabel={isEditingExisting ? `Edit Soal: ${activeQuestion.id}` : 'Tambah Butir Soal Baru'}
+          />
         </div>
       )}
 
