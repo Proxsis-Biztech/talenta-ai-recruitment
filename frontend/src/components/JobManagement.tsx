@@ -930,16 +930,16 @@ export default function JobManagement() {
       )}
 
       {/* Jobs Table */}
-      <Table className="table-fixed min-w-[980px]">
+      <Table className="w-full">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[48px] text-center">#</TableHead>
-            <TableHead className="w-[34%]">Formasi Lowongan</TableHead>
-            <TableHead className="w-[18%]">Konfigurasi Interview AI</TableHead>
-            <TableHead className="w-[11%]">Status Perekrutan</TableHead>
-            <TableHead className="w-[15%]">Periode Asesmen</TableHead>
-            <TableHead className="w-[10%]">Tanggal Rilis</TableHead>
-            <TableHead className="w-[12%] text-right">Opsi Pengelolaan</TableHead>
+            <TableHead className="hidden sm:table-cell w-[48px] text-center">#</TableHead>
+            <TableHead className="lg:w-[34%]">Formasi Lowongan</TableHead>
+            <TableHead className="hidden md:table-cell lg:w-[18%]">Konfigurasi Interview AI</TableHead>
+            <TableHead className="lg:w-[11%]">Status Perekrutan</TableHead>
+            <TableHead className="hidden lg:table-cell lg:w-[15%]">Periode Asesmen</TableHead>
+            <TableHead className="hidden xl:table-cell xl:w-[10%]">Tanggal Rilis</TableHead>
+            <TableHead className="lg:w-[12%] text-right">Opsi</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -964,7 +964,7 @@ export default function JobManagement() {
           ) : (
             filteredJobs.map((job, idx) => (
               <TableRow key={job.id}>
-                <TableCell className="text-center font-mono text-muted-slate">
+                <TableCell className="hidden sm:table-cell text-center font-mono text-muted-slate">
                   {(idx + 1).toString().padStart(2, '0')}
                 </TableCell>
                 <TableCell className="align-top">
@@ -1000,7 +1000,7 @@ export default function JobManagement() {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded font-mono text-xs">
                       <Clock className="w-3 h-3 text-slate-400" />
@@ -1021,7 +1021,7 @@ export default function JobManagement() {
                     {getJobScheduleStatus(job).label.toUpperCase()}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-slate-600 text-xs font-mono">
+                <TableCell className="hidden lg:table-cell text-slate-600 text-xs font-mono">
                   {job.assessmentDate || job.assessmentEndDate ? (
                     <div className="space-y-0.5">
                       <div className="whitespace-nowrap">
@@ -1039,7 +1039,7 @@ export default function JobManagement() {
                     '—'
                   )}
                 </TableCell>
-                <TableCell className="text-slate-500 whitespace-nowrap text-xs">
+                <TableCell className="hidden xl:table-cell text-slate-500 whitespace-nowrap text-xs">
                   {new Date(job.createdAt).toLocaleDateString('id-ID', {
                     year: 'numeric',
                     month: 'short',
@@ -1054,7 +1054,7 @@ export default function JobManagement() {
                       onClick={() => openEditModal(job)}
                       leftIcon={<Edit2 className="w-3 h-3" />}
                     >
-                      Ubah
+                      <span className="hidden sm:inline">Ubah</span>
                     </Button>
                     <Button
                       variant="danger"
@@ -1062,7 +1062,7 @@ export default function JobManagement() {
                       onClick={() => handleDeleteJob(job.id, job.title)}
                       leftIcon={<Trash2 className="w-3 h-3" />}
                     >
-                      Hapus
+                      <span className="hidden sm:inline">Hapus</span>
                     </Button>
                   </div>
                 </TableCell>
