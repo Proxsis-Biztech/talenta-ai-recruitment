@@ -1533,9 +1533,9 @@ ${app.interviewResult ? `
               )}
             </div>
 
-            {/* Desktop & Tablet Responsive Table */}
-            <div className="hidden md:block overflow-x-auto">
-            <Table className="min-w-[1160px]">
+            {/* Desktop & Tablet Responsive Table (Tanpa Scroll Horizontal) */}
+            <div className="hidden md:block">
+            <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10 text-center">
@@ -1549,14 +1549,14 @@ ${app.interviewResult ? `
                       className="rounded border-slate-300 text-primary-navy focus:ring-primary-navy cursor-pointer"
                     />
                   </TableHead>
-                  <TableHead className="min-w-[220px]">Peserta</TableHead>
-                  <TableHead className="min-w-[170px]">Perusahaan</TableHead>
-                  <TableHead className="min-w-[320px] lg:min-w-[380px]">Program Asesmen</TableHead>
-                  <TableHead className="min-w-[95px] whitespace-nowrap">Skor CAT</TableHead>
-                  <TableHead className="min-w-[100px] whitespace-nowrap">Tahap</TableHead>
-                  <TableHead className="min-w-[100px] whitespace-nowrap">Status</TableHead>
-                  <TableHead className="min-w-[120px] whitespace-nowrap">Tanggal Daftar</TableHead>
-                  <TableHead className="min-w-[170px] text-right whitespace-nowrap">Aksi</TableHead>
+                  <TableHead className="w-[24%] xl:w-[21%]">Peserta</TableHead>
+                  <TableHead className="hidden xl:table-cell w-[15%]">Perusahaan</TableHead>
+                  <TableHead className="w-[34%] xl:w-[28%]">Program Asesmen</TableHead>
+                  <TableHead className="w-[10%] xl:w-[9%] whitespace-nowrap">Skor CAT</TableHead>
+                  <TableHead className="hidden lg:table-cell w-[9%] whitespace-nowrap">Tahap</TableHead>
+                  <TableHead className="w-[11%] xl:w-[9%] whitespace-nowrap">Status</TableHead>
+                  <TableHead className="hidden xl:table-cell w-[10%] whitespace-nowrap">Tanggal Daftar</TableHead>
+                  <TableHead className="w-[104px] text-right whitespace-nowrap">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1645,17 +1645,20 @@ ${app.interviewResult ? `
                           </TableCell>
 
                           {/* PT / Perusahaan */}
-                          <TableCell className="text-sm text-slate-700">
-                            <span className="block max-w-[180px] truncate" title={getCompanyForApplicant(app)}>
+                          <TableCell className="hidden xl:table-cell text-sm text-slate-700">
+                            <span className="block truncate" title={getCompanyForApplicant(app)}>
                               {getCompanyForApplicant(app)}
                             </span>
                           </TableCell>
 
-                          {/* Program */}
-                          <TableCell className="text-sm text-slate-600 min-w-[320px] lg:min-w-[380px]">
-                            <div className="space-y-1.5">
+                          {/* Program Asesmen */}
+                          <TableCell className="text-sm text-slate-600">
+                            <div className="space-y-1 min-w-0">
                               <span className="block line-clamp-2 font-medium text-slate-800 leading-snug" title={getProgramForApplicant(app)}>
                                 {getProgramForApplicant(app).replace(/\s*\([^)]*\)\s*$/, '')}
+                              </span>
+                              <span className="block xl:hidden text-[11px] text-slate-500 truncate">
+                                {getCompanyForApplicant(app)}
                               </span>
                               {getAssessmentCodesForApplicant(app).length > 0 && (
                                 <div className="flex flex-wrap gap-1">
@@ -1690,7 +1693,7 @@ ${app.interviewResult ? `
                           </TableCell>
 
                           {/* Tahap */}
-                          <TableCell className="text-sm text-slate-700">
+                          <TableCell className="hidden lg:table-cell text-sm text-slate-700 truncate">
                             {getStageForApplicant(app)}
                           </TableCell>
 
@@ -1709,7 +1712,7 @@ ${app.interviewResult ? `
                           </TableCell>
 
                           {/* Tgl Daftar */}
-                          <TableCell className="text-sm text-slate-500 whitespace-nowrap">
+                          <TableCell className="hidden xl:table-cell text-sm text-slate-500 whitespace-nowrap">
                             {regDate}
                           </TableCell>
 
@@ -1719,48 +1722,9 @@ ${app.interviewResult ? `
                               <button
                                 onClick={() => setSelectedApplicant(app)}
                                 className="p-1.5 text-slate-400 hover:text-primary-navy hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                                title="Lihat Dossier Lengkap"
+                                title="Lihat Detail Peserta"
                               >
                                 <Eye className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setTimelineCandidate({
-                                    name: app.fullName,
-                                    email: app.email,
-                                    program: getProgramForApplicant(app),
-                                    pt: getCompanyForApplicant(app),
-                                    compositeScore:
-                                      app.compositeEvaluation?.compositeScore ?? app.interviewScore ?? null,
-                                    integrityScore: (app.compositeEvaluation as any)?.integrityScore ?? null,
-                                    createdAt: app.createdAt,
-                                    screeningStatus: app.screeningStatus,
-                                    screeningScore: app.screeningScore,
-                                    interviewStatus: app.interviewStatus,
-                                    interviewScore: app.interviewScore,
-                                    examAttempt: (app as any).examAttempt,
-                                    proctorFlags: app.proctorFlags
-                                  });
-                                  setTimelineOpen(true);
-                                }}
-                                className="p-1.5 text-slate-400 hover:text-primary-navy hover:bg-soft-blue rounded-lg transition-colors cursor-pointer"
-                                title="Timeline Vertikal Audit Trail"
-                              >
-                                <Clock className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => openDecisionModal(app, 'offer')}
-                                className="p-1.5 text-slate-400 hover:text-blue-accent hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                                title="Draft Surat Keputusan AI"
-                              >
-                                <Send className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => openPrintReport(app)}
-                                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                                title="Cetak Dossier Eksekutif"
-                              >
-                                <Printer className="w-4 h-4" />
                               </button>
                               {userRole === 'superadmin' && (
                                 <>
