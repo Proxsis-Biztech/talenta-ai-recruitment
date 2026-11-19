@@ -452,6 +452,16 @@ export function AdminBankSoalEditor() {
     }
   };
 
+  const handleInlineFieldChange = (id: string, patch: Partial<BankQuestion>) => {
+    setQuestions((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  };
+
+  const handleInlineCommit = () => {
+    void saveMasterRecord('bank-soal', 'questions', questions);
+    void syncProgramQuestions(selectedProgramCode, questions).catch(() => undefined);
+    showToast('Perubahan soal tersimpan dan disinkronkan.');
+  };
+
   const handleSaveQuestion = () => {
     if (!activeQuestion.text.trim()) {
       alert('Teks pertanyaan tidak boleh kosong.');
@@ -1113,76 +1123,10 @@ export function AdminBankSoalEditor() {
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <div>
-                <h3 className="text-sm font-bold text-ink">
-                  Konfigurasi Tipe Soal — {activeCategory === 'psikotes' ? 'Soal Psikotes' : 'Uji Kompetensi'}
-                </h3>
-                <p className="text-[11px] text-slate-500">
-                  Atur tipe soal yang aktif pada kategori ini, klik kartu untuk memfilter, atau klik + untuk menambah soal.
-                </p>
-              </div>
-              <Badge variant={activeCategory === 'psikotes' ? 'navy' : 'navy'}>
-                {enabledTypesForActiveCategory.length}/{ALL_QUESTION_TYPES.length} Tipe Aktif
-              </Badge>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {typeCounts.map(({ type, count, enabled }) => (
-                <div
-                  key={type}
-                  className={`rounded-xl border p-3 space-y-2 transition ${
-                    filterType === type
-                      ? 'border-primary-navy bg-soft-blue'
-                      : enabled
-                      ? 'border-slate-200 bg-slate-50/60'
-                      : 'border-dashed border-slate-200 bg-slate-50/30 opacity-70'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setFilterType(filterType === type ? 'all' : type)}
-                      className="text-left cursor-pointer min-w-0"
-                    >
-                      <span className="block text-xs font-bold text-slate-800 truncate">{type}</span>
-                      <span className="block font-mono text-lg font-extrabold text-primary-navy mt-0.5">
-                        {count}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCreateNew(type, activeCategory)}
-                      className="w-7 h-7 rounded-lg bg-primary-navy text-white flex items-center justify-center hover:bg-navy-dark cursor-pointer shrink-0"
-                      title={`Tambah soal ${type} (${activeCategory === 'psikotes' ? 'Psikotes' : 'Uji Kompetensi'})`}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
-                    <span className="text-[10px] text-slate-500">soal tersimpan</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleTypeEnabled(type)}
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition ${
-                        enabled
-                          ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                          : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                      }`}
-                      title={enabled ? 'Klik untuk nonaktifkan tipe ini' : 'Klik untuk aktifkan tipe ini'}
-                    >
-                      {enabled ? 'Aktif' : 'Nonaktif'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="space-y-3">
             {filtered.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-xs text-slate-500">
-                Belum ada soal untuk filter ini. Gunakan tombol + pada konfigurasi tipe soal.
+                Belum ada soal untuk filter ini. Gunakan tombol Tambah Soal Baru di bawah daftar.
               </div>
             ) : filtered.map((q, index) => (
               <div key={q.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
@@ -1226,11 +1170,66 @@ export function AdminBankSoalEditor() {
                   <span className="font-semibold text-slate-700">ID Soal:</span>
                   <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300">{q.id}</span>
                 </div>
-                <p className="text-sm font-medium text-slate-800 leading-relaxed">{q.text || '(Teks soal belum diisi)'}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Tipe Soal</label>
+                    <select
+                      value={q.type}
+                      onChange={(e) =>
+                        handleInlineFieldChange(q.id, { type: e.target.value as BankQuestion['type'] })
+                      }
+                      onBlur={handleInlineCommit}
+                      className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 bg-white cursor-pointer focus:outline-none focus:border-primary-navy"
+                    >
+                      <option value="Pilihan Ganda">Pilihan Ganda</option>
+                      <option value="Multi-Select">Multi-Select</option>
+                      <option value="Isian Singkat">Isian Singkat</option>
+                      <option value="Esai">Esai</option>
+                      <option value="Matching">Matching</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Kompetensi</label>
+                    <input
+                      value={q.competency}
+                      onChange={(e) => handleInlineFieldChange(q.id, { competency: e.target.value })}
+                      onBlur={handleInlineCommit}
+                      className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs text-slate-800 bg-white focus:outline-none focus:border-primary-navy"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Tingkat</label>
+                    <select
+                      value={q.difficulty}
+                      onChange={(e) =>
+                        handleInlineFieldChange(q.id, { difficulty: e.target.value as BankQuestion['difficulty'] })
+                      }
+                      onBlur={handleInlineCommit}
+                      className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 bg-white cursor-pointer focus:outline-none focus:border-primary-navy"
+                    >
+                      <option value="Mudah">Mudah</option>
+                      <option value="Sedang">Sedang</option>
+                      <option value="Sulit">Sulit</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Pertanyaan</label>
+                  <textarea
+                    rows={2}
+                    value={q.text}
+                    onChange={(e) => handleInlineFieldChange(q.id, { text: e.target.value })}
+                    onBlur={handleInlineCommit}
+                    placeholder="Tuliskan teks soal..."
+                    className="w-full p-2.5 rounded-lg border border-slate-300 text-xs text-slate-800 leading-relaxed focus:outline-none focus:border-primary-navy"
+                  />
+                </div>
+
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
-                  <span>Kompetensi: <strong className="text-slate-700">{q.competency}</strong></span>
                   <span>P-value: <strong className="font-mono text-slate-700">{Number.isFinite(Number(q.pValue)) ? Number(q.pValue).toFixed(2) : '—'}</strong></span>
                   {q.options.length > 0 && <span>{q.options.length} opsi</span>}
+                  <span className="text-slate-400">Perubahan tersimpan otomatis saat keluar dari kolom.</span>
                 </div>
               </div>
             ))}
