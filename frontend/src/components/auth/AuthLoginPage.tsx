@@ -18,6 +18,7 @@ import {
   Check
 } from 'lucide-react';
 import { Button, Badge, Modal } from '../ui';
+import { LoginAssessment3D } from './LoginAssessment3D';
 import { setActiveSessionUser } from '../../services/userRegistryService';
 import {
   clearPortalSession,
@@ -312,21 +313,8 @@ export default function AuthLoginPage() {
   return (
     <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden w-full bg-white p-3 sm:p-4 lg:p-5 font-sans antialiased grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-stretch">
       {/* Left Visual Panel */}
-      <div className="lg:col-span-6 relative rounded-[24px] overflow-hidden bg-[#E8E6E1] h-44 sm:h-56 lg:h-full">
-        <img
-          src="/img/login-hero-3d.jpg"
-          alt="RIGHT Assessment Platform"
-          className="absolute inset-0 w-full h-full object-cover object-center"
-        />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#0F275C]/35 via-transparent to-transparent" />
-        <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-4 sm:right-4 flex items-center justify-between gap-2 rounded-2xl bg-white/85 backdrop-blur-md px-3.5 py-2 border border-white/70 shadow-xs">
-          <span className="text-[11px] sm:text-xs font-bold text-[#0F275C] truncate">
-            Portal Asesmen &amp; Seleksi Terpadu
-          </span>
-          <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#0F275C] text-white shrink-0">
-            CAT • AI
-          </span>
-        </div>
+      <div className="lg:col-span-6 relative rounded-[24px] overflow-hidden h-56 sm:h-64 lg:h-full">
+        <LoginAssessment3D />
       </div>
 
       {/* Right Form Panel */}
