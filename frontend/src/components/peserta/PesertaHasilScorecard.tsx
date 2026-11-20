@@ -39,7 +39,6 @@ interface ExamResult {
 export default function PesertaHasilScorecard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [downloading, setDownloading] = useState(false);
   const [downloadingLha, setDownloadingLha] = useState(false);
   const [lhaNotice, setLhaNotice] = useState<string | null>(null);
   const [result, setResult] = useState<ExamResult | null>(null);
@@ -147,17 +146,7 @@ export default function PesertaHasilScorecard() {
   }, [activeProgram.id]);
 
   const handleDownloadPDF = () => {
-    setLhaNotice(null);
-    if (!lha?.signed) {
-      setLhaNotice('Laporan PDF final baru dapat dicetak setelah LHA resmi diterbitkan oleh Dewan Asesor.');
-      return;
-    }
-    setDownloading(true);
-    try {
-      window.print();
-    } finally {
-      setDownloading(false);
-    }
+    void handleDownloadLha();
   };
 
   const handleDownloadLha = async () => {
@@ -486,11 +475,11 @@ export default function PesertaHasilScorecard() {
             <Button
               variant="primary"
               onClick={handleDownloadPDF}
-              disabled={downloading}
+              disabled={downloadingLha}
               className="w-full sm:w-auto justify-center text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 font-bold shadow-sm cursor-pointer"
             >
               <Download className="w-4 h-4" />
-              <span>{downloading ? 'Membuka dialog cetak...' : 'Cetak / Simpan PDF'}</span>
+              <span>{downloadingLha ? 'Menyiapkan PDF...' : 'Cetak / Simpan PDF'}</span>
             </Button>
           </div>
         </div>
