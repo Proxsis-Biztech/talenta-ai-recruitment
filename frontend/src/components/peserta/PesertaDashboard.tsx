@@ -545,7 +545,7 @@ export default function PesertaDashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-7 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 xl:gap-10 items-start">
           {/* ─── Kolom Utama Kiri (8/12) ─── */}
           <div className="xl:col-span-8 space-y-8">
             {/* Section 1: Asesmen Saya (3 Pastel Cards ala Reference) */}
@@ -805,7 +805,7 @@ export default function PesertaDashboard() {
           </div>
 
           {/* ─── Panel Kanan (4/12): Search + Kalender + Jadwal Mendatang ─── */}
-          <aside className="xl:col-span-4 bg-white rounded-3xl border border-slate-200/70 p-6 shadow-xs space-y-7">
+          <aside className="xl:col-span-4 bg-white rounded-3xl border border-slate-200/70 p-6 shadow-xs space-y-8">
             {/* Search Input */}
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
