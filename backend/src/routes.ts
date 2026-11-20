@@ -71,6 +71,7 @@ import {
   listAdminHelpdeskTickets,
   replyAdminHelpdeskTicket,
   updateHelpdeskTicketStatus,
+  markAdminHelpdeskRead,
   streamPortalHelpdesk,
   streamAdminHelpdesk
 } from './controllers/FaqKnowledgeController';
@@ -243,6 +244,7 @@ router.get('/admin/helpdesk/stream', authenticateToken, streamAdminHelpdesk);
 router.get('/admin/helpdesk/tickets', authenticateToken, listAdminHelpdeskTickets);
 router.post('/admin/helpdesk/tickets/:id/reply', authenticateToken, replyAdminHelpdeskTicket);
 router.patch('/admin/helpdesk/tickets/:id/status', authenticateToken, updateHelpdeskTicketStatus);
+router.patch('/admin/helpdesk/tickets/:id/read', authenticateToken, markAdminHelpdeskRead);
 
 router.get('/peserta/faq-knowledge', authenticatePortal, listPesertaFaqItems);
 router.post('/peserta/faq-chat', authenticatePortal, askPesertaFaqChatbot);

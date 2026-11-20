@@ -66,6 +66,8 @@ export interface HelpdeskTicket {
   subject: string;
   source: 'chatbot-faq' | 'exam-player' | 'portal';
   status: 'open' | 'in_progress' | 'resolved';
+  unreadByAdmin?: boolean;
+  lastReadByAdminAt?: string;
   messages: HelpdeskMessageItem[];
   createdAt: string;
   updatedAt: string;
@@ -937,9 +939,51 @@ export const createHelpdeskTicket = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    const now = new Date().toISOString();
+    const normEmail = candidateEmail.toLowerCase();
+    const normCode = candidateCode.toLowerCase();
+    const normName = candidateName.toLowerCase();
+
+    // 1 thread per account: reuse existing thread if candidate/asesor already has one
+    const allExisting = await loadAllTickets();
+    const existingThread = allExisting.find((t) => {
+      if (normEmail && t.candidateEmail && t.candidateEmail.toLowerCase() === normEmail) return true;
+      if (normCode && normCode !== '-' && t.candidateCode && t.candidateCode.toLowerCase() === normCode) return true;
+      if (!normEmail && normName && t.candidateName.toLowerCase() === normName && t.tenantKey === tenantKey) return true;
+      return false;
+    });
+
+    if (existingThread) {
+      existingThread.candidateName = candidateName || existingThread.candidateName;
+      if (companyName) {
+        existingThread.companyName = companyName;
+        existingThread.tenantKey = tenantKey;
+      }
+      if (req.body.programCode) {
+        existingThread.programCode = String(req.body.programCode);
+      }
+      existingThread.status = 'open';
+      existingThread.unreadByAdmin = true;
+      existingThread.messages.push({
+        id: `msg-${crypto.randomUUID().slice(0, 8)}`,
+        senderRole: requesterRole,
+        senderName: candidateName,
+        text: message,
+        createdAt: now
+      });
+
+      const saved = await saveTicket(existingThread);
+      publish('helpdesk:admin', 'ticket-updated', {
+        ticketId: saved.id,
+        ticketCode: saved.ticketCode,
+        candidateName: saved.candidateName,
+        requesterRole: saved.requesterRole || 'peserta'
+      });
+      return res.status(200).json({ ticket: saved });
+    }
+
     const id = `tkt-${crypto.randomUUID().slice(0, 8)}`;
     const ticketCode = `HD-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${id.slice(-4).toUpperCase()}`;
-    const now = new Date().toISOString();
 
     const ticket: HelpdeskTicket = {
       id,
@@ -954,6 +998,7 @@ export const createHelpdeskTicket = async (req: AuthRequest, res: Response) => {
       subject: subject.slice(0, 120),
       source: (req.body.source as HelpdeskTicket['source']) || 'chatbot-faq',
       status: 'open',
+      unreadByAdmin: true,
       messages: [
         {
           id: `msg-${crypto.randomUUID().slice(0, 8)}`,
@@ -1020,6 +1065,7 @@ export const replyPesertaHelpdeskTicket = async (req: AuthRequest, res: Response
       createdAt: new Date().toISOString()
     });
     if (ticket.status === 'resolved') ticket.status = 'open';
+    ticket.unreadByAdmin = true;
 
     const saved = await saveTicket(ticket);
     publish('helpdesk:admin', 'ticket-updated', { ticketId: saved.id });
@@ -1030,9 +1076,53 @@ export const replyPesertaHelpdeskTicket = async (req: AuthRequest, res: Response
   }
 };
 
+const mergeTicketsByAccount = (tickets: HelpdeskTicket[]): HelpdeskTicket[] => {
+  const map = new Map<string, HelpdeskTicket>();
+  for (const t of tickets) {
+    const accountKey = (
+      t.candidateEmail ||
+      (t.candidateCode && t.candidateCode !== '-' ? t.candidateCode : '') ||
+      `${t.candidateName}|${t.tenantKey}`
+    )
+      .trim()
+      .toLowerCase();
+
+    const existing = map.get(accountKey);
+    if (!existing) {
+      map.set(accountKey, {
+        ...t,
+        messages: [...t.messages].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+      });
+    } else {
+      const seenMsgIds = new Set(existing.messages.map((m) => m.id));
+      const mergedMessages = [...existing.messages];
+      for (const m of t.messages) {
+        if (!seenMsgIds.has(m.id)) {
+          mergedMessages.push(m);
+          seenMsgIds.add(m.id);
+        }
+      }
+      mergedMessages.sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      const isNewer = new Date(t.updatedAt).getTime() > new Date(existing.updatedAt).getTime();
+      map.set(accountKey, {
+        ...(isNewer ? t : existing),
+        unreadByAdmin: Boolean(existing.unreadByAdmin || t.unreadByAdmin),
+        messages: mergedMessages
+      });
+    }
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
+};
+
 export const listAdminHelpdeskTickets = async (req: AuthRequest, res: Response) => {
   try {
-    const all = await loadAllTickets();
+    const all = mergeTicketsByAccount(await loadAllTickets());
     const role = (req.user?.role || '').toLowerCase();
     if (role === 'superadmin') {
       return res.json({ tickets: all });
@@ -1078,6 +1168,8 @@ export const replyAdminHelpdeskTicket = async (req: AuthRequest, res: Response) 
     } else if (ticket.status === 'open') {
       ticket.status = 'in_progress';
     }
+    ticket.unreadByAdmin = false;
+    ticket.lastReadByAdminAt = new Date().toISOString();
 
     const saved = await saveTicket(ticket);
     publish('helpdesk:admin', 'ticket-updated', { ticketId: saved.id });
@@ -1114,11 +1206,35 @@ export const updateHelpdeskTicketStatus = async (req: AuthRequest, res: Response
 
     const ticket = JSON.parse(rec.value) as HelpdeskTicket;
     ticket.status = status as HelpdeskTicket['status'];
+    ticket.unreadByAdmin = false;
+    ticket.lastReadByAdminAt = new Date().toISOString();
     const saved = await saveTicket(ticket);
     return res.json({ ticket: saved });
   } catch (err) {
     console.error('updateHelpdeskTicketStatus error:', err);
     return res.status(500).json({ error: 'Gagal memperbarui status tiket.' });
+  }
+};
+
+export const markAdminHelpdeskRead = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = String(req.params.id || '');
+    const rec = await prisma.masterRecord.findUnique({
+      where: { scope_key: { scope: 'helpdesk-tickets', key: id } }
+    });
+    if (!rec) return res.status(404).json({ error: 'Percakapan tidak ditemukan.' });
+
+    const ticket = JSON.parse(rec.value) as HelpdeskTicket;
+    ticket.unreadByAdmin = false;
+    ticket.lastReadByAdminAt = new Date().toISOString();
+    if (ticket.status === 'open') {
+      ticket.status = 'in_progress';
+    }
+    const saved = await saveTicket(ticket);
+    return res.json({ ticket: saved });
+  } catch (err) {
+    console.error('markAdminHelpdeskRead error:', err);
+    return res.status(500).json({ error: 'Gagal menandai percakapan sudah dibaca.' });
   }
 };
 

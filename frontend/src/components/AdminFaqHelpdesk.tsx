@@ -69,6 +69,7 @@ interface HelpdeskTicket {
   subject: string;
   source: 'chatbot-faq' | 'exam-player' | 'portal';
   status: 'open' | 'in_progress' | 'resolved';
+  unreadByAdmin?: boolean;
   messages: HelpdeskMessageItem[];
   createdAt: string;
   updatedAt: string;
@@ -557,9 +558,34 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
     }
   };
 
+  const markTicketAsRead = useCallback(async (ticketId: string) => {
+    setTickets((prev) =>
+      prev.map((t) =>
+        t.id === ticketId
+          ? { ...t, unreadByAdmin: false, status: t.status === 'open' ? 'in_progress' : t.status }
+          : t
+      )
+    );
+    try {
+      await axios.patch(
+        `/api/admin/helpdesk/tickets/${ticketId}/read`,
+        {},
+        { headers: getAuthHeaders() }
+      );
+    } catch {
+      // silent
+    }
+  }, []);
+
   const filteredTickets = tickets.filter((t) => (statusFilter === 'all' ? true : t.status === statusFilter));
   const selectedTicket = filteredTickets.find((t) => t.id === selectedTicketId) || filteredTickets[0] || null;
-  const openCount = tickets.filter((t) => t.status === 'open').length;
+  const openCount = tickets.filter((t) => t.unreadByAdmin !== false && t.status === 'open').length;
+
+  useEffect(() => {
+    if (activeTab === 'helpdesk' && selectedTicket && selectedTicket.unreadByAdmin !== false) {
+      markTicketAsRead(selectedTicket.id);
+    }
+  }, [activeTab, selectedTicket?.id, selectedTicket?.unreadByAdmin, markTicketAsRead]);
 
   return (
     <div className="space-y-6">
@@ -1129,7 +1155,10 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
                         <button
                           key={t.id}
                           type="button"
-                          onClick={() => setSelectedTicketId(t.id)}
+                          onClick={() => {
+                            setSelectedTicketId(t.id);
+                            markTicketAsRead(t.id);
+                          }}
                           className={`w-full text-left p-3 rounded-xl border transition-all ${
                             selectedTicket?.id === t.id
                               ? 'border-blue-accent bg-blue-50/40'
