@@ -221,7 +221,7 @@ export default function PesertaDashboard() {
   const isCatCompleted = ['submitted', 'graded', 'completed'].includes(activeExam?.status || '');
   const activeScore = activeExam?.score ?? activeHistory?.score ?? null;
   const isInterviewCompleted = dashboard?.interview?.status === 'completed';
-  const faceVerified = Boolean(dashboard?.user?.faceVerifiedAt || dashboard?.user?.deviceCheckCompletedAt);
+  const faceVerified = Boolean(dashboard?.user?.deviceCheckCompletedAt);
   const profileComplete = dashboard
     ? Boolean(
         dashboard?.user?.name &&
@@ -454,7 +454,7 @@ export default function PesertaDashboard() {
         list.push({
           id: `start-${program.code}`,
           title: program.title,
-          desc: `Asesmen dimulai • ${program.code}`,
+          desc: `Asesmen dimulai • ${program.title}`,
           dateLabel: formatDate(startDate.toISOString()),
           durationLabel: `${program.durationMinutes || 90} Menit`,
           dotColor: 'bg-[#F95B2B]',
@@ -987,7 +987,7 @@ export default function PesertaDashboard() {
                     agendaItems.push({
                       id: `program-${program.code}`,
                       title: program.title,
-                      detail: `${program.code} • ${start ? formatShortDate(program.assessmentDate) : '-'} – ${end ? formatShortDate(program.assessmentEndDate) : '-'}`,
+                      detail: `${start ? formatShortDate(program.assessmentDate) : '-'} – ${end ? formatShortDate(program.assessmentEndDate) : '-'}`,
                       tone: 'blue'
                     });
                   }

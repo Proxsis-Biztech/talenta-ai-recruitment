@@ -54,7 +54,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
 
   // Active candidate session data
   const activeUser = useMemo(() => getActiveSessionUser(), []);
-  const faceVerified = Boolean(getPortalUser()?.faceVerifiedAt);
+  const faceVerified = Boolean(getPortalUser()?.deviceCheckCompletedAt);
   const [interviewCalled, setInterviewCalled] = useState(
     () => localStorage.getItem('peserta_interview_called') === 'true' || getPortalUser()?.interviewStatus === 'called'
   );
@@ -86,12 +86,16 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [consentSaving, setConsentSaving] = useState(false);
   const [notifItems, setNotifItems] = useState<Array<{
-    programCode: string;
-    programTitle: string;
-    status: string;
-    submittedAt: string | null;
-    lha?: { status?: string } | null;
+    id: string;
+    title: string;
+    detail: string;
+    timestamp: string | null;
+    tone: 'blue' | 'emerald' | 'rose' | 'amber';
   }>>([]);
+  const [notifSeenCount, setNotifSeenCount] = useState<number>(() => {
+    const raw = localStorage.getItem('peserta_notif_seen_count');
+    return raw ? Number(raw) || 0 : 0;
+  });
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   const savedFacePhoto = localStorage.getItem('candidate_face_photo');
@@ -102,28 +106,161 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
     localStorage.setItem('peserta_sidebar_collapsed', String(next));
   };
 
-  useEffect(() => {
-    if (!notifModalOpen) return;
+  const loadNotifications = React.useCallback(async () => {
     const token = getPortalToken();
     if (!token) return;
-    axios
-      .get('/api/portal/history', { headers: { Authorization: `Bearer ${token}` } })
-      .then((response) => setNotifItems(Array.isArray(response.data?.data) ? response.data.data : []))
-      .catch(() => setNotifItems([]));
-  }, [notifModalOpen]);
+    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      const [dashRes, histRes, consentRes, helpdeskRes] = await Promise.all([
+        axios.get('/api/portal/dashboard', { headers }).catch(() => null),
+        axios.get('/api/portal/history', { headers }).catch(() => null),
+        axios.get('/api/portal/consent', { headers }).catch(() => null),
+        axios.get('/api/peserta/helpdesk/tickets', { headers }).catch(() => null)
+      ]);
+
+      const events: Array<{
+        id: string;
+        title: string;
+        detail: string;
+        timestamp: string | null;
+        tone: 'blue' | 'emerald' | 'rose' | 'amber';
+        sortAt: number;
+      }> = [];
+
+      const dash = dashRes?.data;
+      if (dash?.user?.deviceCheckCompletedAt) {
+        const ts = dash.user.deviceCheckCompletedAt;
+        events.push({
+          id: 'device-check-done',
+          title: 'Verifikasi Perangkat & Kamera Selesai',
+          detail: 'Kesiapan kamera, mikrofon, dan biometrik telah tervalidasi.',
+          timestamp: ts,
+          tone: 'emerald',
+          sortAt: new Date(ts).getTime()
+        });
+      }
+
+      if (consentRes?.data?.accepted && consentRes.data?.consentedAt) {
+        const ts = consentRes.data.consentedAt;
+        events.push({
+          id: 'consent-accepted',
+          title: `Pakta Integritas & UU PDP (${consentRes.data.version || 'v1.0'})`,
+          detail: 'Persetujuan perlindungan data pribadi telah tercatat di server.',
+          timestamp: ts,
+          tone: 'blue',
+          sortAt: new Date(ts).getTime()
+        });
+      }
+
+      const histList = Array.isArray(histRes?.data?.data) ? histRes.data.data : [];
+      histList.forEach((item: any) => {
+        const done = ['submitted', 'graded', 'completed'].includes(String(item.status || ''));
+        if (done) {
+          const ts = item.submittedAt || null;
+          events.push({
+            id: `exam-${item.programCode}`,
+            title: item.programTitle || 'Asesmen Teknis',
+            detail: `Ujian CAT telah dikumpulkan${item.lha?.status === 'signed' ? ' • LHA resmi tersedia' : ' • Menunggu penilaian asesor'}.`,
+            timestamp: ts,
+            tone: item.lha?.status === 'signed' ? 'emerald' : 'blue',
+            sortAt: ts ? new Date(ts).getTime() : 0
+          });
+        }
+        if (item.lha?.status === 'signed' && item.lha?.signedAt) {
+          events.push({
+            id: `lha-${item.programCode}`,
+            title: `LHA Resmi Diterbitkan — ${item.programTitle || 'Program Asesmen'}`,
+            detail: 'Laporan Hasil Asesmen sudah ditandatangani dan siap diunduh.',
+            timestamp: item.lha.signedAt,
+            tone: 'emerald',
+            sortAt: new Date(item.lha.signedAt).getTime()
+          });
+        }
+      });
+
+      const progList = Array.isArray(dash?.programs) ? dash.programs : [];
+      progList.forEach((p: any) => {
+        if (!histList.some((h: any) => String(h.programCode).toUpperCase() === String(p.code).toUpperCase())) {
+          events.push({
+            id: `assigned-${p.code}`,
+            title: p.title || 'Program Asesmen Terdaftar',
+            detail: 'Program asesmen ditugaskan ke akun Anda dan siap dikerjakan.',
+            timestamp: p.assessmentDate || null,
+            tone: 'amber',
+            sortAt: p.assessmentDate ? new Date(p.assessmentDate).getTime() : 0
+          });
+        }
+      });
+
+      if (dash?.interview?.scheduledAt) {
+        const ts = dash.interview.scheduledAt;
+        events.push({
+          id: 'interview-sched',
+          title: 'Jadwal Wawancara Asesor',
+          detail: dash.interview.status === 'completed' ? 'Sesi wawancara telah selesai dilaksanakan.' : 'Jadwal sesi wawancara Anda telah ditentukan.',
+          timestamp: ts,
+          tone: dash.interview.status === 'completed' ? 'emerald' : 'blue',
+          sortAt: new Date(ts).getTime()
+        });
+      }
+
+      const tickets = Array.isArray(helpdeskRes?.data?.tickets) ? helpdeskRes.data.tickets : [];
+      tickets.forEach((t: any) => {
+        const adminReplies = Array.isArray(t.messages)
+          ? t.messages.filter((m: any) => m.senderRole === 'admin')
+          : [];
+        const latestAdmin = adminReplies[adminReplies.length - 1];
+        if (latestAdmin) {
+          events.push({
+            id: `hd-${t.id}-${latestAdmin.id}`,
+            title: 'Balasan Baru dari Helpdesk Internal',
+            detail: latestAdmin.text,
+            timestamp: latestAdmin.createdAt,
+            tone: 'blue',
+            sortAt: new Date(latestAdmin.createdAt).getTime()
+          });
+        }
+      });
+
+      events.sort((a, b) => b.sortAt - a.sortAt);
+      setNotifItems(events.map(({ sortAt: _s, ...rest }) => rest));
+    } catch {
+      // silent
+    }
+  }, []);
 
   useEffect(() => {
-    const sync = () =>
+    void loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    if (notifModalOpen) {
+      void loadNotifications().then(() => {
+        setNotifSeenCount((prev) => {
+          const next = Math.max(prev, notifItems.length);
+          localStorage.setItem('peserta_notif_seen_count', String(next));
+          return next;
+        });
+      });
+    }
+  }, [notifModalOpen, loadNotifications, notifItems.length]);
+
+  useEffect(() => {
+    const sync = () => {
       setInterviewCalled(
         localStorage.getItem('peserta_interview_called') === 'true' || getPortalUser()?.interviewStatus === 'called'
       );
+      void loadNotifications();
+    };
     window.addEventListener('interview-called', sync);
+    window.addEventListener('portal-event-updated', sync);
     window.addEventListener('storage', sync);
     return () => {
       window.removeEventListener('interview-called', sync);
+      window.removeEventListener('portal-event-updated', sync);
       window.removeEventListener('storage', sync);
     };
-  }, []);
+  }, [loadNotifications]);
 
   const navGroups = [
     {
@@ -189,6 +326,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setTermsModalOpen(false);
+      window.dispatchEvent(new Event('portal-event-updated'));
     } catch {
       window.alert('Gagal menyimpan persetujuan. Periksa koneksi lalu coba lagi.');
     } finally {
@@ -440,12 +578,18 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
 
             {/* Notification Bell (Functional popover modal) */}
             <button
-              onClick={() => setNotifModalOpen(true)}
+              onClick={() => {
+                setNotifModalOpen(true);
+                setNotifSeenCount(notifItems.length);
+                localStorage.setItem('peserta_notif_seen_count', String(notifItems.length));
+              }}
               className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer relative"
               title="Pemberitahuan Asesmen"
             >
               <Bell className="w-4.5 h-4.5" />
-              <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ring-2 ring-white ${interviewCalled ? 'bg-rose-500 animate-pulse' : 'bg-blue-600'}`} />
+              {(interviewCalled || notifItems.length > notifSeenCount) && (
+                <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ring-2 ring-white ${interviewCalled ? 'bg-rose-500 animate-pulse' : 'bg-blue-600'}`} />
+              )}
             </button>
 
             {/* Profile Dropdown Navigation (Top Right) */}
@@ -824,16 +968,34 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
             <p className="text-xs text-slate-500">Belum ada pemberitahuan asesmen.</p>
           ) : (
             notifItems.map((item) => (
-              <div key={item.programCode} className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 flex items-start gap-3">
-                <Bell className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+              <div
+                key={item.id}
+                className={`p-3.5 rounded-2xl border flex items-start gap-3 ${
+                  item.tone === 'emerald'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : item.tone === 'amber'
+                      ? 'bg-amber-50 border-amber-200'
+                      : item.tone === 'rose'
+                        ? 'bg-rose-50 border-rose-200'
+                        : 'bg-blue-50 border-blue-200'
+                }`}
+              >
+                <Bell
+                  className={`w-5 h-5 shrink-0 mt-0.5 ${
+                    item.tone === 'emerald'
+                      ? 'text-emerald-600'
+                      : item.tone === 'amber'
+                        ? 'text-amber-600'
+                        : item.tone === 'rose'
+                          ? 'text-rose-600'
+                          : 'text-blue-600'
+                  }`}
+                />
                 <div>
-                  <p className="font-bold text-primary-navy">{item.programTitle}</p>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Status: {item.status === 'submitted' || item.status === 'graded' || item.status === 'completed' ? 'Sudah dikerjakan' : 'Belum dikerjakan'}
-                    {item.lha?.status === 'signed' ? ' • LHA tersedia' : ''}
-                  </p>
+                  <p className="font-bold text-primary-navy">{item.title}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">{item.detail}</p>
                   <span className="text-[10px] text-slate-500 font-mono mt-1 block">
-                    {item.submittedAt ? new Date(item.submittedAt).toLocaleString('id-ID') : 'Belum ada waktu pengerjaan'}
+                    {item.timestamp ? new Date(item.timestamp).toLocaleString('id-ID') : 'Terjadwal'}
                   </span>
                 </div>
               </div>

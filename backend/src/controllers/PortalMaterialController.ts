@@ -72,7 +72,17 @@ export const getPortalMaterials = async (req: AuthRequest, res: Response) => {
           const itemProg = String(m?.programCode || '').trim().toUpperCase();
           if (itemProg && itemProg !== targetUpper) return false;
           const itemCode = String(m?.code || '').trim().toUpperCase();
-          if (otherCodes.some((oc) => itemCode === oc || itemCode === `MOD-${oc}` || itemCode.startsWith(`${oc}-`))) {
+          const itemTitle = String(m?.title || '').trim().toUpperCase();
+          if (
+            otherCodes.some(
+              (oc) =>
+                itemCode === oc ||
+                itemCode === `MOD-${oc}` ||
+                itemCode.startsWith(`${oc}-`) ||
+                itemTitle.includes(`(${oc})`) ||
+                itemTitle.includes(oc)
+            )
+          ) {
             return false;
           }
           return true;

@@ -40,6 +40,8 @@ export default function PesertaHasilScorecard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [downloading, setDownloading] = useState(false);
+  const [downloadingLha, setDownloadingLha] = useState(false);
+  const [lhaNotice, setLhaNotice] = useState<string | null>(null);
   const [result, setResult] = useState<ExamResult | null>(null);
   const [lha, setLha] = useState<any>(null);
   const [serverPrograms, setServerPrograms] = useState<Array<{ code: string; title: string }>>([]);
@@ -145,27 +147,37 @@ export default function PesertaHasilScorecard() {
   }, [activeProgram.id]);
 
   const handleDownloadPDF = () => {
+    setLhaNotice(null);
     setDownloading(true);
-    setTimeout(() => {
-      setDownloading(false);
-      window.print();
-    }, 300);
+    window.setTimeout(() => {
+      try {
+        window.print();
+      } finally {
+        setDownloading(false);
+      }
+    }, 100);
   };
 
   const handleDownloadLha = async () => {
+    setLhaNotice(null);
+    if (!lha?.signed) {
+      setLhaNotice('LHA resmi belum diterbitkan oleh Dewan Asesor. Silakan tunggu proses penilaian dan pengesahan selesai.');
+      return;
+    }
     const token = getPortalToken();
     const candidateCode = getPortalUser()?.candidateCode;
     if (!token || !candidateCode) {
-      window.alert('LHA resmi belum tersedia untuk akun ini.');
+      setLhaNotice('LHA resmi belum tersedia untuk akun ini.');
       return;
     }
+    setDownloadingLha(true);
     try {
       const response = await axios.get(`/api/asesor/lha/${encodeURIComponent(candidateCode)}/pdf`, {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob'
       });
       if (!response.data || Number(response.data.size) < 100) {
-        window.alert('LHA resmi belum tersedia untuk akun ini.');
+        setLhaNotice('Berkas LHA resmi belum tersedia untuk diunduh.');
         return;
       }
       const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
@@ -175,9 +187,11 @@ export default function PesertaHasilScorecard() {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(url);
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     } catch {
-      window.alert('LHA bertanda tangan belum tersedia. Menunggu finalisasi asesor.');
+      setLhaNotice('LHA resmi belum tersedia atau sedang dalam proses finalisasi asesor.');
+    } finally {
+      setDownloadingLha(false);
     }
   };
 
@@ -426,6 +440,13 @@ export default function PesertaHasilScorecard() {
           )}
         </div>
 
+        {lhaNotice && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <span>{lhaNotice}</span>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 print:hidden">
           <button
             onClick={() => navigate('/peserta')}
@@ -445,11 +466,20 @@ export default function PesertaHasilScorecard() {
             </Button>
             <Button
               variant="outline"
+              disabled={downloadingLha}
               onClick={() => void handleDownloadLha()}
-              className="w-full sm:w-auto justify-center text-xs sm:text-sm py-2.5 px-4 rounded-xl flex items-center gap-2 font-bold cursor-pointer"
+              className={`w-full sm:w-auto justify-center text-xs sm:text-sm py-2.5 px-4 rounded-xl flex items-center gap-2 font-bold cursor-pointer ${
+                !lha?.signed ? 'opacity-75' : ''
+              }`}
             >
               <Download className="w-4 h-4" />
-              <span>Unduh LHA Resmi</span>
+              <span>
+                {downloadingLha
+                  ? 'Mengunduh LHA...'
+                  : lha?.signed
+                    ? 'Unduh LHA Resmi'
+                    : 'Unduh LHA Resmi (Menunggu Terbit)'}
+              </span>
             </Button>
             <Button
               variant="primary"

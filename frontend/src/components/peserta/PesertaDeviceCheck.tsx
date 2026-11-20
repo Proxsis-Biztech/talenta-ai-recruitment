@@ -183,13 +183,16 @@ export default function PesertaDeviceCheck() {
       }
     } catch (err: any) {
       console.warn('getUserMedia error:', err);
-      // Fallback: If hardware not available or denied in sandbox, activate simulated mode gracefully
-      setCameraStatus('denied');
-      setMicStatus('denied');
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      const errName = String(err?.name || '');
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setCameraStatus('denied');
+        setMicStatus('denied');
         setErrorMessage('Izin kamera/mikrofon ditolak. Buka ikon kunci/kamera di address bar, pilih Allow, lalu klik Coba Ulang.');
       } else {
-        setErrorMessage('Kamera/mikrofon tidak terdeteksi. Pastikan perangkat terpasang, tidak dipakai aplikasi lain, lalu klik Coba Ulang.');
+        // No physical camera/mic detected: fall back cleanly to Simulation Mode so verification is not blocked
+        setCameraStatus('simulated');
+        setMicStatus('simulated');
+        setErrorMessage('Perangkat kamera/mikrofon fisik tidak terdeteksi — Mode Simulasi Perangkat Uji diaktifkan otomatis.');
       }
     }
   }, []);
@@ -461,6 +464,7 @@ export default function PesertaDeviceCheck() {
       }
       setValidationSuccess(true);
       setFaceError('');
+      window.dispatchEvent(new Event('portal-event-updated'));
       navigate('/peserta/asesmen');
     } catch (err) {
       setFaceError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal memvalidasi perangkat.' : 'Gagal memvalidasi perangkat.');
@@ -591,8 +595,25 @@ export default function PesertaDeviceCheck() {
               </span>
             )}
             {errorMessage && (
-              <div className="w-full mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
-                <strong>Panduan izin browser:</strong> 1) Klik ikon kunci/kamera di address bar → <em>Allow</em> untuk kamera &amp; mikrofon. 2) Tutup aplikasi lain yang memakai kamera. 3) Pilih kamera fisik (bukan virtual). 4) Klik <em>Coba Ulang</em>.
+              <div className="w-full mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <strong>Panduan izin browser:</strong> 1) Klik ikon kunci/kamera di address bar → ubah Kamera &amp; Mikrofon menjadi <em>Allow</em> (jika sempat <em>Block</em>, reset izin situs lalu muat ulang). 2) Tutup aplikasi lain yang memakai kamera (Zoom/Meet/OBS). 3) Pilih kamera fisik lalu klik <em>Coba Ulang</em>.
+                </div>
+                {cameraStatus === 'denied' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCameraStatus('simulated');
+                      setMicStatus('simulated');
+                      setCameraVerified(true);
+                      setMicVerified(true);
+                      setErrorMessage('');
+                    }}
+                    className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-900 text-white font-semibold hover:bg-amber-800 cursor-pointer"
+                  >
+                    Gunakan Mode Simulasi
+                  </button>
+                )}
               </div>
             )}
           </div>

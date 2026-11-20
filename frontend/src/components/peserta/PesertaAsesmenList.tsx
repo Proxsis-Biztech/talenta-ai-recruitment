@@ -199,10 +199,17 @@ export default function PesertaAsesmenList() {
     };
   }, [selectedProgramId]);
 
+  const stripProgramCodeFromLabel = (text: string) =>
+    String(text || '')
+      .replace(/\s*\((?:SE|CLD|FED|BMRI|CIMB|TLKM|AST|PRT)[A-Z0-9-]*\)/gi, '')
+      .trim();
+
   // Fetch materials for current program
   useEffect(() => {
     let cancelled = false;
     const token = getPortalToken();
+    setMaterials([]);
+    setSelectedModule(null);
 
     const loadLocalMaterials = () => {
       let savedList: MasterMateriItem[] = [];
@@ -213,9 +220,17 @@ export default function PesertaAsesmenList() {
 
       const pool = savedList.length > 0 ? savedList : INITIAL_MATERI_LIST;
       const currentProgId = (selectedProgramId || activeProg.id || '').trim().toUpperCase();
-      const matched = pool.filter(
-        (m) => String(m.code || '').trim().toUpperCase() === currentProgId
-      );
+      const matched = pool.filter((m: MasterMateriItem & { programCode?: string }) => {
+        const pCode = String(m.programCode || '').trim().toUpperCase();
+        const mCode = String(m.code || '').trim().toUpperCase();
+        const mTitle = String(m.title || '').trim().toUpperCase();
+        return (
+          pCode === currentProgId ||
+          mCode === currentProgId ||
+          mCode === `MOD-${currentProgId}` ||
+          mTitle.includes(`(${currentProgId})`)
+        );
+      });
       setMaterials(matched);
       if (matched.length > 0) {
         setSelectedModule(matched[0]);
@@ -232,13 +247,39 @@ export default function PesertaAsesmenList() {
           if (cancelled) return;
           if (Array.isArray(res.data?.data) && res.data.data.length > 0) {
             const targetUpper = String(selectedProgramId || activeProg.id || '').trim().toUpperCase();
+            const otherIds = Array.from(
+              new Set([
+                ...(activeUser?.assignedProgramIds || []),
+                ...serverPrograms.map((sp) => sp.code)
+              ])
+            )
+              .map((c) => String(c || '').trim().toUpperCase())
+              .filter((c) => c && c !== targetUpper);
+
             const filtered = res.data.data.filter((m: MasterMateriItem & { programCode?: string }) => {
               const itemProg = String(m?.programCode || '').trim().toUpperCase();
+              const itemCode = String(m?.code || '').trim().toUpperCase();
+              const itemTitle = String(m?.title || '').trim().toUpperCase();
               if (itemProg && targetUpper && itemProg !== targetUpper) return false;
+              if (
+                otherIds.some(
+                  (oc) =>
+                    itemCode === oc ||
+                    itemCode === `MOD-${oc}` ||
+                    itemCode.startsWith(`${oc}-`) ||
+                    itemTitle.includes(`(${oc})`)
+                )
+              ) {
+                return false;
+              }
               return true;
             });
-            setMaterials(filtered);
-            setSelectedModule(filtered[0] || null);
+            const sanitized = filtered.map((m: MasterMateriItem) => ({
+              ...m,
+              title: stripProgramCodeFromLabel(m.title)
+            }));
+            setMaterials(sanitized);
+            setSelectedModule(sanitized[0] || null);
           } else {
             loadLocalMaterials();
           }
@@ -361,11 +402,32 @@ export default function PesertaAsesmenList() {
     const allCatalog = getAllPrograms();
     const items: AsesmenItem[] = [];
 
+    const computeCardProgress = (pId: string, catDone: boolean, intDone: boolean) => {
+      const upper = String(pId || '').trim().toUpperCase();
+      const userKey = String(activeUser?.username || 'user').trim().toLowerCase();
+      let modMap: Record<string, boolean> = {};
+      try {
+        const raw = localStorage.getItem(`peserta_completed_modules_${userKey}_${upper}`);
+        modMap = raw ? JSON.parse(raw) : {};
+      } catch {}
+      const liveCodingDone = Boolean(liveCodingCompletedMap[upper]);
+      const isActiveRoom = upper === String(selectedProgramId || activeProg.id || '').trim().toUpperCase();
+      const modCount = isActiveRoom ? Math.max(materials.length, 1) : 1;
+      const modDoneCount = isActiveRoom
+        ? materials.filter((m) => modMap[m.id]).length
+        : Object.values(modMap).filter(Boolean).length;
+      const doneUnits =
+        Math.min(modDoneCount, modCount) + (catDone ? 1 : 0) + (liveCodingDone ? 1 : 0) + (intDone ? 1 : 0);
+      const totalUnits = modCount + 3;
+      return Math.round((doneUnits / (totalUnits || 1)) * 100);
+    };
+
     assignedIds.forEach((pId) => {
       const isPrimary = pId === activeProg.id;
       const catalogData = allCatalog.find((c) => c.id === pId);
       const catDone = isProgramCatCompleted(pId);
       const intDone = isProgramInterviewCompleted(pId);
+      const unifiedProgress = computeCardProgress(pId, catDone, intDone);
       const progExamScore =
         serverExamsByProgram[pId]?.score ??
         serverExamsByProgram[String(pId).trim().toUpperCase()]?.score;
@@ -388,7 +450,7 @@ export default function PesertaAsesmenList() {
           questions: `${activeProg.totalQuestions} Soal CAT`,
           passingScore: activeProg.passingScore,
           deadline: 'Hari ini, 23:59 WIB',
-          progress: intDone ? 100 : catDone ? 60 : 25,
+          progress: unifiedProgress,
           currentStageNumber: intDone ? 4 : catDone ? 3 : 2,
           score: (intDone ? serverInterview?.score : undefined) ?? progExamScore ?? serverExam?.score ?? undefined,
           description: activeProg.description,
@@ -425,7 +487,7 @@ export default function PesertaAsesmenList() {
             questions: `${catalogData?.totalQuestions || 40} Soal CAT`,
             passingScore: catalogData?.passingScore || sp?.passingScore || 70,
             deadline: 'Periode Aktif 2026',
-            progress: intDone ? 100 : catDone ? 60 : 0,
+            progress: unifiedProgress,
             currentStageNumber: intDone ? 4 : catDone ? 3 : 1,
             score: progExamScore ?? undefined,
             description:
@@ -448,7 +510,7 @@ export default function PesertaAsesmenList() {
     });
 
     return items;
-  }, [activeProg, activeUser, serverPrograms, serverExamsByProgram, isProgramCatCompleted, isProgramInterviewCompleted, serverInterview?.score, serverExam?.score]);
+  }, [activeProg, activeUser, serverPrograms, serverExamsByProgram, isProgramCatCompleted, isProgramInterviewCompleted, serverInterview?.score, serverExam?.score, liveCodingCompletedMap, materials, completedModules, selectedProgramId]);
 
   // View state: if an ID is present in URL, view that program's LMS room; otherwise, view the Cards Grid!
   const isViewingLmsRoom = Boolean(selectedProgramId);
@@ -562,7 +624,7 @@ export default function PesertaAsesmenList() {
                     >
                       {programs.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.id} — {p.title.length > 38 ? p.title.slice(0, 38) + '...' : p.title}
+                          {p.title.length > 48 ? p.title.slice(0, 48) + '...' : p.title}
                         </option>
                       ))}
                     </select>
@@ -574,9 +636,6 @@ export default function PesertaAsesmenList() {
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="space-y-3 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] font-semibold bg-white/10 border border-white/15 text-blue-100 px-3 py-1 rounded-full">
-                          {currentProgram.id}
-                        </span>
                         <span className="text-[11px] font-semibold bg-white/10 border border-white/15 text-blue-100 px-3 py-1 rounded-full">
                           {currentProgram.pt}
                         </span>
@@ -1240,7 +1299,7 @@ export default function PesertaAsesmenList() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari judul program, kode (SE-402, BMRI...), instansi, atau topik..."
+                  placeholder="Cari judul program, instansi, atau topik asesmen..."
                   className="w-full pl-10 pr-8 py-2.5 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 focus:border-primary-navy rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 transition outline-hidden focus:ring-2 focus:ring-primary-navy/20"
                 />
                 {searchQuery && (
@@ -1332,8 +1391,8 @@ export default function PesertaAsesmenList() {
                     <div className="space-y-4">
                       {/* Header Badges */}
                       <div className="flex items-center justify-between gap-2 pr-32">
-                        <span className="font-mono text-xs font-bold text-primary-navy bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200/60">
-                          {item.id}
+                        <span className="text-[11px] font-semibold text-primary-navy bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200/60 truncate">
+                          {item.category}
                         </span>
                         <Badge variant={item.badgeVariant}>{item.badgeStatus}</Badge>
                       </div>
