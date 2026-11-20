@@ -18,7 +18,6 @@ import {
   Check
 } from 'lucide-react';
 import { Button, Badge, Modal } from '../ui';
-import { LoginAssessment3D } from './LoginAssessment3D';
 import { setActiveSessionUser } from '../../services/userRegistryService';
 import {
   clearPortalSession,
@@ -311,26 +310,39 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden w-full bg-white p-3 sm:p-4 lg:p-5 font-sans antialiased grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-stretch">
-      {/* Left Visual Panel */}
-      <div className="lg:col-span-6 relative rounded-[24px] overflow-hidden h-56 sm:h-64 lg:h-full">
-        <LoginAssessment3D />
+    <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden relative w-full bg-[#DCEBFE] flex flex-col lg:flex-row items-center justify-center lg:justify-end p-4 sm:p-6 lg:p-10 font-sans antialiased">
+      {/* Full-bleed 3D Desk Background on Desktop */}
+      <div className="hidden lg:block absolute inset-0 z-0">
+        <img
+          src="/img/login-scene-right.jpg"
+          alt="RIGHT Assessment Platform"
+          className="w-full h-full object-cover object-left"
+        />
       </div>
 
-      {/* Right Form Panel */}
-      <div className="lg:col-span-6 flex flex-col justify-center px-4 sm:px-10 lg:px-14 py-4 lg:h-full lg:overflow-y-auto">
-        <div className="w-full max-w-[520px] mx-auto">
-          <div className="flex flex-col items-center text-center mb-6 sm:mb-7">
+      {/* Compact Mobile Header Illustration */}
+      <div className="lg:hidden w-full max-w-[460px] h-44 rounded-3xl overflow-hidden mb-4 shadow-md border border-white/70">
+        <img
+          src="/img/login-scene-right.jpg"
+          alt="RIGHT Assessment Platform"
+          className="w-full h-full object-cover object-left"
+        />
+      </div>
+
+      {/* Floating White Login Card on Right */}
+      <div className="relative z-10 w-full max-w-[460px] lg:mr-4 xl:mr-10 bg-white rounded-[28px] p-6 sm:p-8 lg:p-9 shadow-[0_30px_80px_-20px_rgba(15,39,92,0.32)] border border-white/90">
+        <div className="w-full mx-auto">
+          <div className="flex flex-col items-center text-center mb-5 sm:mb-6">
             <img
               src="/img/logoRIght.jpeg"
               alt="RIGHT Assessment Platform"
-              className="h-14 w-auto max-w-[210px] object-contain mb-4"
+              className="h-11 sm:h-12 w-auto max-w-[180px] object-contain mb-3.5"
             />
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-heading tracking-tight">
-              Masuk ke Akun Anda
+            <h1 className="text-2xl sm:text-[28px] font-extrabold text-slate-900 font-heading tracking-tight leading-tight">
+              Masuk ke Akun
             </h1>
-            <p className="text-sm sm:text-base text-slate-500 mt-2 leading-relaxed">
-              Selamat datang kembali! Masukkan detail akun Anda untuk masuk
+            <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+              Portal Asesmen &amp; Seleksi Terpadu RIGHT
             </p>
           </div>
 
