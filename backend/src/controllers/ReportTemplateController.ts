@@ -1,0 +1,203 @@
+import { Response } from 'express';
+import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import { type AuthRequest } from '../middleware/auth';
+
+const prisma = new PrismaClient();
+const TEMPLATE_DIR = path.join(__dirname, '../../uploads/report-templates');
+
+const ensureTemplateDir = () => {
+  if (!fs.existsSync(TEMPLATE_DIR)) fs.mkdirSync(TEMPLATE_DIR, { recursive: true });
+};
+
+export interface ReportTemplateConfig {
+  companyKey: string;
+  companyName: string;
+  headerTitle: string;
+  pdfTitle: string;
+  pdfSubtitle: string;
+  footerText: string;
+  introText: string;
+  closingNote: string;
+  signatoryName: string;
+  signatoryTitle: string;
+  showCompetencyTable: boolean;
+  showInterviewScore: boolean;
+  showAssessorNotes: boolean;
+  showIntegrityHash: boolean;
+  templateFileUrl: string | null;
+  templateFileName: string | null;
+  updatedAt?: string;
+}
+
+const normalizeKey = (raw: string): string =>
+  String(raw || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]+/g, '-')
+    .replace(/^-|-$/g, '') || 'DEFAULT';
+
+const defaultConfig = (companyKey: string, companyName = ''): ReportTemplateConfig => ({
+  companyKey,
+  companyName,
+  headerTitle: 'LAPORAN HASIL ASESMEN (LHA)',
+  pdfTitle: companyName ? `${companyName} - Laporan Hasil Asesmen` : 'RIGHT - Laporan Hasil Asesmen',
+  pdfSubtitle: '',
+  footerText: companyName
+    ? `${companyName} • RIGHT Assessment Platform`
+    : 'RIGHT Assessment Platform • Dokumen Resmi',
+  introText: '',
+  closingNote:
+    'Hasil asesmen bersifat rekomendasi profesional asesor. Keputusan akhir mengikuti kebijakan pemberi tugas.',
+  signatoryName: '',
+  signatoryTitle: 'Lead Assessor / Kepala Proyek',
+  showCompetencyTable: true,
+  showInterviewScore: true,
+  showAssessorNotes: true,
+  showIntegrityHash: true,
+  templateFileUrl: null,
+  templateFileName: null
+});
+
+export const findReportTemplateForCompany = async (hints: Array<string | null | undefined>): Promise<ReportTemplateConfig | null> => {
+  const cleanHints = hints.map((h) => (h ? String(h).trim() : '')).filter(Boolean);
+  if (cleanHints.length === 0) return null;
+
+  const records = await prisma.masterRecord.findMany({
+    where: { scope: 'report-template' }
+  });
+  for (const hint of cleanHints) {
+    const normHint = normalizeKey(hint);
+    const matched = records.find((rec) => {
+      if (normalizeKey(rec.key) === normHint) return true;
+      try {
+        const parsed = JSON.parse(rec.value) as Partial<ReportTemplateConfig>;
+        return (
+          (parsed.companyName && parsed.companyName.trim().toLowerCase() === hint.toLowerCase()) ||
+          (parsed.companyKey && normalizeKey(parsed.companyKey) === normHint)
+        );
+      } catch {
+        return false;
+      }
+    });
+    if (matched) {
+      try {
+        const parsed = JSON.parse(matched.value) as Partial<ReportTemplateConfig>;
+        return {
+          ...defaultConfig(matched.key, parsed.companyName || ''),
+          ...parsed
+        };
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+  }
+  return null;
+};
+
+export const getReportTemplate = async (req: AuthRequest, res: Response) => {
+  try {
+    const companyKey = normalizeKey(String(req.params.companyKey || ''));
+    const companyName = req.query.companyName ? String(req.query.companyName) : '';
+    const existing = await findReportTemplateForCompany([companyKey, companyName]);
+    return res.json({
+      data: existing || defaultConfig(companyKey, companyName)
+    });
+  } catch (error) {
+    console.error('Get report template error:', error);
+    return res.status(500).json({ error: 'Gagal memuat template laporan.' });
+  }
+};
+
+export const saveReportTemplate = async (req: AuthRequest, res: Response) => {
+  try {
+    const companyKey = normalizeKey(String(req.params.companyKey || ''));
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const companyName = String(body.companyName || '').trim();
+    const payload: ReportTemplateConfig = {
+      ...defaultConfig(companyKey, companyName),
+      companyKey,
+      companyName,
+      headerTitle: String(body.headerTitle || 'LAPORAN HASIL ASESMEN (LHA)').trim(),
+      pdfTitle: String(body.pdfTitle || '').trim() || defaultConfig(companyKey, companyName).pdfTitle,
+      pdfSubtitle: String(body.pdfSubtitle || '').trim(),
+      footerText: String(body.footerText || '').trim() || defaultConfig(companyKey, companyName).footerText,
+      introText: String(body.introText || '').trim(),
+      closingNote: String(body.closingNote || '').trim() || defaultConfig(companyKey, companyName).closingNote,
+      signatoryName: String(body.signatoryName || '').trim(),
+      signatoryTitle: String(body.signatoryTitle || '').trim(),
+      showCompetencyTable: body.showCompetencyTable !== false,
+      showInterviewScore: body.showInterviewScore !== false,
+      showAssessorNotes: body.showAssessorNotes !== false,
+      showIntegrityHash: body.showIntegrityHash !== false,
+      templateFileUrl: body.templateFileUrl ? String(body.templateFileUrl) : null,
+      templateFileName: body.templateFileName ? String(body.templateFileName) : null,
+      updatedAt: new Date().toISOString()
+    };
+
+    await prisma.masterRecord.upsert({
+      where: { scope_key: { scope: 'report-template', key: companyKey } },
+      update: { value: JSON.stringify(payload) },
+      create: { scope: 'report-template', key: companyKey, value: JSON.stringify(payload) }
+    });
+
+    return res.json({ message: 'Template laporan tenant berhasil disimpan.', data: payload });
+  } catch (error) {
+    console.error('Save report template error:', error);
+    return res.status(500).json({ error: 'Gagal menyimpan template laporan.' });
+  }
+};
+
+export const uploadReportTemplateFile = async (req: AuthRequest, res: Response) => {
+  try {
+    const companyKey = normalizeKey(String(req.params.companyKey || ''));
+    const file = (req as any).file as Express.Multer.File | undefined;
+    if (!file) {
+      return res.status(400).json({ error: 'File template tidak ditemukan.' });
+    }
+    ensureTemplateDir();
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = ['.pdf', '.docx', '.doc', '.png', '.jpg', '.jpeg'].includes(ext) ? ext : '.bin';
+    const fileName = `${companyKey}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${safeExt}`;
+    fs.writeFileSync(path.join(TEMPLATE_DIR, fileName), file.buffer);
+
+    const fileUrl = `/api/report-templates/files/${fileName}`;
+    const existing = (await findReportTemplateForCompany([companyKey])) || defaultConfig(companyKey);
+    const updated: ReportTemplateConfig = {
+      ...existing,
+      templateFileUrl: fileUrl,
+      templateFileName: file.originalname,
+      updatedAt: new Date().toISOString()
+    };
+
+    await prisma.masterRecord.upsert({
+      where: { scope_key: { scope: 'report-template', key: companyKey } },
+      update: { value: JSON.stringify(updated) },
+      create: { scope: 'report-template', key: companyKey, value: JSON.stringify(updated) }
+    });
+
+    return res.json({
+      message: 'File template laporan berhasil diunggah.',
+      file: { url: fileUrl, name: file.originalname },
+      data: updated
+    });
+  } catch (error) {
+    console.error('Upload report template file error:', error);
+    return res.status(500).json({ error: 'Gagal mengunggah file template laporan.' });
+  }
+};
+
+export const getReportTemplateFile = async (req: AuthRequest, res: Response) => {
+  try {
+    const safeName = path.basename(String(req.params.fileName || ''));
+    const fullPath = path.join(TEMPLATE_DIR, safeName);
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'File template tidak ditemukan.' });
+    }
+    return res.sendFile(fullPath);
+  } catch {
+    return res.status(500).json({ error: 'Gagal mengunduh file template.' });
+  }
+};

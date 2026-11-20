@@ -292,18 +292,7 @@ function QuestionFormFields({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div>
-          <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Kategori Soal</label>
-          <select
-            value={getQuestionCategory(question)}
-            onChange={(e) => onChange({ category: e.target.value as QuestionCategory })}
-            className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
-          >
-            <option value="psikotes">Soal Psikotes</option>
-            <option value="kompetensi">Uji Kompetensi</option>
-          </select>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Tipe Soal</label>
           <select
@@ -343,17 +332,6 @@ function QuestionFormFields({
             <option value="Retired">Retired</option>
           </select>
         </div>
-      </div>
-
-      <div>
-        <label className="block font-bold text-ink mb-1">Kompetensi yang Diuji</label>
-        <input
-          type="text"
-          value={question.competency}
-          onChange={(e) => onChange({ competency: e.target.value })}
-          placeholder="Contoh: Database Optimization, System Architecture..."
-          className="w-full px-3 py-2 rounded-lg border border-border-slate text-xs outline-none focus:border-primary-navy"
-        />
       </div>
 
       <div>
@@ -1411,9 +1389,6 @@ export function AdminBankSoalEditor() {
                       <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                       <span>Sumber: <strong className="text-blue-950 font-bold">Master Bank Soal CAT [{selectedProgramCode || 'Umum'}]</strong></span>
                     </span>
-                    <Badge variant={getQuestionCategory(q) === 'psikotes' ? 'warning' : 'navy'} format="soft">
-                      {getQuestionCategory(q) === 'psikotes' ? 'Psikotes' : 'Uji Kompetensi'}
-                    </Badge>
                     <Badge variant="navy" format="soft">{q.type}</Badge>
                     <Badge variant={q.difficulty === 'Sulit' ? 'danger' : q.difficulty === 'Sedang' ? 'warning' : 'success'} format="soft">{q.difficulty}</Badge>
                     <Badge variant={q.status === 'Published' ? 'success' : q.status === 'Review' ? 'warning' : 'neutral'} format="soft">{q.status}</Badge>

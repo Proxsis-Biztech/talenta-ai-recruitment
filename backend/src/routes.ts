@@ -43,6 +43,12 @@ import { getWaitingRoomStatus, completeAndCallNext, streamWaitingRoom } from './
 import { getPortalMaterials } from './controllers/PortalMaterialController';
 import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
 import { listTenants } from './controllers/TenantController';
+import {
+  getReportTemplate,
+  saveReportTemplate,
+  uploadReportTemplateFile,
+  getReportTemplateFile
+} from './controllers/ReportTemplateController';
 import { syncProgramQuestions, publishProgram, uploadQuestionAttachment, uploadProgramCaseFile, deleteProgramCaseFile, getCaseFile, downloadQuestionTemplate, importProgramQuestions } from './controllers/ProgramQuestionController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
 import { uploadExcel, downloadPortalUserTemplate, importPortalUsers } from './controllers/BulkImportController';
@@ -188,6 +194,10 @@ router.post('/admin/access-codes', authenticateToken, createAccessCode);
 router.put('/admin/access-codes/:code', authenticateToken, updateAccessCode);
 
 router.get('/admin/tenants', authenticateToken, listTenants);
+router.get('/admin/report-templates/:companyKey', authenticateToken, getReportTemplate);
+router.put('/admin/report-templates/:companyKey', authenticateToken, saveReportTemplate);
+router.post('/admin/report-templates/:companyKey/upload', authenticateToken, caseFileUpload.single('file'), uploadReportTemplateFile);
+router.get('/report-templates/files/:fileName', getReportTemplateFile);
 router.post('/admin/programs/:programCode/questions/sync', authenticateToken, syncProgramQuestions);
 router.get('/admin/programs/:programCode/questions/template', authenticateToken, downloadQuestionTemplate);
 router.post('/admin/programs/:programCode/questions/import', authenticateToken, caseFileUpload.single('file'), importProgramQuestions);

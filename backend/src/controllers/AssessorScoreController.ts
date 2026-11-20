@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { type AuthRequest } from '../middleware/auth';
 import { resolveAdminTenantId } from '../middleware/tenant';
 import { buildPdf, formatDateId, type PdfBlock } from '../services/pdfService';
+import { findReportTemplateForCompany } from './ReportTemplateController';
 
 const prisma = new PrismaClient();
 
@@ -256,44 +257,85 @@ export const downloadLhaPdf = async (req: AuthRequest, res: Response) => {
     });
     if (!score) return res.status(404).json({ error: 'LHA bertanda tangan belum tersedia.' });
 
+    const candidatePortalUser = await prisma.portalUser.findFirst({
+      where: { candidateCode },
+      select: {
+        companyId: true,
+        companyName: true,
+        tenant: { select: { code: true, name: true } }
+      }
+    });
+    const reportTpl = await findReportTemplateForCompany([
+      candidatePortalUser?.tenant?.code,
+      candidatePortalUser?.companyId,
+      candidatePortalUser?.tenant?.name,
+      candidatePortalUser?.companyName
+    ]);
+
     const competencies = parseJson<Array<Record<string, unknown>>>(score.competencies, []);
     const blocks: PdfBlock[] = [
-      { type: 'heading', text: 'LAPORAN HASIL ASESMEN (LHA)' },
+      { type: 'heading', text: reportTpl?.headerTitle || 'LAPORAN HASIL ASESMEN (LHA)' },
+      ...(reportTpl?.introText ? [{ type: 'text' as const, text: reportTpl.introText }, { type: 'spacer' as const, height: 4 }] : []),
       { type: 'kv', label: 'Nomor LHA', value: score.lhaNumber || '-' },
       { type: 'kv', label: 'Kode Kandidat', value: score.candidateCode },
       { type: 'kv', label: 'Nama Kandidat', value: score.candidateName },
       { type: 'kv', label: 'Program Asesmen', value: score.programTitle },
       { type: 'kv', label: 'Tanggal Ditandatangani', value: formatDateId(score.signedAt) },
       { type: 'rule' },
-      { type: 'heading', text: 'Skor Kompetensi', size: 11 },
-      {
-        type: 'table',
-        columns: ['Kompetensi', 'Rating', 'Catatan'],
-        widths: [0.42, 0.14, 0.44],
-        rows: competencies.length
-          ? competencies.map((item) => [
-              String(item.name || item.competency || item.label || '-'),
-              String(item.rating ?? item.score ?? '-'),
-              String(item.note || item.notes || item.evidence || '-')
-            ])
-          : [['Belum ada rincian kompetensi', '-', '-']]
-      },
-      { type: 'kv', label: 'Skor Wawancara', value: String(score.interviewScore) },
+      ...(reportTpl?.showCompetencyTable !== false
+        ? [
+            { type: 'heading' as const, text: 'Skor Kompetensi', size: 11 },
+            {
+              type: 'table' as const,
+              columns: ['Kompetensi', 'Rating', 'Catatan'],
+              widths: [0.42, 0.14, 0.44],
+              rows: competencies.length
+                ? competencies.map((item) => [
+                    String(item.name || item.competency || item.label || '-'),
+                    String(item.rating ?? item.score ?? '-'),
+                    String(item.note || item.notes || item.evidence || '-')
+                  ])
+                : [['Belum ada rincian kompetensi', '-', '-']]
+            }
+          ]
+        : []),
+      ...(reportTpl?.showInterviewScore !== false
+        ? [{ type: 'kv' as const, label: 'Skor Wawancara', value: String(score.interviewScore) }]
+        : []),
       { type: 'kv', label: 'Skor Komposit', value: String(score.compositeScore) },
       { type: 'kv', label: 'Rekomendasi Asesor', value: score.recommendation },
-      { type: 'spacer', height: 6 },
-      { type: 'heading', text: 'Catatan Asesor', size: 11 },
-      { type: 'text', text: score.notes || 'Tidak ada catatan tambahan.' },
+      ...(reportTpl?.showAssessorNotes !== false
+        ? [
+            { type: 'spacer' as const, height: 6 },
+            { type: 'heading' as const, text: 'Catatan Asesor', size: 11 },
+            { type: 'text' as const, text: score.notes || 'Tidak ada catatan tambahan.' }
+          ]
+        : []),
+      ...(reportTpl?.signatoryName
+        ? [
+            { type: 'spacer' as const, height: 6 },
+            { type: 'kv' as const, label: 'Penandatangan', value: `${reportTpl.signatoryName}${reportTpl.signatoryTitle ? ` (${reportTpl.signatoryTitle})` : ''}` }
+          ]
+        : []),
       { type: 'rule' },
-      { type: 'text', text: 'Dokumen ini ditandatangani secara elektronik. Verifikasi keaslian melalui hash SHA-256 berikut:' },
-      { type: 'text', text: score.lhaHash || '-', size: 9 },
-      { type: 'text', text: 'Hasil asesmen bersifat rekomendasi profesional asesor. Keputusan akhir mengikuti kebijakan pemberi tugas.' }
+      ...(reportTpl?.showIntegrityHash !== false
+        ? [
+            { type: 'text' as const, text: 'Dokumen ini ditandatangani secara elektronik. Verifikasi keaslian melalui hash SHA-256 berikut:' },
+            { type: 'text' as const, text: score.lhaHash || '-', size: 9 }
+          ]
+        : []),
+      {
+        type: 'text',
+        text:
+          reportTpl?.closingNote ||
+          'Hasil asesmen bersifat rekomendasi profesional asesor. Keputusan akhir mengikuti kebijakan pemberi tugas.'
+      }
     ];
 
     const pdf = buildPdf(blocks, {
-      title: 'Talenta+ - Laporan Hasil Asesmen',
-      subtitle: score.lhaNumber || score.candidateCode,
-      footer: 'Solusi Asesmen Indonesia (SAI) & Proxsis Talent Force'
+      title: reportTpl?.pdfTitle || 'Talenta+ - Laporan Hasil Asesmen',
+      subtitle: reportTpl?.pdfSubtitle || score.lhaNumber || score.candidateCode,
+      footer: reportTpl?.footerText || 'Solusi Asesmen Indonesia (SAI) & Proxsis Talent Force'
     });
 
     res.setHeader('Content-Type', 'application/pdf');

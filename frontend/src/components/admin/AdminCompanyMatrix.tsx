@@ -14,7 +14,10 @@ import {
   Plus,
   CheckCircle2,
   Save,
-  Check
+  Check,
+  FileText,
+  Upload,
+  Trash2
 } from 'lucide-react';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import {
@@ -127,6 +130,117 @@ export function AdminCompanyMatrix() {
   const [ptContract, setPtContract] = useState('Jan 2026 - Des 2026');
 
   const selectedPt = companies.find((c) => c.id === selectedPtId) || companies[0];
+
+  // Dynamic Report Template state per Tenant/PT
+  const [reportTpl, setReportTpl] = useState({
+    headerTitle: 'LAPORAN HASIL ASESMEN (LHA)',
+    pdfTitle: '',
+    footerText: '',
+    introText: '',
+    closingNote:
+      'Hasil asesmen bersifat rekomendasi profesional asesor. Keputusan akhir mengikuti kebijakan pemberi tugas.',
+    signatoryName: '',
+    signatoryTitle: 'Lead Assessor / Kepala Proyek',
+    showCompetencyTable: true,
+    showInterviewScore: true,
+    showAssessorNotes: true,
+    showIntegrityHash: true,
+    templateFileUrl: null as string | null,
+    templateFileName: null as string | null
+  });
+  const [tplSaving, setTplSaving] = useState(false);
+  const [tplUploading, setTplUploading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedPt?.id) return;
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    let cancelled = false;
+    axios
+      .get(`/api/admin/report-templates/${encodeURIComponent(selectedPt.id)}`, {
+        params: { companyName: selectedPt.name },
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then((res) => {
+        if (cancelled) return;
+        const data = res.data?.data;
+        if (data) {
+          setReportTpl({
+            headerTitle: data.headerTitle || 'LAPORAN HASIL ASESMEN (LHA)',
+            pdfTitle: data.pdfTitle || `${selectedPt.name} - Laporan Hasil Asesmen`,
+            footerText: data.footerText || `${selectedPt.name} • RIGHT Assessment Platform`,
+            introText: data.introText || '',
+            closingNote:
+              data.closingNote ||
+              'Hasil asesmen bersifat rekomendasi profesional asesor. Keputusan akhir mengikuti kebijakan pemberi tugas.',
+            signatoryName: data.signatoryName || '',
+            signatoryTitle: data.signatoryTitle || 'Lead Assessor / Kepala Proyek',
+            showCompetencyTable: data.showCompetencyTable !== false,
+            showInterviewScore: data.showInterviewScore !== false,
+            showAssessorNotes: data.showAssessorNotes !== false,
+            showIntegrityHash: data.showIntegrityHash !== false,
+            templateFileUrl: data.templateFileUrl || null,
+            templateFileName: data.templateFileName || null
+          });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPt?.id, selectedPt?.name]);
+
+  const handleSaveReportTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPt?.id) return;
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    setTplSaving(true);
+    try {
+      await axios.put(
+        `/api/admin/report-templates/${encodeURIComponent(selectedPt.id)}`,
+        {
+          ...reportTpl,
+          companyName: selectedPt.name
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      showToast(`Template laporan LHA untuk ${selectedPt.name} berhasil disimpan.`);
+    } catch {
+      showToast('Gagal menyimpan template laporan.');
+    } finally {
+      setTplSaving(false);
+    }
+  };
+
+  const handleUploadTemplateFile = async (file: File) => {
+    if (!selectedPt?.id) return;
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    setTplUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await axios.post(
+        `/api/admin/report-templates/${encodeURIComponent(selectedPt.id)}/upload`,
+        formData,
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
+      );
+      const uploaded = res.data?.file;
+      if (uploaded) {
+        setReportTpl((prev) => ({
+          ...prev,
+          templateFileUrl: uploaded.url,
+          templateFileName: uploaded.name
+        }));
+      }
+      showToast(`File template "${file.name}" berhasil diunggah untuk ${selectedPt.name}.`);
+    } catch {
+      showToast('Gagal mengunggah file template.');
+    } finally {
+      setTplUploading(false);
+    }
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -416,6 +530,169 @@ export function AdminCompanyMatrix() {
           </Table>
         </div>
       </div>
+
+      {/* ─── Template Laporan Dinamis per Tenant (LHA) ─── */}
+      <form
+        onSubmit={handleSaveReportTemplate}
+        className="border border-slate-200 rounded-xl p-5 bg-white space-y-4 shadow-xs"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="font-heading font-bold text-sm text-ink flex items-center gap-2">
+              <FileText className="w-4 h-4 text-primary-navy" />
+              Template Laporan Dinamis (LHA) —{' '}
+              <span className="text-primary-navy">{selectedPt.name}</span>
+            </h3>
+            <p className="text-xs text-muted-slate mt-0.5">
+              Unggah kop/file template resmi atau atur judul, penandatangan, dan seksi PDF LHA khusus tenant ini.
+            </p>
+          </div>
+          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer shrink-0">
+            <Upload className="w-3.5 h-3.5 text-primary-navy" />
+            <span>{tplUploading ? 'Mengunggah...' : 'Upload Template (PDF/DOCX/PNG)'}</span>
+            <input
+              type="file"
+              className="hidden"
+              accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
+              disabled={tplUploading}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void handleUploadTemplateFile(file);
+                event.target.value = '';
+              }}
+            />
+          </label>
+        </div>
+
+        {reportTpl.templateFileUrl && (
+          <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-blue-50/70 border border-blue-200 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText className="w-4 h-4 text-primary-navy shrink-0" />
+              <span className="text-slate-600">File Template Aktif:</span>
+              <a
+                href={reportTpl.templateFileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold text-primary-navy hover:underline truncate"
+              >
+                {reportTpl.templateFileName || 'Lihat Template'}
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setReportTpl((prev) => ({ ...prev, templateFileUrl: null, templateFileName: null }))
+              }
+              className="text-rose-600 hover:text-rose-700 cursor-pointer p-1"
+              title="Hapus file template"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Judul Utama Laporan LHA</label>
+            <input
+              type="text"
+              value={reportTpl.headerTitle}
+              onChange={(e) => setReportTpl({ ...reportTpl, headerTitle: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 outline-none focus:border-primary-navy"
+            />
+          </div>
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Header / Title PDF</label>
+            <input
+              type="text"
+              value={reportTpl.pdfTitle}
+              onChange={(e) => setReportTpl({ ...reportTpl, pdfTitle: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 outline-none focus:border-primary-navy"
+            />
+          </div>
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Footer Resmi PDF</label>
+            <input
+              type="text"
+              value={reportTpl.footerText}
+              onChange={(e) => setReportTpl({ ...reportTpl, footerText: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 outline-none focus:border-primary-navy"
+            />
+          </div>
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Nama Penandatangan (Opsional)</label>
+            <input
+              type="text"
+              value={reportTpl.signatoryName}
+              onChange={(e) => setReportTpl({ ...reportTpl, signatoryName: e.target.value })}
+              placeholder="Contoh: Dr. Ir. Dwi Hartanto"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 outline-none focus:border-primary-navy"
+            />
+          </div>
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Jabatan Penandatangan</label>
+            <input
+              type="text"
+              value={reportTpl.signatoryTitle}
+              onChange={(e) => setReportTpl({ ...reportTpl, signatoryTitle: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 outline-none focus:border-primary-navy"
+            />
+          </div>
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Paragraf Pembuka (Opsional)</label>
+            <input
+              type="text"
+              value={reportTpl.introText}
+              onChange={(e) => setReportTpl({ ...reportTpl, introText: e.target.value })}
+              placeholder="Catatan pengantar khusus PT..."
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 outline-none focus:border-primary-navy"
+            />
+          </div>
+        </div>
+
+        <div className="text-xs">
+          <label className="block font-bold text-slate-700 mb-1">Catatan Penutup Laporan</label>
+          <input
+            type="text"
+            value={reportTpl.closingNote}
+            onChange={(e) => setReportTpl({ ...reportTpl, closingNote: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 outline-none focus:border-primary-navy"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-700">
+            {[
+              { key: 'showCompetencyTable', label: 'Tabel Skor Kompetensi' },
+              { key: 'showInterviewScore', label: 'Skor Wawancara' },
+              { key: 'showAssessorNotes', label: 'Catatan Asesor' },
+              { key: 'showIntegrityHash', label: 'Hash Verifikasi SHA-256' }
+            ].map((toggle) => (
+              <label key={toggle.key} className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={(reportTpl as any)[toggle.key]}
+                  onChange={(e) =>
+                    setReportTpl((prev) => ({ ...prev, [toggle.key]: e.target.checked }))
+                  }
+                  className="rounded border-slate-300 text-primary-navy focus:ring-primary-navy"
+                />
+                <span>{toggle.label}</span>
+              </label>
+            ))}
+          </div>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            disabled={tplSaving}
+            isLoading={tplSaving}
+            leftIcon={<Save className="w-3.5 h-3.5" />}
+          >
+            Simpan Template Laporan
+          </Button>
+        </div>
+      </form>
 
       {/* ─── MODAL TAMBAH PT MITRA BARU ─── */}
       <Modal
