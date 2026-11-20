@@ -16,7 +16,10 @@ import {
   Loader2,
   RefreshCw,
   Pencil,
-  Settings2
+  Settings2,
+  Bot,
+  LifeBuoy,
+  ArrowRight
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { Card, CardContent } from './ui/Card';
@@ -82,11 +85,11 @@ const getAuthHeaders = () => {
 };
 
 interface AdminFaqHelpdeskProps {
-  initialTab?: 'knowledge' | 'helpdesk';
+  initialTab?: 'knowledge' | 'helpdesk' | 'chatbot';
 }
 
 export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab = 'knowledge' }) => {
-  const [activeTab, setActiveTab] = useState<'knowledge' | 'helpdesk'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'knowledge' | 'helpdesk' | 'chatbot'>(initialTab);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -143,6 +146,29 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [replying, setReplying] = useState(false);
+
+  // Admin Chatbot FAQ interactive chat state
+  const [chatMessages, setChatMessages] = useState<
+    Array<{
+      id: string;
+      sender: 'user' | 'bot';
+      text: string;
+      matchedQuestion?: string | null;
+      sourceFile?: string | null;
+      confidence?: number;
+      canEscalate?: boolean;
+      originalQuery?: string;
+    }>
+  >([
+    {
+      id: 'welcome-admin',
+      sender: 'bot',
+      text: 'Halo Admin! Ini adalah Chatbot FAQ resmi berbasis RAG (Non-AI bebas). Ketik pertanyaan kandidat di bawah untuk melihat jawaban langsung atau menguji eskalasi ke Helpdesk Internal.'
+    }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [escalatingChat, setEscalatingChat] = useState(false);
 
   const loadTenants = useCallback(async () => {
     try {
@@ -430,6 +456,84 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
     }
   };
 
+  const handleSendAdminChat = async (questionText: string) => {
+    const clean = questionText.trim();
+    if (!clean || chatSending) return;
+    setChatMessages((prev) => [
+      ...prev,
+      { id: `u-${Date.now()}`, sender: 'user', text: clean }
+    ]);
+    setChatInput('');
+    setChatSending(true);
+    try {
+      const resp = await axios.post(
+        '/api/peserta/faq-chat',
+        {
+          message: clean,
+          companyName: selectedCompanyKey === 'DEFAULT' ? '' : selectedCompanyKey
+        },
+        { headers: getAuthHeaders() }
+      );
+      const data = resp.data;
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `b-${Date.now()}`,
+          sender: 'bot',
+          text: data.reply,
+          matchedQuestion: data.matchedQuestion,
+          sourceFile: data.sourceFile,
+          confidence: data.confidence,
+          canEscalate: data.canEscalate,
+          originalQuery: clean
+        }
+      ]);
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `b-${Date.now()}`,
+          sender: 'bot',
+          text: 'Gagal memproses pertanyaan Chatbot FAQ.',
+          canEscalate: true,
+          originalQuery: clean
+        }
+      ]);
+    } finally {
+      setChatSending(false);
+    }
+  };
+
+  const handleEscalateAdminChat = async (queryText: string) => {
+    if (escalatingChat) return;
+    setEscalatingChat(true);
+    try {
+      const resp = await axios.post(
+        '/api/peserta/helpdesk/tickets',
+        {
+          subject: queryText.slice(0, 100),
+          message: queryText,
+          companyName: selectedCompanyKey === 'DEFAULT' ? 'Umum' : selectedCompanyKey,
+          programCode: 'ADMIN-CHAT',
+          candidateName: localStorage.getItem('adminUsername') || 'Admin',
+          candidateEmail: localStorage.getItem('adminUsername') || 'admin@right.id',
+          source: 'chatbot-faq'
+        },
+        { headers: getAuthHeaders() }
+      );
+      const created: HelpdeskTicket | undefined = resp.data?.ticket;
+      if (created) {
+        await loadTickets();
+        setSelectedTicketId(created.id);
+        setActiveTab('helpdesk');
+      }
+    } catch {
+      Swal.fire('Gagal', 'Tidak dapat membuat tiket Helpdesk Internal.', 'error');
+    } finally {
+      setEscalatingChat(false);
+    }
+  };
+
   const filteredTickets = tickets.filter((t) => (statusFilter === 'all' ? true : t.status === statusFilter));
   const selectedTicket = filteredTickets.find((t) => t.id === selectedTicketId) || filteredTickets[0] || null;
   const openCount = tickets.filter((t) => t.status === 'open').length;
@@ -450,6 +554,18 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
           >
             <BookOpen className="w-4 h-4" />
             Konten FAQ (Word) &amp; RAG
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('chatbot')}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+              activeTab === 'chatbot'
+                ? 'bg-white text-primary-navy shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Bot className="w-4 h-4" />
+            Chatbot FAQ
           </button>
           <button
             type="button"
@@ -833,6 +949,116 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
             </Card>
           </div>
         </div>
+      ) : activeTab === 'chatbot' ? (
+        <Card className="border-slate-200">
+          <CardContent className="p-0 overflow-hidden">
+            <div className="bg-primary-navy text-white px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-white/10">
+                  <Bot className="w-5 h-5 text-blue-300" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Chatbot FAQ RIGHT (Terhubung ke Helpdesk Internal)</h3>
+                  <p className="text-xs text-blue-200">
+                    Menjawab berdasarkan Basis Pengetahuan FAQ terverifikasi (Non-AI bebas)
+                  </p>
+                </div>
+              </div>
+              <select
+                value={selectedCompanyKey}
+                onChange={(e) => setSelectedCompanyKey(e.target.value)}
+                className="px-3 py-1.5 text-xs rounded-lg bg-white/10 border border-white/20 text-white"
+              >
+                <option value="DEFAULT" className="text-slate-900">Global Platform (DEFAULT)</option>
+                {tenants.map((t) => (
+                  <option key={t.id} value={t.name} className="text-slate-900">
+                    Tenant: {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {chunks.length > 0 && (
+              <div className="px-5 py-2.5 border-b border-slate-100 bg-slate-50 flex gap-2 overflow-x-auto">
+                {chunks.slice(0, 5).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSendAdminChat(item.question)}
+                    className="shrink-0 text-xs px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:border-blue-accent hover:text-primary-navy transition-colors"
+                  >
+                    {item.question.length > 45 ? `${item.question.slice(0, 45)}...` : item.question}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="p-5 space-y-3 h-[420px] overflow-y-auto bg-white">
+              {chatMessages.map((m) => (
+                <div
+                  key={m.id}
+                  className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] px-4 py-3 rounded-2xl text-xs leading-relaxed ${
+                      m.sender === 'user'
+                        ? 'bg-primary-navy text-white rounded-br-none'
+                        : 'bg-slate-100 text-slate-800 rounded-bl-none'
+                    }`}
+                  >
+                    {m.matchedQuestion && (
+                      <p className="font-bold text-primary-navy mb-1">{m.matchedQuestion}</p>
+                    )}
+                    <p>{m.text}</p>
+                    {m.sourceFile && (
+                      <p className="text-[10px] text-slate-500 mt-1.5">
+                        Sumber: {m.sourceFile} {m.confidence !== undefined ? `• Skor RAG: ${m.confidence}` : ''}
+                      </p>
+                    )}
+                  </div>
+                  {m.canEscalate && m.originalQuery && (
+                    <button
+                      type="button"
+                      disabled={escalatingChat}
+                      onClick={() => handleEscalateAdminChat(m.originalQuery!)}
+                      className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold hover:bg-amber-100"
+                    >
+                      <LifeBuoy className="w-3.5 h-3.5" />
+                      Hubungkan ke Helpdesk Internal
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {chatSending && (
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Mencari jawaban di Basis Pengetahuan FAQ...
+                </div>
+              )}
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendAdminChat(chatInput);
+              }}
+              className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2"
+            >
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ketik pertanyaan kandidat untuk menguji Chatbot FAQ..."
+                className="flex-1 px-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-accent/20"
+              />
+              <Button type="submit" disabled={chatSending || !chatInput.trim()}>
+                <Send className="w-4 h-4 mr-1.5" />
+                Kirim
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       ) : (
         /* TAB 2: HELPDESK INTERNAL */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

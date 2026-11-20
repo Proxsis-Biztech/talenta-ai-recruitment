@@ -8,7 +8,7 @@ import {
   X, Menu, Brain, Radio, Sun, Mail, Phone,
   GraduationCap, MapPin, BookOpen, Award, Building,
   Star, Eye, Printer, ShieldAlert, BarChart3, AlertTriangle, Target, Activity,
-  Copy, Check, Send, Layers, Loader2, FileCheck, ArrowUpRight, CheckSquare, Video, Sliders, Plus, Network, MessageSquare
+  Copy, Check, Send, Layers, Loader2, FileCheck, ArrowUpRight, CheckSquare, Video, Sliders, Plus, Network, MessageSquare, Bot
 } from 'lucide-react';
 import UserManagement from './UserManagement';
 import JobManagement from './JobManagement';
@@ -233,7 +233,7 @@ export default function AdminDashboard() {
     const allowed: AdminMenuKey[] = [
       'dashboard', 'peserta', 'pipeline', 'jobs', 'ranking', 'proctoring', 'users',
       'ai-config', 'audit-logs', 'analytics', 'materi', 'bank-soal', 'perusahaan',
-      'billing', 'faq-helpdesk', 'helpdesk-internal', 'help'
+      'billing', 'faq-helpdesk', 'chatbot-faq', 'helpdesk-internal', 'help'
     ];
     return menu && allowed.includes(menu as AdminMenuKey) ? (menu as AdminMenuKey) : 'dashboard';
   });
@@ -919,6 +919,7 @@ ${app.interviewResult ? `
         { key: 'ranking', label: 'Peringkat & Matriks', icon: BarChart3 },
         { key: 'proctoring', label: 'Audit Proctoring', icon: ShieldAlert, badge: 'Live' },
         { key: 'faq-helpdesk', label: 'Konten FAQ (RAG)', icon: BookOpen },
+        { key: 'chatbot-faq', label: 'Chatbot FAQ', icon: Bot },
         { key: 'helpdesk-internal', label: 'Helpdesk Internal', icon: MessageSquare },
       ]
     },
@@ -1024,6 +1025,12 @@ ${app.interviewResult ? `
       title: 'Knowledge Base FAQ (RAG & Word)',
       subtitle: 'Upload konten FAQ Word (.docx), kelola item FAQ, dan sinkronisasi Proksis MCP Knowledge',
       short: 'Konten FAQ',
+      dotColor: 'bg-blue-accent'
+    },
+    'chatbot-faq': {
+      title: 'Chatbot FAQ (RAG & Helpdesk)',
+      subtitle: 'Antarmuka chat FAQ resmi (Non-AI bebas) yang terhubung ke eskalasi Helpdesk Internal',
+      short: 'Chatbot FAQ',
       dotColor: 'bg-blue-accent'
     },
     'helpdesk-internal': {
@@ -1905,10 +1912,16 @@ ${app.interviewResult ? `
             <div className="animate-fade-in">
               <AdminBillingCredit />
             </div>
-          ) : activeMenu === 'faq-helpdesk' || activeMenu === 'helpdesk-internal' ? (
+          ) : activeMenu === 'faq-helpdesk' || activeMenu === 'chatbot-faq' || activeMenu === 'helpdesk-internal' ? (
             <div className="animate-fade-in">
               <AdminFaqHelpdesk
-                initialTab={activeMenu === 'helpdesk-internal' ? 'helpdesk' : 'knowledge'}
+                initialTab={
+                  activeMenu === 'helpdesk-internal'
+                    ? 'helpdesk'
+                    : activeMenu === 'chatbot-faq'
+                      ? 'chatbot'
+                      : 'knowledge'
+                }
               />
             </div>
           ) : activeMenu === 'help' ? (

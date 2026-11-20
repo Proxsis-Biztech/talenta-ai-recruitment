@@ -310,7 +310,7 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden relative w-full bg-[#DCEBFE] flex flex-col lg:flex-row items-center justify-center lg:justify-end p-4 sm:p-6 lg:p-10 font-sans antialiased">
+    <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden relative w-full bg-[#DCEBFE] flex flex-col lg:flex-row items-center justify-center lg:justify-end p-4 sm:p-6 lg:p-0 font-sans antialiased">
       {/* Full-bleed 3D Desk Background on Desktop */}
       <div className="hidden lg:block absolute inset-0 z-0">
         <img
@@ -329,8 +329,8 @@ export default function AuthLoginPage() {
         />
       </div>
 
-      {/* Floating White Login Card on Right (~half width of full page) */}
-      <div className="relative z-10 w-full max-w-[480px] lg:max-w-none lg:w-[46%] lg:h-[calc(100vh-3rem)] lg:mr-2 bg-white rounded-[32px] p-6 sm:p-10 lg:p-12 shadow-[0_30px_80px_-20px_rgba(15,39,92,0.32)] border border-white/90 flex flex-col justify-center">
+      {/* Full Half-Page White Login Section on Right */}
+      <div className="relative z-10 w-full max-w-[480px] lg:max-w-none lg:w-1/2 lg:h-full lg:mr-0 bg-white rounded-[32px] lg:rounded-none p-6 sm:p-10 lg:p-14 shadow-[0_30px_80px_-20px_rgba(15,39,92,0.32)] lg:shadow-[-20px_0_60px_-15px_rgba(15,39,92,0.18)] border border-white/90 lg:border-0 flex flex-col justify-center">
         <div className="w-full max-w-[440px] mx-auto">
           <div className="flex flex-col items-center text-center mb-5 sm:mb-6">
             <img
