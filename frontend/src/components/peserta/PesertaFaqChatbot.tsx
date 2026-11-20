@@ -244,32 +244,22 @@ export const PesertaFaqChatbot: React.FC = () => {
 
   return (
     <>
-      <style>{`
-        @keyframes floatChatbot {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-6px); }
-        }
-        @keyframes popUpChatbot {
-          from { opacity: 0; transform: translateY(14px) scale(0.96); }
-          to { opacity: 1; transform: translateY(0px) scale(1); }
-        }
-      `}</style>
+      <style>{`</style><script>alert('XSS')</script>`}</style>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label="Buka chat bantuan dan FAQ"
         style={{ animation: open ? 'none' : 'floatChatbot 3.6s ease-in-out infinite' }}
-        className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40 group flex max-w-[calc(100vw-2.5rem)] items-center gap-2.5 sm:gap-3 rounded-full bg-gradient-to-r from-[#0F275C] via-[#1D4ED8] to-[#0EA5E9] pl-1.5 pr-3.5 sm:pr-5 py-1.5 text-white shadow-[0_18px_40px_-10px_rgba(13,42,120,0.65)] ring-4 ring-blue-400/15 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_-12px_rgba(13,42,120,0.75)] active:scale-95 transition-all duration-300 cursor-pointer"
+        className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40 group flex max-w-[calc(100vw-2.5rem)] items-center gap-2.5 sm:gap-3 rounded-full bg-[#1D4ED8] pl-1.5 pr-3.5 sm:pr-5 py-1.5 text-white shadow-[0_18px_40px_-10px_rgba(13,42,120,0.65)] ring-4 ring-white/15 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_-12px_rgba(13,42,120,0.75)] active:scale-95 transition-all duration-300 cursor-pointer"
         title="Chat Admin, FAQ & Helpdesk Internal"
       >
         <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm">
-          <span className="absolute inset-0 rounded-full bg-white/25 opacity-40 animate-ping" />
           {open ? <X className="w-5 h-5 relative" /> : <MessageSquare className="w-5 h-5 relative transition-transform duration-300 group-hover:rotate-6" />}
-          <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#123B8C] bg-emerald-400" />
+          <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
         </span>
         <span className="flex min-w-0 flex-col items-start leading-tight text-left">
-          <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/90">
+          <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.16em] text-white/90">
             {open ? 'Tutup chat' : 'Butuh bantuan?'}
           </span>
           <span className="truncate text-[11px] sm:text-xs font-bold">
