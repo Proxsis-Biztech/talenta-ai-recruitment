@@ -468,27 +468,70 @@ export default function PesertaExamPlayer() {
     }
   };
 
-  const handleSendChat = (e: React.FormEvent) => {
+  const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
+    const messageText = chatInput.trim();
+    if (!messageText) return;
     const userMsg = {
       sender: 'user' as const,
-      text: chatInput.trim(),
+      text: messageText,
       time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     };
     setChatMessages((prev) => [...prev, userMsg]);
     setChatInput('');
 
-    setTimeout(() => {
+    const token = getPortalToken();
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    try {
+      const faqResp = await axios.post(
+        '/api/peserta/faq-chat',
+        { message: messageText, companyName: activeProgram.companyName },
+        { headers }
+      );
+      if (faqResp.data?.matched && faqResp.data?.reply) {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            sender: 'admin',
+            text: `[FAQ Resmi] ${faqResp.data.reply}`,
+            time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
+        return;
+      }
+
+      const ticketResp = await axios.post(
+        '/api/peserta/helpdesk/tickets',
+        {
+          subject: messageText.slice(0, 100),
+          message: messageText,
+          companyName: activeProgram.companyName,
+          programCode: activeProgram.id,
+          candidateName: activeUser.name,
+          candidateEmail: activeUser.username,
+          source: 'exam-player'
+        },
+        { headers }
+      );
+      const code = ticketResp.data?.ticket?.ticketCode || 'HD';
       setChatMessages((prev) => [
         ...prev,
         {
           sender: 'admin',
-          text: 'Pesan Anda telah diterima oleh Helpdesk Pengawas. Tetap tenang dan lanjutkan pengerjaan soal ujian.',
+          text: `Pesan Anda telah diteruskan ke Helpdesk Internal Pengawas (Tiket ${code}). Tetap tenang dan lanjutkan pengerjaan soal ujian.`,
           time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
         }
       ]);
-    }, 1200);
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          sender: 'admin',
+          text: 'Pesan Anda telah dicatat oleh Helpdesk Pengawas. Tetap tenang dan lanjutkan pengerjaan soal ujian.',
+          time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+    }
   };
 
   const handleSubmitExam = async () => {

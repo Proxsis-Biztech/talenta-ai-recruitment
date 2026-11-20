@@ -48,6 +48,7 @@ export type AdminMenuKey =
   | 'ai-config'
   | 'audit-logs'
   | 'analytics'
+  | 'faq-helpdesk'
   | 'help'
   | 'settings';
 

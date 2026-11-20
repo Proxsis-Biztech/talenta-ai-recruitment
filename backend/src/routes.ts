@@ -51,6 +51,22 @@ import {
   previewReportTemplatePdf,
   downloadApplicantLhaPdf
 } from './controllers/ReportTemplateController';
+import {
+  downloadFaqWordTemplate,
+  getFaqKnowledge,
+  uploadFaqKnowledgeFile,
+  addFaqKnowledgeItem,
+  deleteFaqKnowledgeItem,
+  testFaqRagSearch,
+  listPesertaFaqItems,
+  askPesertaFaqChatbot,
+  createHelpdeskTicket,
+  listPesertaHelpdeskTickets,
+  replyPesertaHelpdeskTicket,
+  listAdminHelpdeskTickets,
+  replyAdminHelpdeskTicket,
+  updateHelpdeskTicketStatus
+} from './controllers/FaqKnowledgeController';
 import { syncProgramQuestions, publishProgram, uploadQuestionAttachment, uploadProgramCaseFile, deleteProgramCaseFile, getCaseFile, downloadQuestionTemplate, importProgramQuestions } from './controllers/ProgramQuestionController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
 import { uploadExcel, downloadPortalUserTemplate, importPortalUsers } from './controllers/BulkImportController';
@@ -202,6 +218,23 @@ router.get('/admin/applicants/:id/lha-pdf', authenticateToken, downloadApplicant
 router.put('/admin/report-templates/:companyKey', authenticateToken, saveReportTemplate);
 router.post('/admin/report-templates/:companyKey/upload', authenticateToken, caseFileUpload.single('file'), uploadReportTemplateFile);
 router.get('/report-templates/files/:fileName', getReportTemplateFile);
+
+// FAQ Knowledge Base (RAG / Word .docx) & Helpdesk Internal
+router.get('/admin/faq-knowledge/template-docx', authenticateToken, downloadFaqWordTemplate);
+router.get('/admin/faq-knowledge', authenticateToken, getFaqKnowledge);
+router.post('/admin/faq-knowledge/upload', authenticateToken, caseFileUpload.single('file'), uploadFaqKnowledgeFile);
+router.post('/admin/faq-knowledge/items', authenticateToken, addFaqKnowledgeItem);
+router.delete('/admin/faq-knowledge/items/:id', authenticateToken, deleteFaqKnowledgeItem);
+router.post('/admin/faq-knowledge/test-rag', authenticateToken, testFaqRagSearch);
+router.get('/admin/helpdesk/tickets', authenticateToken, listAdminHelpdeskTickets);
+router.post('/admin/helpdesk/tickets/:id/reply', authenticateToken, replyAdminHelpdeskTicket);
+router.patch('/admin/helpdesk/tickets/:id/status', authenticateToken, updateHelpdeskTicketStatus);
+
+router.get('/peserta/faq-knowledge', authenticateToken, listPesertaFaqItems);
+router.post('/peserta/faq-chat', authenticateToken, askPesertaFaqChatbot);
+router.get('/peserta/helpdesk/tickets', authenticateToken, listPesertaHelpdeskTickets);
+router.post('/peserta/helpdesk/tickets', authenticateToken, createHelpdeskTicket);
+router.post('/peserta/helpdesk/tickets/:id/reply', authenticateToken, replyPesertaHelpdeskTicket);
 router.post('/admin/programs/:programCode/questions/sync', authenticateToken, syncProgramQuestions);
 router.get('/admin/programs/:programCode/questions/template', authenticateToken, downloadQuestionTemplate);
 router.post('/admin/programs/:programCode/questions/import', authenticateToken, caseFileUpload.single('file'), importProgramQuestions);

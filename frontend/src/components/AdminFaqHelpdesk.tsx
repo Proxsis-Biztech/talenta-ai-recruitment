@@ -1,0 +1,780 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import axios from 'axios';
+import {
+  BookOpen,
+  Upload,
+  Download,
+  Plus,
+  Trash2,
+  Search,
+  MessageSquare,
+  Send,
+  CheckCircle2,
+  Clock,
+  FileText,
+  Sparkles,
+  Loader2,
+  RefreshCw
+} from 'lucide-react';
+import Swal from 'sweetalert2';
+import { Card, CardContent } from './ui/Card';
+import { Button } from './ui/Button';
+import { Badge } from './ui/Badge';
+import { Input } from './ui/Input';
+
+interface FaqChunkItem {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  keywords: string[];
+  sourceFile: string;
+  tenantKey: string;
+  createdAt: string;
+}
+
+interface FaqDocumentMeta {
+  id: string;
+  fileName: string;
+  tenantKey: string;
+  companyName: string;
+  chunkCount: number;
+  mcpSyncStatus: 'synced_local' | 'synced_mcp';
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+interface HelpdeskMessageItem {
+  id: string;
+  senderRole: 'peserta' | 'admin' | 'bot';
+  senderName: string;
+  text: string;
+  createdAt: string;
+}
+
+interface HelpdeskTicket {
+  id: string;
+  ticketCode: string;
+  tenantKey: string;
+  companyName: string;
+  programCode: string;
+  candidateName: string;
+  candidateEmail: string;
+  candidateCode: string;
+  subject: string;
+  source: 'chatbot-faq' | 'exam-player' | 'portal';
+  status: 'open' | 'in_progress' | 'resolved';
+  messages: HelpdeskMessageItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface TenantOption {
+  id: string;
+  name: string;
+}
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('adminToken') || localStorage.getItem('portalToken') || '';
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+export const AdminFaqHelpdesk: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'knowledge' | 'helpdesk'>('knowledge');
+  const [tenants, setTenants] = useState<TenantOption[]>([]);
+  const [selectedCompanyKey, setSelectedCompanyKey] = useState<string>('DEFAULT');
+  const [documents, setDocuments] = useState<FaqDocumentMeta[]>([]);
+  const [chunks, setChunks] = useState<FaqChunkItem[]>([]);
+  const [loadingKnowledge, setLoadingKnowledge] = useState(false);
+
+  // Upload state
+  const [uploading, setUploading] = useState(false);
+  const [replaceExisting, setReplaceExisting] = useState(false);
+
+  // Manual add FAQ state
+  const [newCategory, setNewCategory] = useState('Umum');
+  const [newQuestion, setNewQuestion] = useState('');
+  const [newAnswer, setNewAnswer] = useState('');
+  const [addingItem, setAddingItem] = useState(false);
+
+  // RAG tester state
+  const [ragQuery, setRagQuery] = useState('');
+  const [ragTesting, setRagTesting] = useState(false);
+  const [ragResult, setRagResult] = useState<{
+    matched: boolean;
+    confidence: number;
+    bestChunk: FaqChunkItem | null;
+    relatedChunks: FaqChunkItem[];
+  } | null>(null);
+
+  // Helpdesk state
+  const [tickets, setTickets] = useState<HelpdeskTicket[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved'>('all');
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replying, setReplying] = useState(false);
+
+  const loadTenants = useCallback(async () => {
+    try {
+      const resp = await axios.get('/api/admin/tenants', { headers: getAuthHeaders() });
+      const list = Array.isArray(resp.data) ? resp.data : resp.data?.tenants || [];
+      setTenants(list.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
+    } catch {
+      // ignore if non-superadmin
+    }
+  }, []);
+
+  const loadKnowledge = useCallback(async (companyKey: string) => {
+    setLoadingKnowledge(true);
+    try {
+      const resp = await axios.get('/api/admin/faq-knowledge', {
+        params: { companyKey },
+        headers: getAuthHeaders()
+      });
+      setDocuments(resp.data?.documents || []);
+      setChunks(resp.data?.chunks || []);
+    } catch {
+      Swal.fire('Gagal', 'Tidak dapat memuat basis pengetahuan FAQ.', 'error');
+    } finally {
+      setLoadingKnowledge(false);
+    }
+  }, []);
+
+  const loadTickets = useCallback(async () => {
+    setLoadingTickets(true);
+    try {
+      const resp = await axios.get('/api/admin/helpdesk/tickets', { headers: getAuthHeaders() });
+      const list: HelpdeskTicket[] = resp.data?.tickets || [];
+      setTickets(list);
+      if (!selectedTicketId && list.length > 0) {
+        setSelectedTicketId(list[0].id);
+      }
+    } catch {
+      // silent
+    } finally {
+      setLoadingTickets(false);
+    }
+  }, [selectedTicketId]);
+
+  useEffect(() => {
+    loadTenants();
+    loadTickets();
+  }, [loadTenants, loadTickets]);
+
+  useEffect(() => {
+    loadKnowledge(selectedCompanyKey);
+  }, [selectedCompanyKey, loadKnowledge]);
+
+  const handleDownloadWordTemplate = async () => {
+    try {
+      const resp = await axios.get('/api/admin/faq-knowledge/template-docx', {
+        headers: getAuthHeaders(),
+        responseType: 'blob'
+      });
+      const blobUrl = URL.createObjectURL(new Blob([resp.data]));
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'Template_FAQ_Knowledge_RIGHT.docx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      Swal.fire('Gagal', 'Tidak dapat mengunduh template Word FAQ.', 'error');
+    }
+  };
+
+  const handleUploadWord = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('companyKey', selectedCompanyKey);
+      formData.append('companyName', selectedCompanyKey);
+      formData.append('replaceExisting', String(replaceExisting));
+
+      const resp = await axios.post('/api/admin/faq-knowledge/upload', formData, {
+        headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' }
+      });
+      setDocuments(resp.data?.store?.documents || []);
+      setChunks(resp.data?.store?.chunks || []);
+      Swal.fire('Berhasil', resp.data?.message || 'Dokumen FAQ berhasil diindeks ke Sistem RAG.', 'success');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        'Gagal mengunggah dokumen FAQ Word.';
+      Swal.fire('Gagal', msg, 'error');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleAddManualItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuestion.trim() || !newAnswer.trim()) return;
+    setAddingItem(true);
+    try {
+      const resp = await axios.post(
+        '/api/admin/faq-knowledge/items',
+        {
+          companyKey: selectedCompanyKey,
+          companyName: selectedCompanyKey,
+          category: newCategory.trim() || 'Umum',
+          question: newQuestion.trim(),
+          answer: newAnswer.trim()
+        },
+        { headers: getAuthHeaders() }
+      );
+      setChunks(resp.data?.store?.chunks || []);
+      setNewQuestion('');
+      setNewAnswer('');
+      Swal.fire('Tersimpan', 'Item FAQ berhasil ditambahkan ke Basis Pengetahuan RAG.', 'success');
+    } catch {
+      Swal.fire('Gagal', 'Tidak dapat menambahkan item FAQ.', 'error');
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
+  const handleDeleteChunk = async (id: string) => {
+    try {
+      const resp = await axios.delete(`/api/admin/faq-knowledge/items/${id}`, {
+        params: { companyKey: selectedCompanyKey },
+        headers: getAuthHeaders()
+      });
+      setChunks(resp.data?.store?.chunks || []);
+    } catch {
+      Swal.fire('Gagal', 'Tidak dapat menghapus item FAQ.', 'error');
+    }
+  };
+
+  const handleTestRag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ragQuery.trim()) return;
+    setRagTesting(true);
+    try {
+      const resp = await axios.post(
+        '/api/admin/faq-knowledge/test-rag',
+        { query: ragQuery.trim(), companyKey: selectedCompanyKey },
+        { headers: getAuthHeaders() }
+      );
+      setRagResult(resp.data);
+    } catch {
+      Swal.fire('Gagal', 'Pengujian RAG gagal dijalankan.', 'error');
+    } finally {
+      setRagTesting(false);
+    }
+  };
+
+  const handleReplyTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTicketId || !replyText.trim()) return;
+    setReplying(true);
+    try {
+      const resp = await axios.post(
+        `/api/admin/helpdesk/tickets/${selectedTicketId}/reply`,
+        { message: replyText.trim(), status: 'in_progress' },
+        { headers: getAuthHeaders() }
+      );
+      const updated: HelpdeskTicket = resp.data?.ticket;
+      if (updated) {
+        setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      }
+      setReplyText('');
+    } catch {
+      Swal.fire('Gagal', 'Tidak dapat mengirim balasan tiket.', 'error');
+    } finally {
+      setReplying(false);
+    }
+  };
+
+  const handleChangeTicketStatus = async (ticketId: string, status: HelpdeskTicket['status']) => {
+    try {
+      const resp = await axios.patch(
+        `/api/admin/helpdesk/tickets/${ticketId}/status`,
+        { status },
+        { headers: getAuthHeaders() }
+      );
+      const updated: HelpdeskTicket = resp.data?.ticket;
+      if (updated) {
+        setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      }
+    } catch {
+      Swal.fire('Gagal', 'Tidak dapat mengubah status tiket.', 'error');
+    }
+  };
+
+  const filteredTickets = tickets.filter((t) => (statusFilter === 'all' ? true : t.status === statusFilter));
+  const selectedTicket = filteredTickets.find((t) => t.id === selectedTicketId) || filteredTickets[0] || null;
+  const openCount = tickets.filter((t) => t.status === 'open').length;
+
+  return (
+    <div className="space-y-6">
+      {/* Header & Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl w-fit">
+          <button
+            type="button"
+            onClick={() => setActiveTab('knowledge')}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+              activeTab === 'knowledge'
+                ? 'bg-white text-primary-navy shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            Konten FAQ (Word) &amp; RAG
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('helpdesk')}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+              activeTab === 'helpdesk'
+                ? 'bg-white text-primary-navy shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            Helpdesk Internal
+            {openCount > 0 && (
+              <span className="px-1.5 py-0.5 text-[11px] font-bold rounded-full bg-rose-500 text-white">
+                {openCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === 'knowledge' && (
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedCompanyKey}
+              onChange={(e) => setSelectedCompanyKey(e.target.value)}
+              className="px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white text-slate-800 font-medium"
+            >
+              <option value="DEFAULT">Global Platform (DEFAULT)</option>
+              {tenants.map((t) => (
+                <option key={t.id} value={t.name}>
+                  Tenant: {t.name}
+                </option>
+              ))}
+            </select>
+            <Button variant="secondary" size="sm" onClick={handleDownloadWordTemplate}>
+              <Download className="w-4 h-4 mr-1.5" />
+              Template Word (.docx)
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {activeTab === 'knowledge' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left: Upload Word + Manual Add + RAG Tester */}
+          <div className="lg:col-span-5 space-y-6">
+            <Card className="border-slate-200">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-blue-accent" />
+                      Upload Dokumen FAQ (Word .docx)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Ekstrak otomatis format Tanya/Jawab (Q:/A:) ke indeks RAG &amp; Proksis MCP Knowledge.
+                    </p>
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={replaceExisting}
+                    onChange={(e) => setReplaceExisting(e.target.checked)}
+                    className="rounded border-slate-300"
+                  />
+                  Ganti seluruh item FAQ sebelumnya untuk tenant ini
+                </label>
+
+                <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 hover:border-blue-accent rounded-2xl p-6 cursor-pointer bg-slate-50/70 transition-colors">
+                  {uploading ? (
+                    <Loader2 className="w-7 h-7 animate-spin text-blue-accent mb-2" />
+                  ) : (
+                    <FileText className="w-7 h-7 text-blue-accent mb-2" />
+                  )}
+                  <span className="text-sm font-semibold text-slate-800">
+                    {uploading ? 'Memproses dokumen...' : 'Pilih File Word (.docx / .txt / .md)'}
+                  </span>
+                  <span className="text-xs text-slate-500 mt-1">Maksimal 10 MB</span>
+                  <input
+                    type="file"
+                    accept=".docx,.txt,.md"
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={handleUploadWord}
+                  />
+                </label>
+
+                {documents.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Riwayat Upload Dokumen
+                    </p>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {documents.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="flex items-center justify-between text-xs p-2.5 rounded-xl bg-slate-50 border border-slate-200/70"
+                        >
+                          <div className="truncate pr-2">
+                            <p className="font-semibold text-slate-800 truncate">{doc.fileName}</p>
+                            <p className="text-slate-500">{doc.chunkCount} chunk terindeks</p>
+                          </div>
+                          <Badge variant={doc.mcpSyncStatus === 'synced_mcp' ? 'success' : 'info'}>
+                            {doc.mcpSyncStatus === 'synced_mcp' ? 'MCP Synced' : 'RAG Local'}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Manual Add FAQ */}
+            <Card className="border-slate-200">
+              <CardContent className="p-5">
+                <h3 className="font-bold text-slate-900 text-base flex items-center gap-2 mb-3">
+                  <Plus className="w-4 h-4 text-blue-accent" />
+                  Tambah Entri FAQ Manual
+                </h3>
+                <form onSubmit={handleAddManualItem} className="space-y-3">
+                  <Input
+                    label="Kategori"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    placeholder="Contoh: Proctoring, Wawancara, LHA"
+                  />
+                  <Input
+                    label="Pertanyaan Kandidat"
+                    value={newQuestion}
+                    onChange={(e) => setNewQuestion(e.target.value)}
+                    placeholder="Contoh: Apakah boleh memakai virtual background?"
+                    required
+                  />
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Jawaban Resmi Terverifikasi
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={newAnswer}
+                      onChange={(e) => setNewAnswer(e.target.value)}
+                      placeholder="Tuliskan jawaban resmi yang akan diberikan oleh Chatbot FAQ..."
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-accent/20"
+                      required
+                    />
+                  </div>
+                  <Button type="submit" disabled={addingItem} className="w-full">
+                    {addingItem ? 'Menyimpan...' : 'Simpan ke Knowledge Base'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* RAG Tester */}
+            <Card className="border-slate-200 bg-slate-50/60">
+              <CardContent className="p-5 space-y-3">
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-accent" />
+                  Uji Retrieval Chatbot FAQ (Non-AI Bebas)
+                </h3>
+                <form onSubmit={handleTestRag} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={ragQuery}
+                    onChange={(e) => setRagQuery(e.target.value)}
+                    placeholder="Ketik pertanyaan kandidat untuk diuji..."
+                    className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white"
+                  />
+                  <Button type="submit" size="sm" disabled={ragTesting}>
+                    <Search className="w-4 h-4" />
+                  </Button>
+                </form>
+                {ragResult && (
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Badge variant={ragResult.matched ? 'success' : 'warning'}>
+                        {ragResult.matched ? 'Cocok dengan FAQ' : 'Tidak ada kecocokan (Eskalasi Helpdesk)'}
+                      </Badge>
+                      <span className="text-slate-500 font-mono">Skor: {ragResult.confidence}</span>
+                    </div>
+                    {ragResult.bestChunk && (
+                      <>
+                        <p className="font-semibold text-slate-900">{ragResult.bestChunk.question}</p>
+                        <p className="text-slate-600">{ragResult.bestChunk.answer}</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right: Indexed Chunks */}
+          <div className="lg:col-span-7">
+            <Card className="border-slate-200">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">
+                      Basis Pengetahuan FAQ Terindeks ({chunks.length})
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Hanya konten di bawah ini yang digunakan Chatbot FAQ untuk menjawab kandidat.
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => loadKnowledge(selectedCompanyKey)}>
+                    <RefreshCw className={`w-4 h-4 ${loadingKnowledge ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+
+                {chunks.length === 0 ? (
+                  <div className="text-center py-12 text-slate-500 text-sm">
+                    Belum ada konten FAQ khusus untuk tenant ini. Upload file Word (.docx) atau tambahkan manual.
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[700px] overflow-y-auto pr-1">
+                    {chunks.map((c) => (
+                      <div
+                        key={c.id}
+                        className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-colors space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="info">{c.category}</Badge>
+                              <span className="text-[11px] text-slate-400">{c.sourceFile}</span>
+                            </div>
+                            <p className="font-bold text-slate-900 text-sm">{c.question}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteChunk(c.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
+                            title="Hapus item FAQ"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">{c.answer}</p>
+                        {c.keywords?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {c.keywords.slice(0, 6).map((kw) => (
+                              <span
+                                key={kw}
+                                className="px-2 py-0.5 text-[10px] rounded-full bg-slate-100 text-slate-600"
+                              >
+                                #{kw}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      ) : (
+        /* TAB 2: HELPDESK INTERNAL */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-5">
+            <Card className="border-slate-200">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-900 text-sm">Daftar Tiket Kandidat</h3>
+                  <Button variant="ghost" size="sm" onClick={loadTickets}>
+                    <RefreshCw className={`w-4 h-4 ${loadingTickets ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {(['all', 'open', 'in_progress', 'resolved'] as const).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setStatusFilter(st)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                        statusFilter === st
+                          ? 'bg-primary-navy text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {st === 'all'
+                        ? 'Semua'
+                        : st === 'open'
+                          ? 'Baru'
+                          : st === 'in_progress'
+                            ? 'Diproses'
+                            : 'Selesai'}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-2 max-h-[540px] overflow-y-auto">
+                  {filteredTickets.length === 0 ? (
+                    <p className="text-center py-8 text-xs text-slate-500">Belum ada tiket Helpdesk.</p>
+                  ) : (
+                    filteredTickets.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSelectedTicketId(t.id)}
+                        className={`w-full text-left p-3 rounded-xl border transition-all ${
+                          selectedTicket?.id === t.id
+                            ? 'border-blue-accent bg-blue-50/40'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-[11px] font-mono font-bold text-slate-500">
+                            {t.ticketCode}
+                          </span>
+                          <Badge
+                            variant={
+                              t.status === 'resolved'
+                                ? 'success'
+                                : t.status === 'in_progress'
+                                  ? 'info'
+                                  : 'warning'
+                            }
+                          >
+                            {t.status === 'resolved'
+                              ? 'Selesai'
+                              : t.status === 'in_progress'
+                                ? 'Diproses'
+                                : 'Baru'}
+                          </Badge>
+                        </div>
+                        <p className="font-bold text-slate-900 text-xs truncate">{t.candidateName}</p>
+                        <p className="text-xs text-slate-600 truncate mt-0.5">{t.subject}</p>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          {t.companyName} • {t.programCode}
+                        </p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="lg:col-span-7">
+            <Card className="border-slate-200">
+              <CardContent className="p-5">
+                {!selectedTicket ? (
+                  <div className="text-center py-16 text-sm text-slate-500">
+                    Pilih tiket di sebelah kiri untuk melihat percakapan dan membalas kandidat.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-blue-accent">
+                            {selectedTicket.ticketCode}
+                          </span>
+                          <Badge variant="info">{selectedTicket.source}</Badge>
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-base mt-1">
+                          {selectedTicket.candidateName} ({selectedTicket.candidateEmail})
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          {selectedTicket.companyName} • Program: {selectedTicket.programCode}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant={selectedTicket.status === 'in_progress' ? 'primary' : 'secondary'}
+                          onClick={() => handleChangeTicketStatus(selectedTicket.id, 'in_progress')}
+                        >
+                          <Clock className="w-3.5 h-3.5 mr-1" />
+                          Proses
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={selectedTicket.status === 'resolved' ? 'primary' : 'secondary'}
+                          onClick={() => handleChangeTicketStatus(selectedTicket.id, 'resolved')}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                          Selesai
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 max-h-[360px] overflow-y-auto p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
+                      {selectedTicket.messages.map((m) => (
+                        <div
+                          key={m.id}
+                          className={`flex flex-col ${
+                            m.senderRole === 'admin' ? 'items-end' : 'items-start'
+                          }`}
+                        >
+                          <span className="text-[10px] text-slate-400 mb-1 px-1">
+                            {m.senderName} •{' '}
+                            {new Date(m.createdAt).toLocaleString('id-ID', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              day: '2-digit',
+                              month: 'short'
+                            })}
+                          </span>
+                          <div
+                            className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
+                              m.senderRole === 'admin'
+                                ? 'bg-primary-navy text-white rounded-br-none'
+                                : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
+                            }`}
+                          >
+                            {m.text}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <form onSubmit={handleReplyTicket} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="Tulis balasan resmi Helpdesk Internal untuk kandidat..."
+                        className="flex-1 px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-accent/20"
+                      />
+                      <Button type="submit" disabled={replying || !replyText.trim()}>
+                        {replying ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4 mr-1.5" />
+                            Kirim
+                          </>
+                        )}
+                      </Button>
+                    </form>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AdminFaqHelpdesk;

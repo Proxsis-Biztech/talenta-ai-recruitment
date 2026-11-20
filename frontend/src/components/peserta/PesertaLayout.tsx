@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import PesertaFaqChatbot from './PesertaFaqChatbot';
 import {
   LayoutDashboard,
   FileCheck2,
@@ -856,6 +857,8 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           </div>
         </div>
       </Modal>
+
+      <PesertaFaqChatbot />
     </div>
   );
 }

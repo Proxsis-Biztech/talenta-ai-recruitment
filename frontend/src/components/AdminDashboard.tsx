@@ -8,7 +8,7 @@ import {
   X, Menu, Brain, Radio, Sun, Mail, Phone,
   GraduationCap, MapPin, BookOpen, Award, Building,
   Star, Eye, Printer, ShieldAlert, BarChart3, AlertTriangle, Target, Activity,
-  Copy, Check, Send, Layers, Loader2, FileCheck, ArrowUpRight, CheckSquare, Video, Sliders, Plus, Network
+  Copy, Check, Send, Layers, Loader2, FileCheck, ArrowUpRight, CheckSquare, Video, Sliders, Plus, Network, MessageSquare
 } from 'lucide-react';
 import UserManagement from './UserManagement';
 import JobManagement from './JobManagement';
@@ -28,6 +28,7 @@ import { AdminCompanyMatrix } from './admin/AdminCompanyMatrix';
 import AdminOrgStructure from './admin/AdminOrgStructure';
 import AdminSecurityCard from './admin/AdminSecurityCard';
 import AdminBillingCredit from './admin/AdminBillingCredit';
+import AdminFaqHelpdesk from './AdminFaqHelpdesk';
 import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
 import Swal from 'sweetalert2';
 import { SuperadminLayout, type AdminMenuKey } from './SuperadminLayout';
@@ -232,7 +233,7 @@ export default function AdminDashboard() {
     const allowed: AdminMenuKey[] = [
       'dashboard', 'peserta', 'pipeline', 'jobs', 'ranking', 'proctoring', 'users',
       'ai-config', 'audit-logs', 'analytics', 'materi', 'bank-soal', 'perusahaan',
-      'billing', 'help'
+      'billing', 'faq-helpdesk', 'help'
     ];
     return menu && allowed.includes(menu as AdminMenuKey) ? (menu as AdminMenuKey) : 'dashboard';
   });
@@ -917,6 +918,7 @@ ${app.interviewResult ? `
       items: [
         { key: 'ranking', label: 'Peringkat & Matriks', icon: BarChart3 },
         { key: 'proctoring', label: 'Audit Proctoring', icon: ShieldAlert, badge: 'Live' },
+        { key: 'faq-helpdesk', label: 'FAQ RAG & Helpdesk', icon: MessageSquare },
       ]
     },
     {
@@ -1016,6 +1018,12 @@ ${app.interviewResult ? `
       subtitle: 'Metrik konversi funnel talent acquisition dan performa asesmen',
       short: 'Analitika',
       dotColor: 'bg-primary-navy'
+    },
+    'faq-helpdesk': {
+      title: 'Knowledge Base FAQ (RAG) & Helpdesk Internal',
+      subtitle: 'Upload konten FAQ Word (.docx) ke sistem RAG dan kelola tiket eskalasi kandidat',
+      short: 'FAQ & Helpdesk',
+      dotColor: 'bg-blue-accent'
     },
     help: {
       title: 'Pusat Bantuan & Panduan',
@@ -1889,6 +1897,10 @@ ${app.interviewResult ? `
           ) : activeMenu === 'billing' ? (
             <div className="animate-fade-in">
               <AdminBillingCredit />
+            </div>
+          ) : activeMenu === 'faq-helpdesk' ? (
+            <div className="animate-fade-in">
+              <AdminFaqHelpdesk />
             </div>
           ) : activeMenu === 'help' ? (
             <div className="animate-fade-in bg-white rounded-xl border border-border-slate p-6 shadow-xs space-y-6">
