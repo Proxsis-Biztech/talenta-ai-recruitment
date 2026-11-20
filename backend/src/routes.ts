@@ -238,11 +238,11 @@ router.get('/admin/helpdesk/tickets', authenticateToken, listAdminHelpdeskTicket
 router.post('/admin/helpdesk/tickets/:id/reply', authenticateToken, replyAdminHelpdeskTicket);
 router.patch('/admin/helpdesk/tickets/:id/status', authenticateToken, updateHelpdeskTicketStatus);
 
-router.get('/peserta/faq-knowledge', authenticateToken, listPesertaFaqItems);
-router.post('/peserta/faq-chat', authenticateToken, askPesertaFaqChatbot);
-router.get('/peserta/helpdesk/tickets', authenticateToken, listPesertaHelpdeskTickets);
-router.post('/peserta/helpdesk/tickets', authenticateToken, createHelpdeskTicket);
-router.post('/peserta/helpdesk/tickets/:id/reply', authenticateToken, replyPesertaHelpdeskTicket);
+router.get('/peserta/faq-knowledge', authenticatePortal, listPesertaFaqItems);
+router.post('/peserta/faq-chat', authenticatePortal, askPesertaFaqChatbot);
+router.get('/peserta/helpdesk/tickets', authenticatePortal, listPesertaHelpdeskTickets);
+router.post('/peserta/helpdesk/tickets', authenticatePortal, createHelpdeskTicket);
+router.post('/peserta/helpdesk/tickets/:id/reply', authenticatePortal, replyPesertaHelpdeskTicket);
 router.post('/admin/programs/:programCode/questions/sync', authenticateToken, syncProgramQuestions);
 router.get('/admin/programs/:programCode/questions/template', authenticateToken, downloadQuestionTemplate);
 router.post('/admin/programs/:programCode/questions/import', authenticateToken, caseFileUpload.single('file'), importProgramQuestions);

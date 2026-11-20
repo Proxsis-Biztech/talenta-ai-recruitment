@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import PesertaFaqChatbot from '../peserta/PesertaFaqChatbot';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -592,6 +593,8 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           </div>
         </div>
       </Modal>
+
+      <PesertaFaqChatbot />
     </div>
   );
 }

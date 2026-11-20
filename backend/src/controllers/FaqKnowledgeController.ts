@@ -46,7 +46,7 @@ export interface FaqKnowledgeStore {
 
 export interface HelpdeskMessageItem {
   id: string;
-  senderRole: 'peserta' | 'admin' | 'bot';
+  senderRole: 'peserta' | 'asesor' | 'admin' | 'bot';
   senderName: string;
   text: string;
   createdAt: string;
@@ -54,6 +54,7 @@ export interface HelpdeskMessageItem {
 
 export interface HelpdeskTicket {
   id: string;
+  requesterRole?: 'peserta' | 'asesor';
   ticketCode: string;
   tenantKey: string;
   companyName: string;
@@ -799,7 +800,7 @@ export const testFaqRagSearch = async (req: AuthRequest, res: Response) => {
 
 export const listPesertaFaqItems = async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId;
+    const tenantId = req.portalUser?.tenantId || req.user?.tenantId;
     let companyKey = 'DEFAULT';
     if (tenantId) {
       const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
@@ -826,8 +827,9 @@ export const askPesertaFaqChatbot = async (req: AuthRequest, res: Response) => {
 
     const hints: Array<string | null | undefined> = [];
     if (req.body.companyName) hints.push(String(req.body.companyName));
-    if (req.user?.tenantId) {
-      const tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId } });
+    const requesterTenantId = req.portalUser?.tenantId || req.user?.tenantId;
+    if (requesterTenantId) {
+      const tenant = await prisma.tenant.findUnique({ where: { id: requesterTenantId } });
       if (tenant) hints.push(tenant.name, tenant.id);
     }
     hints.push('DEFAULT');
@@ -908,17 +910,22 @@ export const createHelpdeskTicket = async (req: AuthRequest, res: Response) => {
 
     let companyName = String(req.body.companyName || '').trim();
     let tenantKey = companyName ? normalizeKey(companyName) : 'DEFAULT';
-    let candidateName = String(req.body.candidateName || req.user?.username || 'Kandidat').trim();
-    let candidateEmail = String(req.body.candidateEmail || req.user?.username || '').trim();
+    let candidateName = String(req.body.candidateName || 'Kandidat').trim();
+    let candidateEmail = String(req.body.candidateEmail || '').trim();
+    let requesterRole: 'peserta' | 'asesor' = 'peserta';
+    let candidateCode = String(req.body.candidateCode || '').trim();
 
-    if (req.user?.id) {
+    const portalUserId = req.portalUser?.id || req.user?.id;
+    if (portalUserId) {
       const portalUser = await prisma.portalUser.findUnique({
-        where: { id: req.user.id },
+        where: { id: portalUserId },
         include: { tenant: true }
       });
       if (portalUser) {
         candidateName = portalUser.name || candidateName;
         candidateEmail = portalUser.email || candidateEmail;
+        candidateCode = portalUser.candidateCode || portalUser.email || candidateCode;
+        requesterRole = portalUser.role === 'asesor' ? 'asesor' : 'peserta';
         if (portalUser.tenant) {
           companyName = portalUser.tenant.name;
           tenantKey = normalizeKey(portalUser.tenant.name);
@@ -941,14 +948,15 @@ export const createHelpdeskTicket = async (req: AuthRequest, res: Response) => {
       programCode: String(req.body.programCode || '-'),
       candidateName,
       candidateEmail,
-      candidateCode: String(req.body.candidateCode || req.user?.username || '-'),
+      candidateCode: candidateCode || candidateEmail || '-',
+      requesterRole,
       subject: subject.slice(0, 120),
       source: (req.body.source as HelpdeskTicket['source']) || 'chatbot-faq',
       status: 'open',
       messages: [
         {
           id: `msg-${crypto.randomUUID().slice(0, 8)}`,
-          senderRole: 'peserta',
+          senderRole: requesterRole,
           senderName: candidateName,
           text: message,
           createdAt: now
@@ -968,12 +976,14 @@ export const createHelpdeskTicket = async (req: AuthRequest, res: Response) => {
 
 export const listPesertaHelpdeskTickets = async (req: AuthRequest, res: Response) => {
   try {
-    const email = (req.user?.username || '').toLowerCase();
+    const email = (req.portalUser?.email || req.user?.username || '').toLowerCase();
+    const candidateCode = (req.portalUser?.candidateCode || '').toLowerCase();
     const all = await loadAllTickets();
     const mine = all.filter(
       (t) =>
         t.candidateEmail.toLowerCase() === email ||
-        t.candidateCode.toLowerCase() === email
+        t.candidateCode.toLowerCase() === email ||
+        (candidateCode && t.candidateCode.toLowerCase() === candidateCode)
     );
     return res.json({ tickets: mine });
   } catch (err) {
@@ -994,10 +1004,11 @@ export const replyPesertaHelpdeskTicket = async (req: AuthRequest, res: Response
     if (!rec) return res.status(404).json({ error: 'Tiket tidak ditemukan.' });
 
     const ticket = JSON.parse(rec.value) as HelpdeskTicket;
+    const senderRole: 'peserta' | 'asesor' = req.portalUser?.role === 'asesor' ? 'asesor' : 'peserta';
     ticket.messages.push({
       id: `msg-${crypto.randomUUID().slice(0, 8)}`,
-      senderRole: 'peserta',
-      senderName: ticket.candidateName,
+      senderRole,
+      senderName: req.portalUser?.name || ticket.candidateName,
       text,
       createdAt: new Date().toISOString()
     });
