@@ -235,6 +235,14 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
     loadKnowledge(selectedCompanyKey);
   }, [selectedCompanyKey, loadKnowledge]);
 
+  useEffect(() => {
+    if (activeTab !== 'helpdesk') return;
+    const timer = setInterval(() => {
+      loadTickets();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [activeTab, loadTickets]);
+
   const handleDownloadWordTemplate = async () => {
     try {
       const resp = await axios.get('/api/admin/faq-knowledge/template-docx', {
@@ -1066,7 +1074,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
             <Card className="border-slate-200">
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-slate-900 text-sm">Daftar Tiket Kandidat</h3>
+                  <h3 className="font-bold text-slate-900 text-sm">Chat Masuk Kandidat</h3>
                   <Button variant="ghost" size="sm" onClick={loadTickets}>
                     <RefreshCw className={`w-4 h-4 ${loadingTickets ? 'animate-spin' : ''}`} />
                   </Button>
@@ -1088,7 +1096,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
                         : st === 'open'
                           ? 'Baru'
                           : st === 'in_progress'
-                            ? 'Diproses'
+                            ? 'Aktif'
                             : 'Selesai'}
                     </button>
                   ))}
@@ -1096,46 +1104,48 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
 
                 <div className="space-y-2 max-h-[540px] overflow-y-auto">
                   {filteredTickets.length === 0 ? (
-                    <p className="text-center py-8 text-xs text-slate-500">Belum ada tiket Helpdesk.</p>
+                    <p className="text-center py-8 text-xs text-slate-500">Belum ada chat Helpdesk masuk.</p>
                   ) : (
-                    filteredTickets.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setSelectedTicketId(t.id)}
-                        className={`w-full text-left p-3 rounded-xl border transition-all ${
-                          selectedTicket?.id === t.id
-                            ? 'border-blue-accent bg-blue-50/40'
-                            : 'border-slate-200 bg-white hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <span className="text-[11px] font-mono font-bold text-slate-500">
-                            {t.ticketCode}
-                          </span>
-                          <Badge
-                            variant={
-                              t.status === 'resolved'
-                                ? 'success'
+                    filteredTickets.map((t) => {
+                      const lastMsg = t.messages[t.messages.length - 1];
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setSelectedTicketId(t.id)}
+                          className={`w-full text-left p-3 rounded-xl border transition-all ${
+                            selectedTicket?.id === t.id
+                              ? 'border-blue-accent bg-blue-50/40'
+                              : 'border-slate-200 bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <p className="font-bold text-slate-900 text-xs truncate">{t.candidateName}</p>
+                            <Badge
+                              variant={
+                                t.status === 'resolved'
+                                  ? 'success'
+                                  : t.status === 'in_progress'
+                                    ? 'info'
+                                    : 'warning'
+                              }
+                            >
+                              {t.status === 'resolved'
+                                ? 'Selesai'
                                 : t.status === 'in_progress'
-                                  ? 'info'
-                                  : 'warning'
-                            }
-                          >
-                            {t.status === 'resolved'
-                              ? 'Selesai'
-                              : t.status === 'in_progress'
-                                ? 'Diproses'
-                                : 'Baru'}
-                          </Badge>
-                        </div>
-                        <p className="font-bold text-slate-900 text-xs truncate">{t.candidateName}</p>
-                        <p className="text-xs text-slate-600 truncate mt-0.5">{t.subject}</p>
-                        <p className="text-[11px] text-slate-400 mt-1">
-                          {t.companyName} • {t.programCode}
-                        </p>
-                      </button>
-                    ))
+                                  ? 'Aktif'
+                                  : 'Baru'}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] font-medium text-primary-navy truncate">
+                            {t.companyName} • {t.programCode}
+                          </p>
+                          <p className="text-xs text-slate-600 truncate mt-1">
+                            {lastMsg?.text || t.subject}
+                          </p>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </CardContent>
@@ -1147,22 +1157,19 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
               <CardContent className="p-5">
                 {!selectedTicket ? (
                   <div className="text-center py-16 text-sm text-slate-500">
-                    Pilih tiket di sebelah kiri untuk melihat percakapan dan membalas kandidat.
+                    Pilih percakapan di sebelah kiri untuk membalas chat kandidat.
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-blue-accent">
-                            {selectedTicket.ticketCode}
-                          </span>
+                          <h3 className="font-bold text-slate-900 text-base">
+                            {selectedTicket.candidateName}
+                          </h3>
                           <Badge variant="info">{selectedTicket.source}</Badge>
                         </div>
-                        <h3 className="font-bold text-slate-900 text-base mt-1">
-                          {selectedTicket.candidateName} ({selectedTicket.candidateEmail})
-                        </h3>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-500 mt-0.5">
                           {selectedTicket.companyName} • Program: {selectedTicket.programCode}
                         </p>
                       </div>

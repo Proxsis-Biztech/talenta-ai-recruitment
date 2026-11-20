@@ -7,9 +7,8 @@ import {
   LifeBuoy,
   Bot,
   Loader2,
-  CheckCircle2,
   ArrowRight,
-  RefreshCw
+  UserCheck
 } from 'lucide-react';
 import { getPortalToken, getPortalUser } from '../../services/portalAuthService';
 
@@ -31,10 +30,11 @@ interface ChatEntry {
   originalQuery?: string;
 }
 
-interface HelpdeskTicket {
+interface HelpdeskChatSession {
   id: string;
-  ticketCode: string;
-  subject: string;
+  candidateName: string;
+  companyName: string;
+  programCode: string;
   status: 'open' | 'in_progress' | 'resolved';
   messages: Array<{
     id: string;
@@ -48,35 +48,50 @@ interface HelpdeskTicket {
 
 export const PesertaFaqChatbot: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<'chat' | 'tickets'>('chat');
+  const [mode, setMode] = useState<'faq' | 'helpdesk'>('faq');
   const [faqItems, setFaqItems] = useState<FaqItem[]>([]);
   const [messages, setMessages] = useState<ChatEntry[]>([
     {
       id: 'welcome',
       sender: 'bot',
-      text: 'Halo! Saya Asisten FAQ Asesmen RIGHT. Saya menjawab pertanyaan umum berdasarkan Basis Pengetahuan FAQ resmi. Jika pertanyaan Anda belum terjawab, Anda dapat langsung terhubung ke Helpdesk Internal.'
+      text: 'Halo! Saya Asisten FAQ Asesmen RIGHT. Saya menjawab pertanyaan umum berdasarkan Basis Pengetahuan FAQ resmi. Jika butuh bantuan langsung, Anda dapat terhubung ke Chat Helpdesk Internal.'
     }
   ]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [tickets, setTickets] = useState<HelpdeskTicket[]>([]);
-  const [loadingTickets, setLoadingTickets] = useState(false);
-  const [escalating, setEscalating] = useState(false);
-  const [ticketReplyMap, setTicketReplyMap] = useState<Record<string, string>>({});
+
+  // Helpdesk Pre-chat Form + Live Chat Session state
+  const portalUser = getPortalUser();
+  const [formName, setFormName] = useState(
+    () => portalUser?.name || localStorage.getItem('pesertaName') || ''
+  );
+  const [formCompany, setFormCompany] = useState(() => portalUser?.companyName || '');
+  const [formProgram, setFormProgram] = useState(
+    () => portalUser?.assessmentTitle || localStorage.getItem('programCode') || portalUser?.assessmentId || ''
+  );
+  const [startingChat, setStartingChat] = useState(false);
+  const [activeSession, setActiveSession] = useState<HelpdeskChatSession | null>(null);
+  const [helpdeskInput, setHelpdeskInput] = useState('');
+  const [sendingHelpdesk, setSendingHelpdesk] = useState(false);
+  const [pendingQuery, setPendingQuery] = useState('');
 
   const getHeaders = () => {
     const token = getPortalToken() || localStorage.getItem('adminToken') || '';
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  const loadFaqAndTickets = useCallback(async () => {
+  const loadFaqAndActiveChat = useCallback(async () => {
     try {
-      const [faqResp, tktResp] = await Promise.all([
+      const [faqResp, chatResp] = await Promise.all([
         axios.get('/api/peserta/faq-knowledge', { headers: getHeaders() }),
         axios.get('/api/peserta/helpdesk/tickets', { headers: getHeaders() })
       ]);
       setFaqItems(faqResp.data?.items || []);
-      setTickets(tktResp.data?.tickets || []);
+      const sessions: HelpdeskChatSession[] = chatResp.data?.tickets || [];
+      const openSession = sessions.find((s) => s.status !== 'resolved') || null;
+      if (openSession) {
+        setActiveSession(openSession);
+      }
     } catch {
       // silent
     }
@@ -84,30 +99,40 @@ export const PesertaFaqChatbot: React.FC = () => {
 
   useEffect(() => {
     if (open) {
-      loadFaqAndTickets();
+      loadFaqAndActiveChat();
     }
-  }, [open, loadFaqAndTickets]);
+  }, [open, loadFaqAndActiveChat]);
+
+  // Poll for admin replies while in live helpdesk chat
+  useEffect(() => {
+    if (!open || mode !== 'helpdesk' || !activeSession) return;
+    const timer = setInterval(async () => {
+      try {
+        const resp = await axios.get('/api/peserta/helpdesk/tickets', { headers: getHeaders() });
+        const sessions: HelpdeskChatSession[] = resp.data?.tickets || [];
+        const updated = sessions.find((s) => s.id === activeSession.id);
+        if (updated) setActiveSession(updated);
+      } catch {
+        // silent
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [open, mode, activeSession]);
 
   const sendFaqQuery = async (questionText: string) => {
     const clean = questionText.trim();
     if (!clean || sending) return;
 
-    const userEntry: ChatEntry = {
-      id: `u-${Date.now()}`,
-      sender: 'user',
-      text: clean
-    };
-    setMessages((prev) => [...prev, userEntry]);
+    setMessages((prev) => [...prev, { id: `u-${Date.now()}`, sender: 'user', text: clean }]);
     setInput('');
     setSending(true);
 
     try {
-      const user = getPortalUser();
       const resp = await axios.post(
         '/api/peserta/faq-chat',
         {
           message: clean,
-          companyName: user?.companyName
+          companyName: formCompany || portalUser?.companyName || ''
         },
         { headers: getHeaders() }
       );
@@ -130,7 +155,7 @@ export const PesertaFaqChatbot: React.FC = () => {
         {
           id: `b-${Date.now()}`,
           sender: 'bot',
-          text: 'Terjadi kendala saat menghubungi layanan FAQ. Silakan hubungkan ke Helpdesk Internal.',
+          text: 'Terjadi kendala saat menghubungi layanan FAQ. Silakan lanjutkan ke Chat Helpdesk Internal.',
           canEscalate: true,
           originalQuery: clean
         }
@@ -140,98 +165,109 @@ export const PesertaFaqChatbot: React.FC = () => {
     }
   };
 
-  const handleEscalateToHelpdesk = async (questionText: string) => {
-    if (escalating) return;
-    setEscalating(true);
+  const handleOpenHelpdeskWithQuery = (queryText: string) => {
+    setPendingQuery(queryText);
+    setMode('helpdesk');
+  };
+
+  const handleStartHelpdeskChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName.trim() || !formCompany.trim() || !formProgram.trim() || startingChat) return;
+    setStartingChat(true);
     try {
-      const user = getPortalUser();
+      const initialMsg =
+        pendingQuery.trim() ||
+        `Halo Helpdesk, saya ${formName.trim()} dari ${formCompany.trim()} (Program: ${formProgram.trim()}) membutuhkan bantuan.`;
       const resp = await axios.post(
         '/api/peserta/helpdesk/tickets',
         {
-          subject: questionText.slice(0, 100),
-          message: questionText,
-          companyName: user?.companyName || '',
-          programCode: localStorage.getItem('programCode') || user?.assessmentId || '-',
-          candidateName: user?.name || localStorage.getItem('pesertaName') || 'Peserta',
-          candidateEmail: user?.email || localStorage.getItem('pesertaUsername') || '',
+          subject: `${formName.trim()} • ${formProgram.trim()}`,
+          message: initialMsg,
+          companyName: formCompany.trim(),
+          programCode: formProgram.trim(),
+          candidateName: formName.trim(),
+          candidateEmail: portalUser?.email || localStorage.getItem('pesertaUsername') || '',
           source: 'chatbot-faq'
         },
         { headers: getHeaders() }
       );
-      const created: HelpdeskTicket | undefined = resp.data?.ticket;
-      if (created) {
-        setTickets((prev) => [created, ...prev]);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `b-esc-${Date.now()}`,
-            sender: 'bot',
-            text: `Pertanyaan Anda telah diteruskan ke Helpdesk Internal dengan nomor tiket ${created.ticketCode}. Anda dapat memantau balasan tim pengawas pada tab "Tiket Helpdesk".`
-          }
-        ]);
-        setTab('tickets');
+      if (resp.data?.ticket) {
+        setActiveSession(resp.data.ticket);
+        setPendingQuery('');
       }
     } catch {
       // ignore
     } finally {
-      setEscalating(false);
+      setStartingChat(false);
     }
   };
 
-  const handleReplyTicket = async (ticketId: string) => {
-    const text = (ticketReplyMap[ticketId] || '').trim();
-    if (!text) return;
+  const handleSendHelpdeskMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = helpdeskInput.trim();
+    if (!text || !activeSession || sendingHelpdesk) return;
+    setSendingHelpdesk(true);
     try {
       const resp = await axios.post(
-        `/api/peserta/helpdesk/tickets/${ticketId}/reply`,
+        `/api/peserta/helpdesk/tickets/${activeSession.id}/reply`,
         { message: text },
         { headers: getHeaders() }
       );
-      const updated: HelpdeskTicket | undefined = resp.data?.ticket;
-      if (updated) {
-        setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-        setTicketReplyMap((prev) => ({ ...prev, [ticketId]: '' }));
+      if (resp.data?.ticket) {
+        setActiveSession(resp.data.ticket);
+        setHelpdeskInput('');
       }
     } catch {
       // ignore
-    }
-  };
-
-  const refreshTickets = async () => {
-    setLoadingTickets(true);
-    try {
-      const resp = await axios.get('/api/peserta/helpdesk/tickets', { headers: getHeaders() });
-      setTickets(resp.data?.tickets || []);
     } finally {
-      setLoadingTickets(false);
+      setSendingHelpdesk(false);
     }
   };
 
   return (
     <>
-      {/* Floating Launcher */}
+      <style>{`
+        @keyframes floatChatbot {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+        }
+        @keyframes popUpChatbot {
+          from { opacity: 0; transform: translateY(14px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0px) scale(1); }
+        }
+      `}</style>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-primary-navy text-white shadow-lg hover:bg-primary-navy/90 transition-all text-xs font-bold"
+        style={{ animation: open ? 'none' : 'floatChatbot 3.2s ease-in-out infinite' }}
+        className="fixed bottom-6 right-6 z-40 group flex items-center gap-2.5 px-4 py-3 rounded-full bg-primary-navy text-white shadow-[0_14px_32px_-8px_rgba(15,39,92,0.5)] hover:bg-primary-navy/95 hover:scale-105 active:scale-95 transition-all duration-300 text-xs font-bold ring-4 ring-blue-500/15"
         title="Chatbot FAQ & Helpdesk Internal"
       >
-        <MessageSquare className="w-4 h-4" />
+        <span className="relative flex items-center justify-center">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-40 animate-ping" />
+          <MessageSquare className="w-4 h-4 relative transition-transform duration-300 group-hover:rotate-6" />
+        </span>
         <span className="hidden sm:inline">Chatbot FAQ &amp; Helpdesk</span>
-        {tickets.some((t) => t.status !== 'resolved') && (
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-        )}
+        <span
+          className={`w-2 h-2 rounded-full ${
+            activeSession && activeSession.status !== 'resolved'
+              ? 'bg-emerald-400 animate-pulse'
+              : 'bg-blue-300'
+          }`}
+        />
       </button>
 
-      {/* Drawer / Modal */}
       {open && (
-        <div className="fixed bottom-20 right-5 z-50 w-[360px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[540px]">
+        <div
+          style={{ animation: 'popUpChatbot 0.22s ease-out forwards' }}
+          className="fixed bottom-22 right-6 z-50 w-[370px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[560px]"
+        >
           {/* Header */}
           <div className="bg-primary-navy text-white px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Bot className="w-5 h-5 text-blue-300" />
               <div>
-                <p className="text-sm font-bold leading-tight">Chatbot FAQ RIGHT</p>
+                <p className="text-sm font-bold leading-tight">Bantuan &amp; Chatbot FAQ</p>
                 <p className="text-[10px] text-blue-200">Terhubung ke Helpdesk Internal</p>
               </div>
             </div>
@@ -244,40 +280,35 @@ export const PesertaFaqChatbot: React.FC = () => {
             </button>
           </div>
 
-          {/* Tabs */}
+          {/* Mode Switch */}
           <div className="flex border-b border-slate-200 bg-slate-50 text-xs font-semibold">
             <button
               type="button"
-              onClick={() => setTab('chat')}
+              onClick={() => setMode('faq')}
               className={`flex-1 py-2.5 text-center ${
-                tab === 'chat'
+                mode === 'faq'
                   ? 'text-primary-navy border-b-2 border-primary-navy bg-white'
                   : 'text-slate-500'
               }`}
             >
-              Tanya FAQ
+              Chatbot FAQ
             </button>
             <button
               type="button"
-              onClick={() => setTab('tickets')}
+              onClick={() => setMode('helpdesk')}
               className={`flex-1 py-2.5 text-center flex items-center justify-center gap-1.5 ${
-                tab === 'tickets'
+                mode === 'helpdesk'
                   ? 'text-primary-navy border-b-2 border-primary-navy bg-white'
                   : 'text-slate-500'
               }`}
             >
-              <span>Tiket Helpdesk</span>
-              {tickets.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-blue-100 text-primary-navy text-[10px]">
-                  {tickets.length}
-                </span>
-              )}
+              <LifeBuoy className="w-3.5 h-3.5" />
+              <span>Chat Helpdesk</span>
             </button>
           </div>
 
-          {tab === 'chat' ? (
+          {mode === 'faq' ? (
             <>
-              {/* Quick FAQ Chips */}
               {faqItems.length > 0 && (
                 <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/70 flex gap-1.5 overflow-x-auto">
                   {faqItems.slice(0, 4).map((item) => (
@@ -293,7 +324,6 @@ export const PesertaFaqChatbot: React.FC = () => {
                 </div>
               )}
 
-              {/* Messages */}
               <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-white">
                 {messages.map((m) => (
                   <div
@@ -320,12 +350,11 @@ export const PesertaFaqChatbot: React.FC = () => {
                     {m.canEscalate && m.originalQuery && (
                       <button
                         type="button"
-                        disabled={escalating}
-                        onClick={() => handleEscalateToHelpdesk(m.originalQuery!)}
+                        onClick={() => handleOpenHelpdeskWithQuery(m.originalQuery!)}
                         className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-semibold hover:bg-amber-100"
                       >
                         <LifeBuoy className="w-3 h-3" />
-                        Hubungkan ke Helpdesk Internal
+                        Hubungkan ke Chat Helpdesk
                         <ArrowRight className="w-3 h-3" />
                       </button>
                     )}
@@ -339,7 +368,6 @@ export const PesertaFaqChatbot: React.FC = () => {
                 )}
               </div>
 
-              {/* Input */}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -363,97 +391,137 @@ export const PesertaFaqChatbot: React.FC = () => {
                 </button>
               </form>
             </>
+          ) : !activeSession ? (
+            /* Pre-Chat Form before starting Helpdesk Chat */
+            <form onSubmit={handleStartHelpdeskChat} className="p-4 space-y-3 overflow-y-auto bg-white">
+              <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-100 text-xs text-slate-700 flex items-start gap-2">
+                <UserCheck className="w-4 h-4 text-primary-navy shrink-0 mt-0.5" />
+                <span>
+                  Lengkapi data berikut sebelum memulai chat dengan Admin Helpdesk Internal.
+                </span>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Nama Lengkap *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="Masukkan nama lengkap Anda"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-accent/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Perusahaan / Instansi *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formCompany}
+                  onChange={(e) => setFormCompany(e.target.value)}
+                  placeholder="Contoh: PT Telkom Indonesia"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-accent/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Program Asesmen yang Diambil *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formProgram}
+                  onChange={(e) => setFormProgram(e.target.value)}
+                  placeholder="Contoh: Software Engineer (SE-402)"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-accent/20"
+                />
+              </div>
+              {pendingQuery && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Pertanyaan Awal
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={pendingQuery}
+                    onChange={(e) => setPendingQuery(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl"
+                  />
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={startingChat}
+                className="w-full py-2.5 rounded-xl bg-primary-navy text-white text-xs font-bold hover:bg-primary-navy/90 disabled:opacity-50"
+              >
+                {startingChat ? 'Menghubungkan ke Admin...' : 'Mulai Chat Helpdesk'}
+              </button>
+            </form>
           ) : (
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/50">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-semibold text-slate-500">
-                  Riwayat Tiket Helpdesk Internal
-                </p>
+            /* Live Helpdesk Chat Room */
+            <>
+              <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px]">
+                <div className="truncate pr-2">
+                  <span className="font-bold text-slate-800">{activeSession.candidateName}</span>
+                  <span className="text-slate-500"> • {activeSession.companyName}</span>
+                  <span className="block text-[10px] text-slate-400 truncate">
+                    Program: {activeSession.programCode}
+                  </span>
+                </div>
                 <button
                   type="button"
-                  onClick={refreshTickets}
-                  className="text-xs text-blue-accent flex items-center gap-1"
+                  onClick={() => setActiveSession(null)}
+                  className="shrink-0 text-[10px] font-semibold text-blue-accent hover:underline"
                 >
-                  <RefreshCw className={`w-3 h-3 ${loadingTickets ? 'animate-spin' : ''}`} />
-                  Muat ulang
+                  Chat Baru
                 </button>
               </div>
 
-              {tickets.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500 space-y-2">
-                  <p>Belum ada tiket Helpdesk Internal.</p>
-                  <p className="text-[11px] text-slate-400">
-                    Gunakan tab Tanya FAQ lalu klik Hubungkan ke Helpdesk Internal jika perlu bantuan admin.
-                  </p>
-                </div>
-              ) : (
-                tickets.map((t) => (
+              <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-white">
+                {activeSession.messages.map((m) => (
                   <div
-                    key={t.id}
-                    className="p-3 rounded-xl bg-white border border-slate-200 space-y-2"
+                    key={m.id}
+                    className={`flex flex-col ${m.senderRole === 'admin' ? 'items-start' : 'items-end'}`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] font-bold text-slate-500">
-                        {t.ticketCode}
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-                          t.status === 'resolved'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : t.status === 'in_progress'
-                              ? 'bg-blue-50 text-blue-700'
-                              : 'bg-amber-50 text-amber-700'
-                        }`}
-                      >
-                        {t.status === 'resolved' && <CheckCircle2 className="w-3 h-3" />}
-                        {t.status === 'resolved'
-                          ? 'Selesai'
-                          : t.status === 'in_progress'
-                            ? 'Diproses'
-                            : 'Menunggu'}
-                      </span>
+                    <span className="text-[10px] text-slate-400 mb-0.5 px-1">
+                      {m.senderRole === 'admin' ? `Admin (${m.senderName})` : m.senderName}
+                    </span>
+                    <div
+                      className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
+                        m.senderRole === 'admin'
+                          ? 'bg-blue-50 border border-blue-100 text-slate-800 rounded-bl-none'
+                          : 'bg-primary-navy text-white rounded-br-none'
+                      }`}
+                    >
+                      {m.text}
                     </div>
-                    <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                      {t.messages.map((m) => (
-                        <div
-                          key={m.id}
-                          className={`text-[11px] p-2 rounded-lg ${
-                            m.senderRole === 'admin'
-                              ? 'bg-blue-50 text-slate-800 border border-blue-100'
-                              : 'bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <span className="font-bold block text-[10px] text-slate-500">
-                            {m.senderName}
-                          </span>
-                          {m.text}
-                        </div>
-                      ))}
-                    </div>
-                    {t.status !== 'resolved' && (
-                      <div className="flex gap-1.5 pt-1">
-                        <input
-                          type="text"
-                          value={ticketReplyMap[t.id] || ''}
-                          onChange={(e) =>
-                            setTicketReplyMap((prev) => ({ ...prev, [t.id]: e.target.value }))
-                          }
-                          placeholder="Balas ke Helpdesk..."
-                          className="flex-1 px-2.5 py-1.5 text-[11px] border border-slate-200 rounded-lg"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleReplyTicket(t.id)}
-                          className="px-2.5 py-1.5 rounded-lg bg-primary-navy text-white text-[11px] font-semibold"
-                        >
-                          Kirim
-                        </button>
-                      </div>
-                    )}
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+
+              <form
+                onSubmit={handleSendHelpdeskMessage}
+                className="p-2.5 border-t border-slate-200 bg-slate-50 flex gap-2"
+              >
+                <input
+                  type="text"
+                  value={helpdeskInput}
+                  onChange={(e) => setHelpdeskInput(e.target.value)}
+                  placeholder="Tulis pesan ke Admin Helpdesk..."
+                  className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-accent/20"
+                />
+                <button
+                  type="submit"
+                  disabled={sendingHelpdesk || !helpdeskInput.trim()}
+                  className="px-3 py-2 rounded-xl bg-primary-navy text-white hover:bg-primary-navy/90 disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            </>
           )}
         </div>
       )}

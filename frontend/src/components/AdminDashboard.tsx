@@ -1034,8 +1034,8 @@ ${app.interviewResult ? `
       dotColor: 'bg-blue-accent'
     },
     'helpdesk-internal': {
-      title: 'Helpdesk Internal (Tiket Kandidat)',
-      subtitle: 'Kelola eskalasi pertanyaan dari Chatbot FAQ dan live helpdesk pengawas ujian',
+      title: 'Helpdesk Internal (Live Chat Kandidat)',
+      subtitle: 'Kelola percakapan Helpdesk Internal dari kandidat (nama, perusahaan, dan program asesmen)',
       short: 'Helpdesk Internal',
       dotColor: 'bg-emerald-600'
     },
