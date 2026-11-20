@@ -264,6 +264,7 @@ export const previewReportTemplatePdf = async (req: AuthRequest, res: Response) 
     ];
 
     const pdf = buildPdf(blocks, {
+      brandName: tpl.companyName || 'RIGHT',
       title: tpl.pdfTitle || 'RIGHT - Laporan Hasil Asesmen',
       subtitle: tpl.pdfSubtitle || `LHA-${companyKey}-PREVIEW`,
       footer: tpl.footerText || 'RIGHT Assessment Platform'

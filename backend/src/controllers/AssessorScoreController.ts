@@ -333,9 +333,10 @@ export const downloadLhaPdf = async (req: AuthRequest, res: Response) => {
     ];
 
     const pdf = buildPdf(blocks, {
-      title: reportTpl?.pdfTitle || 'Talenta+ - Laporan Hasil Asesmen',
+      brandName: reportTpl?.companyName || candidatePortalUser?.companyName || 'RIGHT',
+      title: reportTpl?.pdfTitle || 'RIGHT - Laporan Hasil Asesmen',
       subtitle: reportTpl?.pdfSubtitle || score.lhaNumber || score.candidateCode,
-      footer: reportTpl?.footerText || 'Solusi Asesmen Indonesia (SAI) & Proxsis Talent Force'
+      footer: reportTpl?.footerText || 'RIGHT Assessment Platform'
     });
 
     res.setHeader('Content-Type', 'application/pdf');

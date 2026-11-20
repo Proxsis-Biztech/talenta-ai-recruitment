@@ -12,6 +12,7 @@ export type PdfBlock =
   | { type: 'table'; columns: string[]; rows: string[][]; widths?: number[] };
 
 export interface PdfOptions {
+  brandName?: string;
   title?: string;
   subtitle?: string;
   footer?: string;
@@ -82,9 +83,9 @@ export const buildPdf = (blocks: PdfBlock[], options: PdfOptions = {}): Buffer =
   const [ar, ag, ab] = options.accent || [0.12, 0.23, 0.54];
 
   page.ops.push(`q ${ar} ${ag} ${ab} rg 0 ${(PAGE_HEIGHT - 96).toFixed(2)} ${PAGE_WIDTH.toFixed(2)} 96 re f Q`);
-  text('TALENTA+', MARGIN, PAGE_HEIGHT - 56, 18, true);
   page.ops.push('q 1 1 1 rg');
-  text(options.title || 'Laporan', MARGIN, PAGE_HEIGHT - 76, 11);
+  text(options.brandName || 'RIGHT', MARGIN, PAGE_HEIGHT - 52, 18, true);
+  text(options.title || 'Laporan', MARGIN, PAGE_HEIGHT - 72, 11);
   page.ops.push('Q');
   if (options.subtitle) {
     page.ops.push('q 0.85 0.88 0.96 rg');
@@ -177,10 +178,16 @@ export const buildPdf = (blocks: PdfBlock[], options: PdfOptions = {}): Buffer =
   pages.push(page);
 
   const footerText = options.footer || `Dicetak ${new Date().toLocaleString('id-ID')}`;
-  for (const item of pages) {
-    text(footerText, MARGIN, 34, 8);
-    text(`Halaman ${pages.indexOf(item) + 1} dari ${pages.length}`, PAGE_WIDTH - MARGIN - 90, 34, 8);
-  }
+  pages.forEach((item, idx) => {
+    item.ops.push('q 0.45 0.5 0.58 rg');
+    item.ops.push(
+      `BT /F1 8 Tf ${MARGIN.toFixed(2)} 34.00 Td (${escapeText(footerText)}) Tj ET`
+    );
+    item.ops.push(
+      `BT /F1 8 Tf ${(PAGE_WIDTH - MARGIN - 90).toFixed(2)} 34.00 Td (${escapeText(`Halaman ${idx + 1} dari ${pages.length}`)}) Tj ET`
+    );
+    item.ops.push('Q');
+  });
 
   const objects: string[] = [];
   const pageObjectIds: number[] = [];
