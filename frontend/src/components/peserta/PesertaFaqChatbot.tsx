@@ -8,7 +8,9 @@ import {
   Bot,
   Loader2,
   ArrowRight,
-  UserCheck
+  UserCheck,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { getPortalToken, getPortalUser } from '../../services/portalAuthService';
 
@@ -48,6 +50,7 @@ interface HelpdeskChatSession {
 
 export const PesertaFaqChatbot: React.FC = () => {
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<'faq' | 'helpdesk'>('faq');
   const [faqItems, setFaqItems] = useState<FaqItem[]>([]);
   const [messages, setMessages] = useState<ChatEntry[]>([
@@ -240,16 +243,16 @@ export const PesertaFaqChatbot: React.FC = () => {
         type="button"
         onClick={() => setOpen((v) => !v)}
         style={{ animation: open ? 'none' : 'floatChatbot 3.2s ease-in-out infinite' }}
-        className="fixed bottom-6 right-6 z-40 group flex items-center gap-2.5 px-4 py-3 rounded-full bg-primary-navy text-white shadow-[0_14px_32px_-8px_rgba(15,39,92,0.5)] hover:bg-primary-navy/95 hover:scale-105 active:scale-95 transition-all duration-300 text-xs font-bold ring-4 ring-blue-500/15"
+        className="fixed bottom-6 right-6 z-40 group w-14 h-14 flex items-center justify-center rounded-full bg-primary-navy text-white shadow-[0_14px_32px_-8px_rgba(15,39,92,0.5)] hover:bg-primary-navy/95 hover:scale-110 active:scale-95 transition-all duration-300 ring-4 ring-blue-500/15"
         title="Chatbot FAQ & Helpdesk Internal"
+        aria-label="Chatbot FAQ & Helpdesk Internal"
       >
         <span className="relative flex items-center justify-center">
-          <span className="absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-40 animate-ping" />
-          <MessageSquare className="w-4 h-4 relative transition-transform duration-300 group-hover:rotate-6" />
+          <span className="absolute inline-flex h-8 w-8 rounded-full bg-blue-300 opacity-35 animate-ping" />
+          <MessageSquare className="w-6 h-6 relative transition-transform duration-300 group-hover:rotate-6" />
         </span>
-        <span className="hidden sm:inline">Chatbot FAQ &amp; Helpdesk</span>
         <span
-          className={`w-2 h-2 rounded-full ${
+          className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-primary-navy ${
             activeSession && activeSession.status !== 'resolved'
               ? 'bg-emerald-400 animate-pulse'
               : 'bg-blue-300'
@@ -260,7 +263,11 @@ export const PesertaFaqChatbot: React.FC = () => {
       {open && (
         <div
           style={{ animation: 'popUpChatbot 0.22s ease-out forwards' }}
-          className="fixed bottom-22 right-6 z-50 w-[370px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[560px]"
+          className={`fixed bottom-24 right-6 z-50 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-300 ${
+            expanded
+              ? 'w-[min(700px,calc(100vw-2.5rem))] h-[min(780px,calc(100vh-7.5rem))]'
+              : 'w-[440px] h-[610px] max-h-[84vh]'
+          }`}
         >
           {/* Header */}
           <div className="bg-primary-navy text-white px-4 py-3 flex items-center justify-between">
@@ -271,13 +278,25 @@ export const PesertaFaqChatbot: React.FC = () => {
                 <p className="text-[10px] text-blue-200">Terhubung ke Helpdesk Internal</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="p-1 rounded-lg hover:bg-white/10"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                title={expanded ? 'Perkecil tampilan chat' : 'Perbesar tampilan chat'}
+                aria-label={expanded ? 'Perkecil tampilan chat' : 'Perbesar tampilan chat'}
+              >
+                {expanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                title="Tutup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Mode Switch */}
