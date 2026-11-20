@@ -67,26 +67,46 @@ export const getPortalMaterials = async (req: AuthRequest, res: Response) => {
       const override = parseJson<any[]>(byId?.value || byCode?.value, []);
       if (Array.isArray(override) && override.length > 0) {
         const targetUpper = programCode.toUpperCase();
-        const otherCodes = Array.from(allowedCodes).filter((c) => c !== targetUpper);
-        items = override.filter((m) => {
-          const itemProg = String(m?.programCode || '').trim().toUpperCase();
-          if (itemProg && itemProg !== targetUpper) return false;
-          const itemCode = String(m?.code || '').trim().toUpperCase();
-          const itemTitle = String(m?.title || '').trim().toUpperCase();
-          if (
-            otherCodes.some(
-              (oc) =>
-                itemCode === oc ||
-                itemCode === `MOD-${oc}` ||
-                itemCode.startsWith(`${oc}-`) ||
-                itemTitle.includes(`(${oc})`) ||
-                itemTitle.includes(oc)
-            )
-          ) {
-            return false;
-          }
-          return true;
-        });
+        const allJobs = await prisma.job.findMany({ select: { code: true } });
+        const knownCodes = new Set<string>(allowedCodes);
+        allJobs.forEach((j) => j.code && knownCodes.add(j.code.trim().toUpperCase()));
+        const otherCodes = Array.from(knownCodes).filter((c) => c !== targetUpper);
+
+        items = override
+          .filter((m) => {
+            const itemProg = String(m?.programCode || '').trim().toUpperCase();
+            if (itemProg && itemProg !== targetUpper) return false;
+            const itemCode = String(m?.code || '').trim().toUpperCase();
+            const itemTitle = String(m?.title || '').trim().toUpperCase();
+            if (targetUpper === 'CLD-301' && (itemCode === 'TLKM-RES-01' || itemCode === 'TLKM-DB-02')) {
+              return false;
+            }
+            if (targetUpper !== 'CLD-301' && itemCode === 'TLKM-CLD-03') {
+              return false;
+            }
+            if (targetUpper !== 'SE-402' && (itemCode === 'TLKM-RES-01' || itemCode === 'TLKM-DB-02')) {
+              return false;
+            }
+            if (
+              otherCodes.some(
+                (oc) =>
+                  itemCode === oc ||
+                  itemCode === `MOD-${oc}` ||
+                  itemCode.startsWith(`${oc}-`) ||
+                  itemTitle.includes(`(${oc})`) ||
+                  itemTitle.includes(oc)
+              )
+            ) {
+              return false;
+            }
+            return true;
+          })
+          .map((m) => ({
+            ...m,
+            title: String(m?.title || '')
+              .replace(/\s*\((?:SE|CLD|FED|BMRI|CIMB|TLKM|AST|PRT)[A-Z0-9-]*\)/gi, '')
+              .trim()
+          }));
       }
     }
 

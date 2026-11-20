@@ -575,8 +575,8 @@ export default function PesertaDeviceCheck() {
         {/* ─── Compact Header Row ─── */}
         <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2.5 py-1 rounded-lg border border-accent-border">
-              {activeProgram.id}
+            <span className="text-[11px] font-bold text-primary-navy bg-soft-blue px-2.5 py-1 rounded-lg border border-accent-border">
+              {activeProgram.companyName || 'Asesmen Kompetensi'}
             </span>
             <h1 className="text-lg sm:text-xl font-extrabold font-heading text-ink tracking-tight">
               Uji Kesiapan Perangkat

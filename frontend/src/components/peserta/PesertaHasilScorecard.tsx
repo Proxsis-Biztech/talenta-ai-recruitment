@@ -148,14 +148,16 @@ export default function PesertaHasilScorecard() {
 
   const handleDownloadPDF = () => {
     setLhaNotice(null);
+    if (!lha?.signed) {
+      setLhaNotice('Laporan PDF final baru dapat dicetak setelah LHA resmi diterbitkan oleh Dewan Asesor.');
+      return;
+    }
     setDownloading(true);
-    window.setTimeout(() => {
-      try {
-        window.print();
-      } finally {
-        setDownloading(false);
-      }
-    }, 100);
+    try {
+      window.print();
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleDownloadLha = async () => {

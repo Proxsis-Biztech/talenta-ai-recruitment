@@ -249,6 +249,7 @@ export default function PesertaAsesmenList() {
             const targetUpper = String(selectedProgramId || activeProg.id || '').trim().toUpperCase();
             const otherIds = Array.from(
               new Set([
+                ...getAllPrograms().map((p) => p.id),
                 ...(activeUser?.assignedProgramIds || []),
                 ...serverPrograms.map((sp) => sp.code)
               ])
@@ -261,6 +262,15 @@ export default function PesertaAsesmenList() {
               const itemCode = String(m?.code || '').trim().toUpperCase();
               const itemTitle = String(m?.title || '').trim().toUpperCase();
               if (itemProg && targetUpper && itemProg !== targetUpper) return false;
+              if (targetUpper === 'CLD-301' && (itemCode === 'TLKM-RES-01' || itemCode === 'TLKM-DB-02')) {
+                return false;
+              }
+              if (targetUpper !== 'CLD-301' && itemCode === 'TLKM-CLD-03') {
+                return false;
+              }
+              if (targetUpper !== 'SE-402' && (itemCode === 'TLKM-RES-01' || itemCode === 'TLKM-DB-02')) {
+                return false;
+              }
               if (
                 otherIds.some(
                   (oc) =>
