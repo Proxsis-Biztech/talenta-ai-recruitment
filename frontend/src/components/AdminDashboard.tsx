@@ -1879,8 +1879,11 @@ ${app.interviewResult ? `
               <UserManagement />
             </div>
           ) : activeMenu === 'ai-config' ? (
-            <div className="animate-fade-in">
+            <div className="animate-fade-in space-y-6">
               <AIConfigView />
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <AdminFaqHelpdesk initialTab="knowledge" hideTabs />
+              </div>
             </div>
           ) : activeMenu === 'audit-logs' ? (
             <div className="animate-fade-in">

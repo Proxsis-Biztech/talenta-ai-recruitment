@@ -86,9 +86,10 @@ const getAuthHeaders = () => {
 
 interface AdminFaqHelpdeskProps {
   initialTab?: 'knowledge' | 'helpdesk' | 'chatbot';
+  hideTabs?: boolean;
 }
 
-export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab = 'knowledge' }) => {
+export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab = 'knowledge', hideTabs = false }) => {
   const [activeTab, setActiveTab] = useState<'knowledge' | 'helpdesk' | 'chatbot'>(initialTab);
 
   useEffect(() => {
@@ -564,7 +565,8 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
     <div className="space-y-6">
       {/* Header & Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl w-fit">
+        {!hideTabs && (
+          <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl w-fit">
           <button
             type="button"
             onClick={() => setActiveTab('knowledge')}
@@ -607,6 +609,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
             )}
           </button>
         </div>
+        )}
 
         {activeTab === 'knowledge' && (
           <div className="flex items-center gap-2">

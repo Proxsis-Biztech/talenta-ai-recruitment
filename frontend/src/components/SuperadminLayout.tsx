@@ -112,15 +112,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'proctoring', label: 'Monitoring Proctoring', icon: ShieldAlert },
       { key: 'ranking', label: 'Hasil & Peringkat (LHA)', icon: BarChart3 },
       { key: 'organisasi', label: 'Organisasi & Kelas', icon: Network },
-    ],
-  },
-  {
-    id: 'bantuan-chat',
-    label: 'BANTUAN & CHAT',
-    items: [
       { key: 'helpdesk-internal', label: 'Helpdesk Internal', icon: MessageSquare, badge: 'Live' },
-      { key: 'chatbot-faq', label: 'Chatbot FAQ', icon: Bot },
-      { key: 'faq-helpdesk', label: 'Konten FAQ (RAG)', icon: BookOpen },
     ],
   },
   {
