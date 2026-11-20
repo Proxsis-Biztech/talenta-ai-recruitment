@@ -76,6 +76,34 @@ export default function RankingView() {
   const [selected, setSelected] = useState<RankedApplicant[]>([]);
   const [showCompare, setShowCompare] = useState(false);
   const [detailApplicant, setDetailApplicant] = useState<RankedApplicant | null>(null);
+  const [downloadingLha, setDownloadingLha] = useState(false);
+
+  const handleDownloadTenantLhaPdf = async (app: RankedApplicant) => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+      printCandidateReport(app);
+      return;
+    }
+    setDownloadingLha(true);
+    try {
+      const response = await axios.get(`/api/admin/applicants/${encodeURIComponent(app.id)}/lha-pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `LHA-${app.fullName.replace(/[^a-zA-Z0-9_-]+/g, '_')}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      printCandidateReport(app);
+    } finally {
+      setDownloadingLha(false);
+    }
+  };
   const [showTranscript, setShowTranscript] = useState(false);
 
   const fetchRanking = useCallback(async () => {
@@ -522,10 +550,12 @@ ${app.interviewTranscript ? `<div class="banner"><h2>Transkrip Percakapan</h2><d
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => printCandidateReport(detailApplicant)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-md text-xs font-medium border border-slate-200 transition-colors"
+                    onClick={() => void handleDownloadTenantLhaPdf(detailApplicant)}
+                    disabled={downloadingLha}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-navy hover:bg-navy-dark text-white rounded-md text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
                   >
-                    <Printer className="w-3.5 h-3.5 text-slate-500" /> Cetak
+                    <Download className="w-3.5 h-3.5" />
+                    {downloadingLha ? 'Menyiapkan PDF...' : 'Unduh LHA (PDF)'}
                   </button>
                   <button
                     onClick={() => setDetailApplicant(null)}
