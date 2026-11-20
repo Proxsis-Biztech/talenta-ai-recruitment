@@ -231,8 +231,14 @@ export default function PesertaAsesmenList() {
         .then((res) => {
           if (cancelled) return;
           if (Array.isArray(res.data?.data) && res.data.data.length > 0) {
-            setMaterials(res.data.data);
-            setSelectedModule(res.data.data[0]);
+            const targetUpper = String(selectedProgramId || activeProg.id || '').trim().toUpperCase();
+            const filtered = res.data.data.filter((m: MasterMateriItem & { programCode?: string }) => {
+              const itemProg = String(m?.programCode || '').trim().toUpperCase();
+              if (itemProg && targetUpper && itemProg !== targetUpper) return false;
+              return true;
+            });
+            setMaterials(filtered);
+            setSelectedModule(filtered[0] || null);
           } else {
             loadLocalMaterials();
           }
@@ -280,15 +286,16 @@ export default function PesertaAsesmenList() {
   );
 
   const activeProgramCode = selectedProgramId || activeProg.id;
+  const moduleProgressStorageKey = `peserta_completed_modules_${String(activeUser?.username || 'user').trim().toLowerCase()}_${String(activeProgramCode || '').trim().toUpperCase()}`;
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(`peserta_completed_modules_${activeProgramCode}`);
+      const raw = localStorage.getItem(moduleProgressStorageKey);
       setCompletedModules(raw ? JSON.parse(raw) : {});
     } catch {
       setCompletedModules({});
     }
-  }, [activeProgramCode]);
+  }, [moduleProgressStorageKey]);
   const isCatCompleted = isProgramCatCompleted(activeProgramCode);
   const isLiveCodingCompleted = Boolean(
     liveCodingCompletedMap[String(activeProgramCode || '').trim().toUpperCase()]
@@ -499,7 +506,7 @@ export default function PesertaAsesmenList() {
     const updated = { ...completedModules, [modId]: !completedModules[modId] };
     setCompletedModules(updated);
     try {
-      localStorage.setItem(`peserta_completed_modules_${activeProgramCode}`, JSON.stringify(updated));
+      localStorage.setItem(moduleProgressStorageKey, JSON.stringify(updated));
     } catch {}
   };
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   BookOpen,
@@ -32,12 +33,32 @@ interface MateriItem {
 }
 
 export default function PesertaMateri() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [programs, setPrograms] = useState<Array<{ code: string; title: string }>>([]);
+  const [selectedProgramCode, setSelectedProgramCode] = useState<string>(
+    () => searchParams.get('program') || localStorage.getItem('programCode') || ''
+  );
   const [items, setItems] = useState<MateriItem[]>([]);
   const [programTitle, setProgramTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [activeItem, setActiveItem] = useState<MateriItem | null>(null);
+
+  useEffect(() => {
+    const token = getPortalToken();
+    if (!token) return;
+    axios
+      .get('/api/portal/dashboard', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        const list = Array.isArray(res.data?.programs) ? res.data.programs : [];
+        setPrograms(list.map((p: any) => ({ code: p.code, title: p.title })));
+        if (!selectedProgramCode && list[0]?.code) {
+          setSelectedProgramCode(list[0].code);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,8 +68,12 @@ export default function PesertaMateri() {
       setLoading(false);
       return;
     }
+    setLoading(true);
     axios
-      .get('/api/portal/materials', { headers: { Authorization: `Bearer ${token}` } })
+      .get('/api/portal/materials', {
+        params: selectedProgramCode ? { programCode: selectedProgramCode } : undefined,
+        headers: { Authorization: `Bearer ${token}` }
+      })
       .then((response) => {
         if (cancelled) return;
         setItems(Array.isArray(response.data?.data) ? response.data.data : []);
@@ -63,7 +88,7 @@ export default function PesertaMateri() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedProgramCode]);
 
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -89,6 +114,31 @@ export default function PesertaMateri() {
             <p className="text-sm text-slate-500 mt-1">
               {programTitle || 'Program asesmen Anda'}
             </p>
+            {programs.length > 1 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {programs.map((prog) => {
+                  const active = prog.code === selectedProgramCode;
+                  return (
+                    <button
+                      key={prog.code}
+                      type="button"
+                      onClick={() => {
+                        setSelectedProgramCode(prog.code);
+                        localStorage.setItem('programCode', prog.code);
+                        setSearchParams({ program: prog.code }, { replace: true });
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                        active
+                          ? 'bg-primary-navy text-white border-primary-navy'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {prog.title}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="relative w-full sm:w-72">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />

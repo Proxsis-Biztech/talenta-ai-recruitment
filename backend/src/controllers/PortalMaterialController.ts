@@ -65,7 +65,19 @@ export const getPortalMaterials = async (req: AuthRequest, res: Response) => {
         })
       ]);
       const override = parseJson<any[]>(byId?.value || byCode?.value, []);
-      if (Array.isArray(override) && override.length > 0) items = override;
+      if (Array.isArray(override) && override.length > 0) {
+        const targetUpper = programCode.toUpperCase();
+        const otherCodes = Array.from(allowedCodes).filter((c) => c !== targetUpper);
+        items = override.filter((m) => {
+          const itemProg = String(m?.programCode || '').trim().toUpperCase();
+          if (itemProg && itemProg !== targetUpper) return false;
+          const itemCode = String(m?.code || '').trim().toUpperCase();
+          if (otherCodes.some((oc) => itemCode === oc || itemCode === `MOD-${oc}` || itemCode.startsWith(`${oc}-`))) {
+            return false;
+          }
+          return true;
+        });
+      }
     }
 
     if (items.length === 0 && job) {
