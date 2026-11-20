@@ -233,7 +233,7 @@ export default function AdminDashboard() {
     const allowed: AdminMenuKey[] = [
       'dashboard', 'peserta', 'pipeline', 'jobs', 'ranking', 'proctoring', 'users',
       'ai-config', 'audit-logs', 'analytics', 'materi', 'bank-soal', 'perusahaan',
-      'billing', 'faq-helpdesk', 'help'
+      'billing', 'faq-helpdesk', 'helpdesk-internal', 'help'
     ];
     return menu && allowed.includes(menu as AdminMenuKey) ? (menu as AdminMenuKey) : 'dashboard';
   });
@@ -918,7 +918,8 @@ ${app.interviewResult ? `
       items: [
         { key: 'ranking', label: 'Peringkat & Matriks', icon: BarChart3 },
         { key: 'proctoring', label: 'Audit Proctoring', icon: ShieldAlert, badge: 'Live' },
-        { key: 'faq-helpdesk', label: 'FAQ RAG & Helpdesk', icon: MessageSquare },
+        { key: 'faq-helpdesk', label: 'Konten FAQ (RAG)', icon: BookOpen },
+        { key: 'helpdesk-internal', label: 'Helpdesk Internal', icon: MessageSquare },
       ]
     },
     {
@@ -1020,10 +1021,16 @@ ${app.interviewResult ? `
       dotColor: 'bg-primary-navy'
     },
     'faq-helpdesk': {
-      title: 'Knowledge Base FAQ (RAG) & Helpdesk Internal',
-      subtitle: 'Upload konten FAQ Word (.docx) ke sistem RAG dan kelola tiket eskalasi kandidat',
-      short: 'FAQ & Helpdesk',
+      title: 'Knowledge Base FAQ (RAG & Word)',
+      subtitle: 'Upload konten FAQ Word (.docx), kelola item FAQ, dan sinkronisasi Proksis MCP Knowledge',
+      short: 'Konten FAQ',
       dotColor: 'bg-blue-accent'
+    },
+    'helpdesk-internal': {
+      title: 'Helpdesk Internal (Tiket Kandidat)',
+      subtitle: 'Kelola eskalasi pertanyaan dari Chatbot FAQ dan live helpdesk pengawas ujian',
+      short: 'Helpdesk Internal',
+      dotColor: 'bg-emerald-600'
     },
     help: {
       title: 'Pusat Bantuan & Panduan',
@@ -1898,9 +1905,11 @@ ${app.interviewResult ? `
             <div className="animate-fade-in">
               <AdminBillingCredit />
             </div>
-          ) : activeMenu === 'faq-helpdesk' ? (
+          ) : activeMenu === 'faq-helpdesk' || activeMenu === 'helpdesk-internal' ? (
             <div className="animate-fade-in">
-              <AdminFaqHelpdesk />
+              <AdminFaqHelpdesk
+                initialTab={activeMenu === 'helpdesk-internal' ? 'helpdesk' : 'knowledge'}
+              />
             </div>
           ) : activeMenu === 'help' ? (
             <div className="animate-fade-in bg-white rounded-xl border border-border-slate p-6 shadow-xs space-y-6">

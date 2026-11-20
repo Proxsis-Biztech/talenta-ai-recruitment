@@ -81,8 +81,16 @@ const getAuthHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-export const AdminFaqHelpdesk: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'knowledge' | 'helpdesk'>('knowledge');
+interface AdminFaqHelpdeskProps {
+  initialTab?: 'knowledge' | 'helpdesk';
+}
+
+export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab = 'knowledge' }) => {
+  const [activeTab, setActiveTab] = useState<'knowledge' | 'helpdesk'>(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
   const [tenants, setTenants] = useState<TenantOption[]>([]);
   const [selectedCompanyKey, setSelectedCompanyKey] = useState<string>('DEFAULT');
   const [documents, setDocuments] = useState<FaqDocumentMeta[]>([]);

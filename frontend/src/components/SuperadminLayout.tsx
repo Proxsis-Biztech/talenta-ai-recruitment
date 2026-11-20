@@ -49,6 +49,7 @@ export type AdminMenuKey =
   | 'audit-logs'
   | 'analytics'
   | 'faq-helpdesk'
+  | 'helpdesk-internal'
   | 'help'
   | 'settings';
 
