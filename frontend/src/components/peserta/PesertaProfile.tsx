@@ -1,3 +1,4 @@
+import { isAnyCatCompleted } from '../../services/progressService';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -142,7 +143,7 @@ export default function PesertaProfile() {
   }, [initialData.assessmentId]);
 
   const isCatCompleted = useMemo(() => {
-    return localStorage.getItem('talenta_cat_completed') === 'true';
+    return isAnyCatCompleted();
   }, []);
 
   const stopFaceCamera = () => {

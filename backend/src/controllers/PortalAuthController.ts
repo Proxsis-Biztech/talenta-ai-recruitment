@@ -1098,3 +1098,40 @@ export const sendPortalUserCredentials = async (req: AuthRequest, res: Response)
     return res.status(500).json({ error: 'Gagal mengirim email kredensial.' });
   }
 };
+
+export const getPortalConsent = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    const record = await prisma.masterRecord.findUnique({
+      where: { scope_key: { scope: 'portal-consent', key: req.portalUser.id } }
+    });
+    return res.json({ consent: record ? JSON.parse(record.value) : null });
+  } catch (error) {
+    console.error('Get portal consent error:', error);
+    return res.status(500).json({ error: 'Gagal memuat data persetujuan.' });
+  }
+};
+
+export const acceptPortalConsent = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    const version = String(req.body.version || 'v1.0').trim();
+    const consent = {
+      userId: req.portalUser.id,
+      name: req.portalUser.name,
+      email: req.portalUser.email,
+      version,
+      acceptedAt: new Date().toISOString(),
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 250)
+    };
+    await prisma.masterRecord.upsert({
+      where: { scope_key: { scope: 'portal-consent', key: req.portalUser.id } },
+      create: { scope: 'portal-consent', key: req.portalUser.id, value: JSON.stringify(consent) },
+      update: { value: JSON.stringify(consent) }
+    });
+    return res.status(201).json({ consent });
+  } catch (error) {
+    console.error('Accept portal consent error:', error);
+    return res.status(500).json({ error: 'Gagal menyimpan persetujuan.' });
+  }
+};

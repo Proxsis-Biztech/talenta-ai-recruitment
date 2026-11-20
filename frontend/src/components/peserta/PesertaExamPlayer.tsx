@@ -43,6 +43,7 @@ import { PesertaLayout } from './PesertaLayout';
 import { ProctoringEngine, type ProctoringViolationEvent } from '../../utils/proctoringEngine';
 import { Button, Badge, Modal, Card, CardContent } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
+import { markCatCompleted } from '../../services/progressService';
 import { getPortalToken, getPortalUser } from '../../services/portalAuthService';
 import { CameraProctorTile, type ProctorStatus } from './CameraProctorTile';
 import { getProgramById, type AssessmentProgram } from '../../services/assessmentCatalog';
@@ -267,7 +268,7 @@ export default function PesertaExamPlayer() {
             score: response.data.attempt?.score,
             integrityScore: response.data.attempt?.integrityScore
           });
-          localStorage.setItem('talenta_cat_completed', 'true');
+          markCatCompleted(activeProgram.id);
           localStorage.setItem(`talenta_cat_submitted_${activeProgram.id}`, JSON.stringify({
             score: response.data.attempt?.score,
             integrityScore: response.data.attempt?.integrityScore,
@@ -446,7 +447,7 @@ export default function PesertaExamPlayer() {
         }
         setAutoSaveStatus('Gagal menyimpan • mencoba lagi');
       }
-    }, 8000);
+    }, 5000);
     return () => clearInterval(saveTimer);
   }, [answers, markedDoubt, examReady, isExamLocked, activeProgram.id]);
 
@@ -586,7 +587,7 @@ export default function PesertaExamPlayer() {
         integrityScore: response.data.integrityScore,
         manualReviewCount: response.data.manualReviewCount
       });
-      localStorage.setItem('talenta_cat_completed', 'true');
+      markCatCompleted(activeProgram.id);
       localStorage.setItem(`talenta_cat_submitted_${activeProgram.id}`, JSON.stringify({
         score: response.data.score,
         integrityScore: response.data.integrityScore,

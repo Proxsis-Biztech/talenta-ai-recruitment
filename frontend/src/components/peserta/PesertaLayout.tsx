@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import PesertaFaqChatbot from './PesertaFaqChatbot';
+import { getPortalToken } from '../../services/portalAuthService';
+import { isAnyCatCompleted } from '../../services/progressService';
 import {
   LayoutDashboard,
   FileCheck2,
@@ -71,7 +74,7 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
   const isCatCompleted = useMemo(() => {
     const interviewStatus = String(getPortalUser()?.interviewStatus || '');
     return (
-      localStorage.getItem('talenta_cat_completed') === 'true' ||
+      isAnyCatCompleted() ||
       ['scheduled', 'called', 'completed'].includes(interviewStatus)
     );
   }, []);
@@ -81,6 +84,14 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
   const [helpActiveTab, setHelpActiveTab] = useState<'roadmap' | 'korelasi' | 'faq'>('roadmap');
   const [notifModalOpen, setNotifModalOpen] = useState(false);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [notifItems, setNotifItems] = useState<Array<{
+    programCode: string;
+    programTitle: string;
+    status: string;
+    submittedAt: string | null;
+    lha?: { status?: string } | null;
+  }>>([]);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   const savedFacePhoto = localStorage.getItem('candidate_face_photo');
@@ -90,6 +101,16 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
     setIsCollapsed(next);
     localStorage.setItem('peserta_sidebar_collapsed', String(next));
   };
+
+  useEffect(() => {
+    if (!notifModalOpen) return;
+    const token = getPortalToken();
+    if (!token) return;
+    axios
+      .get('/api/portal/history', { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => setNotifItems(Array.isArray(response.data?.data) ? response.data.data : []))
+      .catch(() => setNotifItems([]));
+  }, [notifModalOpen]);
 
   useEffect(() => {
     const sync = () =>
@@ -152,6 +173,27 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
       return 'Ujian CAT';
     }
     return 'Portal Peserta';
+  };
+
+  const handleAcceptConsent = async () => {
+    const token = getPortalToken();
+    if (!token) {
+      setTermsModalOpen(false);
+      return;
+    }
+    setConsentSaving(true);
+    try {
+      await axios.post(
+        '/api/portal/consent',
+        { version: 'v1.0' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setTermsModalOpen(false);
+    } catch {
+      window.alert('Gagal menyimpan persetujuan. Periksa koneksi lalu coba lagi.');
+    } finally {
+      setConsentSaving(false);
+    }
   };
 
   return (
@@ -778,38 +820,25 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
               </div>
             </div>
           )}
-          <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-emerald-950">Sesi Ujian CAT Telah Dibuka</p>
-              <p className="text-xs text-emerald-800 mt-0.5">
-                Anda dapat memulai pengerjaan paket soal sesuai jadwal yang ditetapkan.
-              </p>
-              <span className="text-[10px] text-emerald-700 font-mono mt-1 block">Baru saja</span>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 flex items-start gap-3">
-            <Calendar className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-primary-navy">Jadwal Wawancara Terkonfirmasi</p>
-              <p className="text-xs text-slate-600 mt-0.5">
-                Wawancara kompetensi dilakukan setelah Anda menyelesaikan paket soal CAT bersama asesor.
-              </p>
-              <span className="text-[10px] text-slate-500 font-mono mt-1 block">Kemarin, 16:30 WIB</span>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-slate-900">Device Check Berhasil Terverifikasi</p>
-              <p className="text-xs text-slate-600 mt-0.5">
-                Kamera web HD dan mikrofon sistem Anda telah lulus uji kelayakan teknis.
-              </p>
-              <span className="text-[10px] text-slate-500 font-mono mt-1 block">24 Okt 2026</span>
-            </div>
-          </div>
+          {notifItems.length === 0 ? (
+            <p className="text-xs text-slate-500">Belum ada pemberitahuan asesmen.</p>
+          ) : (
+            notifItems.map((item) => (
+              <div key={item.programCode} className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 flex items-start gap-3">
+                <Bell className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-primary-navy">{item.programTitle}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Status: {item.status === 'submitted' || item.status === 'graded' || item.status === 'completed' ? 'Sudah dikerjakan' : 'Belum dikerjakan'}
+                    {item.lha?.status === 'signed' ? ' • LHA tersedia' : ''}
+                  </p>
+                  <span className="text-[10px] text-slate-500 font-mono mt-1 block">
+                    {item.submittedAt ? new Date(item.submittedAt).toLocaleString('id-ID') : 'Belum ada waktu pengerjaan'}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
 
           <div className="pt-3 border-t border-slate-100 flex justify-end">
             <Button
@@ -849,10 +878,11 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
           <div className="pt-3 border-t border-slate-100 flex justify-end">
             <Button
               variant="primary"
-              onClick={() => setTermsModalOpen(false)}
+              onClick={() => void handleAcceptConsent()}
+              disabled={consentSaving}
               className="text-xs py-2 px-4 rounded-xl font-bold"
             >
-              Saya Memahami & Menyetujui
+              {consentSaving ? 'Menyimpan...' : 'Saya Memahami & Menyetujui'}
             </Button>
           </div>
         </div>

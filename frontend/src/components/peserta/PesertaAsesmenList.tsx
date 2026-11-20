@@ -116,14 +116,7 @@ export default function PesertaAsesmenList() {
   // Course materials state for LMS view
   const [materials, setMaterials] = useState<MasterMateriItem[]>([]);
   const [selectedModule, setSelectedModule] = useState<MasterMateriItem | null>(null);
-  const [completedModules, setCompletedModules] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem('peserta_completed_modules');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [completedModules, setCompletedModules] = useState<Record<string, boolean>>({});
   const [materiSearch, setMateriSearch] = useState('');
   const [moduleFilter, setModuleFilter] = useState<'semua' | 'belum' | 'selesai'>('semua');
   const [openSections, setOpenSections] = useState<{
@@ -220,15 +213,9 @@ export default function PesertaAsesmenList() {
 
       const pool = savedList.length > 0 ? savedList : INITIAL_MATERI_LIST;
       const currentProgId = (selectedProgramId || activeProg.id || '').trim().toUpperCase();
-      let matched = pool.filter((m) => String(m.code || '').trim().toUpperCase() === currentProgId);
-      if (matched.length === 0 && activeProg.companyName) {
-        matched = pool.filter((m) =>
-          m.companyName.toLowerCase().includes(activeProg.companyName.toLowerCase().slice(0, 8))
-        );
-      }
-      if (matched.length === 0) {
-        matched = pool.slice(0, 4);
-      }
+      const matched = pool.filter(
+        (m) => String(m.code || '').trim().toUpperCase() === currentProgId
+      );
       setMaterials(matched);
       if (matched.length > 0) {
         setSelectedModule(matched[0]);
@@ -276,7 +263,7 @@ export default function PesertaAsesmenList() {
       if (upper === String(activeProg.id || '').trim().toUpperCase() && Object.keys(serverExamsByProgram).length === 0) {
         return (
           ['submitted', 'graded', 'completed'].includes(String(serverExam?.status || '')) ||
-          localStorage.getItem('talenta_cat_completed') === 'true'
+          localStorage.getItem(`talenta_cat_completed_${upper}`) === 'true'
         );
       }
       return false;
@@ -293,6 +280,15 @@ export default function PesertaAsesmenList() {
   );
 
   const activeProgramCode = selectedProgramId || activeProg.id;
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`peserta_completed_modules_${activeProgramCode}`);
+      setCompletedModules(raw ? JSON.parse(raw) : {});
+    } catch {
+      setCompletedModules({});
+    }
+  }, [activeProgramCode]);
   const isCatCompleted = isProgramCatCompleted(activeProgramCode);
   const isLiveCodingCompleted = Boolean(
     liveCodingCompletedMap[String(activeProgramCode || '').trim().toUpperCase()]
@@ -503,7 +499,7 @@ export default function PesertaAsesmenList() {
     const updated = { ...completedModules, [modId]: !completedModules[modId] };
     setCompletedModules(updated);
     try {
-      localStorage.setItem('peserta_completed_modules', JSON.stringify(updated));
+      localStorage.setItem(`peserta_completed_modules_${activeProgramCode}`, JSON.stringify(updated));
     } catch {}
   };
 
@@ -1407,9 +1403,7 @@ export default function PesertaAsesmenList() {
                         <span>Status Ujian CAT</span>
                         <span>
                           {catDone
-                            ? item.score != null
-                              ? `✓ Sudah Ujian CAT • Skor ${item.score}/100`
-                              : '✓ Sudah Ujian CAT'
+                            ? '✓ Sudah Ujian CAT'
                             : '• Belum Ujian CAT'}
                         </span>
                       </div>

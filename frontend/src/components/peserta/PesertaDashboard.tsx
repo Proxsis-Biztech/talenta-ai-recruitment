@@ -283,9 +283,7 @@ export default function PesertaDashboard() {
         id: 'cat',
         title: `Ujian Kompetensi CAT — ${activeProgramTitle}`,
         subtitle: isCatCompleted
-          ? `Selesai dikumpulkan • ${formatDate(dashboard?.exam?.submittedAt)}${
-              activeScore != null ? ` • Skor ${activeScore}` : ''
-            }`
+          ? `Selesai dikumpulkan • ${formatDate(dashboard?.exam?.submittedAt)}`
           : `Durasi ${activeProgramDuration} Menit • Akses melalui Asesmen Saya`,
         category: 'Asesmen',
         status: isCatCompleted ? 'completed' : 'pending',
@@ -298,9 +296,7 @@ export default function PesertaDashboard() {
         id: 'interview',
         title: 'Sesi Wawancara Tatap Muka Asesor',
         subtitle: isInterviewCompleted
-          ? `Selesai • ${interview.assessorName || 'Tim Asesor'}${
-              interview.score != null ? ` • Skor ${interview.score}` : ''
-            }`
+          ? `Selesai • ${interview.assessorName || 'Tim Asesor'}`
           : interview.assessorName
             ? `Asesor: ${interview.assessorName} • ${
                 interview.scheduledAt ? formatDate(interview.scheduledAt) : 'Menunggu Jadwal'
@@ -578,7 +574,6 @@ export default function PesertaDashboard() {
                         }`}
                       >
                         <span className={`w-1.5 h-1.5 rounded-full ${done ? 'bg-emerald-400' : isActive ? 'bg-amber-300' : 'bg-amber-400'}`} />
-                        <span className="font-mono">{program.code}</span>
                         <span className="max-w-[150px] truncate">{program.title}</span>
                         <span className={isActive ? 'text-white/80' : 'text-slate-400'}>{done ? '✓' : '•'}</span>
                       </button>
@@ -613,7 +608,7 @@ export default function PesertaDashboard() {
                   <p className="text-xs text-slate-500 mt-1.5 mb-4">
                     {isCatCompleted
                       ? activeScore != null
-                        ? `Skor: ${activeScore}/100 • Selesai`
+                        ? 'Selesai & Tersimpan'
                         : 'Selesai & Tersimpan'
                       : `${activeProgramDuration} Menit • Belum Dikerjakan`}
                   </p>
@@ -650,9 +645,7 @@ export default function PesertaDashboard() {
                   </span>
                   <p className="text-xs text-slate-500 mt-1 mb-5">
                     {isInterviewCompleted
-                      ? interview.score != null
-                        ? `Skor: ${interview.score}/100 • Selesai`
-                        : 'Selesai Dinilai Asesor'
+                      ? 'Selesai Dinilai Asesor'
                       : interview.scheduledAt
                         ? `Jadwal: ${formatShortDate(interview.scheduledAt)}`
                         : 'Menunggu Jadwal Asesor'}
@@ -681,10 +674,8 @@ export default function PesertaDashboard() {
                   <h2 className="text-base font-bold text-slate-900">Hasil &amp; LHA</h2>
                   <p className="text-xs text-slate-500 mt-1 mb-5">
                     {lha?.signed
-                      ? `LHA Resmi • Skor ${lha.compositeScore ?? activeScore ?? '-'}`
-                      : activeScore != null
-                        ? `Skor CAT ${activeScore}/100 • ${completedCount}/${tasks.length} Tahap`
-                        : `${completedCount}/${tasks.length} Tahap Selesai`}
+                      ? 'LHA Resmi Tersedia'
+                      : `${completedCount}/${tasks.length} Tahap Selesai`}
                   </p>
                   <button
                     type="button"
@@ -857,8 +848,8 @@ export default function PesertaDashboard() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-slate-900 line-clamp-1">{program.title}</p>
-                            <p className="text-[10px] font-mono text-slate-500 mt-0.5">
-                              {program.code} • {program.durationMinutes || 90} menit
+                            <p className="text-[10px] text-slate-500 mt-0.5">
+                              {program.durationMinutes || 90} menit
                             </p>
                           </div>
                           <span
@@ -877,7 +868,6 @@ export default function PesertaDashboard() {
                               ? `Dikerjakan ${formatShortDate(exam.submittedAt)}`
                               : 'Sudah dikerjakan'
                             : 'Belum dikerjakan'}
-                          {exam?.score != null ? ` • Skor ${exam.score}/100` : ''}
                           {historyItem?.lha?.status === 'signed' ? ' • LHA tersedia' : ''}
                         </p>
                       </button>

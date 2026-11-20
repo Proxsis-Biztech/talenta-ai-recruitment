@@ -25,7 +25,8 @@ import { login, me as getCurrentAdmin, getAdmins, createAdmin, updateAdmin, dele
 import {
   loginPortal, registerPeserta, googleLogin, tokenLogin, me as getPortalMe, updateProfile, changePassword, completeOnboarding, completeDeviceCheck, completeDeviceCheckSession, getPortalDashboard,
   listPortalUsers, createPortalUser, updatePortalUser, deletePortalUser,
-  forgotPassword, resetPassword, refreshPortalSession, logoutPortal, getAssessmentHistory, sendPortalUserCredentials
+  forgotPassword, resetPassword, refreshPortalSession, logoutPortal, getAssessmentHistory, sendPortalUserCredentials,
+  getPortalConsent, acceptPortalConsent
 } from './controllers/PortalAuthController';
 import { createInterviewSessionToken } from './controllers/ApplicantController';
 import { getActiveJobs, getAdminJobs, createJob, updateJob, deleteJob } from './controllers/JobController';
@@ -145,6 +146,8 @@ router.get('/portal/dashboard', authenticatePortal, getPortalDashboard);
 router.get('/portal/waiting-room', authenticatePortal, requirePortalRole('peserta'), getWaitingRoomStatus);
 router.get('/portal/waiting-room/stream', authenticatePortal, requirePortalRole('peserta'), streamWaitingRoom);
 router.get('/portal/history', authenticatePortal, getAssessmentHistory);
+router.get('/portal/consent', authenticatePortal, getPortalConsent);
+router.post('/portal/consent', authenticatePortal, acceptPortalConsent);
 router.get('/portal/classes', authenticatePortal, listMyClasses);
 router.post('/portal/interview/recording', authenticatePortal, requirePortalRole('peserta'), audioUpload.single('audio'), uploadInterviewRecording);
 router.post('/portal/interview/transcript', authenticatePortal, requirePortalRole('peserta'), saveInterviewTranscript);

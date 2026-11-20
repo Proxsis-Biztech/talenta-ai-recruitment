@@ -1,3 +1,4 @@
+import { isAnyCatCompleted } from '../../services/progressService';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -35,7 +36,7 @@ export default function PesertaWaitingRoom() {
   const [assessorName, setAssessorName] = useState('Tim Asesor Right');
   const [isReady, setIsReady] = useState(false);
   const [activeTab, setActiveTab] = useState<'tips' | 'rubrik' | 'perangkat'>('tips');
-  const [catEligible, setCatEligible] = useState(() => localStorage.getItem('talenta_cat_completed') === 'true');
+  const [catEligible, setCatEligible] = useState(() => isAnyCatCompleted());
   const [catChecked, setCatChecked] = useState(false);
   const [queueState, setQueueState] = useState<any>(() => {
     try {
@@ -96,10 +97,10 @@ export default function PesertaWaitingRoom() {
           if (!cancelled) setScheduledAt(null);
         }
         if (!cancelled) {
-          setCatEligible(eligible || localStorage.getItem('talenta_cat_completed') === 'true');
+          setCatEligible(eligible || isAnyCatCompleted());
         }
       } catch {
-        if (!cancelled) setCatEligible(localStorage.getItem('talenta_cat_completed') === 'true');
+        if (!cancelled) setCatEligible(isAnyCatCompleted());
       } finally {
         if (!cancelled) setCatChecked(true);
       }

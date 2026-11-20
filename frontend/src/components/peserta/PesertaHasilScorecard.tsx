@@ -164,6 +164,10 @@ export default function PesertaHasilScorecard() {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob'
       });
+      if (!response.data || Number(response.data.size) < 100) {
+        window.alert('LHA resmi belum tersedia untuk akun ini.');
+        return;
+      }
       const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
