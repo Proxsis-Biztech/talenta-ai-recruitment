@@ -242,6 +242,32 @@ export function AdminCompanyMatrix() {
     }
   };
 
+  const handleDownloadPreviewPdf = async () => {
+    if (!selectedPt?.id) return;
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    try {
+      const response = await axios.get(
+        `/api/admin/report-templates/${encodeURIComponent(selectedPt.id)}/preview-pdf`,
+        {
+          params: { companyName: selectedPt.name },
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: 'blob'
+        }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Template-LHA-${selectedPt.id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      showToast('Gagal mengunduh preview PDF template.');
+    }
+  };
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
@@ -547,21 +573,31 @@ export function AdminCompanyMatrix() {
               Unggah kop/file template resmi atau atur judul, penandatangan, dan seksi PDF LHA khusus tenant ini.
             </p>
           </div>
-          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer shrink-0">
-            <Upload className="w-3.5 h-3.5 text-primary-navy" />
-            <span>{tplUploading ? 'Mengunggah...' : 'Upload Template (PDF/DOCX/PNG)'}</span>
-            <input
-              type="file"
-              className="hidden"
-              accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
-              disabled={tplUploading}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void handleUploadTemplateFile(file);
-                event.target.value = '';
-              }}
-            />
-          </label>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleDownloadPreviewPdf()}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-primary-navy cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download Contoh PDF</span>
+            </button>
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer">
+              <Upload className="w-3.5 h-3.5 text-primary-navy" />
+              <span>{tplUploading ? 'Mengunggah...' : 'Upload Template (PDF/DOCX/PNG)'}</span>
+              <input
+                type="file"
+                className="hidden"
+                accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
+                disabled={tplUploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void handleUploadTemplateFile(file);
+                  event.target.value = '';
+                }}
+              />
+            </label>
+          </div>
         </div>
 
         {reportTpl.templateFileUrl && (
@@ -573,21 +609,32 @@ export function AdminCompanyMatrix() {
                 href={reportTpl.templateFileUrl}
                 target="_blank"
                 rel="noreferrer"
+                download={reportTpl.templateFileName || undefined}
                 className="font-bold text-primary-navy hover:underline truncate"
               >
-                {reportTpl.templateFileName || 'Lihat Template'}
+                {reportTpl.templateFileName || 'Download Template'}
               </a>
             </div>
-            <button
-              type="button"
-              onClick={() =>
-                setReportTpl((prev) => ({ ...prev, templateFileUrl: null, templateFileName: null }))
-              }
-              className="text-rose-600 hover:text-rose-700 cursor-pointer p-1"
-              title="Hapus file template"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href={reportTpl.templateFileUrl}
+                download={reportTpl.templateFileName || true}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-blue-200 text-primary-navy font-semibold hover:bg-blue-50"
+              >
+                <Download className="w-3 h-3" />
+                <span>Download</span>
+              </a>
+              <button
+                type="button"
+                onClick={() =>
+                  setReportTpl((prev) => ({ ...prev, templateFileUrl: null, templateFileName: null }))
+                }
+                className="text-rose-600 hover:text-rose-700 cursor-pointer p-1"
+                title="Hapus file template"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         )}
 

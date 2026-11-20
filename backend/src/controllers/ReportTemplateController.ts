@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { type AuthRequest } from '../middleware/auth';
+import { buildPdf, formatDateId, type PdfBlock } from '../services/pdfService';
 
 const prisma = new PrismaClient();
 const TEMPLATE_DIR = path.join(__dirname, '../../uploads/report-templates');
@@ -199,5 +200,80 @@ export const getReportTemplateFile = async (req: AuthRequest, res: Response) => 
     return res.sendFile(fullPath);
   } catch {
     return res.status(500).json({ error: 'Gagal mengunduh file template.' });
+  }
+};
+
+export const previewReportTemplatePdf = async (req: AuthRequest, res: Response) => {
+  try {
+    const companyKey = normalizeKey(String(req.params.companyKey || ''));
+    const companyName = req.query.companyName ? String(req.query.companyName) : '';
+    const tpl = (await findReportTemplateForCompany([companyKey, companyName])) || defaultConfig(companyKey, companyName);
+
+    const blocks: PdfBlock[] = [
+      { type: 'heading', text: tpl.headerTitle || 'LAPORAN HASIL ASESMEN (LHA)' },
+      ...(tpl.introText ? [{ type: 'text' as const, text: tpl.introText }, { type: 'spacer' as const, height: 4 }] : []),
+      { type: 'kv', label: 'Nomor LHA', value: `LHA-${companyKey}-PREVIEW` },
+      { type: 'kv', label: 'Kode Kandidat', value: 'KND-SAMPLE-001' },
+      { type: 'kv', label: 'Nama Kandidat', value: 'Contoh Nama Kandidat' },
+      { type: 'kv', label: 'Program Asesmen', value: tpl.companyName ? `Program Asesmen ${tpl.companyName}` : 'Program Asesmen Standar' },
+      { type: 'kv', label: 'Tanggal Ditandatangani', value: formatDateId(new Date()) },
+      { type: 'rule' },
+      ...(tpl.showCompetencyTable !== false
+        ? [
+            { type: 'heading' as const, text: 'Skor Kompetensi', size: 11 },
+            {
+              type: 'table' as const,
+              columns: ['Kompetensi', 'Rating', 'Catatan'],
+              widths: [0.42, 0.14, 0.44],
+              rows: [
+                ['System Architecture & Scalability', '4.5', 'Menguasai desain terdistribusi & caching dengan baik.'],
+                ['Problem Solving & BARS', '4.2', 'Terstruktur dalam analisis akar masalah.']
+              ]
+            }
+          ]
+        : []),
+      ...(tpl.showInterviewScore !== false
+        ? [{ type: 'kv' as const, label: 'Skor Wawancara', value: '88' }]
+        : []),
+      { type: 'kv', label: 'Skor Komposit', value: '90' },
+      { type: 'kv', label: 'Rekomendasi Asesor', value: 'Direkomendasikan (Strong Fit)' },
+      ...(tpl.showAssessorNotes !== false
+        ? [
+            { type: 'spacer' as const, height: 6 },
+            { type: 'heading' as const, text: 'Catatan Asesor', size: 11 },
+            { type: 'text' as const, text: 'Ini adalah contoh pratinjau catatan asesor menggunakan template laporan dinamis.' }
+          ]
+        : []),
+      ...(tpl.signatoryName
+        ? [
+            { type: 'spacer' as const, height: 6 },
+            { type: 'kv' as const, label: 'Penandatangan', value: `${tpl.signatoryName}${tpl.signatoryTitle ? ` (${tpl.signatoryTitle})` : ''}` }
+          ]
+        : []),
+      { type: 'rule' },
+      ...(tpl.showIntegrityHash !== false
+        ? [
+            { type: 'text' as const, text: 'Dokumen ini ditandatangani secara elektronik. Verifikasi keaslian melalui hash SHA-256 berikut:' },
+            { type: 'text' as const, text: 'PREVIEW-SHA256-HASH-SAMPLE-000000000000', size: 9 }
+          ]
+        : []),
+      {
+        type: 'text',
+        text: tpl.closingNote || 'Hasil asesmen bersifat rekomendasi profesional asesor. Keputusan akhir mengikuti kebijakan pemberi tugas.'
+      }
+    ];
+
+    const pdf = buildPdf(blocks, {
+      title: tpl.pdfTitle || 'RIGHT - Laporan Hasil Asesmen',
+      subtitle: tpl.pdfSubtitle || `LHA-${companyKey}-PREVIEW`,
+      footer: tpl.footerText || 'RIGHT Assessment Platform'
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Template-LHA-${companyKey}.pdf"`);
+    return res.send(pdf);
+  } catch (error) {
+    console.error('Preview report template PDF error:', error);
+    return res.status(500).json({ error: 'Gagal membuat preview PDF template.' });
   }
 };

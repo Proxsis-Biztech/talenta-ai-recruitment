@@ -47,7 +47,8 @@ import {
   getReportTemplate,
   saveReportTemplate,
   uploadReportTemplateFile,
-  getReportTemplateFile
+  getReportTemplateFile,
+  previewReportTemplatePdf
 } from './controllers/ReportTemplateController';
 import { syncProgramQuestions, publishProgram, uploadQuestionAttachment, uploadProgramCaseFile, deleteProgramCaseFile, getCaseFile, downloadQuestionTemplate, importProgramQuestions } from './controllers/ProgramQuestionController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
@@ -195,6 +196,7 @@ router.put('/admin/access-codes/:code', authenticateToken, updateAccessCode);
 
 router.get('/admin/tenants', authenticateToken, listTenants);
 router.get('/admin/report-templates/:companyKey', authenticateToken, getReportTemplate);
+router.get('/admin/report-templates/:companyKey/preview-pdf', authenticateToken, previewReportTemplatePdf);
 router.put('/admin/report-templates/:companyKey', authenticateToken, saveReportTemplate);
 router.post('/admin/report-templates/:companyKey/upload', authenticateToken, caseFileUpload.single('file'), uploadReportTemplateFile);
 router.get('/report-templates/files/:fileName', getReportTemplateFile);
