@@ -69,7 +69,9 @@ import {
   replyPesertaHelpdeskTicket,
   listAdminHelpdeskTickets,
   replyAdminHelpdeskTicket,
-  updateHelpdeskTicketStatus
+  updateHelpdeskTicketStatus,
+  streamPortalHelpdesk,
+  streamAdminHelpdesk
 } from './controllers/FaqKnowledgeController';
 import { syncProgramQuestions, publishProgram, uploadQuestionAttachment, uploadProgramCaseFile, deleteProgramCaseFile, getCaseFile, downloadQuestionTemplate, importProgramQuestions } from './controllers/ProgramQuestionController';
 import { listAccessCodes, createAccessCode, updateAccessCode } from './controllers/AccessCodeController';
@@ -234,12 +236,14 @@ router.get('/admin/faq-knowledge/mcp-config', authenticateToken, getMcpKnowledge
 router.put('/admin/faq-knowledge/mcp-config', authenticateToken, saveMcpKnowledgeConfig);
 router.post('/admin/faq-knowledge/mcp-test', authenticateToken, testMcpKnowledgeConnection);
 router.post('/admin/faq-knowledge/test-rag', authenticateToken, testFaqRagSearch);
+router.get('/admin/helpdesk/stream', authenticateToken, streamAdminHelpdesk);
 router.get('/admin/helpdesk/tickets', authenticateToken, listAdminHelpdeskTickets);
 router.post('/admin/helpdesk/tickets/:id/reply', authenticateToken, replyAdminHelpdeskTicket);
 router.patch('/admin/helpdesk/tickets/:id/status', authenticateToken, updateHelpdeskTicketStatus);
 
 router.get('/peserta/faq-knowledge', authenticatePortal, listPesertaFaqItems);
 router.post('/peserta/faq-chat', authenticatePortal, askPesertaFaqChatbot);
+router.get('/peserta/helpdesk/stream', authenticatePortal, streamPortalHelpdesk);
 router.get('/peserta/helpdesk/tickets', authenticatePortal, listPesertaHelpdeskTickets);
 router.post('/peserta/helpdesk/tickets', authenticatePortal, createHelpdeskTicket);
 router.post('/peserta/helpdesk/tickets/:id/reply', authenticatePortal, replyPesertaHelpdeskTicket);

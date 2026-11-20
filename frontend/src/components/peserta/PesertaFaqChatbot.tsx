@@ -106,7 +106,22 @@ export const PesertaFaqChatbot: React.FC = () => {
     }
   }, [open, loadFaqAndActiveChat]);
 
-  // Poll for admin replies while in live helpdesk chat
+  // Server-sent events for near-instant admin replies
+  useEffect(() => {
+    if (!open || typeof window === 'undefined' || !('EventSource' in window)) return;
+    const token = getPortalToken();
+    if (!token) return;
+    const source = new EventSource(`/api/peserta/helpdesk/stream?token=${encodeURIComponent(token)}`);
+    const refresh = () => void loadFaqAndActiveChat();
+    source.addEventListener('ticket-updated', refresh);
+    source.addEventListener('ticket-created', refresh);
+    source.onerror = () => {
+      // EventSource auto-reconnects; polling below stays as fallback.
+    };
+    return () => source.close();
+  }, [open, loadFaqAndActiveChat]);
+
+  // Polling fallback while in live helpdesk chat
   useEffect(() => {
     if (!open || mode !== 'helpdesk' || !activeSession) return;
     const timer = setInterval(async () => {
@@ -118,7 +133,7 @@ export const PesertaFaqChatbot: React.FC = () => {
       } catch {
         // silent
       }
-    }, 4000);
+    }, 15000);
     return () => clearInterval(timer);
   }, [open, mode, activeSession]);
 

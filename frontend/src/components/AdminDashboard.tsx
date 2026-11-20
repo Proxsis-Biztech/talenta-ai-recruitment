@@ -2830,6 +2830,27 @@ ${app.interviewResult ? `
         onClose={() => setTimelineOpen(false)}
         candidate={timelineCandidate}
       />
+
+      <button
+        type="button"
+        onClick={() => {
+          setActiveMenu('helpdesk-internal');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40 group flex items-center gap-2.5 rounded-full bg-gradient-to-r from-[#0F275C] via-[#1D4ED8] to-[#0EA5E9] pl-1.5 pr-4 sm:pr-5 py-1.5 text-white shadow-[0_18px_40px_-10px_rgba(13,42,120,0.65)] ring-4 ring-blue-400/15 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
+        title="Buka Helpdesk Internal"
+      >
+        <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
+          <span className="absolute inset-0 rounded-full bg-white/25 opacity-40 animate-ping" />
+          <MessageSquare className="w-5 h-5 relative" />
+        </span>
+        <span className="flex flex-col items-start leading-tight text-left">
+          <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/90">
+            Chat Masuk
+          </span>
+          <span className="text-[11px] sm:text-xs font-bold">Helpdesk Peserta &amp; Asesor</span>
+        </span>
+      </button>
     </SuperadminLayout>
   );
 }

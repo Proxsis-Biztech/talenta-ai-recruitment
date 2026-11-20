@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import mammoth from 'mammoth';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from 'docx';
 import { type AuthRequest } from '../middleware/auth';
+import { openSseStream, publish, publishToUser } from '../services/realtimeService';
 
 const prisma = new PrismaClient();
 const FAQ_UPLOAD_DIR = path.join(__dirname, '../../uploads/faq-knowledge');
@@ -967,6 +968,12 @@ export const createHelpdeskTicket = async (req: AuthRequest, res: Response) => {
     };
 
     const saved = await saveTicket(ticket);
+    publish('helpdesk:admin', 'ticket-created', {
+      ticketId: saved.id,
+      ticketCode: saved.ticketCode,
+      candidateName: saved.candidateName,
+      requesterRole: saved.requesterRole || 'peserta'
+    });
     return res.status(201).json({ ticket: saved });
   } catch (err) {
     console.error('createHelpdeskTicket error:', err);
@@ -1015,6 +1022,7 @@ export const replyPesertaHelpdeskTicket = async (req: AuthRequest, res: Response
     if (ticket.status === 'resolved') ticket.status = 'open';
 
     const saved = await saveTicket(ticket);
+    publish('helpdesk:admin', 'ticket-updated', { ticketId: saved.id });
     return res.json({ ticket: saved });
   } catch (err) {
     console.error('replyPesertaHelpdeskTicket error:', err);
@@ -1072,6 +1080,18 @@ export const replyAdminHelpdeskTicket = async (req: AuthRequest, res: Response) 
     }
 
     const saved = await saveTicket(ticket);
+    publish('helpdesk:admin', 'ticket-updated', { ticketId: saved.id });
+    try {
+      const owner = await prisma.portalUser.findFirst({
+        where: { email: saved.candidateEmail },
+        select: { id: true }
+      });
+      if (owner) {
+        publishToUser(owner.id, 'ticket-updated', { ticketId: saved.id });
+      }
+    } catch {
+      // owner lookup best effort
+    }
     return res.json({ ticket: saved });
   } catch (err) {
     console.error('replyAdminHelpdeskTicket error:', err);
@@ -1100,4 +1120,14 @@ export const updateHelpdeskTicketStatus = async (req: AuthRequest, res: Response
     console.error('updateHelpdeskTicketStatus error:', err);
     return res.status(500).json({ error: 'Gagal memperbarui status tiket.' });
   }
+};
+
+
+export const streamPortalHelpdesk = async (req: AuthRequest, res: Response) => {
+  if (!req.portalUser) return res.status(401).end();
+  openSseStream(req, res, `helpdesk:user:${req.portalUser.id}`, req.portalUser.id);
+};
+
+export const streamAdminHelpdesk = async (_req: AuthRequest, res: Response) => {
+  openSseStream(_req, res, 'helpdesk:admin');
 };

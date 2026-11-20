@@ -239,8 +239,22 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
     if (activeTab !== 'helpdesk') return;
     const timer = setInterval(() => {
       loadTickets();
-    }, 5000);
+    }, 20000);
     return () => clearInterval(timer);
+  }, [activeTab, loadTickets]);
+
+  useEffect(() => {
+    if (activeTab !== 'helpdesk' || typeof window === 'undefined' || !('EventSource' in window)) return;
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    const source = new EventSource(`/api/admin/helpdesk/stream?token=${encodeURIComponent(token)}`);
+    const refresh = () => void loadTickets();
+    source.addEventListener('ticket-created', refresh);
+    source.addEventListener('ticket-updated', refresh);
+    source.onerror = () => {
+      // EventSource auto-reconnects; polling fallback stays active.
+    };
+    return () => source.close();
   }, [activeTab, loadTickets]);
 
   const handleDownloadWordTemplate = async () => {
