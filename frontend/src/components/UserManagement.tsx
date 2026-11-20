@@ -55,6 +55,8 @@ interface Admin {
   id: string;
   username: string;
   role: string;
+  tenantId?: string | null;
+  tenant?: { id: string; code: string; name: string } | null;
   createdAt: string;
 }
 
@@ -243,6 +245,7 @@ export default function UserManagement() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newAdminCompanyId, setNewAdminCompanyId] = useState(COMPANIES_CATALOG[0]?.id || '');
   const [addError, setAddError] = useState('');
   const [addLoading, setAddLoading] = useState(false);
 
@@ -251,6 +254,7 @@ export default function UserManagement() {
   const [editUsername, setEditUsername] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editRole, setEditRole] = useState('');
+  const [editAdminCompanyId, setEditAdminCompanyId] = useState('');
   const [editError, setEditError] = useState('');
   const [editLoading, setEditLoading] = useState(false);
 
@@ -614,6 +618,12 @@ export default function UserManagement() {
       setAddError('Username dan password wajib diisi.');
       return;
     }
+    const selectedCompany =
+      companyOptions.find((c) => c.id === newAdminCompanyId) || companyOptions[0];
+    if (!selectedCompany) {
+      setAddError('Perusahaan (PT) wajib dipilih untuk akun Admin.');
+      return;
+    }
     setAddLoading(true);
     setAddError('');
     try {
@@ -623,7 +633,9 @@ export default function UserManagement() {
         {
           username: newUsername.trim(),
           password: newPassword,
-          role: 'admin'
+          role: 'admin',
+          companyName: selectedCompany.name,
+          companyCode: selectedCompany.id
         },
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -633,10 +645,11 @@ export default function UserManagement() {
       setShowAddModal(false);
       setNewUsername('');
       setNewPassword('');
+      setNewAdminCompanyId(companyOptions[0]?.id || '');
       Swal.fire({
         icon: 'success',
         title: 'Admin Berhasil Ditambahkan',
-        text: `Akun "${newUsername}" telah dibuat dengan role Administrator.`,
+        text: `Akun "${newUsername}" telah dibuat untuk ${selectedCompany.name}.`,
         timer: 2000,
         showConfirmButton: false
       });
@@ -690,6 +703,14 @@ export default function UserManagement() {
     setEditUsername(admin.username);
     setEditPassword('');
     setEditRole(admin.role);
+    const matchedCompany = companyOptions.find(
+      (c) =>
+        c.name.toLowerCase() === (admin.tenant?.name || '').toLowerCase() ||
+        c.id.toLowerCase() === (admin.tenant?.code || '').toLowerCase()
+    );
+    setEditAdminCompanyId(
+      matchedCompany?.id || (admin.role === 'superadmin' ? '' : companyOptions[0]?.id || '')
+    );
     setEditError('');
   };
 
@@ -700,14 +721,32 @@ export default function UserManagement() {
       setEditError('Username tidak boleh kosong.');
       return;
     }
+    const selectedCompany = companyOptions.find((c) => c.id === editAdminCompanyId);
+    if (editRole === 'admin' && !selectedCompany) {
+      setEditError('Perusahaan (PT) wajib dipilih untuk akun Administrator.');
+      return;
+    }
     setEditLoading(true);
     setEditError('');
     try {
       const token = localStorage.getItem('adminToken');
-      const payload: { username: string; role: string; password?: string } = {
+      const payload: {
+        username: string;
+        role: string;
+        password?: string;
+        tenantId?: string | null;
+        companyName?: string;
+        companyCode?: string;
+      } = {
         username: editUsername.trim(),
         role: editRole
       };
+      if (selectedCompany) {
+        payload.companyName = selectedCompany.name;
+        payload.companyCode = selectedCompany.id;
+      } else if (editRole === 'superadmin') {
+        payload.tenantId = null;
+      }
       if (editPassword) {
         payload.password = editPassword;
       }
@@ -1903,6 +1942,7 @@ export default function UserManagement() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Identitas Admin</TableHead>
+                    <TableHead>Perusahaan (PT)</TableHead>
                     <TableHead>Peran Otorisasi</TableHead>
                     <TableHead>Tanggal Pembuatan</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
@@ -1911,7 +1951,7 @@ export default function UserManagement() {
                 <TableBody>
                   {filteredAdmins.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-10 text-slate-400 text-xs">
+                      <TableCell colSpan={5} className="text-center py-10 text-slate-400 text-xs">
                         Tidak ada pengguna yang cocok dengan kriteria filter.
                       </TableCell>
                     </TableRow>
@@ -1928,6 +1968,12 @@ export default function UserManagement() {
                               <div className="text-[11px] text-muted-slate font-mono">{admin.id}</div>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs font-medium text-slate-700">
+                            {admin.tenant?.name ||
+                              (admin.role === 'superadmin' ? 'Semua PT (Global)' : 'Belum Diatur')}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -2015,6 +2061,24 @@ export default function UserManagement() {
                     />
                   </div>
 
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Perusahaan (PT) yang Dikelola
+                    </label>
+                    <select
+                      required
+                      value={newAdminCompanyId}
+                      onChange={(e) => setNewAdminCompanyId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
+                    >
+                      {companyOptions.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                     <Button
                       type="button"
@@ -2089,6 +2153,27 @@ export default function UserManagement() {
                       >
                         <option value="admin">Administrator (Operasional)</option>
                         <option value="superadmin">Superadmin (Otoritas Penuh)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Perusahaan (PT) yang Dikelola
+                      </label>
+                      <select
+                        value={editAdminCompanyId}
+                        onChange={(e) => setEditAdminCompanyId(e.target.value)}
+                        required={editRole === 'admin'}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
+                      >
+                        {editRole === 'superadmin' && (
+                          <option value="">Semua PT (Akses Global Superadmin)</option>
+                        )}
+                        {companyOptions.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
 

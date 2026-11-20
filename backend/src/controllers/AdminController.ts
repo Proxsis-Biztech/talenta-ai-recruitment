@@ -103,9 +103,56 @@ export const getAdmins = async (req: AuthRequest, res: Response) => {
   }
 };
 
+const resolveOrCreateTenantId = async (input: {
+  tenantId?: string | null;
+  companyName?: string | null;
+  companyCode?: string | null;
+}): Promise<string | null> => {
+  const rawTenantId = typeof input.tenantId === 'string' ? input.tenantId.trim() : '';
+  if (rawTenantId) {
+    const found = await prisma.tenant.findUnique({ where: { id: rawTenantId }, select: { id: true } });
+    if (found) return found.id;
+  }
+  const companyName = typeof input.companyName === 'string' ? input.companyName.trim() : '';
+  const companyCode = typeof input.companyCode === 'string' ? input.companyCode.trim().toUpperCase() : '';
+  if (!companyName && !companyCode) return null;
+
+  const existing = await prisma.tenant.findFirst({
+    where: {
+      OR: [
+        ...(companyName ? [{ name: companyName }] : []),
+        ...(companyCode ? [{ code: companyCode }] : [])
+      ]
+    },
+    select: { id: true }
+  });
+  if (existing) return existing.id;
+
+  const baseCode = (
+    companyCode ||
+    companyName
+      .replace(/^PT\.?\s+/i, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 16) ||
+    'TENANT'
+  ).toUpperCase();
+  const uniqueCode = await prisma.tenant.findUnique({ where: { code: baseCode } })
+    ? `${baseCode}-${Date.now().toString().slice(-4)}`
+    : baseCode;
+  const created = await prisma.tenant.create({
+    data: {
+      code: uniqueCode,
+      name: companyName || baseCode
+    },
+    select: { id: true }
+  });
+  return created.id;
+};
+
 export const createAdmin = async (req: AuthRequest, res: Response) => {
   try {
-    const { username, password, role } = req.body;
+    const { username, password, role, tenantId, companyName, companyCode } = req.body;
 
     if (!username || !password || password.length < 8) {
       return res.status(400).json({ error: 'Username dan password (min 8 karakter) wajib diisi' });
@@ -119,14 +166,27 @@ export const createAdmin = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Username sudah digunakan' });
     }
 
+    const resolvedTenantId = await resolveOrCreateTenantId({ tenantId, companyName, companyCode });
+    if ((role || 'admin') === 'admin' && !resolvedTenantId) {
+      return res.status(400).json({ error: 'Perusahaan (PT) wajib dipilih untuk akun Administrator.' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const newAdmin = await prisma.admin.create({
       data: {
         username,
         password: hashedPassword,
         role: role || 'admin',
+        tenantId: resolvedTenantId
       },
-      select: { id: true, username: true, role: true, createdAt: true }
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        tenantId: true,
+        tenant: { select: { id: true, code: true, name: true } },
+        createdAt: true
+      }
     });
 
     res.status(201).json({ message: 'Admin berhasil ditambahkan', data: newAdmin });
@@ -156,7 +216,7 @@ export const deleteAdmin = async (req: AuthRequest, res: Response) => {
 export const updateAdmin = async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { username, password, role } = req.body;
+    const { username, password, role, tenantId, companyName, companyCode } = req.body;
 
     const existing = await prisma.admin.findUnique({ where: { id } });
     if (!existing) {
@@ -173,6 +233,7 @@ export const updateAdmin = async (req: AuthRequest, res: Response) => {
     const data: any = {};
     if (username) data.username = username;
     if (password) data.password = await bcrypt.hash(password, 10);
+    const nextRole = role || existing.role;
     if (role) {
       const validRoles = ['admin', 'superadmin'];
       if (!validRoles.includes(role)) {
@@ -181,10 +242,25 @@ export const updateAdmin = async (req: AuthRequest, res: Response) => {
       data.role = role;
     }
 
+    if (tenantId !== undefined || companyName !== undefined || companyCode !== undefined) {
+      const resolvedTenantId = await resolveOrCreateTenantId({ tenantId, companyName, companyCode });
+      if (nextRole === 'admin' && !resolvedTenantId) {
+        return res.status(400).json({ error: 'Perusahaan (PT) wajib dipilih untuk akun Administrator.' });
+      }
+      data.tenantId = resolvedTenantId;
+    }
+
     const updated = await prisma.admin.update({
       where: { id },
       data,
-      select: { id: true, username: true, role: true, createdAt: true },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        tenantId: true,
+        tenant: { select: { id: true, code: true, name: true } },
+        createdAt: true
+      },
     });
 
     res.json({ message: 'Admin berhasil diperbarui', data: updated });

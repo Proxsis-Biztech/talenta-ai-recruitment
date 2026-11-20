@@ -652,24 +652,62 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
   }
 };
 
+const resolveTenantNameById = async (tenantId: string | null): Promise<string | null> => {
+  if (!tenantId || tenantId === '__unassigned__') return null;
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+  return tenant?.name || null;
+};
+
+const resolveTenantIdForCompanyName = async (companyName?: string | null): Promise<string | null> => {
+  const clean = typeof companyName === 'string' ? companyName.trim() : '';
+  if (!clean) return null;
+  const found = await prisma.tenant.findFirst({ where: { name: clean }, select: { id: true } });
+  if (found) return found.id;
+  const baseCode = (
+    clean
+      .replace(/^PT\.?\s+/i, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 16) || 'TENANT'
+  ).toUpperCase();
+  const codeExists = await prisma.tenant.findUnique({ where: { code: baseCode }, select: { id: true } });
+  const created = await prisma.tenant.create({
+    data: {
+      code: codeExists ? `${baseCode}-${Date.now().toString().slice(-4)}` : baseCode,
+      name: clean
+    },
+    select: { id: true }
+  });
+  return created.id;
+};
+
 export const listPortalUsers = async (req: AuthRequest, res: Response) => {
   try {
     const role = req.query.role ? String(req.query.role) : undefined;
     const search = req.query.search ? String(req.query.search).trim() : '';
     const tenantId = resolveAdminTenantId(req);
+    const tenantName = await resolveTenantNameById(tenantId);
+    const tenantFilter = tenantId
+      ? tenantName
+        ? { OR: [{ tenantId }, { companyName: tenantName }] }
+        : { tenantId }
+      : {};
+    const searchFilter = search
+      ? {
+          OR: [
+            { name: { contains: search } },
+            { email: { contains: search } },
+            { username: { contains: search } }
+          ]
+        }
+      : {};
     const users = await prisma.portalUser.findMany({
       where: {
-        ...(tenantId ? { tenantId } : {}),
-        ...(role ? { role } : {}),
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search } },
-                { email: { contains: search } },
-                { username: { contains: search } }
-              ]
-            }
-          : {})
+        AND: [
+          tenantFilter,
+          ...(role ? [{ role }] : []),
+          searchFilter
+        ]
       },
       select: userSelect,
       orderBy: { createdAt: 'desc' }
@@ -694,6 +732,11 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
       return res.status(409).json({ error: 'Email sudah digunakan.' });
     }
 
+    const resolvedTenantId =
+      resolveAdminTenantId(req) ||
+      (req.body.tenantId ? String(req.body.tenantId) : null) ||
+      (await resolveTenantIdForCompanyName(req.body.companyName));
+
     const user = await prisma.portalUser.create({
       data: {
         email,
@@ -701,7 +744,7 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
         name: String(req.body.name || '').trim(),
         username: req.body.username ? String(req.body.username).trim() : null,
         role,
-        tenantId: resolveAdminTenantId(req) || (req.body.tenantId ? String(req.body.tenantId) : null),
+        tenantId: resolvedTenantId,
         profileCompleted: role !== 'peserta',
         mustChangePassword: false,
         phone: req.body.phone ? String(req.body.phone) : null,
@@ -759,7 +802,8 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Pengguna portal tidak ditemukan.' });
     }
     const tenantId = resolveAdminTenantId(req);
-    if (tenantId && existing.tenantId !== tenantId) {
+    const tenantName = await resolveTenantNameById(tenantId);
+    if (tenantId && existing.tenantId !== tenantId && (!tenantName || existing.companyName !== tenantName)) {
       return res.status(403).json({ error: 'Pengguna bukan milik tenant Anda.' });
     }
 
@@ -807,7 +851,8 @@ export const deletePortalUser = async (req: AuthRequest, res: Response) => {
     const existing = await prisma.portalUser.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Pengguna portal tidak ditemukan.' });
     const tenantId = resolveAdminTenantId(req);
-    if (tenantId && existing.tenantId !== tenantId) {
+    const tenantName = await resolveTenantNameById(tenantId);
+    if (tenantId && existing.tenantId !== tenantId && (!tenantName || existing.companyName !== tenantName)) {
       return res.status(403).json({ error: 'Pengguna bukan milik tenant Anda.' });
     }
     await prisma.portalUser.delete({ where: { id } });
@@ -1036,7 +1081,8 @@ export const sendPortalUserCredentials = async (req: AuthRequest, res: Response)
     const existing = await prisma.portalUser.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Pengguna portal tidak ditemukan.' });
     const tenantId = resolveAdminTenantId(req);
-    if (tenantId && existing.tenantId !== tenantId) {
+    const tenantName = await resolveTenantNameById(tenantId);
+    if (tenantId && existing.tenantId !== tenantId && (!tenantName || existing.companyName !== tenantName)) {
       return res.status(403).json({ error: 'Pengguna bukan milik tenant Anda.' });
     }
 
