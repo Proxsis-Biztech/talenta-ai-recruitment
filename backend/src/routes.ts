@@ -56,7 +56,11 @@ import {
   getFaqKnowledge,
   uploadFaqKnowledgeFile,
   addFaqKnowledgeItem,
+  updateFaqKnowledgeItem,
   deleteFaqKnowledgeItem,
+  getMcpKnowledgeConfig,
+  saveMcpKnowledgeConfig,
+  testMcpKnowledgeConnection,
   testFaqRagSearch,
   listPesertaFaqItems,
   askPesertaFaqChatbot,
@@ -224,7 +228,11 @@ router.get('/admin/faq-knowledge/template-docx', authenticateToken, downloadFaqW
 router.get('/admin/faq-knowledge', authenticateToken, getFaqKnowledge);
 router.post('/admin/faq-knowledge/upload', authenticateToken, caseFileUpload.single('file'), uploadFaqKnowledgeFile);
 router.post('/admin/faq-knowledge/items', authenticateToken, addFaqKnowledgeItem);
+router.put('/admin/faq-knowledge/items/:id', authenticateToken, updateFaqKnowledgeItem);
 router.delete('/admin/faq-knowledge/items/:id', authenticateToken, deleteFaqKnowledgeItem);
+router.get('/admin/faq-knowledge/mcp-config', authenticateToken, getMcpKnowledgeConfig);
+router.put('/admin/faq-knowledge/mcp-config', authenticateToken, saveMcpKnowledgeConfig);
+router.post('/admin/faq-knowledge/mcp-test', authenticateToken, testMcpKnowledgeConnection);
 router.post('/admin/faq-knowledge/test-rag', authenticateToken, testFaqRagSearch);
 router.get('/admin/helpdesk/tickets', authenticateToken, listAdminHelpdeskTickets);
 router.post('/admin/helpdesk/tickets/:id/reply', authenticateToken, replyAdminHelpdeskTicket);

@@ -316,21 +316,52 @@ const saveStoreForKey = async (store: FaqKnowledgeStore): Promise<FaqKnowledgeSt
   return updated;
 };
 
+export interface McpKnowledgeConfig {
+  enabled: boolean;
+  endpointUrl: string;
+  apiKey: string;
+  updatedAt?: string;
+}
+
+const loadMcpKnowledgeConfig = async (): Promise<McpKnowledgeConfig> => {
+  const rec = await prisma.masterRecord.findUnique({
+    where: { scope_key: { scope: 'ai-config', key: 'proksis-mcp-knowledge' } }
+  });
+  if (rec) {
+    try {
+      const parsed = JSON.parse(rec.value) as Partial<McpKnowledgeConfig>;
+      return {
+        enabled: Boolean(parsed.enabled),
+        endpointUrl: String(parsed.endpointUrl || ''),
+        apiKey: String(parsed.apiKey || ''),
+        updatedAt: parsed.updatedAt || rec.updatedAt.toISOString()
+      };
+    } catch {
+      // fall through
+    }
+  }
+  return {
+    enabled: Boolean(process.env.PROKSIS_MCP_KNOWLEDGE_URL),
+    endpointUrl: process.env.PROKSIS_MCP_KNOWLEDGE_URL || '',
+    apiKey: process.env.PROKSIS_MCP_KNOWLEDGE_KEY || ''
+  };
+};
+
 const syncToProksisMcpKnowledge = async (
   store: FaqKnowledgeStore,
   newChunks: FaqChunkItem[],
   fileName: string
 ): Promise<'synced_local' | 'synced_mcp'> => {
-  const mcpUrl = process.env.PROKSIS_MCP_KNOWLEDGE_URL;
+  const cfg = await loadMcpKnowledgeConfig();
+  const mcpUrl = (cfg.enabled ? cfg.endpointUrl : '') || process.env.PROKSIS_MCP_KNOWLEDGE_URL || '';
+  const mcpKey = cfg.apiKey || process.env.PROKSIS_MCP_KNOWLEDGE_KEY || '';
   if (!mcpUrl) return 'synced_local';
   try {
     const resp = await fetch(mcpUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(process.env.PROKSIS_MCP_KNOWLEDGE_KEY
-          ? { Authorization: `Bearer ${process.env.PROKSIS_MCP_KNOWLEDGE_KEY}` }
-          : {})
+        ...(mcpKey ? { Authorization: `Bearer ${mcpKey}` } : {})
       },
       body: JSON.stringify({
         tenantKey: store.tenantKey,
@@ -623,6 +654,130 @@ export const deleteFaqKnowledgeItem = async (req: AuthRequest, res: Response) =>
   } catch (err) {
     console.error('deleteFaqKnowledgeItem error:', err);
     return res.status(500).json({ error: 'Gagal menghapus item FAQ.' });
+  }
+};
+
+export const updateFaqKnowledgeItem = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = String(req.params.id || '');
+    const companyKey = normalizeKey(String(req.body.companyKey || req.query.companyKey || 'DEFAULT'));
+    const question = String(req.body.question || '').trim();
+    const answer = String(req.body.answer || '').trim();
+    const category = String(req.body.category || 'Umum').trim();
+    if (!question || !answer) {
+      return res.status(400).json({ error: 'Pertanyaan dan jawaban FAQ wajib diisi.' });
+    }
+
+    const store = await getStoreForKey(companyKey);
+    let updatedItem: FaqChunkItem | null = null;
+    const nextChunks = store.chunks.map((c) => {
+      if (c.id !== id) return c;
+      updatedItem = {
+        ...c,
+        question,
+        answer,
+        category,
+        keywords: extractKeywords(question, answer)
+      };
+      return updatedItem;
+    });
+
+    if (!updatedItem) {
+      return res.status(404).json({ error: 'Item FAQ tidak ditemukan.' });
+    }
+
+    await syncToProksisMcpKnowledge(store, [updatedItem], 'Edit Admin GUI');
+    const updated = await saveStoreForKey({ ...store, chunks: nextChunks });
+    return res.json({ item: updatedItem, store: updated });
+  } catch (err) {
+    console.error('updateFaqKnowledgeItem error:', err);
+    return res.status(500).json({ error: 'Gagal memperbarui item FAQ.' });
+  }
+};
+
+export const getMcpKnowledgeConfig = async (_req: AuthRequest, res: Response) => {
+  try {
+    const cfg = await loadMcpKnowledgeConfig();
+    return res.json({
+      enabled: cfg.enabled,
+      endpointUrl: cfg.endpointUrl,
+      hasApiKey: Boolean(cfg.apiKey),
+      apiKeyMasked: cfg.apiKey ? `${cfg.apiKey.slice(0, 4)}••••${cfg.apiKey.slice(-4)}` : '',
+      updatedAt: cfg.updatedAt
+    });
+  } catch (err) {
+    console.error('getMcpKnowledgeConfig error:', err);
+    return res.status(500).json({ error: 'Gagal memuat konfigurasi Proksis MCP Knowledge.' });
+  }
+};
+
+export const saveMcpKnowledgeConfig = async (req: AuthRequest, res: Response) => {
+  try {
+    const existing = await loadMcpKnowledgeConfig();
+    const enabled = req.body.enabled !== undefined ? Boolean(req.body.enabled) : existing.enabled;
+    const endpointUrl = req.body.endpointUrl !== undefined ? String(req.body.endpointUrl).trim() : existing.endpointUrl;
+    const incomingKey = req.body.apiKey !== undefined ? String(req.body.apiKey).trim() : '';
+    const apiKey = incomingKey || existing.apiKey;
+
+    const payload: McpKnowledgeConfig = {
+      enabled,
+      endpointUrl,
+      apiKey,
+      updatedAt: new Date().toISOString()
+    };
+
+    await prisma.masterRecord.upsert({
+      where: { scope_key: { scope: 'ai-config', key: 'proksis-mcp-knowledge' } },
+      create: { scope: 'ai-config', key: 'proksis-mcp-knowledge', value: JSON.stringify(payload) },
+      update: { value: JSON.stringify(payload) }
+    });
+
+    return res.json({
+      message: 'Konfigurasi Proksis MCP Knowledge berhasil disimpan.',
+      enabled: payload.enabled,
+      endpointUrl: payload.endpointUrl,
+      hasApiKey: Boolean(payload.apiKey),
+      updatedAt: payload.updatedAt
+    });
+  } catch (err) {
+    console.error('saveMcpKnowledgeConfig error:', err);
+    return res.status(500).json({ error: 'Gagal menyimpan konfigurasi Proksis MCP Knowledge.' });
+  }
+};
+
+export const testMcpKnowledgeConnection = async (req: AuthRequest, res: Response) => {
+  try {
+    const existing = await loadMcpKnowledgeConfig();
+    const endpointUrl = String(req.body.endpointUrl || existing.endpointUrl || '').trim();
+    const apiKey = String(req.body.apiKey || existing.apiKey || '').trim();
+    if (!endpointUrl) {
+      return res.status(400).json({ error: 'Endpoint URL Proksis MCP Knowledge belum diisi.' });
+    }
+
+    const started = Date.now();
+    const resp = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+      },
+      body: JSON.stringify({ ping: true, source: 'RIGHT-Assessment' })
+    });
+    const latencyMs = Date.now() - started;
+
+    return res.json({
+      reachable: resp.ok,
+      statusCode: resp.status,
+      latencyMs,
+      message: resp.ok
+        ? `Terhubung ke Proksis MCP Knowledge (${resp.status}) dalam ${latencyMs}ms.`
+        : `Endpoint merespons status HTTP ${resp.status}.`
+    });
+  } catch (err: unknown) {
+    return res.status(502).json({
+      reachable: false,
+      error: `Gagal menghubungi endpoint MCP Knowledge: ${err instanceof Error ? err.message : 'Unknown error'}`
+    });
   }
 };
 

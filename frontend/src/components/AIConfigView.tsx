@@ -61,6 +61,36 @@ export default function AIConfigView() {
 
   const [saving, setSaving] = useState(false);
   const [pingLoading, setPingLoading] = useState(false);
+  const [mcpConfig, setMcpConfig] = useState({
+    enabled: false,
+    endpointUrl: '',
+    apiKey: '',
+    hasApiKey: false,
+    apiKeyMasked: ''
+  });
+  const [mcpTestLoading, setMcpTestLoading] = useState(false);
+  const [mcpTestResult, setMcpTestResult] = useState<{ reachable: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    axios
+      .get('/api/admin/faq-knowledge/mcp-config', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then((res) => {
+        if (res.data) {
+          setMcpConfig((prev) => ({
+            ...prev,
+            enabled: Boolean(res.data.enabled),
+            endpointUrl: res.data.endpointUrl || '',
+            hasApiKey: Boolean(res.data.hasApiKey),
+            apiKeyMasked: res.data.apiKeyMasked || ''
+          }));
+        }
+      })
+      .catch(() => undefined);
+  }, []);
   const [pingResult, setPingResult] = useState<{
     status: string;
     latencyMs: number;
@@ -88,10 +118,46 @@ export default function AIConfigView() {
     }
   };
 
+  const handleTestMcp = async () => {
+    setMcpTestLoading(true);
+    setMcpTestResult(null);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await axios.post(
+        '/api/admin/faq-knowledge/mcp-test',
+        { endpointUrl: mcpConfig.endpointUrl, apiKey: mcpConfig.apiKey || undefined },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setMcpTestResult({
+        reachable: Boolean(res.data?.reachable),
+        message: res.data?.message || 'Uji koneksi selesai.'
+      });
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        'Gagal menghubungi endpoint Proksis MCP Knowledge.';
+      setMcpTestResult({ reachable: false, message: msg });
+    } finally {
+      setMcpTestLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await saveMasterRecord('ai-config', 'default', config);
+      const token = localStorage.getItem('adminToken');
+      await Promise.all([
+        saveMasterRecord('ai-config', 'default', config),
+        axios.put(
+          '/api/admin/faq-knowledge/mcp-config',
+          {
+            enabled: mcpConfig.enabled,
+            endpointUrl: mcpConfig.endpointUrl,
+            ...(mcpConfig.apiKey ? { apiKey: mcpConfig.apiKey } : {})
+          },
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        )
+      ]);
       Swal.fire({
         icon: 'success',
         title: 'Konfigurasi Tersimpan',
@@ -518,6 +584,72 @@ export default function AIConfigView() {
             />
             <span className="text-xs font-bold text-slate-700">Wajib Latar Asli</span>
           </label>
+        </div>
+      </Card>
+
+      {/* Proksis MCP Knowledge (RAG) Integration */}
+      <Card className="p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-soft-blue text-primary-navy">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Integrasi Proksis MCP Knowledge (RAG FAQ)</h3>
+              <p className="text-xs text-slate-500">
+                Konfigurasi endpoint eksternal Proksis MCP Knowledge untuk sinkronisasi otomatis dokumen FAQ Word (.docx).
+              </p>
+            </div>
+          </div>
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={mcpConfig.enabled}
+              onChange={(e) => setMcpConfig((prev) => ({ ...prev, enabled: e.target.checked }))}
+              className="w-4 h-4 text-primary-navy rounded border-slate-300"
+            />
+            <span className="text-xs font-bold text-slate-700">Aktifkan Sync MCP</span>
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            label="Endpoint URL Proksis MCP Knowledge"
+            value={mcpConfig.endpointUrl}
+            onChange={(e) => setMcpConfig((prev) => ({ ...prev, endpointUrl: e.target.value }))}
+            placeholder="https://mcp.proxsis.com/api/knowledge/ingest"
+          />
+          <Input
+            label={
+              mcpConfig.hasApiKey
+                ? `API Key / Bearer Token (Tersimpan: ${mcpConfig.apiKeyMasked})`
+                : 'API Key / Bearer Token (Opsional)'
+            }
+            type="password"
+            value={mcpConfig.apiKey}
+            onChange={(e) => setMcpConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
+            placeholder={mcpConfig.hasApiKey ? 'Kosongkan jika tidak ingin mengubah key' : 'Masukkan Bearer token MCP'}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs">
+            {mcpTestResult && (
+              <span className={`font-semibold ${mcpTestResult.reachable ? 'text-emerald-700' : 'text-rose-600'}`}>
+                {mcpTestResult.message}
+              </span>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={handleTestMcp}
+            disabled={mcpTestLoading || !mcpConfig.endpointUrl.trim()}
+          >
+            <Activity className="w-4 h-4 mr-1.5" />
+            {mcpTestLoading ? 'Menguji Koneksi...' : 'Uji Koneksi MCP'}
+          </Button>
         </div>
       </Card>
     </div>

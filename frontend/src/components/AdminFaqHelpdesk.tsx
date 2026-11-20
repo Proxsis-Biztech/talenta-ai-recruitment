@@ -14,7 +14,9 @@ import {
   FileText,
   Sparkles,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Pencil,
+  Settings2
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { Card, CardContent } from './ui/Card';
@@ -97,6 +99,25 @@ export const AdminFaqHelpdesk: React.FC = () => {
   const [newAnswer, setNewAnswer] = useState('');
   const [addingItem, setAddingItem] = useState(false);
 
+  // Edit FAQ state
+  const [editingChunkId, setEditingChunkId] = useState<string | null>(null);
+  const [editCategory, setEditCategory] = useState('');
+  const [editQuestion, setEditQuestion] = useState('');
+  const [editAnswer, setEditAnswer] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Proksis MCP Knowledge GUI config state
+  const [mcpOpen, setMcpOpen] = useState(false);
+  const [mcpConfig, setMcpConfig] = useState({
+    enabled: false,
+    endpointUrl: '',
+    apiKey: '',
+    hasApiKey: false,
+    apiKeyMasked: ''
+  });
+  const [savingMcp, setSavingMcp] = useState(false);
+  const [testingMcp, setTestingMcp] = useState(false);
+
   // RAG tester state
   const [ragQuery, setRagQuery] = useState('');
   const [ragTesting, setRagTesting] = useState(false);
@@ -160,6 +181,20 @@ export const AdminFaqHelpdesk: React.FC = () => {
   useEffect(() => {
     loadTenants();
     loadTickets();
+    axios
+      .get('/api/admin/faq-knowledge/mcp-config', { headers: getAuthHeaders() })
+      .then((res) => {
+        if (res.data) {
+          setMcpConfig((prev) => ({
+            ...prev,
+            enabled: Boolean(res.data.enabled),
+            endpointUrl: res.data.endpointUrl || '',
+            hasApiKey: Boolean(res.data.hasApiKey),
+            apiKeyMasked: res.data.apiKeyMasked || ''
+          }));
+        }
+      })
+      .catch(() => undefined);
   }, [loadTenants, loadTickets]);
 
   useEffect(() => {
@@ -249,6 +284,85 @@ export const AdminFaqHelpdesk: React.FC = () => {
       setChunks(resp.data?.store?.chunks || []);
     } catch {
       Swal.fire('Gagal', 'Tidak dapat menghapus item FAQ.', 'error');
+    }
+  };
+
+  const startEditChunk = (c: FaqChunkItem) => {
+    setEditingChunkId(c.id);
+    setEditCategory(c.category);
+    setEditQuestion(c.question);
+    setEditAnswer(c.answer);
+  };
+
+  const handleSaveEditChunk = async (id: string) => {
+    if (!editQuestion.trim() || !editAnswer.trim()) return;
+    setSavingEdit(true);
+    try {
+      const resp = await axios.put(
+        `/api/admin/faq-knowledge/items/${id}`,
+        {
+          companyKey: selectedCompanyKey,
+          category: editCategory.trim() || 'Umum',
+          question: editQuestion.trim(),
+          answer: editAnswer.trim()
+        },
+        { headers: getAuthHeaders() }
+      );
+      setChunks(resp.data?.store?.chunks || []);
+      setEditingChunkId(null);
+    } catch {
+      Swal.fire('Gagal', 'Tidak dapat memperbarui item FAQ.', 'error');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleSaveMcpConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingMcp(true);
+    try {
+      const resp = await axios.put(
+        '/api/admin/faq-knowledge/mcp-config',
+        {
+          enabled: mcpConfig.enabled,
+          endpointUrl: mcpConfig.endpointUrl,
+          ...(mcpConfig.apiKey ? { apiKey: mcpConfig.apiKey } : {})
+        },
+        { headers: getAuthHeaders() }
+      );
+      setMcpConfig((prev) => ({
+        ...prev,
+        apiKey: '',
+        hasApiKey: Boolean(resp.data?.hasApiKey)
+      }));
+      Swal.fire('Tersimpan', 'Konfigurasi Proksis MCP Knowledge berhasil disimpan.', 'success');
+    } catch {
+      Swal.fire('Gagal', 'Tidak dapat menyimpan konfigurasi MCP Knowledge.', 'error');
+    } finally {
+      setSavingMcp(false);
+    }
+  };
+
+  const handleTestMcpConfig = async () => {
+    setTestingMcp(true);
+    try {
+      const resp = await axios.post(
+        '/api/admin/faq-knowledge/mcp-test',
+        { endpointUrl: mcpConfig.endpointUrl, apiKey: mcpConfig.apiKey || undefined },
+        { headers: getAuthHeaders() }
+      );
+      Swal.fire(
+        resp.data?.reachable ? 'Terhubung' : 'Gagal',
+        resp.data?.message || 'Uji koneksi selesai.',
+        resp.data?.reachable ? 'success' : 'warning'
+      );
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        'Gagal menghubungi endpoint MCP Knowledge.';
+      Swal.fire('Gagal', msg, 'error');
+    } finally {
+      setTestingMcp(false);
     }
   };
 
@@ -366,9 +480,74 @@ export const AdminFaqHelpdesk: React.FC = () => {
               <Download className="w-4 h-4 mr-1.5" />
               Template Word (.docx)
             </Button>
+            <Button variant="secondary" size="sm" onClick={() => setMcpOpen((v) => !v)}>
+              <Settings2 className="w-4 h-4 mr-1.5" />
+              Proksis MCP
+            </Button>
           </div>
         )}
       </div>
+
+      {activeTab === 'knowledge' && mcpOpen && (
+        <Card className="border-blue-200 bg-blue-50/30">
+          <CardContent className="p-5">
+            <form onSubmit={handleSaveMcpConfig} className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Konfigurasi Endpoint Proksis MCP Knowledge
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Atur URL endpoint dan Bearer token untuk sinkronisasi otomatis chunk FAQ ke server MCP Knowledge.
+                  </p>
+                </div>
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={mcpConfig.enabled}
+                    onChange={(e) => setMcpConfig((prev) => ({ ...prev, enabled: e.target.checked }))}
+                    className="rounded border-slate-300"
+                  />
+                  Aktifkan Sync MCP
+                </label>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Input
+                  label="Endpoint URL Proksis MCP Knowledge"
+                  value={mcpConfig.endpointUrl}
+                  onChange={(e) => setMcpConfig((prev) => ({ ...prev, endpointUrl: e.target.value }))}
+                  placeholder="https://mcp.proxsis.com/api/knowledge/ingest"
+                />
+                <Input
+                  label={
+                    mcpConfig.hasApiKey
+                      ? `Bearer Token (Tersimpan: ${mcpConfig.apiKeyMasked})`
+                      : 'Bearer Token (Opsional)'
+                  }
+                  type="password"
+                  value={mcpConfig.apiKey}
+                  onChange={(e) => setMcpConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
+                  placeholder={mcpConfig.hasApiKey ? 'Kosongkan jika tetap menggunakan token lama' : 'Masukkan API Key / Token'}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={testingMcp || !mcpConfig.endpointUrl.trim()}
+                  onClick={handleTestMcpConfig}
+                >
+                  {testingMcp ? 'Menguji...' : 'Uji Koneksi'}
+                </Button>
+                <Button type="submit" size="sm" disabled={savingMcp}>
+                  {savingMcp ? 'Menyimpan...' : 'Simpan Konfigurasi MCP'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       {activeTab === 'knowledge' ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -552,35 +731,91 @@ export const AdminFaqHelpdesk: React.FC = () => {
                         key={c.id}
                         className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-colors space-y-2"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant="info">{c.category}</Badge>
-                              <span className="text-[11px] text-slate-400">{c.sourceFile}</span>
+                        {editingChunkId === c.id ? (
+                          <div className="space-y-2.5">
+                            <Input
+                              label="Kategori"
+                              value={editCategory}
+                              onChange={(e) => setEditCategory(e.target.value)}
+                            />
+                            <Input
+                              label="Pertanyaan"
+                              value={editQuestion}
+                              onChange={(e) => setEditQuestion(e.target.value)}
+                            />
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                Jawaban Resmi
+                              </label>
+                              <textarea
+                                rows={3}
+                                value={editAnswer}
+                                onChange={(e) => setEditAnswer(e.target.value)}
+                                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl"
+                              />
                             </div>
-                            <p className="font-bold text-slate-900 text-sm">{c.question}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteChunk(c.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
-                            title="Hapus item FAQ"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <p className="text-xs text-slate-600 leading-relaxed">{c.answer}</p>
-                        {c.keywords?.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            {c.keywords.slice(0, 6).map((kw) => (
-                              <span
-                                key={kw}
-                                className="px-2 py-0.5 text-[10px] rounded-full bg-slate-100 text-slate-600"
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => setEditingChunkId(null)}
                               >
-                                #{kw}
-                              </span>
-                            ))}
+                                Batal
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={savingEdit}
+                                onClick={() => handleSaveEditChunk(c.id)}
+                              >
+                                {savingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
+                              </Button>
+                            </div>
                           </div>
+                        ) : (
+                          <>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="info">{c.category}</Badge>
+                                  <span className="text-[11px] text-slate-400">{c.sourceFile}</span>
+                                </div>
+                                <p className="font-bold text-slate-900 text-sm">{c.question}</p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditChunk(c)}
+                                  className="p-1.5 text-slate-400 hover:text-blue-accent rounded-lg hover:bg-blue-50"
+                                  title="Edit item FAQ"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteChunk(c.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
+                                  title="Hapus item FAQ"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                            <p className="text-xs text-slate-600 leading-relaxed">{c.answer}</p>
+                            {c.keywords?.length > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-1">
+                                {c.keywords.slice(0, 6).map((kw) => (
+                                  <span
+                                    key={kw}
+                                    className="px-2 py-0.5 text-[10px] rounded-full bg-slate-100 text-slate-600"
+                                  >
+                                    #{kw}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     ))}
