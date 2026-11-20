@@ -329,9 +329,9 @@ export default function AuthLoginPage() {
         />
       </div>
 
-      {/* Floating White Login Card on Right */}
-      <div className="relative z-10 w-full max-w-[460px] lg:mr-4 xl:mr-10 bg-white rounded-[28px] p-6 sm:p-8 lg:p-9 shadow-[0_30px_80px_-20px_rgba(15,39,92,0.32)] border border-white/90">
-        <div className="w-full mx-auto">
+      {/* Floating White Login Card on Right (~half width of full page) */}
+      <div className="relative z-10 w-full max-w-[480px] lg:max-w-none lg:w-[46%] lg:h-[calc(100vh-3rem)] lg:mr-2 bg-white rounded-[32px] p-6 sm:p-10 lg:p-12 shadow-[0_30px_80px_-20px_rgba(15,39,92,0.32)] border border-white/90 flex flex-col justify-center">
+        <div className="w-full max-w-[440px] mx-auto">
           <div className="flex flex-col items-center text-center mb-5 sm:mb-6">
             <img
               src="/img/logoRIght.jpeg"
