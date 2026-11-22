@@ -602,8 +602,8 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
             <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-amber-950">{totalProctoringEvents} Event Pelanggaran Proctoring Menunggu Verifikasi</p>
-              <p className="text-amber-800 text-[11px] mt-0.5">{totalProctoringEvents > 0 ? `${totalProctoringEvents} event tercatat pada ${proctoringAlerts.length} kandidat (${proctoringAlerts.slice(0, 3).map((candidate) => candidate.name).join(', ')}).` : 'Tidak ada pelanggaran integritas yang menunggu verifikasi.'}</p>
+              <p className="font-bold text-amber-950">{totalProctoringEvents} Event Proctoring Menunggu Verifikasi</p>
+              <p className="text-amber-800 text-[11px] mt-0.5">{totalProctoringEvents > 0 ? `${totalProctoringEvents} event tercatat pada ${proctoringAlerts.length} kandidat (${proctoringAlerts.slice(0, 3).map((candidate) => candidate.name).join(', ')}).` : 'Tidak ada temuan integritas yang menunggu verifikasi.'}</p>
               <button
                 onClick={() => {
                   setNotifModalOpen(false);

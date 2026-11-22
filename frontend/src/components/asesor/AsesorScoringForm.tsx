@@ -427,7 +427,8 @@ export default function AsesorScoringForm() {
 <h2 style="font-size:14px">Matriks 7 Indikator Perilaku Terstandar</h2>
 <table><thead><tr><th>KOMPETENSI</th><th>BOBOT</th><th>SKOR (1-5)</th><th>EVIDENCE CATATAN PERILAKU</th></tr></thead><tbody>${rows}</tbody></table>
 <p><strong>Rekomendasi Dewan Asesor:</strong> ${recommendation}<br/>
-<strong>Skor Komposit (1-5):</strong> ${weightedOverallScore}</p>
+<strong>Rata-Rata Rubrik BARS (1-5):</strong> ${weightedOverallScore} / 5.0<br/>
+<strong>Skor Komposit Akhir (40% CAT + 60% Interview):</strong> ${calculateCompositeScore(candidate!.catScore ?? 0, Math.round(Number(weightedOverallScore) * 20 * 10) / 10)} / 100</p>
 <p class="meta">Diverifikasi oleh: ${assessorName} — ${assessorTitle}<br/>Tanggal: ${formatToday()}<br/>Hash SHA-256: ${lhaHash}</p>
 <p class="meta">Dokumen ini dihasilkan oleh Right Assessment Center Enterprise.</p>
 </body></html>`;
@@ -595,9 +596,22 @@ export default function AsesorScoringForm() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center min-w-[110px]">
-              <span className="text-[10px] text-slate-500 uppercase font-bold">Skor Komposit</span>
-              <p className="font-mono text-xl font-extrabold text-blue-700">{weightedOverallScore} / 5.0</p>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center min-w-[115px]">
+              <span className="text-[10px] text-slate-500 uppercase font-bold">Rubrik BARS (1-5)</span>
+              <p className="font-mono text-xl font-extrabold text-blue-700">
+                {hasAnyCompetencyScore ? `${weightedOverallScore} / 5.0` : 'Belum'}
+              </p>
+            </div>
+            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-center min-w-[115px]">
+              <span className="text-[10px] text-primary-navy uppercase font-bold">Komposit (0-100)</span>
+              <p className="font-mono text-xl font-extrabold text-primary-navy">
+                {hasAnyCompetencyScore && candidate!.catScore != null
+                  ? calculateCompositeScore(
+                      candidate!.catScore,
+                      Math.round(Number(weightedOverallScore) * 20 * 10) / 10
+                    )
+                  : '—'}
+              </p>
             </div>
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center min-w-[110px]">
               <span className="text-[10px] text-emerald-800 uppercase font-bold">Akurasi Fakta</span>
@@ -1062,12 +1076,19 @@ export default function AsesorScoringForm() {
                     </tr>
                   ))}
                   <tr className="bg-slate-50 font-bold">
-                    <td colSpan={2} className="p-2 border border-slate-200 text-right">SKOR KOMPOSIT AKHIR:</td>
+                    <td colSpan={2} className="p-2 border border-slate-200 text-right">RATA-RATA BARS (1-5):</td>
                     <td className="p-2 border border-slate-200 text-center font-mono text-blue-700 text-sm">
-                      {weightedOverallScore}
+                      {weightedOverallScore} / 5.0
                     </td>
                     <td className="p-2 border border-slate-200 text-emerald-700">
-                      Rekomendasi: {recommendation}
+                      Komposit (0-100):{' '}
+                      {candidate!.catScore != null
+                        ? calculateCompositeScore(
+                            candidate!.catScore,
+                            Math.round(Number(weightedOverallScore) * 20 * 10) / 10
+                          )
+                        : '-'}{' '}
+                      • Rekomendasi: {recommendation}
                     </td>
                   </tr>
                 </tbody>

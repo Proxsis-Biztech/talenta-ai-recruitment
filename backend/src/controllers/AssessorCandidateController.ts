@@ -414,19 +414,24 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
     violations.forEach((violation, index) => {
       const eventId = `EXAM-${index + 1}`;
       const review = reviewMap.get(eventId);
-      const rawType = String(violation.type || 'Pelanggaran Ujian');
-      const isPeriodicAudit = rawType === 'PERIODIC_SNAPSHOT';
+      const rawType = String(violation.type || 'Catatan Aktivitas');
+      const isInfoAudit =
+        rawType === 'PERIODIC_SNAPSHOT' ||
+        rawType === 'face_verified' ||
+        rawType === 'VERIFIKASI_BERKALA';
       events.push({
         id: eventId,
         time: formatEventTime(violation.timestamp || violation.time || attempt?.submittedAt),
-        type: isPeriodicAudit ? 'VERIFIKASI_BERKALA' : rawType,
-        severity: isPeriodicAudit ? 'low' : severityFor(rawType),
+        type: isInfoAudit ? 'VERIFIKASI_BERKALA' : rawType,
+        severity: isInfoAudit ? 'low' : severityFor(rawType),
         description: String(
           violation.detail ||
             violation.description ||
-            'Aktivitas mencurigakan terdeteksi selama pengerjaan ujian CAT.'
+            (isInfoAudit
+              ? 'Verifikasi kehadiran wajah rutin selama sesi asesmen.'
+              : 'Aktivitas mencurigakan terdeteksi selama pengerjaan ujian CAT.')
         ),
-        status: review?.status || (isPeriodicAudit ? 'info' : 'pending'),
+        status: review?.status || (isInfoAudit ? 'info' : 'pending'),
         assessorNotes: review?.notes || '',
         snapshotUrl:
           typeof violation.snapshot === 'string'
@@ -444,7 +449,10 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
       const eventId = `INT-${index + 1}`;
       const review = reviewMap.get(eventId);
       const rawType = String(flag.type || 'Catatan Wawancara');
-      const isInfoAudit = rawType === 'PERIODIC_SNAPSHOT' || rawType === 'face_verified';
+      const isInfoAudit =
+        rawType === 'PERIODIC_SNAPSHOT' ||
+        rawType === 'face_verified' ||
+        rawType === 'VERIFIKASI_BERKALA';
       events.push({
         id: eventId,
         time: formatEventTime(flag.timestamp || flag.time),
@@ -454,7 +462,7 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
           flag.detail ||
             flag.description ||
             (isInfoAudit
-              ? 'Verifikasi kehadiran wajah berkala selama sesi wawancara.'
+              ? 'Verifikasi kehadiran wajah rutin selama sesi wawancara.'
               : 'Kejadian integritas tercatat selama sesi wawancara.')
         ),
         status: review?.status || (isInfoAudit ? 'info' : 'pending'),
@@ -477,5 +485,110 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
   } catch (error) {
     console.error('Get assessor proctoring error:', error);
     return res.status(500).json({ error: 'Gagal memuat event proctoring kandidat.' });
+  }
+};
+
+export const listAllAssessorProctoringEvents = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi asesor tidak valid.' });
+    const tenantId = req.portalUser.tenantId || null;
+    let tenantCompanyName: string | null = req.portalUser.companyName || null;
+    if (tenantId && !tenantCompanyName) {
+      const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+      tenantCompanyName = tenant?.name || null;
+    }
+
+    const users = await prisma.portalUser.findMany({
+      where: {
+        role: 'peserta',
+        status: 'Aktif',
+        ...(tenantId
+          ? {
+              OR: [
+                { tenantId },
+                ...(tenantCompanyName ? [{ companyName: tenantCompanyName }] : [])
+              ]
+            }
+          : tenantCompanyName
+            ? { companyName: tenantCompanyName }
+            : {})
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        candidateCode: true,
+        assessmentId: true,
+        examAttempts: {
+          select: { violations: true, submittedAt: true, integrityScore: true }
+        }
+      }
+    });
+
+    const emails = users.map((u) => u.email).filter(Boolean);
+    const candidateKeys = users.map((u) => u.candidateCode || u.id).filter(Boolean);
+    const [applicants, reviews] = await Promise.all([
+      emails.length > 0
+        ? prisma.applicant.findMany({ where: { email: { in: emails } }, select: { email: true, proctorFlags: true } })
+        : Promise.resolve([]),
+      candidateKeys.length > 0
+        ? prisma.proctoringReview.findMany({ where: { candidateCode: { in: candidateKeys } } })
+        : Promise.resolve([])
+    ]);
+
+    const flagsByEmail = new Map(applicants.map((a) => [a.email.toLowerCase(), a.proctorFlags]));
+    const reviewByKey = new Map(reviews.map((r) => [`${r.candidateCode}:${r.eventId}`, r]));
+
+    const aggregated: Array<Record<string, unknown>> = [];
+    for (const user of users) {
+      const code = user.candidateCode || user.id.slice(0, 8);
+      const key = user.candidateCode || user.id;
+      const attempt = [...user.examAttempts].sort((a, b) => {
+        const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+        const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+        return bTime - aTime;
+      })[0];
+
+      const examFlags = parseJson<any[]>(attempt?.violations, []);
+      const interviewFlags = parseJson<any[]>(flagsByEmail.get(user.email.toLowerCase()), []);
+
+      const collect = (items: any[], prefix: 'EXAM' | 'INT') => {
+        items.forEach((item, idx) => {
+          const rawType = String(item?.type || 'Catatan Aktivitas');
+          const isInfoAudit =
+            rawType === 'PERIODIC_SNAPSHOT' ||
+            rawType === 'face_verified' ||
+            rawType === 'VERIFIKASI_BERKALA';
+          if (isInfoAudit) return;
+          const eventId = `${prefix}-${idx + 1}`;
+          const review = reviewByKey.get(`${key}:${eventId}`);
+          aggregated.push({
+            id: `${code}-${eventId}`,
+            eventId,
+            candidateCode: code,
+            candidateName: user.name,
+            programCode: user.assessmentId || null,
+            integrityScore: attempt?.integrityScore ?? null,
+            time: formatEventTime(item?.timestamp || item?.time || attempt?.submittedAt),
+            type: rawType,
+            severity: severityFor(rawType),
+            description: String(item?.detail || item?.description || 'Aktivitas perlu peninjauan asesor.'),
+            status: review?.status || 'pending'
+          });
+        });
+      };
+
+      collect(examFlags, 'EXAM');
+      collect(interviewFlags, 'INT');
+    }
+
+    return res.json({
+      data: aggregated,
+      totalEvents: aggregated.length,
+      pendingEvents: aggregated.filter((e) => e.status === 'pending').length
+    });
+  } catch (error) {
+    console.error('List aggregate assessor proctoring error:', error);
+    return res.status(500).json({ error: 'Gagal memuat agregat event proctoring.' });
   }
 };

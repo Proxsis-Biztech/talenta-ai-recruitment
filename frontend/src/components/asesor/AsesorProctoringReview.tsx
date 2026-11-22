@@ -423,21 +423,33 @@ export default function AsesorProctoringReview() {
                   />
                 </div>
 
-                {/* Validation Action Buttons */}
-                <div className="pt-2 flex items-center gap-2">
-                  <button
-                    onClick={() => handleStatusChange(evt.id, 'valid')}
-                    className="px-3 py-1.5 rounded-lg bg-red-50 text-red-800 border border-red-200 hover:bg-red-100 text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Tandai Valid (Pelanggaran)
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange(evt.id, 'false_positive')}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Tandai False Positive
-                  </button>
-                </div>
+                {/* Validation Action Buttons (disembunyikan pada event audit verifikasi rutin) */}
+                {evt.status === 'info' ? (
+                  <div className="pt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span>Audit kehadiran rutin (bukan catatan pelanggaran dan tidak mengurangi skor integritas).</span>
+                    <button
+                      onClick={() => handleStatusChange(evt.id, 'valid')}
+                      className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 text-[11px] font-semibold transition-colors cursor-pointer"
+                    >
+                      Tandai Anomali
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pt-2 flex items-center gap-2">
+                    <button
+                      onClick={() => handleStatusChange(evt.id, 'valid')}
+                      className="px-3 py-1.5 rounded-lg bg-red-50 text-red-800 border border-red-200 hover:bg-red-100 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Tandai Valid (Pelanggaran)
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange(evt.id, 'false_positive')}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Tandai False Positive
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
