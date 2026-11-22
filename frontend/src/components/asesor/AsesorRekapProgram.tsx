@@ -87,11 +87,15 @@ export default function AsesorRekapProgram() {
         : c.signedAt
           ? new Date(c.signedAt).toLocaleDateString('id-ID')
           : null,
-      isSaved:
-        Boolean(saved) ||
-        c.lhaStatus === 'signed' ||
-        interviewScore != null ||
-        recommendation != null
+      statusLabel:
+        c.lhaStatus === 'signed'
+          ? 'LHA terbit (final)'
+          : Boolean(saved) || Boolean(recommendation)
+            ? 'dinilai asesor (draft)'
+            : interviewScore != null
+              ? 'skor wawancara tercatat (menunggu rubrik)'
+              : 'belum dinilai',
+      isSaved: Boolean(saved) || c.lhaStatus === 'signed' || Boolean(recommendation)
     };
   });
 
@@ -232,7 +236,7 @@ export default function AsesorRekapProgram() {
               <TableHead>PT MITRA</TableHead>
               <TableHead>SKOR CAT (40%)</TableHead>
               <TableHead>SKOR INTERVIEW (60%)</TableHead>
-              <TableHead>SKOR KOMPOSIT</TableHead>
+              <TableHead>SKOR KOMPOSIT (0-100)</TableHead>
               <TableHead>REKOMENDASI</TableHead>
               <TableHead>TGL VERIFIKASI</TableHead>
               <TableHead className="text-right">AKSI</TableHead>
@@ -245,8 +249,7 @@ export default function AsesorRekapProgram() {
                   <div>
                     <p className="font-bold text-ink">{c.name}</p>
                     <p className="font-mono text-[11px] text-muted-slate">
-                      {c.id}
-                      {c.isSaved ? ' • dinilai asesor' : ' • belum dinilai'}
+                      {c.id} • {c.statusLabel}
                     </p>
                   </div>
                 </TableCell>

@@ -61,14 +61,19 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
   const [factsheetModalOpen, setFactsheetModalOpen] = useState(false);
   const [notifModalOpen, setNotifModalOpen] = useState(false);
   const [notifCandidates, setNotifCandidates] = useState<AssessorCandidate[]>([]);
+  const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadingStats(true);
     fetchAssessorCandidates()
       .then((data) => {
         if (!cancelled) setNotifCandidates(data);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoadingStats(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -121,7 +126,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           label: 'Antrean Interview',
           path: '/asesor/interview-queue',
           icon: Users,
-          badge: `${notifCandidates.length} Slot`
+          badge: loadingStats ? undefined : `${notifCandidates.length} Slot`
         },
         {
           id: 'console',
@@ -135,7 +140,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           label: 'Review Proctoring',
           path: '/asesor/proctoring',
           icon: ShieldAlert,
-          badge: `${totalProctoringEvents} Flag`
+          badge: loadingStats ? undefined : `${totalProctoringEvents} Flag`
         },
         { id: 'scoring', label: 'Penilaian & LHA', path: '/asesor/scoring', icon: ClipboardCheck, badge: 'E-Sign' },
         { id: 'rekap', label: 'Rekap Program', path: '/asesor/rekap', icon: FileSpreadsheet },

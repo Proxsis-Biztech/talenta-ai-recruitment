@@ -199,9 +199,24 @@ export default function AsesorScoringForm() {
             : 'Draft penilaian tersimpan di server.'
         );
       } catch (error) {
-        if (axios.isAxiosError(error) && error.response?.status !== 404) {
-          setSaveMessage('Gagal memuat penilaian tersimpan.');
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          // If candidate already has a recorded interview score (e.g. from Live Interview/seed),
+          // seed an editable BARS baseline from that score so assessors can review & finalize smoothly.
+          if (candidate.interviewScore != null && candidate.interviewScore > 0) {
+            const convertedScale = Math.min(
+              5,
+              Math.max(1, parseFloat((candidate.interviewScore / 20).toFixed(1)))
+            );
+            setCompetencies((prev) =>
+              prev.map((c) => ({ ...c, score: convertedScale }))
+            );
+            setSaveMessage(
+              `Nilai awal (${candidate.interviewScore}/100 ≈ ${convertedScale.toFixed(1)}/5.0) dimuat dari catatan wawancara. Tinjau indikator BARS lalu simpan/terbitkan LHA.`
+            );
+          }
+          return;
         }
+        setSaveMessage('Gagal memuat penilaian tersimpan.');
       }
     };
     void loadScore();
@@ -485,6 +500,11 @@ export default function AsesorScoringForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {candidateList.map((item) => {
                 const signed = item.lhaStatus === 'signed';
+                const displayComposite =
+                  item.compositeScore ??
+                  (item.catScore != null && item.interviewScore != null
+                    ? calculateCompositeScore(item.catScore, item.interviewScore)
+                    : null);
                 return (
                   <div
                     key={item.id}
@@ -503,7 +523,7 @@ export default function AsesorScoringForm() {
                       <p className="font-bold text-sm text-ink mt-1 truncate">{item.name}</p>
                       <p className="text-xs text-muted-slate truncate">{item.program}</p>
                       <p className="text-[11px] font-mono text-slate-500 mt-1">
-                        CAT: {item.catScore ?? '-'} • Komposit: {item.compositeScore ?? '-'} • {item.lhaNumber || 'Belum Terbit LHA'}
+                        CAT: {item.catScore ?? '-'} • Komposit: {displayComposite ?? '-'} • {item.lhaNumber || 'Belum Terbit LHA'}
                       </p>
                     </div>
                     <Button
@@ -732,11 +752,36 @@ export default function AsesorScoringForm() {
                 Terapkan diskresi profesional asesor (*Human-in-the-Loop*) untuk menyesuaikan skor draf AI
               </p>
             </div>
-            <div className="text-right">
-              <span className="text-xs text-slate-500">Skor Komposit Akhir:</span>
-              <span className="font-mono text-lg font-bold text-blue-700 ml-2">
-                {hasAnyCompetencyScore ? `${weightedOverallScore} / 5.0` : 'Belum Dinilai'}
-              </span>
+            <div className="text-right space-y-1">
+              <div>
+                <span className="text-xs text-slate-500">Rata-Rata Rubrik BARS (1–5):</span>
+                <span className="font-mono text-lg font-bold text-blue-700 ml-2">
+                  {hasAnyCompetencyScore ? `${weightedOverallScore} / 5.0` : 'Belum Dinilai'}
+                </span>
+              </div>
+              {hasAnyCompetencyScore && candidate.catScore != null && (
+                <div className="text-[11px] font-mono text-slate-600">
+                  Skor Komposit (40% CAT + 60% Interview):{' '}
+                  <strong className="text-primary-navy">
+                    {calculateCompositeScore(
+                      candidate.catScore,
+                      Math.round(Number(weightedOverallScore) * 20 * 10) / 10
+                    )}{' '}
+                    / 100
+                  </strong>
+                </div>
+              )}
+              {!isSigned && hasCompletedCat && !hasAnyCompetencyScore && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCompetencies((prev) => prev.map((c) => ({ ...c, score: 3.0 })))
+                  }
+                  className="text-[11px] font-semibold text-blue-700 hover:underline cursor-pointer"
+                >
+                  Isi Skor Dasar (3.0 / Indikator)
+                </button>
+              )}
             </div>
           </div>
 

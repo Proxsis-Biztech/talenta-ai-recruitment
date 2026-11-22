@@ -99,12 +99,21 @@ const isTestAccountUser = (user: { email?: string | null; candidateCode?: string
   );
 };
 
-const serializeCandidate = (user: any, score: CandidateAssessorScoreRow | null = null) => {
+const countNonPeriodicEvents = (jsonStr: string | null | undefined): number => {
+  const parsed = parseJson<unknown[]>(jsonStr, []);
+  if (!Array.isArray(parsed)) return 0;
+  return parsed.filter((item: any) => String(item?.type || '') !== 'PERIODIC_SNAPSHOT').length;
+};
+
+const serializeCandidate = (
+  user: any,
+  score: CandidateAssessorScoreRow | null = null,
+  applicantProctorFlagsJson: string | null = null
+) => {
   const attempt = latestAttempt(user.examAttempts || []);
-  const rawViolations = parseJson<unknown[]>(attempt?.violations, []);
-  const violationCount = Array.isArray(rawViolations)
-    ? rawViolations.filter((item: any) => String(item?.type || '') !== 'PERIODIC_SNAPSHOT').length
-    : 0;
+  const violationCount =
+    countNonPeriodicEvents(attempt?.violations) +
+    countNonPeriodicEvents(applicantProctorFlagsJson);
   const proctoringFlagCount =
     violationCount > 0
       ? violationCount
@@ -215,14 +224,26 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
     const codes = users
       .map((u) => u.candidateCode || u.id.slice(0, 8))
       .filter(Boolean);
-    const scoreRows =
+    const emails = users.map((u) => u.email).filter(Boolean);
+    const [scoreRows, applicantRows] = await Promise.all([
       codes.length > 0
-        ? await prisma.assessorScore.findMany({
+        ? prisma.assessorScore.findMany({
             where: { candidateCode: { in: codes } },
             include: { assessor: { select: { name: true } } },
             orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
           })
-        : [];
+        : Promise.resolve([]),
+      emails.length > 0
+        ? prisma.applicant.findMany({
+            where: { email: { in: emails } },
+            select: { email: true, proctorFlags: true }
+          })
+        : Promise.resolve([])
+    ]);
+
+    const flagsByEmail = new Map(
+      applicantRows.map((a) => [a.email.toLowerCase(), a.proctorFlags])
+    );
 
     const scoresByCode = new Map<string, CandidateAssessorScoreRow[]>();
     for (const row of scoreRows) {
@@ -235,7 +256,8 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
       data: users.map((u) => {
         const key = u.candidateCode || u.id.slice(0, 8);
         const bestScore = pickBestScore(scoresByCode.get(key) || []);
-        return serializeCandidate(u, bestScore);
+        const applicantFlags = flagsByEmail.get(u.email.toLowerCase()) || null;
+        return serializeCandidate(u, bestScore, applicantFlags);
       })
     });
   } catch (error) {
@@ -265,13 +287,19 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
     }
 
     const codeKey = user.candidateCode || user.id.slice(0, 8);
-    const scores = await prisma.assessorScore.findMany({
-      where: {
-        OR: [{ candidateCode: codeKey }, { candidateCode: identifier }]
-      },
-      include: { assessor: { select: { name: true } } },
-      orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
-    });
+    const [scores, applicant] = await Promise.all([
+      prisma.assessorScore.findMany({
+        where: {
+          OR: [{ candidateCode: codeKey }, { candidateCode: identifier }]
+        },
+        include: { assessor: { select: { name: true } } },
+        orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
+      }),
+      prisma.applicant.findUnique({
+        where: { email: user.email },
+        select: { proctorFlags: true }
+      })
+    ]);
     const bestScore = pickBestScore(scores);
 
     const attempt = latestAttempt(user.examAttempts || []);
@@ -313,7 +341,7 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
 
     return res.json({
       data: {
-        ...serializeCandidate(user, bestScore),
+        ...serializeCandidate(user, bestScore, applicant?.proctorFlags || null),
         essayAnswers
       }
     });
