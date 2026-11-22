@@ -35,7 +35,8 @@ const candidateSelect = {
       score: true,
       integrityScore: true,
       submittedAt: true,
-      answers: true
+      answers: true,
+      violations: true
     }
   }
 } as const;
@@ -74,6 +75,7 @@ const latestAttempt = (
     integrityScore: number | null;
     submittedAt: Date | null;
     answers?: string;
+    violations?: string | null;
   }>
 ) =>
   [...attempts].sort((a, b) => {
@@ -83,19 +85,30 @@ const latestAttempt = (
   })[0];
 
 const isTestAccountUser = (user: { email?: string | null; candidateCode?: string | null; name?: string | null }) => {
-  const email = String(user.email || '').toLowerCase();
-  const code = String(user.candidateCode || '').toUpperCase();
-  const name = String(user.name || '');
+  const email = String(user.email || '').toLowerCase().trim();
+  const localPart = email.split('@')[0] || '';
+  const code = String(user.candidateCode || '').toUpperCase().trim();
+  const name = String(user.name || '').trim();
   return (
     email.endsWith('@right.id') ||
     email.endsWith('@kandidat.id') ||
     code.startsWith('KND-UAT-') ||
-    /\b(uji|qc|test)\b/i.test(name)
+    /\b(uji|qc|test|uat|dummy|demo|sandbox|akunsatu|akun\s*satu|akundua|akun\s*dua)\b/i.test(name) ||
+    /^(akunsatu|akundua|akuntiga|akun\d+|peserta\s*\d+|test\d*|uat[-_\d]*)$/i.test(name) ||
+    /^(akunsatu|akundua|akuntiga|akun\d+|peserta\d+|test\d*|uat[-_\d]*)$/i.test(localPart)
   );
 };
 
 const serializeCandidate = (user: any, score: CandidateAssessorScoreRow | null = null) => {
   const attempt = latestAttempt(user.examAttempts || []);
+  const rawViolations = parseJson<unknown[]>(attempt?.violations, []);
+  const violationCount = Array.isArray(rawViolations) ? rawViolations.length : 0;
+  const proctoringFlagCount =
+    violationCount > 0
+      ? violationCount
+      : attempt?.integrityScore != null && attempt.integrityScore < 100
+        ? 1
+        : 0;
   return {
     id: user.id,
     code: user.candidateCode || user.id.slice(0, 8),
@@ -107,6 +120,7 @@ const serializeCandidate = (user: any, score: CandidateAssessorScoreRow | null =
     programCode: user.assessmentId || attempt?.programCode || null,
     catScore: attempt?.score ?? null,
     integrityScore: attempt?.integrityScore ?? null,
+    proctoringFlagCount,
     examStatus: attempt?.status || 'not_started',
     submittedAt: attempt?.submittedAt || null,
     interviewStatus: user.interviewStatus,
@@ -235,7 +249,11 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
     const user = await prisma.portalUser.findFirst({
       where: {
         role: 'peserta',
-        OR: [{ candidateCode: identifier }, { id: identifier }]
+        OR: [
+          { candidateCode: identifier },
+          { id: identifier },
+          ...(identifier.length >= 6 ? [{ id: { startsWith: identifier } }] : [])
+        ]
       },
       select: candidateSelect
     });
@@ -258,11 +276,13 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
     const essayAnswers: Array<{ questionId: string; orderNo: number; prompt: string; answer: string }> = [];
     if (attempt && attempt.answers) {
       const answersObj = parseJson<Record<string, unknown>>(attempt.answers, {});
-      const essayQuestions = await prisma.programQuestion.findMany({
-        where: { programCode: attempt.programCode, type: 'essay' },
-        orderBy: { orderNo: 'asc' },
-        select: { id: true, orderNo: true, prompt: true }
-      });
+      const essayQuestions = attempt.programCode
+        ? await prisma.programQuestion.findMany({
+            where: { programCode: attempt.programCode, type: 'essay' },
+            orderBy: { orderNo: 'asc' },
+            select: { id: true, orderNo: true, text: true }
+          })
+        : [];
 
       if (essayQuestions.length > 0) {
         for (const q of essayQuestions) {
@@ -270,7 +290,7 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
           essayAnswers.push({
             questionId: q.id,
             orderNo: q.orderNo,
-            prompt: q.prompt,
+            prompt: q.text,
             answer: typeof rawAns === 'string' ? rawAns : rawAns != null ? JSON.stringify(rawAns) : ''
           });
         }
@@ -308,7 +328,11 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
     const user = await prisma.portalUser.findFirst({
       where: {
         role: 'peserta',
-        OR: [{ candidateCode: identifier }, { id: identifier }]
+        OR: [
+          { candidateCode: identifier },
+          { id: identifier },
+          ...(identifier.length >= 6 ? [{ id: { startsWith: identifier } }] : [])
+        ]
       },
       select: {
         id: true,

@@ -42,13 +42,51 @@ const serializeScore = (score: {
   signedAt: score.signedAt
 });
 
-const candidateCodesForTenant = async (tenantId: string | null) => {
+const candidateCodesForTenant = async (req: AuthRequest, tenantId: string | null) => {
   if (!tenantId) return null;
+  let companyName: string | null = req.portalUser?.companyName || null;
+  if (!companyName) {
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    companyName = tenant?.name || null;
+  }
   const users = await prisma.portalUser.findMany({
-    where: { tenantId, candidateCode: { not: null } },
-    select: { candidateCode: true }
+    where: {
+      role: 'peserta',
+      OR: [
+        { tenantId },
+        ...(companyName ? [{ companyName }] : [])
+      ]
+    },
+    select: { id: true, candidateCode: true }
   });
-  return users.map((user) => user.candidateCode).filter(Boolean) as string[];
+  const keys = new Set<string>();
+  for (const user of users) {
+    if (user.candidateCode) keys.add(user.candidateCode);
+    keys.add(user.id);
+    keys.add(user.id.slice(0, 8));
+  }
+  return Array.from(keys);
+};
+
+const resolveCandidateScoreKeys = async (identifier: string): Promise<string[]> => {
+  const keys = new Set<string>([identifier]);
+  const user = await prisma.portalUser.findFirst({
+    where: {
+      role: 'peserta',
+      OR: [
+        { candidateCode: identifier },
+        { id: identifier },
+        ...(identifier.length >= 6 ? [{ id: { startsWith: identifier } }] : [])
+      ]
+    },
+    select: { id: true, candidateCode: true }
+  });
+  if (user) {
+    if (user.candidateCode) keys.add(user.candidateCode);
+    keys.add(user.id);
+    keys.add(user.id.slice(0, 8));
+  }
+  return Array.from(keys);
 };
 
 const tenantForRequest = (req: AuthRequest) => req.portalUser?.tenantId || resolveAdminTenantId(req);
@@ -181,7 +219,7 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
 export const listAssessorScores = async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = tenantForRequest(req);
-    const candidateCodes = await candidateCodesForTenant(tenantId);
+    const candidateCodes = await candidateCodesForTenant(req, tenantId);
     const scores = await prisma.assessorScore.findMany({
       where: {
         ...(candidateCodes ? { candidateCode: { in: candidateCodes } } : {})
@@ -201,20 +239,31 @@ export const getAssessorScore = async (req: AuthRequest, res: Response) => {
     const candidateCode = String(req.params.candidateCode).trim();
     const programTitle = req.query.programTitle ? String(req.query.programTitle) : undefined;
     const tenantId = tenantForRequest(req);
-    const candidateCodes = await candidateCodesForTenant(tenantId);
-    const tenantScope = candidateCodes ? { candidateCode: { in: candidateCodes } } : {};
+    const [allowedCodes, targetKeys] = await Promise.all([
+      candidateCodesForTenant(req, tenantId),
+      resolveCandidateScoreKeys(candidateCode)
+    ]);
+
+    const scopedKeys = allowedCodes
+      ? targetKeys.filter((key) => allowedCodes.includes(key))
+      : targetKeys;
+
+    if (scopedKeys.length === 0) {
+      return res.status(404).json({ error: 'Penilaian belum tersedia.' });
+    }
 
     let score = await prisma.assessorScore.findFirst({
       where: {
-        candidateCode,
-        ...(programTitle ? { programTitle } : {}),
-        ...tenantScope
+        candidateCode: { in: scopedKeys },
+        ...(programTitle ? { programTitle } : {})
       },
+      include: { assessor: { select: { name: true } } },
       orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
     });
     if (!score && programTitle) {
       score = await prisma.assessorScore.findFirst({
-        where: { candidateCode, ...tenantScope },
+        where: { candidateCode: { in: scopedKeys } },
+        include: { assessor: { select: { name: true } } },
         orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
       });
     }
@@ -233,13 +282,22 @@ export const getSignedLha = async (req: AuthRequest, res: Response) => {
     }
     const candidateCode = String(req.params.candidateCode).trim();
     const tenantId = tenantForRequest(req);
-    const candidateCodes = await candidateCodesForTenant(tenantId);
+    const [allowedCodes, targetKeys] = await Promise.all([
+      candidateCodesForTenant(req, tenantId),
+      resolveCandidateScoreKeys(candidateCode)
+    ]);
+    const scopedKeys = allowedCodes
+      ? targetKeys.filter((key) => allowedCodes.includes(key))
+      : targetKeys;
+    if (scopedKeys.length === 0) {
+      return res.status(404).json({ error: 'LHA bertanda tangan belum tersedia.' });
+    }
     const score = await prisma.assessorScore.findFirst({
       where: {
-        candidateCode,
-        status: 'signed',
-        ...(candidateCodes ? { candidateCode: { in: candidateCodes } } : {})
+        candidateCode: { in: scopedKeys },
+        status: 'signed'
       },
+      include: { assessor: { select: { name: true } } },
       orderBy: { signedAt: 'desc' }
     });
     if (!score) return res.status(404).json({ error: 'LHA bertanda tangan belum tersedia.' });
@@ -261,12 +319,20 @@ export const downloadLhaPdf = async (req: AuthRequest, res: Response) => {
     }
 
     const tenantId = isSelfPeserta ? null : tenantForRequest(req);
-    const candidateCodes = await candidateCodesForTenant(tenantId);
+    const [allowedCodes, targetKeys] = await Promise.all([
+      candidateCodesForTenant(req, tenantId),
+      resolveCandidateScoreKeys(candidateCode)
+    ]);
+    const scopedKeys = allowedCodes
+      ? targetKeys.filter((key) => allowedCodes.includes(key))
+      : targetKeys;
+    if (scopedKeys.length === 0) {
+      return res.status(404).json({ error: 'LHA bertanda tangan belum tersedia.' });
+    }
     const score = await prisma.assessorScore.findFirst({
       where: {
-        candidateCode,
-        status: 'signed',
-        ...(candidateCodes ? { candidateCode: { in: candidateCodes } } : {})
+        candidateCode: { in: scopedKeys },
+        status: 'signed'
       },
       orderBy: { signedAt: 'desc' }
     });

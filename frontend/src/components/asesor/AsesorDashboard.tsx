@@ -83,14 +83,20 @@ export default function AsesorDashboard() {
             ? 'Selesai Dinilai'
             : c.interviewStatus === 'scheduled'
               ? 'Terjadwal'
-              : 'Menunggu',
+              : c.examStatus === 'in_progress'
+                ? 'Sedang Ujian CAT'
+                : 'Menunggu',
       statusVariant: (c.interviewStatus === 'called'
         ? 'teal'
         : c.interviewStatus === 'completed'
           ? 'neutral'
           : 'navy') as any,
       catScore: c.catScore != null ? `${c.catScore}/100` : '-',
-      action: c.interviewStatus === 'called' ? 'Masuk Live Console' : 'Buka Dossier'
+      action: c.interviewStatus === 'called' ? 'Masuk Live Console' : 'Buka Dossier',
+      actionPath:
+        c.interviewStatus === 'called'
+          ? `/asesor/live-console/${c.code}`
+          : `/asesor/scoring/${c.code}`
     }));
   }, [visibleCandidates]);
 
@@ -113,9 +119,18 @@ export default function AsesorDashboard() {
   const pendingLha = visibleCandidates.filter(
     (candidate) => candidate.interviewStatus === 'completed' && candidate.lhaStatus !== 'signed'
   ).length;
-  const proctoringFindings = visibleCandidates.filter(
-    (candidate) => candidate.integrityScore != null && candidate.integrityScore < 100
+  const proctoringCandidateCount = visibleCandidates.filter(
+    (candidate) =>
+      (candidate.proctoringFlagCount ?? 0) > 0 ||
+      (candidate.integrityScore != null && candidate.integrityScore < 100)
   ).length;
+  const proctoringFindings = visibleCandidates.reduce(
+    (sum, candidate) =>
+      sum +
+      (candidate.proctoringFlagCount ??
+        (candidate.integrityScore != null && candidate.integrityScore < 100 ? 1 : 0)),
+    0
+  );
   const programCount = new Set(visibleCandidates.map((c) => c.program).filter(Boolean)).size;
 
   return (
@@ -322,7 +337,7 @@ export default function AsesorDashboard() {
                       <Button
                         variant="primary"
                         size="xs"
-                        onClick={() => navigate(`/asesor/live-console/${slot.code}`)}
+                        onClick={() => navigate(slot.actionPath)}
                         className="text-xs py-1 px-3"
                       >
                         {slot.action}
@@ -372,8 +387,8 @@ export default function AsesorDashboard() {
                 </div>
               </div>
               <div>
-                <p className="font-mono text-2xl font-bold text-ink">{proctoringFindings} Temuan AI</p>
-                <p className="text-xs text-muted-slate mt-0.5">Perlu konfirmasi status valid vs false positive</p>
+                <p className="font-mono text-2xl font-bold text-ink">{proctoringFindings} Event AI</p>
+                <p className="text-xs text-muted-slate mt-0.5">{proctoringCandidateCount} kandidat perlu konfirmasi valid vs false positive</p>
               </div>
               <Button
                 variant="outline"

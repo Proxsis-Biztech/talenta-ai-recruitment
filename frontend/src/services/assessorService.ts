@@ -19,6 +19,7 @@ export interface AssessorCandidate {
   programCode: string | null;
   catScore: number | null;
   integrityScore: number | null;
+  proctoringFlagCount?: number;
   examStatus: string;
   submittedAt: string | null;
   interviewStatus: string;

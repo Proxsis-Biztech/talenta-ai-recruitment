@@ -45,13 +45,13 @@ interface CompetencyItem {
 }
 
 const DEFAULT_7_COMPETENCIES: CompetencyItem[] = [
-  { id: 'c1', name: 'Analytical Thinking', weight: 20, score: 3.0, notes: '' },
-  { id: 'c2', name: 'Problem Solving', weight: 20, score: 3.0, notes: '' },
-  { id: 'c3', name: 'Decision Making', weight: 15, score: 3.0, notes: '' },
-  { id: 'c4', name: 'Planning & Organizing', weight: 15, score: 3.0, notes: '' },
-  { id: 'c5', name: 'Cost Consciousness', weight: 10, score: 3.0, notes: '' },
-  { id: 'c6', name: 'Customer Focus', weight: 10, score: 3.0, notes: '' },
-  { id: 'c7', name: 'Strategic Agility', weight: 10, score: 3.0, notes: '' }
+  { id: 'c1', name: 'Analytical Thinking', weight: 20, score: 0, notes: '' },
+  { id: 'c2', name: 'Problem Solving', weight: 20, score: 0, notes: '' },
+  { id: 'c3', name: 'Decision Making', weight: 15, score: 0, notes: '' },
+  { id: 'c4', name: 'Planning & Organizing', weight: 15, score: 0, notes: '' },
+  { id: 'c5', name: 'Cost Consciousness', weight: 10, score: 0, notes: '' },
+  { id: 'c6', name: 'Customer Focus', weight: 10, score: 0, notes: '' },
+  { id: 'c7', name: 'Strategic Agility', weight: 10, score: 0, notes: '' }
 ];
 
 export default function AsesorScoringForm() {
@@ -65,6 +65,9 @@ export default function AsesorScoringForm() {
   useEffect(() => {
     let cancelled = false;
     setCandidateLoading(true);
+    setCompetencies(DEFAULT_7_COMPETENCIES);
+    setFactSheetMatched(false);
+    setAiError('');
     if (!id) {
       setCandidate(null);
       fetchAssessorCandidates()
@@ -207,7 +210,16 @@ export default function AsesorScoringForm() {
     };
   }, [candidate?.code, candidate?.program]);
 
-  // Calculate Weighted Score (1 - 5 Scale)
+  // Calculate Weighted Score (1 - 5 Scale, 0 = belum dinilai)
+  const hasAnyCompetencyScore = competencies.some((c) => c.score > 0);
+  const allCompetenciesScored = competencies.every((c) => c.score >= 1);
+  const hasCompletedCat = Boolean(
+    candidate &&
+      (candidate.examStatus === 'submitted' ||
+        candidate.examStatus === 'graded' ||
+        candidate.catScore != null)
+  );
+  const canFinalize = Boolean(candidate && !isSigned && hasCompletedCat && allCompetenciesScored);
   const weightedOverallScore = competencies
     .reduce((acc, curr) => acc + (curr.score * curr.weight) / 100, 0)
     .toFixed(2);
@@ -307,11 +319,11 @@ export default function AsesorScoringForm() {
   const handleUpdateScore = (compId: string, delta: number) => {
     if (isSigned) return;
     setCompetencies((prev) =>
-      prev.map((c) =>
-        c.id === compId
-          ? { ...c, score: Math.min(5, Math.max(1, parseFloat((c.score + delta).toFixed(1)))) }
-          : c
-      )
+      prev.map((c) => {
+        if (c.id !== compId) return c;
+        const base = c.score <= 0 ? (delta > 0 ? 3.0 : 1.0) : c.score + delta;
+        return { ...c, score: Math.min(5, Math.max(1, parseFloat(base.toFixed(1)))) };
+      })
     );
   };
 
@@ -417,6 +429,14 @@ export default function AsesorScoringForm() {
 
   const handleFinalize = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasCompletedCat) {
+      setSaveMessage('Kandidat belum menyelesaikan ujian CAT sehingga belum dapat difinalisasi menjadi LHA.');
+      return;
+    }
+    if (!allCompetenciesScored) {
+      setSaveMessage('Lengkapi skor untuk seluruh 7 indikator kompetensi (skala 1.0 - 5.0) sebelum menerbitkan LHA.');
+      return;
+    }
     setIsSubmitting(true);
     setSaveMessage('');
     try {
@@ -714,7 +734,9 @@ export default function AsesorScoringForm() {
             </div>
             <div className="text-right">
               <span className="text-xs text-slate-500">Skor Komposit Akhir:</span>
-              <span className="font-mono text-lg font-bold text-blue-700 ml-2">{weightedOverallScore} / 5.0</span>
+              <span className="font-mono text-lg font-bold text-blue-700 ml-2">
+                {hasAnyCompetencyScore ? `${weightedOverallScore} / 5.0` : 'Belum Dinilai'}
+              </span>
             </div>
           </div>
 
@@ -742,7 +764,7 @@ export default function AsesorScoringForm() {
                       -
                     </button>
                     <span className="font-mono font-bold text-sm text-blue-700 w-12 text-center bg-white py-1 rounded border border-slate-200">
-                      {comp.score.toFixed(1)}
+                      {comp.score > 0 ? comp.score.toFixed(1) : '-'}
                     </span>
                     <button
                       type="button"
@@ -868,6 +890,16 @@ export default function AsesorScoringForm() {
             </div>
           </div>
 
+          {!isSigned && !hasCompletedCat && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 font-medium">
+              Prasyarat Finalisasi: Kandidat belum menyelesaikan ujian CAT ({candidate.examStatus}). Tombol terbitkan LHA dikunci hingga ujian CAT diselesaikan.
+            </div>
+          )}
+          {!isSigned && hasCompletedCat && !allCompetenciesScored && (
+            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800 font-medium">
+              Isi skor seluruh 7 indikator kompetensi (minimal 1.0) untuk mengaktifkan finalisasi & penerbitan LHA.
+            </div>
+          )}
           {/* Submit Action Buttons */}
           {saveMessage && (
             <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
@@ -897,7 +929,7 @@ export default function AsesorScoringForm() {
               <Button
                 variant="outline"
                 type="button"
-                disabled={isSubmitting || isSigned}
+                disabled={isSubmitting || isSigned || !hasAnyCompetencyScore}
                 onClick={async () => {
                   try {
                     await persistScore('draft');
@@ -913,7 +945,7 @@ export default function AsesorScoringForm() {
               <Button
                 variant="primary"
                 type="submit"
-                disabled={isSubmitting || isSigned}
+                disabled={isSubmitting || !canFinalize}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs disabled:opacity-60"
               >
                 <FileText className="w-4 h-4 mr-1.5" />

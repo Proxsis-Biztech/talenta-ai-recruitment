@@ -75,7 +75,16 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
   }, []);
 
   const proctoringAlerts = notifCandidates.filter(
-    (candidate) => candidate.integrityScore != null && candidate.integrityScore < 100
+    (candidate) =>
+      (candidate.proctoringFlagCount ?? 0) > 0 ||
+      (candidate.integrityScore != null && candidate.integrityScore < 100)
+  );
+  const totalProctoringEvents = notifCandidates.reduce(
+    (sum, candidate) =>
+      sum +
+      (candidate.proctoringFlagCount ??
+        (candidate.integrityScore != null && candidate.integrityScore < 100 ? 1 : 0)),
+    0
   );
   const calledCandidates = notifCandidates.filter(
     (candidate) =>
@@ -112,7 +121,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           label: 'Antrean Interview',
           path: '/asesor/interview-queue',
           icon: Users,
-          badge: `${activeQueueCandidates.length} Slot`
+          badge: `${notifCandidates.length} Slot`
         },
         {
           id: 'console',
@@ -126,7 +135,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           label: 'Review Proctoring',
           path: '/asesor/proctoring',
           icon: ShieldAlert,
-          badge: `${proctoringAlerts.length} Flag`
+          badge: `${totalProctoringEvents} Flag`
         },
         { id: 'scoring', label: 'Penilaian & LHA', path: '/asesor/scoring', icon: ClipboardCheck, badge: 'E-Sign' },
         { id: 'rekap', label: 'Rekap Program', path: '/asesor/rekap', icon: FileSpreadsheet },
@@ -588,8 +597,8 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
             <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-amber-950">{proctoringAlerts.length} Event Pelanggaran Proctoring Menunggu Verifikasi</p>
-              <p className="text-amber-800 text-[11px] mt-0.5">{proctoringAlerts.length > 0 ? `Terdapat indikasi pelanggaran pada ${proctoringAlerts.slice(0, 3).map((candidate) => candidate.name).join(', ')}.` : 'Tidak ada pelanggaran integritas yang menunggu verifikasi.'}</p>
+              <p className="font-bold text-amber-950">{totalProctoringEvents} Event Pelanggaran Proctoring Menunggu Verifikasi</p>
+              <p className="text-amber-800 text-[11px] mt-0.5">{totalProctoringEvents > 0 ? `${totalProctoringEvents} event tercatat pada ${proctoringAlerts.length} kandidat (${proctoringAlerts.slice(0, 3).map((candidate) => candidate.name).join(', ')}).` : 'Tidak ada pelanggaran integritas yang menunggu verifikasi.'}</p>
               <button
                 onClick={() => {
                   setNotifModalOpen(false);

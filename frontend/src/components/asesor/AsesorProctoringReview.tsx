@@ -31,24 +31,33 @@ export default function AsesorProctoringReview() {
   const [apiIntegrityScore, setApiIntegrityScore] = useState<number | null>(null);
   const [integrityScore, setIntegrityScore] = useState<number | null>(null);
   const [candidates, setCandidates] = useState<AssessorCandidate[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(true);
   const [selectedCode, setSelectedCode] = useState('');
   const [events, setEvents] = useState<ProctoringEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadingCandidates(true);
     fetchAssessorCandidates()
       .then((data) => {
         if (cancelled) return;
         setCandidates(data);
         if (data.length > 0) {
           const flaggedCandidate =
-            data.find((c) => c.integrityScore != null && c.integrityScore < 100) || data[0];
+            data.find(
+              (c) =>
+                (c.proctoringFlagCount ?? 0) > 0 ||
+                (c.integrityScore != null && c.integrityScore < 100)
+            ) || data[0];
           setSelectedCode(flaggedCandidate.candidateCode || flaggedCandidate.id);
         }
       })
       .catch(() => {
         if (!cancelled) setCandidates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCandidates(false);
       });
     return () => {
       cancelled = true;
@@ -116,16 +125,8 @@ export default function AsesorProctoringReview() {
     setIntegrityScore(computed);
   }, [events, apiIntegrityScore, selectedCandidate?.integrityScore]);
 
-  const pendingReviewCount = events.filter(
-    (event) =>
-      event.status === 'pending' &&
-      !String(event.type).toLowerCase().includes('face_verified')
-  ).length;
-  const validFlagCount = events.filter(
-    (event) =>
-      event.status === 'valid' &&
-      !String(event.type).toLowerCase().includes('face_verified')
-  ).length;
+  const pendingReviewCount = events.filter((event) => event.status === 'pending').length;
+  const validFlagCount = events.filter((event) => event.status === 'valid').length;
   const falsePositiveFlagCount = events.filter(
     (event) => event.status === 'false_positive'
   ).length;
@@ -197,7 +198,9 @@ export default function AsesorProctoringReview() {
               onChange={(event) => setSelectedCode(event.target.value)}
               className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-ink focus:outline-none focus:border-primary-navy"
             >
-              {candidates.length === 0 ? (
+              {loadingCandidates ? (
+                <option value="">Memuat daftar kandidat...</option>
+              ) : candidates.length === 0 ? (
                 <option value="">Belum ada kandidat</option>
               ) : (
                 candidates.map((candidate) => (

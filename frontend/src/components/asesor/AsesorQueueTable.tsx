@@ -59,9 +59,11 @@ export default function AsesorQueueTable() {
               ? 'Selesai Dinilai'
               : candidate.interviewStatus === 'scheduled'
                 ? 'Terjadwal'
-                : candidate.examStatus === 'submitted'
-                  ? 'Selesai CAT (Menunggu Panggil)'
-                  : 'Menunggu CAT / Jadwal',
+                : candidate.examStatus === 'in_progress'
+                  ? 'Sedang Ujian CAT'
+                  : candidate.examStatus === 'submitted' || candidate.examStatus === 'graded'
+                    ? 'Selesai CAT (Menunggu Panggil)'
+                    : 'Menunggu CAT / Jadwal',
         statusVariant: (candidate.interviewStatus === 'called'
           ? 'teal'
           : candidate.interviewStatus === 'completed'
