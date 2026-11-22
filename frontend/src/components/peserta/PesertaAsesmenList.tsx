@@ -104,6 +104,19 @@ export default function PesertaAsesmenList() {
     (location.state as { programCode?: string } | null)?.programCode || searchParams.get('id');
   const urlTab = searchParams.get('tab') as 'materi' | 'ujian' | 'coding' | null;
 
+  useEffect(() => {
+    const idFromQuery = searchParams.get('id');
+    if (idFromQuery) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('id');
+      const qs = nextParams.toString();
+      navigate(qs ? `/peserta/asesmen?${qs}` : '/peserta/asesmen', {
+        replace: true,
+        state: { programCode: idFromQuery }
+      });
+    }
+  }, [searchParams, navigate]);
+
   // Active LMS tab: 1. Materi & Silabus, 2. Ujian Teknis (CAT & Code), 3. Wawancara Asesor
   const [activeLmsTab, setActiveLmsTab] = useState<'materi' | 'ujian' | 'wawancara'>(() => {
     if (urlTab === 'ujian' || (urlTab as any) === 'wawancara') return urlTab as any;
@@ -383,8 +396,10 @@ export default function PesertaAsesmenList() {
 
   const handleTabChange = (tab: 'materi' | 'ujian' | 'wawancara') => {
     setActiveLmsTab(tab);
-    searchParams.set('tab', tab);
-    setSearchParams(searchParams, { replace: true });
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('id');
+    nextParams.set('tab', tab);
+    setSearchParams(nextParams, { replace: true, state: location.state });
   };
 
   // Comprehensive list of assessment cards ASSIGNED specifically to this candidate
@@ -415,6 +430,7 @@ export default function PesertaAsesmenList() {
     const items: AsesmenItem[] = [];
 
     const computeCardProgress = (pId: string, catDone: boolean, intDone: boolean) => {
+      if (catDone && intDone) return 100;
       const upper = String(pId || '').trim().toUpperCase();
       const userKey = String(activeUser?.username || 'user').trim().toLowerCase();
       let modMap: Record<string, boolean> = {};
@@ -535,14 +551,16 @@ export default function PesertaAsesmenList() {
   }, [selectedProgramId, programs]);
 
   const handleSelectProgram = (programId: string) => {
-    searchParams.set('id', programId);
-    setSearchParams(searchParams);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('id');
+    const qs = nextParams.toString();
+    navigate(qs ? `/peserta/asesmen?${qs}` : '/peserta/asesmen', {
+      state: { programCode: programId }
+    });
   };
 
   const handleBackToCards = () => {
-    searchParams.delete('id');
-    searchParams.delete('tab');
-    setSearchParams(searchParams);
+    navigate('/peserta/asesmen', { state: null });
   };
 
   const filteredPrograms = useMemo(() => {
@@ -602,7 +620,10 @@ export default function PesertaAsesmenList() {
               (isCatCompleted ? 1 : 0) +
               (isLiveCodingCompleted ? 1 : 0) +
               (isInterviewCompleted ? 1 : 0);
-            const overallPct = Math.round((doneUnits / (totalUnits || 1)) * 100);
+            const overallPct =
+              isCatCompleted && isInterviewCompleted
+                ? 100
+                : Math.round((doneUnits / (totalUnits || 1)) * 100);
 
             const visibleMaterials = filteredMaterials.filter((item) => {
               const isDone = Boolean(completedModules[item.id]);

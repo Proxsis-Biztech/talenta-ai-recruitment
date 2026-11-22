@@ -278,18 +278,39 @@ export default function PesertaHasilScorecard() {
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 text-blue-100 text-xs sm:text-sm font-semibold backdrop-blur-xs border border-white/10 print:border-slate-300 print:text-blue-700">
                 <CheckCircle2 className="w-4 h-4 text-emerald-300 print:text-emerald-600" />
-                <span>Hasil CAT Tersimpan di Server</span>
+                <span>
+                  {lha?.signed
+                    ? 'LHA Resmi Terverifikasi Asesor'
+                    : lha
+                      ? 'Evaluasi Asesor Tersedia'
+                      : 'Hasil CAT Tersimpan di Server'}
+                </span>
               </div>
               <h1 className="text-2xl sm:text-4xl font-extrabold font-heading tracking-tight text-white print:text-slate-900 leading-tight">
-                Skor CAT Anda Telah Tersimpan
+                {lha?.signed
+                  ? 'Laporan Hasil Asesmen Telah Terbit'
+                  : lha
+                    ? 'Ringkasan Hasil Asesmen Anda'
+                    : 'Skor CAT Anda Telah Tersimpan'}
               </h1>
               <p className="text-sm sm:text-base text-blue-100 print:text-slate-600 max-w-xl leading-relaxed">
                 {activeProgram.title} • {activeProgram.companyName}
               </p>
-              <p className="text-xs text-blue-200 print:text-slate-500 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                <span>Menunggu verifikasi asesor dan penilaian jawaban esai.</span>
-              </p>
+              {lha?.signed ? (
+                <p className="text-xs text-emerald-200 print:text-emerald-700 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Hasil akhir, skor komposit, dan dokumen LHA telah diverifikasi secara digital oleh asesor.</span>
+                </p>
+              ) : (
+                <p className="text-xs text-blue-200 print:text-slate-500 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>
+                    {lha
+                      ? 'Draf evaluasi asesor tersedia dan menunggu finalisasi tanda tangan LHA.'
+                      : 'Menunggu verifikasi asesor dan penilaian jawaban esai.'}
+                  </span>
+                </p>
+              )}
             </div>
 
             <div className="bg-white/15 border border-white/20 p-5 sm:p-6 rounded-3xl backdrop-blur-md flex flex-col items-center justify-center shrink-0 w-full md:w-auto md:min-w-[170px] shadow-sm print:bg-slate-100 print:border-slate-300">
@@ -446,7 +467,11 @@ export default function PesertaHasilScorecard() {
                 Catatan Penilaian Asesor
               </h3>
               <p className="text-xs text-muted-slate">
-                Rubrik BARS, wawancara, dan LHA resmi akan muncul setelah asesor menyelesaikan penilaian.
+                {lha?.signed
+                  ? 'Rekap penilaian akhir, rekomendasi kelayakan, dan catatan resmi dari asesor.'
+                  : lha
+                    ? 'Draf catatan evaluasi dari asesor (menunggu finalisasi LHA resmi).'
+                    : 'Rubrik BARS, wawancara, dan LHA resmi akan muncul setelah asesor menyelesaikan penilaian.'}
               </p>
             </div>
           </div>
