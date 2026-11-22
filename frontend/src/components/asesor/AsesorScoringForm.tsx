@@ -41,55 +41,13 @@ interface CompetencyItem {
 }
 
 const DEFAULT_7_COMPETENCIES: CompetencyItem[] = [
-  {
-    id: 'c1',
-    name: 'Analytical Thinking',
-    weight: 20,
-    score: 4.2,
-    notes: 'Kandidat dengan cepat memetakan korelasi kausal antara penurunan OTP 1.4% dan penurunan kepuasan nasabah segmen prioritas.'
-  },
-  {
-    id: 'c2',
-    name: 'Problem Solving',
-    weight: 20,
-    score: 4.0,
-    notes: 'Menyusun langkah perbaikan bertahap: intervensi darurat 24 jam pertama dan konsolidasi vendor jangka menengah.'
-  },
-  {
-    id: 'c3',
-    name: 'Decision Making',
-    weight: 15,
-    score: 3.8,
-    notes: 'Keberanian menetapkan trade-off: memprioritaskan stabilitas layanan publik sebelum melakukan pemotongan anggaran.'
-  },
-  {
-    id: 'c4',
-    name: 'Planning & Organizing',
-    weight: 15,
-    score: 4.0,
-    notes: 'Alokasi tim teknisi jelas dengan timeline perbaikan mesin CRM dan matriks eskalasi berjenjang.'
-  },
-  {
-    id: 'c5',
-    name: 'Cost Consciousness',
-    weight: 10,
-    score: 3.6,
-    notes: 'Memberikan perhatian khusus pada beban OPEX listrik (+14%) melalui renegosiasi penalti SLA vendor.'
-  },
-  {
-    id: 'c6',
-    name: 'Customer Focus',
-    weight: 10,
-    score: 4.5,
-    notes: 'Sangat responsif terhadap keluhan nasabah; mengusulkan kompensasi loyalitas dan transparansi update status.'
-  },
-  {
-    id: 'c7',
-    name: 'Strategic Agility',
-    weight: 10,
-    score: 3.9,
-    notes: 'Fleksibilitas menyesuaikan rencana saat dihadapkan pada keterbatasan jumlah teller saat peak hour.'
-  }
+  { id: 'c1', name: 'Analytical Thinking', weight: 20, score: 3.0, notes: '' },
+  { id: 'c2', name: 'Problem Solving', weight: 20, score: 3.0, notes: '' },
+  { id: 'c3', name: 'Decision Making', weight: 15, score: 3.0, notes: '' },
+  { id: 'c4', name: 'Planning & Organizing', weight: 15, score: 3.0, notes: '' },
+  { id: 'c5', name: 'Cost Consciousness', weight: 10, score: 3.0, notes: '' },
+  { id: 'c6', name: 'Customer Focus', weight: 10, score: 3.0, notes: '' },
+  { id: 'c7', name: 'Strategic Agility', weight: 10, score: 3.0, notes: '' }
 ];
 
 export default function AsesorScoringForm() {
@@ -149,6 +107,7 @@ export default function AsesorScoringForm() {
 
   // Recommendations & E-Sign
   const [recommendation, setRecommendation] = useState<'LANJUT' | 'DIPERTIMBANGKAN' | 'TIDAK'>('LANJUT');
+  const [assessorNotes, setAssessorNotes] = useState<string>('');
   const [isSigned, setIsSigned] = useState<boolean>(false);
   const [assessorName, setAssessorName] = useState<string>(activeAssessor.name || ASSESSOR_NAME);
   const [assessorTitle, setAssessorTitle] = useState<string>(activeAssessor.specialization || ASSESSOR_TITLE);
@@ -185,10 +144,15 @@ export default function AsesorScoringForm() {
           );
         }
         setRecommendation(record.recommendation);
+        setAssessorNotes(record.notes || '');
         setIsSigned(record.status === 'signed');
         setLhaHash(record.lhaHash || '');
         setLhaNumber(record.lhaNumber || '');
-        setSaveMessage('Penilaian tersimpan di server.');
+        setSaveMessage(
+          record.status === 'signed'
+            ? `LHA sudah ditandatangani & diterbitkan (${record.lhaNumber || 'CERTIFIED'}). Penilaian terkunci.`
+            : 'Draft penilaian tersimpan di server.'
+        );
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status !== 404) {
           setSaveMessage('Gagal memuat penilaian tersimpan.');
@@ -289,6 +253,7 @@ export default function AsesorScoringForm() {
         candidateCode: candidate!.code,
         candidateName: candidate!.name,
         programTitle: candidate!.program,
+        programCode: candidate!.programCode || undefined,
         competencies: competencies.map((c) => ({
           name: c.name,
           weight: c.weight,
@@ -298,6 +263,7 @@ export default function AsesorScoringForm() {
         interviewScore,
         compositeScore: calculateCompositeScore(candidate!.catScore ?? 0, interviewScore),
         recommendation,
+        notes: assessorNotes.trim() || undefined,
         status
       },
       { headers: { Authorization: `Bearer ${token}` } }
@@ -699,6 +665,21 @@ export default function AsesorScoringForm() {
               </div>
             </div>
 
+            {/* Assessor Overall Conclusion Notes */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700">
+                Catatan Kesimpulan Dewan Asesor (Ditampilkan di LHA)
+              </label>
+              <textarea
+                rows={3}
+                disabled={isSigned}
+                value={assessorNotes}
+                onChange={(e) => setAssessorNotes(e.target.value)}
+                placeholder="Tuliskan ringkasan kekuatan, area pengembangan, dan pertimbangan rekomendasi asesor..."
+                className="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </div>
+
             {/* Electronic Digital Signature (E-Sign) */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 text-xs">
               <div className="flex justify-between items-center">
@@ -742,10 +723,21 @@ export default function AsesorScoringForm() {
               Kembali ke Antrian
             </Button>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {isSigned && (
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => void downloadLhaPdf()}
+                >
+                  <Download className="w-4 h-4 mr-1.5" />
+                  <span>Unduh PDF LHA</span>
+                </Button>
+              )}
               <Button
                 variant="outline"
                 type="button"
+                disabled={isSubmitting || isSigned}
                 onClick={async () => {
                   try {
                     await persistScore('draft');
@@ -761,11 +753,11 @@ export default function AsesorScoringForm() {
               <Button
                 variant="primary"
                 type="submit"
-                disabled={isSubmitting}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
+                disabled={isSubmitting || isSigned}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs disabled:opacity-60"
               >
                 <FileText className="w-4 h-4 mr-1.5" />
-                <span>Finalisasi Penilaian & Terbitkan LHA</span>
+                <span>{isSigned ? 'LHA Sudah Diterbitkan (Terkunci)' : 'Finalisasi Penilaian & Terbitkan LHA'}</span>
               </Button>
             </div>
           </div>

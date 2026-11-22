@@ -115,6 +115,12 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
       where: { candidateCode_programTitle: { candidateCode, programTitle } }
     });
 
+    if (existing?.status === 'signed' && status === 'signed') {
+      return res.status(409).json({
+        error: 'LHA untuk kandidat dan program ini sudah ditandatangani dan diterbitkan sebelumnya.'
+      });
+    }
+
     const data = {
       candidateName,
       programCode,
@@ -195,15 +201,22 @@ export const getAssessorScore = async (req: AuthRequest, res: Response) => {
     const programTitle = req.query.programTitle ? String(req.query.programTitle) : undefined;
     const tenantId = tenantForRequest(req);
     const candidateCodes = await candidateCodesForTenant(tenantId);
-    const score = await prisma.assessorScore.findFirst({
+    const tenantScope = candidateCodes ? { candidateCode: { in: candidateCodes } } : {};
+
+    let score = await prisma.assessorScore.findFirst({
       where: {
         candidateCode,
         ...(programTitle ? { programTitle } : {}),
-        ...(req.user ? {} : { assessorId: req.portalUser?.id }),
-        ...(candidateCodes ? { candidateCode: { in: candidateCodes } } : {})
+        ...tenantScope
       },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
     });
+    if (!score && programTitle) {
+      score = await prisma.assessorScore.findFirst({
+        where: { candidateCode, ...tenantScope },
+        orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
+      });
+    }
     if (!score) return res.status(404).json({ error: 'Penilaian belum tersedia.' });
     return res.json({ data: serializeScore(score) });
   } catch (error) {
@@ -241,11 +254,12 @@ export const downloadLhaPdf = async (req: AuthRequest, res: Response) => {
     const candidateCode = String(req.params.candidateCode).trim();
     if (!candidateCode) return res.status(400).json({ error: 'Kode kandidat wajib diisi.' });
 
-    if (req.portalUser?.role === 'peserta' && req.portalUser.candidateCode !== candidateCode) {
+    const isSelfPeserta = req.portalUser?.role === 'peserta';
+    if (isSelfPeserta && req.portalUser?.candidateCode !== candidateCode) {
       return res.status(403).json({ error: 'Anda hanya dapat mengunduh LHA milik sendiri.' });
     }
 
-    const tenantId = tenantForRequest(req);
+    const tenantId = isSelfPeserta ? null : tenantForRequest(req);
     const candidateCodes = await candidateCodesForTenant(tenantId);
     const score = await prisma.assessorScore.findFirst({
       where: {
@@ -345,5 +359,25 @@ export const downloadLhaPdf = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Download LHA PDF error:', error);
     return res.status(500).json({ error: 'Gagal membuat PDF LHA.' });
+  }
+};
+
+export const downloadMyPortalLhaPdf = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) {
+      return res.status(401).json({ error: 'Sesi peserta tidak valid.' });
+    }
+    const user = await prisma.portalUser.findUnique({
+      where: { id: req.portalUser.id },
+      select: { candidateCode: true }
+    });
+    if (!user?.candidateCode) {
+      return res.status(404).json({ error: 'Kode kandidat belum tersedia pada akun ini.' });
+    }
+    req.params.candidateCode = user.candidateCode;
+    return downloadLhaPdf(req, res);
+  } catch (error) {
+    console.error('Download portal LHA PDF error:', error);
+    return res.status(500).json({ error: 'Gagal mengunduh PDF LHA.' });
   }
 };

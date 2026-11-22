@@ -39,8 +39,10 @@ interface ExamResult {
 export default function PesertaHasilScorecard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [printing, setPrinting] = useState(false);
   const [downloadingLha, setDownloadingLha] = useState(false);
   const [lhaNotice, setLhaNotice] = useState<string | null>(null);
+  const [resolvedCandidateCode, setResolvedCandidateCode] = useState<string | null>(null);
   const [result, setResult] = useState<ExamResult | null>(null);
   const [lha, setLha] = useState<any>(null);
   const [serverPrograms, setServerPrograms] = useState<Array<{ code: string; title: string }>>([]);
@@ -108,6 +110,9 @@ export default function PesertaHasilScorecard() {
           });
           if (!cancelled) {
             setLha(dashboardResponse.data?.lha || null);
+            if (dashboardResponse.data?.user?.candidateCode) {
+              setResolvedCandidateCode(dashboardResponse.data.user.candidateCode);
+            }
             if (Array.isArray(dashboardResponse.data?.programs)) {
               setServerPrograms(dashboardResponse.data.programs);
             }
@@ -129,8 +134,14 @@ export default function PesertaHasilScorecard() {
           const dashboardResponse = await axios.get('/api/portal/dashboard', {
             headers: { Authorization: `Bearer ${token}` }
           });
-          if (!cancelled && Array.isArray(dashboardResponse.data?.programs)) {
-            setServerPrograms(dashboardResponse.data.programs);
+          if (!cancelled) {
+            setLha(dashboardResponse.data?.lha || null);
+            if (dashboardResponse.data?.user?.candidateCode) {
+              setResolvedCandidateCode(dashboardResponse.data.user.candidateCode);
+            }
+            if (Array.isArray(dashboardResponse.data?.programs)) {
+              setServerPrograms(dashboardResponse.data.programs);
+            }
           }
         } catch {
           // ignore
@@ -146,7 +157,17 @@ export default function PesertaHasilScorecard() {
   }, [activeProgram.id]);
 
   const handleDownloadPDF = () => {
-    void handleDownloadLha();
+    setLhaNotice(null);
+    if (!lha?.signed) {
+      setLhaNotice('Laporan PDF final baru dapat dicetak setelah LHA resmi diterbitkan oleh Dewan Asesor.');
+      return;
+    }
+    setPrinting(true);
+    try {
+      window.print();
+    } finally {
+      setPrinting(false);
+    }
   };
 
   const handleDownloadLha = async () => {
@@ -156,14 +177,14 @@ export default function PesertaHasilScorecard() {
       return;
     }
     const token = getPortalToken();
-    const candidateCode = getPortalUser()?.candidateCode;
-    if (!token || !candidateCode) {
-      setLhaNotice('LHA resmi belum tersedia untuk akun ini.');
+    const candidateCode = resolvedCandidateCode || getPortalUser()?.candidateCode || 'PESERTA';
+    if (!token) {
+      setLhaNotice('Sesi Anda telah berakhir. Silakan login kembali untuk mengunduh LHA.');
       return;
     }
     setDownloadingLha(true);
     try {
-      const response = await axios.get(`/api/asesor/lha/${encodeURIComponent(candidateCode)}/pdf`, {
+      const response = await axios.get('/api/portal/lha/pdf', {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob'
       });
@@ -218,14 +239,14 @@ export default function PesertaHasilScorecard() {
                 : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
             }`}
           >
-            [{prog.id}] {prog.title.replace(/\s*\([^)]*\)\s*$/, '')}
+            {prog.title.replace(/\s*\([^)]*\)\s*$/, '')}
           </button>
         );
       })}
     </div>
   );
 
-  if (error || !result) {
+  if ((error || !result) && !lha) {
     return (
       <PesertaLayout activeTab="hasil">
         <div className="max-w-3xl mx-auto px-4 py-12 space-y-6">
@@ -247,7 +268,7 @@ export default function PesertaHasilScorecard() {
 
   return (
     <PesertaLayout activeTab="hasil">
-      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 space-y-7 antialiased print:p-0 print:max-w-none">
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 pb-24 space-y-7 antialiased print:p-0 print:pb-0 print:max-w-none">
         {programSwitcher}
         <div className="bg-primary-navy rounded-3xl p-6 sm:p-10 text-white shadow-sm relative overflow-hidden print:bg-white print:text-slate-900 print:border print:border-slate-300">
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -302,7 +323,7 @@ export default function PesertaHasilScorecard() {
                   Rincian Skor Per Kompetensi
                 </h2>
                 <p className="text-xs text-muted-slate mt-0.5">
-                  Dihitung server dari {result.autoGradedCount ?? 0} butir objektif. Jawaban esai dinilai asesor.
+                  Dihitung server dari {result?.autoGradedCount ?? 0} butir objektif. Jawaban esai dinilai asesor.
                 </p>
               </div>
               <span className="shrink-0 text-xs font-mono font-bold text-primary-navy bg-soft-blue px-3 py-1 rounded-lg border border-accent-border">
@@ -344,7 +365,7 @@ export default function PesertaHasilScorecard() {
               <span className="flex items-center gap-1.5 min-w-0">
                 <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
                 <span className="break-words">
-                  Dikumpulkan: <strong className="text-ink">{result.submittedAt ? new Date(result.submittedAt).toLocaleString('id-ID') : '-'}</strong>
+                  Dikumpulkan: <strong className="text-ink">{result?.submittedAt ? new Date(result.submittedAt).toLocaleString('id-ID') : '-'}</strong>
                 </span>
               </span>
             </div>
@@ -378,19 +399,19 @@ export default function PesertaHasilScorecard() {
             <div className="pt-4 border-t border-slate-100 text-center">
               <span className="text-xs sm:text-sm font-bold text-blue-800 bg-blue-50 px-4 py-1.5 rounded-full border border-blue-200 inline-flex items-center gap-1.5">
                 <Award className="w-4 h-4 text-blue-600" />
-                Menunggu Verifikasi Asesor
+                {lha?.signed ? 'LHA Resmi Terverifikasi' : 'Menunggu Verifikasi Asesor'}
               </span>
             </div>
           </div>
         </div>
         )}
 
-        {(result.manualReviewCount ?? 0) > 0 && (
+        {(result?.manualReviewCount ?? 0) > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3">
             <TrendingUp className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-bold text-amber-950">
-                {result.manualReviewCount} jawaban esai menunggu penilaian asesor
+                {result?.manualReviewCount} jawaban esai menunggu penilaian asesor
               </p>
               <p className="text-xs text-amber-800 mt-1">
                 Butir objektif telah dinilai secara otomatis. Nilai akhir, klasifikasi, dan LHA diterbitkan setelah asesor menyelesaikan review.
@@ -447,8 +468,9 @@ export default function PesertaHasilScorecard() {
             <span>Kembali ke Dashboard Peserta</span>
           </button>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto sm:pr-16">
             <Button
+              type="button"
               variant="outline"
               onClick={() => navigate('/peserta/asesmen')}
               className="w-full sm:w-auto justify-center text-xs sm:text-sm py-2.5 px-4 rounded-xl cursor-pointer"
@@ -456,6 +478,7 @@ export default function PesertaHasilScorecard() {
               Lihat Program Lain
             </Button>
             <Button
+              type="button"
               variant="outline"
               disabled={downloadingLha}
               onClick={() => void handleDownloadLha()}
@@ -473,13 +496,14 @@ export default function PesertaHasilScorecard() {
               </span>
             </Button>
             <Button
+              type="button"
               variant="primary"
               onClick={handleDownloadPDF}
-              disabled={downloadingLha}
+              disabled={printing}
               className="w-full sm:w-auto justify-center text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 font-bold shadow-sm cursor-pointer"
             >
               <Download className="w-4 h-4" />
-              <span>{downloadingLha ? 'Menyiapkan PDF...' : 'Cetak / Simpan PDF'}</span>
+              <span>{printing ? 'Menyiapkan cetak...' : 'Cetak / Simpan PDF'}</span>
             </Button>
           </div>
         </div>

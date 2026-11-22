@@ -32,7 +32,7 @@ interface AssessmentHistoryItem {
   submittedAt: string | null;
   assessmentDate?: string | null;
   assessmentEndDate?: string | null;
-  lha: { status: string; recommendation: string; compositeScore: number; lhaNumber: string | null } | null;
+  lha: { status: string; recommendation: string; compositeScore: number; lhaNumber: string | null; signedAt?: string | null } | null;
 }
 
 type TaskFilterTab = 'all' | 'pending' | 'completed';
@@ -212,7 +212,9 @@ export default function PesertaDashboard() {
     ? {
         signed: activeHistory.lha.status === 'signed',
         compositeScore: activeHistory.lha.compositeScore,
-        recommendation: activeHistory.lha.recommendation
+        recommendation: activeHistory.lha.recommendation,
+        lhaNumber: activeHistory.lha.lhaNumber || dashboard?.lha?.lhaNumber || null,
+        signedAt: activeHistory.lha.signedAt || dashboard?.lha?.signedAt || null
       }
     : String(activeCode || '').toUpperCase() === String(dashboard?.program?.code || '').toUpperCase()
       ? dashboard?.lha
