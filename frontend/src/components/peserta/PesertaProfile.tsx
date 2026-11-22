@@ -473,7 +473,7 @@ export default function PesertaProfile() {
                 </div>
 
                 <p className="text-xs text-blue-700 font-medium pt-1">
-                  Program: <span className="font-bold">{initialData.assessmentTitle}</span> ({program.id}) •{' '}
+                  Program: <span className="font-bold">{initialData.assessmentTitle || program.title}</span> •{' '}
                   <span className="text-slate-600">{initialData.gradeLevel}</span>
                 </p>
               </div>

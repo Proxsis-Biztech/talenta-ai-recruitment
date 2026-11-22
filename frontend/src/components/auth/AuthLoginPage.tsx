@@ -310,16 +310,16 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden relative w-full bg-gradient-to-br from-[#C7DFFF] via-[#DCEBFF] to-[#B9D7FF] flex flex-col lg:flex-row items-center justify-center lg:justify-between p-4 sm:p-6 lg:p-0 font-sans antialiased">
-      {/* Left Half: 3D Workflow Hero Illustration on Desktop */}
-      <div className="hidden lg:flex lg:w-1/2 lg:h-full items-center justify-center p-8 xl:p-12">
-        <div className="w-full max-w-[680px] rounded-3xl overflow-hidden shadow-[0_24px_70px_-20px_rgba(15,39,92,0.22)] border border-white/60 bg-[#D9E9FF]">
-          <img
-            src="/img/login-scene-right.png"
-            alt="Alur Asesmen RIGHT: Undangan, Asesmen, Hasil, Keputusan"
-            className="w-full h-auto object-contain block"
-          />
-        </div>
+    <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden relative w-full bg-[#B9D7FF] flex flex-col lg:flex-row items-center justify-center lg:justify-between p-4 sm:p-6 lg:p-0 font-sans antialiased">
+      {/* Left Half: Seamless Full-Bleed 3D Workflow Hero Illustration on Desktop */}
+      <div className="hidden lg:flex lg:w-1/2 lg:h-full relative items-center justify-center overflow-hidden bg-gradient-to-b from-[#A2C7FB] via-[#D0E4FF] to-[#B7D4FC]">
+        <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/25 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 right-0 w-[420px] h-[420px] rounded-full bg-[#7BB0F8]/30 blur-3xl" />
+        <img
+          src="/img/login-scene-right.png"
+          alt="Alur Asesmen RIGHT: Undangan, Asesmen, Hasil, Keputusan"
+          className="relative z-10 w-full h-auto max-h-full object-contain select-none pointer-events-none [mask-image:linear-gradient(to_bottom,transparent_0%,black_14%,black_86%,transparent_100%)]"
+        />
       </div>
 
       {/* Compact Mobile Header Illustration */}
@@ -331,19 +331,19 @@ export default function AuthLoginPage() {
         />
       </div>
 
-      {/* Full Half-Page White Login Section on Right */}
-      <div className="relative z-10 w-full max-w-[480px] lg:max-w-none lg:w-1/2 lg:h-full lg:mr-0 bg-white rounded-[32px] lg:rounded-none p-6 sm:p-10 lg:p-14 shadow-[0_30px_80px_-20px_rgba(15,39,92,0.32)] lg:shadow-[-20px_0_60px_-15px_rgba(15,39,92,0.18)] border border-white/90 lg:border-0 flex flex-col justify-center">
-        <div className="w-full max-w-[440px] mx-auto">
-          <div className="flex flex-col items-center text-center mb-5 sm:mb-6">
+      {/* Clean Full Half-Page White Login Section on Right */}
+      <div className="relative z-10 w-full max-w-[460px] lg:max-w-none lg:w-1/2 lg:h-full lg:mr-0 bg-[#FCFCFD] lg:bg-white rounded-[32px] lg:rounded-none p-6 sm:p-10 lg:p-14 shadow-[0_30px_80px_-20px_rgba(15,39,92,0.28)] lg:shadow-none border border-white/90 lg:border-0 flex flex-col justify-center">
+        <div className="w-full max-w-[390px] mx-auto">
+          <div className="flex flex-col items-center text-center mb-6">
             <img
               src="/img/logoRIght.jpeg"
               alt="RIGHT Assessment Platform"
-              className="h-11 sm:h-12 w-auto max-w-[180px] object-contain mb-3.5"
+              className="h-9 sm:h-10 w-auto max-w-[160px] object-contain mb-3"
             />
-            <h1 className="text-2xl sm:text-[28px] font-extrabold text-slate-900 font-heading tracking-tight leading-tight">
+            <h1 className="text-2xl sm:text-[26px] font-extrabold text-slate-900 font-heading tracking-tight leading-tight">
               Masuk ke Akun
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+            <p className="text-xs sm:text-[13px] text-slate-500 mt-1 leading-relaxed">
               Portal Asesmen &amp; Seleksi Terpadu RIGHT
             </p>
           </div>
@@ -372,14 +372,14 @@ export default function AuthLoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2 pl-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 pl-1">
                 Username atau Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-slate-400" />
+                  <User className="h-4 w-4 text-slate-400" />
                 </div>
                 <input
                   type="text"
@@ -387,18 +387,18 @@ export default function AuthLoginPage() {
                   onChange={(e) => setIdentifier(e.target.value)}
                   placeholder="Masukkan username atau email"
                   required
-                  className="w-full pl-12 pr-5 py-4 rounded-full border border-slate-200 bg-white text-sm sm:text-base font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0F275C] focus:ring-4 focus:ring-[#0F275C]/10"
+                  className="w-full pl-11 pr-5 py-3 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0B2559] focus:ring-4 focus:ring-[#0B2559]/10"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2 pl-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 pl-1">
                 Kata Sandi
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-400" />
+                  <Lock className="h-4 w-4 text-slate-400" />
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -406,24 +406,24 @@ export default function AuthLoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Masukkan kata sandi"
                   required
-                  className="w-full pl-12 pr-12 py-4 rounded-full border border-slate-200 bg-white text-sm sm:text-base font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0F275C] focus:ring-4 focus:ring-[#0F275C]/10"
+                  className="w-full pl-11 pr-11 py-3 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0B2559] focus:ring-4 focus:ring-[#0B2559]/10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm px-1">
+            <div className="flex items-center justify-between text-xs px-1">
               <label className="inline-flex items-center gap-2 text-slate-600 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   defaultChecked
-                  className="w-4 h-4 rounded border-slate-300 text-[#0F275C] focus:ring-[#0F275C]"
+                  className="w-4 h-4 rounded border-slate-300 text-[#0B2559] focus:ring-[#0B2559]"
                 />
                 <span>Ingat saya</span>
               </label>
@@ -435,7 +435,7 @@ export default function AuthLoginPage() {
                   setResetNotice('');
                   setResetEmail(identifier.includes('@') ? identifier.trim() : '');
                 }}
-                className="text-[#0F275C] hover:underline font-semibold cursor-pointer"
+                className="text-[#0B2559] hover:underline font-bold cursor-pointer"
               >
                 Lupa Kata Sandi?
               </button>
@@ -445,7 +445,7 @@ export default function AuthLoginPage() {
               <Button
                 type="submit"
                 variant="primary"
-                className="w-full py-4 text-sm sm:text-base font-bold flex items-center justify-center gap-2 rounded-full bg-[#0F275C] hover:bg-[#16367d] border-0 shadow-md cursor-pointer"
+                className="w-full py-3.5 text-sm font-bold flex items-center justify-center gap-2 rounded-full bg-[#0B2559] hover:bg-[#081A40] border-0 shadow-sm cursor-pointer"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -453,7 +453,7 @@ export default function AuthLoginPage() {
                 ) : (
                   <>
                     <span>Masuk</span>
-                    <ArrowRight className="w-5 h-5" />
+                    <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </Button>

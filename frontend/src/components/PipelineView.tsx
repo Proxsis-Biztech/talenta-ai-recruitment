@@ -93,10 +93,12 @@ export default function PipelineView({
     );
   }, [filtered]);
 
-  // Stage 4: Scored / Decision Ready
+  // Stage 4: Scored / Decision Ready (hanya kandidat yang sudah selesai wawancara atau memiliki skor wawancara nyata)
   const stageDecisionReady = useMemo(() => {
-    return filtered.filter(a => 
-      (a.interviewScore && a.interviewScore > 0) || a.compositeEvaluation != null
+    return filtered.filter(
+      a =>
+        ['completed', 'scored'].includes(a.interviewStatus) ||
+        (a.interviewScore != null && a.interviewScore > 0)
     );
   }, [filtered]);
 
