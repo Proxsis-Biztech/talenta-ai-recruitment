@@ -36,7 +36,7 @@ export const Modal: React.FC<ModalProps> = ({
   title,
   description,
   docketRef,
-  category = 'KIN-DOSSIER',
+  category = 'RIGHT-DOSSIER',
   icon,
   maxWidth,
   size,

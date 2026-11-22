@@ -42,6 +42,12 @@ const serializeScore = (score: {
   signedAt: score.signedAt
 });
 
+const normalizeCompany = (value?: string | null) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/\b(tbk|persero|pt|cv)\b/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
 const candidateCodesForTenant = async (req: AuthRequest, tenantId: string | null) => {
   if (!tenantId) return null;
   let companyName: string | null = req.portalUser?.companyName || null;
@@ -49,18 +55,23 @@ const candidateCodesForTenant = async (req: AuthRequest, tenantId: string | null
     const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
     companyName = tenant?.name || null;
   }
+  const normalizedTargetCompany = normalizeCompany(companyName);
   const users = await prisma.portalUser.findMany({
     where: {
       role: 'peserta',
       OR: [
         { tenantId },
-        ...(companyName ? [{ companyName }] : [])
+        ...(companyName ? [{ companyName }, { tenantId: null }] : [])
       ]
     },
-    select: { id: true, candidateCode: true }
+    select: { id: true, candidateCode: true, tenantId: true, companyName: true }
   });
   const keys = new Set<string>();
   for (const user of users) {
+    const matchesTenant =
+      user.tenantId === tenantId ||
+      (normalizedTargetCompany && normalizeCompany(user.companyName) === normalizedTargetCompany);
+    if (!matchesTenant) continue;
     if (user.candidateCode) keys.add(user.candidateCode);
     keys.add(user.id);
     keys.add(user.id.slice(0, 8));

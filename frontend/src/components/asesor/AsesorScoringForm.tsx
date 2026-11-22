@@ -62,10 +62,78 @@ export default function AsesorScoringForm() {
   const [candidateLoading, setCandidateLoading] = useState(true);
   const activeAssessor = getActiveSessionUser();
 
+  const [liveConsoleNotes, setLiveConsoleNotes] = useState<Array<{ name: string; score: number; notes: string }>>([]);
+
+  const hydrateCompetenciesFromSaved = (rawList: any[]) => {
+    if (!Array.isArray(rawList) || rawList.length === 0) return;
+    const isBars7Format =
+      rawList.length >= 6 ||
+      rawList.some((item) =>
+        DEFAULT_7_COMPETENCIES.some((def) => def.name.toLowerCase() === String(item?.name || '').toLowerCase())
+      );
+
+    if (isBars7Format) {
+      setLiveConsoleNotes([]);
+      setCompetencies(
+        DEFAULT_7_COMPETENCIES.map((def, index) => {
+          const matched =
+            rawList.find(
+              (item) => String(item?.name || '').toLowerCase() === def.name.toLowerCase()
+            ) || rawList[index];
+          return {
+            id: def.id,
+            name: matched?.name || def.name,
+            weight: typeof matched?.weight === 'number' ? matched.weight : def.weight,
+            score: typeof matched?.score === 'number' ? matched.score : def.score,
+            notes: String(matched?.notes ?? matched?.note ?? matched?.evidenceNotes ?? '')
+          };
+        })
+      );
+    } else {
+      // Saved from Live Console (4 live competencies) -> keep all 7 BARS indicators and map overlapping notes/average
+      const validScores = rawList.filter((item) => typeof item?.score === 'number' && item.score > 0);
+      const avgLiveScore =
+        validScores.length > 0
+          ? parseFloat(
+              (
+                validScores.reduce((sum, item) => sum + Number(item.score || 0), 0) /
+                validScores.length
+              ).toFixed(1)
+            )
+          : 0;
+      setLiveConsoleNotes(
+        rawList.map((item) => ({
+          name: String(item?.name || 'Kompetensi Live'),
+          score: Number(item?.score || 0),
+          notes: String(item?.notes ?? item?.note ?? '')
+        }))
+      );
+      setCompetencies(
+        DEFAULT_7_COMPETENCIES.map((def) => {
+          const direct = rawList.find((item) =>
+            String(item?.name || '').toLowerCase().includes(def.name.toLowerCase()) ||
+            def.name.toLowerCase().includes(String(item?.name || '').toLowerCase().split(' ')[0])
+          );
+          return {
+            ...def,
+            score:
+              typeof direct?.score === 'number' && direct.score > 0
+                ? direct.score
+                : avgLiveScore > 0
+                  ? avgLiveScore
+                  : def.score,
+            notes: String(direct?.notes ?? direct?.note ?? '')
+          };
+        })
+      );
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     setCandidateLoading(true);
     setCompetencies(DEFAULT_7_COMPETENCIES);
+    setLiveConsoleNotes([]);
     setFactSheetMatched(false);
     setAiError('');
     if (!id) {
@@ -90,6 +158,9 @@ export default function AsesorScoringForm() {
         if (cancelled) return;
         setCandidate(data);
         if (data) {
+          if (Array.isArray(data.competencies) && data.competencies.length > 0) {
+            hydrateCompetenciesFromSaved(data.competencies);
+          }
           if (data.lhaStatus === 'signed') {
             setIsSigned(true);
             setLhaNumber(data.lhaNumber || '');
@@ -178,15 +249,7 @@ export default function AsesorScoringForm() {
         if (cancelled || !response.data?.data) return;
         const record = response.data.data;
         if (Array.isArray(record.competencies) && record.competencies.length > 0) {
-          setCompetencies(
-            record.competencies.map((item: any, index: number) => ({
-              id: `c${index + 1}`,
-              name: item.name,
-              weight: item.weight,
-              score: item.score,
-              notes: item.notes || ''
-            }))
-          );
+          hydrateCompetenciesFromSaved(record.competencies);
         }
         setRecommendation(record.recommendation);
         setAssessorNotes(record.notes || '');
@@ -760,7 +823,7 @@ export default function AsesorScoringForm() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
             <div>
               <h2 className="font-heading font-extrabold text-lg sm:text-xl text-slate-900">
-                Rubrik 7 Indikator Perilaku Baku (Skala 1 - 5)
+                Rubrik {competencies.length} Indikator Perilaku Baku (Skala 1 - 5)
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
                 Terapkan diskresi profesional asesor (*Human-in-the-Loop*) untuk menyesuaikan skor draf AI
@@ -798,6 +861,23 @@ export default function AsesorScoringForm() {
               )}
             </div>
           </div>
+
+          {liveConsoleNotes.length > 0 && (
+            <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2 text-xs">
+              <p className="font-bold text-primary-navy">
+                Referensi Catatan Sesi Live Console ({liveConsoleNotes.length} Kompetensi)
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {liveConsoleNotes.map((item, idx) => (
+                  <div key={idx} className="p-2.5 bg-white rounded-lg border border-blue-100">
+                    <span className="font-bold text-slate-800">{item.name}</span>{' '}
+                    <span className="font-mono text-blue-700 font-bold">({item.score}/5)</span>
+                    {item.notes && <p className="text-slate-600 mt-1">{item.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             {competencies.map((comp) => (

@@ -39,6 +39,7 @@ const userSelect = {
   department: true,
   assessorName: true,
   interviewScheduledAt: true,
+  interviewCompletedAt: true,
   interviewStatus: true,
   interviewScore: true,
   faceVerifiedAt: true,
@@ -624,8 +625,12 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
         ])
       ),
       interview: {
-        status: user.interviewStatus,
+        status:
+          lha?.status === 'signed' && !['completed', 'scored'].includes(String(user.interviewStatus || ''))
+            ? 'completed'
+            : user.interviewStatus,
         scheduledAt: user.interviewScheduledAt,
+        completedAt: user.interviewCompletedAt,
         assessorName: user.assessorName || assessor?.name || 'Tim Asesor Right',
         score: user.interviewScore,
         queuePosition,

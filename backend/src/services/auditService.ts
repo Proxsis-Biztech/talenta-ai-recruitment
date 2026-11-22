@@ -1,9 +1,35 @@
 import fs from 'fs';
 import path from 'path';
+import { type Request } from 'express';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const LEGACY_AUDIT_FILE = path.join(__dirname, '../../audit_logs.json');
+
+const PRIVATE_IP_RE = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc00:|fe80:)/i;
+
+const cleanIp = (raw: string): string => raw.trim().replace(/^::ffff:/i, '');
+
+export function resolveRequestIp(req: Request): string {
+  const cfIp = req.headers['cf-connecting-ip'];
+  if (typeof cfIp === 'string' && cfIp.trim()) return cleanIp(cfIp);
+
+  const trueIp = req.headers['true-client-ip'];
+  if (typeof trueIp === 'string' && trueIp.trim()) return cleanIp(trueIp);
+
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    const parts = forwarded.split(',').map((p) => cleanIp(p)).filter(Boolean);
+    const publicIp = parts.find((ip) => !PRIVATE_IP_RE.test(ip));
+    if (publicIp) return publicIp;
+    if (parts[0]) return parts[0];
+  }
+
+  const realIp = req.headers['x-real-ip'];
+  if (typeof realIp === 'string' && realIp.trim()) return cleanIp(realIp);
+
+  return cleanIp(req.ip || req.socket?.remoteAddress || '127.0.0.1') || '127.0.0.1';
+}
 
 export interface AuditLogEntry {
   id: string;

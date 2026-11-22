@@ -128,7 +128,9 @@ export default function AsesorProctoringReview() {
     setIntegrityScore(computed);
   }, [events, apiIntegrityScore, selectedCandidate?.integrityScore]);
 
-  const pendingReviewCount = events.filter((event) => event.status === 'pending').length;
+  const pendingReviewCount = events.filter(
+    (event) => !['valid', 'false_positive', 'info'].includes(event.status)
+  ).length;
   const validFlagCount = events.filter((event) => event.status === 'valid').length;
   const falsePositiveFlagCount = events.filter(
     (event) => event.status === 'false_positive'

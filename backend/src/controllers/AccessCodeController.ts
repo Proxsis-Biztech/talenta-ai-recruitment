@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { type AuthRequest } from '../middleware/auth';
-import { recordAuditLog } from '../services/auditService';
+import { recordAuditLog, resolveRequestIp } from '../services/auditService';
 
 const prisma = new PrismaClient();
 
@@ -63,7 +63,7 @@ export const createAccessCode = async (req: AuthRequest, res: Response) => {
       actor: req.user?.username || 'admin',
       action: 'ACCESS_CODE_CREATE',
       category: 'DATA_MUTATION',
-      ip: req.ip || '127.0.0.1',
+      ip: resolveRequestIp(req),
       target: payload.code,
       details: `Kode akses untuk ${job.title} dibuat.`,
       status: 'SUCCESS'
@@ -105,7 +105,7 @@ export const updateAccessCode = async (req: AuthRequest, res: Response) => {
       actor: req.user?.username || 'admin',
       action: 'ACCESS_CODE_UPDATE',
       category: 'DATA_MUTATION',
-      ip: req.ip || '127.0.0.1',
+      ip: resolveRequestIp(req),
       target: code,
       details: 'Pengaturan kode akses diperbarui.',
       status: 'SUCCESS'

@@ -36,6 +36,7 @@ export interface AssessorCandidate {
   signedAt: string | null;
   assessorNotes?: string | null;
   isTestAccount?: boolean;
+  competencies?: Array<{ name: string; weight: number; score: number; notes?: string }>;
   essayAnswers?: AssessorEssayAnswer[];
 }
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search,
   ChevronLeft,
@@ -67,16 +67,14 @@ const MONTHS_ID = [
 
 export default function PesertaDashboard() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [selectedProgramCode, setSelectedProgramCode] = useState<string | null>(
-    () => searchParams.get('program')
+    () => (location.state as { programCode?: string } | null)?.programCode || searchParams.get('program')
   );
 
   const selectProgram = (code: string) => {
     setSelectedProgramCode(code);
-    const next = new URLSearchParams(searchParams);
-    next.set('program', code);
-    setSearchParams(next, { replace: true });
   };
 
   const activeUser = useMemo(() => getActiveSessionUser(), []);
@@ -193,12 +191,19 @@ export default function PesertaDashboard() {
 
   const activeProgram = useMemo(() => {
     if (dashboardPrograms.length === 0) return null;
-    const fromUrl = dashboardPrograms.find(
+    const fromSelected = dashboardPrograms.find(
       (program: any) => program.code === selectedProgramCode
     );
-    if (fromUrl) return fromUrl;
+    if (fromSelected) return fromSelected;
+    const primaryCode = String(dashboard?.program?.code || '').trim().toUpperCase();
+    if (primaryCode) {
+      const matchedPrimary = dashboardPrograms.find(
+        (program: any) => String(program.code).toUpperCase() === primaryCode
+      );
+      if (matchedPrimary) return matchedPrimary;
+    }
     return (
-      dashboardPrograms.find((program: any) => !isProgramDone(program.code)) ||
+      dashboardPrograms.find((program: any) => isProgramDone(program.code)) ||
       dashboardPrograms[0]
     );
   }, [dashboardPrograms, selectedProgramCode, dashboard, history]);
@@ -216,13 +221,22 @@ export default function PesertaDashboard() {
         lhaNumber: activeHistory.lha.lhaNumber || dashboard?.lha?.lhaNumber || null,
         signedAt: activeHistory.lha.signedAt || dashboard?.lha?.signedAt || null
       }
-    : String(activeCode || '').toUpperCase() === String(dashboard?.program?.code || '').toUpperCase()
-      ? dashboard?.lha
+    : dashboard?.lha &&
+        (!activeCode ||
+          !dashboard?.program?.code ||
+          String(activeCode).toUpperCase() === String(dashboard.program.code).toUpperCase())
+      ? dashboard.lha
       : null;
 
-  const isCatCompleted = ['submitted', 'graded', 'completed'].includes(activeExam?.status || '');
+  const isCatCompleted =
+    ['submitted', 'graded', 'completed'].includes(activeExam?.status || '') ||
+    Boolean(activeLha?.signed);
   const activeScore = activeExam?.score ?? activeHistory?.score ?? null;
-  const isInterviewCompleted = dashboard?.interview?.status === 'completed';
+  const isInterviewCompleted =
+    ['completed', 'scored'].includes(String(dashboard?.interview?.status || '')) ||
+    Boolean(activeLha?.signed) ||
+    Boolean(dashboard?.interview?.completedAt) ||
+    dashboard?.interview?.score != null;
   const faceVerified = Boolean(dashboard?.user?.deviceCheckCompletedAt);
   const profileComplete = dashboard
     ? Boolean(
@@ -243,7 +257,7 @@ export default function PesertaDashboard() {
     : `${activeProgramTitle} • ${companyName}`;
 
   const openAssessment = () =>
-    navigate(activeCode ? `/peserta/asesmen?id=${encodeURIComponent(activeCode)}` : '/peserta/asesmen');
+    navigate('/peserta/asesmen', activeCode ? { state: { programCode: activeCode } } : undefined);
 
   const formatShortDate = (value?: string | null) =>
     value

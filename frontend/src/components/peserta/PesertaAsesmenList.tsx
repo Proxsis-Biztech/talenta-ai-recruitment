@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import axios from 'axios';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FileCheck2,
   Calendar,
@@ -98,8 +98,10 @@ interface AsesmenItem {
 
 export default function PesertaAsesmenList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedProgramId = searchParams.get('id');
+  const selectedProgramId =
+    (location.state as { programCode?: string } | null)?.programCode || searchParams.get('id');
   const urlTab = searchParams.get('tab') as 'materi' | 'ujian' | 'coding' | null;
 
   // Active LMS tab: 1. Materi & Silabus, 2. Ujian Teknis (CAT & Code), 3. Wawancara Asesor
@@ -979,7 +981,9 @@ export default function PesertaAsesmenList() {
                           <button
                             type="button"
                             onClick={() =>
-                              navigate(isCatCompleted ? `/peserta/hasil?id=${currentProgram.id}` : `/peserta/exam/${currentProgram.id}`)
+                              isCatCompleted
+                                ? navigate('/peserta/hasil', { state: { programCode: currentProgram.id } })
+                                : navigate(`/peserta/exam/${currentProgram.id}`)
                             }
                             className="px-4 py-1.5 rounded-lg bg-[#0F275C] hover:bg-[#16367d] text-white text-xs font-bold cursor-pointer shadow-2xs"
                           >
@@ -1131,7 +1135,9 @@ export default function PesertaAsesmenList() {
                           <button
                             type="button"
                             disabled={!isCatCompleted}
-                            onClick={() => navigate(`/peserta/waiting-room?id=${currentProgram.id}`)}
+                            onClick={() =>
+                              navigate('/peserta/waiting-room', { state: { programCode: currentProgram.id } })
+                            }
                             className={`px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold transition-colors ${
                               isCatCompleted
                                 ? 'bg-white hover:bg-slate-50 text-slate-700 cursor-pointer'
@@ -1143,7 +1149,9 @@ export default function PesertaAsesmenList() {
                           <button
                             type="button"
                             disabled={!isCatCompleted}
-                            onClick={() => navigate(`/peserta/interview?id=${currentProgram.id}`)}
+                            onClick={() =>
+                              navigate('/peserta/interview', { state: { programCode: currentProgram.id } })
+                            }
                             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                               isCatCompleted
                                 ? 'bg-[#0F275C] hover:bg-[#16367d] text-white cursor-pointer shadow-2xs'

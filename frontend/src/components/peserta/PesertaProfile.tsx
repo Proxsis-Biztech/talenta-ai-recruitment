@@ -873,7 +873,7 @@ export default function PesertaProfile() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                    {program.id}
+                    {program.category || 'Asesmen Kompetensi'}
                   </span>
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                     {initialData.gradeLevel}

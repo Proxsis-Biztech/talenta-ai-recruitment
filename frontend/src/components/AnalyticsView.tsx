@@ -30,11 +30,13 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
   const totalApplicants = applicants.length;
   
   const interviewedCount = useMemo(() => {
-    return applicants.filter(a => a.interviewStatus === 'completed').length;
+    return applicants.filter(a => ['completed', 'scored'].includes(a.interviewStatus)).length;
   }, [applicants]);
 
   const scoredCount = useMemo(() => {
-    return applicants.filter(a => (a.interviewScore && a.interviewScore > 0) || a.compositeEvaluation != null).length;
+    return applicants.filter(
+      a => ['completed', 'scored'].includes(a.interviewStatus) || (a.interviewScore != null && a.interviewScore > 0)
+    ).length;
   }, [applicants]);
 
   const strongHireCount = useMemo(() => {

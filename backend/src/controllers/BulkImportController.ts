@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
 import { type AuthRequest } from '../middleware/auth';
-import { recordAuditLog } from '../services/auditService';
+import { recordAuditLog, resolveRequestIp } from '../services/auditService';
 import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
 
 const prisma = new PrismaClient();
@@ -218,7 +218,7 @@ export const importPortalUsers = async (req: AuthRequest, res: Response) => {
       actor: req.user?.username || 'admin',
       action: 'BULK_IMPORT_PESERTA',
       category: 'DATA_MUTATION',
-      ip: req.ip || '127.0.0.1',
+      ip: resolveRequestIp(req),
       target: req.file.originalname,
       details: `Import Excel selesai: ${created} dibuat, ${skipped} dilewati.`,
       status: errors.length > 0 ? 'WARNING' : 'SUCCESS'

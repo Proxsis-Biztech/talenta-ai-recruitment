@@ -222,11 +222,11 @@ export default function ApplicantForm() {
               <div className="bg-slate-700 p-2.5 rounded-xl group-hover:bg-slate-600 transition-colors shadow-sm border border-slate-600">
                 <Briefcase className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-white tracking-wide font-heading">Kinesta Recruitment</span>
+              <span className="text-xl font-bold text-white tracking-wide font-heading">RIGHT Recruitment</span>
             </div>
             <div className="flex items-center space-x-2">
-              <Link to="/interview/live" className="text-sm font-semibold text-slate-300 hover:text-white bg-orange-600 hover:bg-orange-500 px-4 py-2 rounded-lg transition-all border border-orange-500 flex items-center shadow-sm">
-                AI Interview <ChevronRight className="w-4 h-4 ml-1" />
+              <Link to="/login" className="text-sm font-semibold text-slate-300 hover:text-white bg-orange-600 hover:bg-orange-500 px-4 py-2 rounded-lg transition-all border border-orange-500 flex items-center shadow-sm">
+                Portal Asesmen <ChevronRight className="w-4 h-4 ml-1" />
               </Link>
               <Link to="/admin/login" className="text-sm font-semibold text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition-all border border-slate-600 flex items-center shadow-sm">
                 Login Admin <ChevronRight className="w-4 h-4 ml-1" />

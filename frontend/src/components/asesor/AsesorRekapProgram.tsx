@@ -150,9 +150,14 @@ export default function AsesorRekapProgram() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `rekap-penilaian-asesor-${formatToday().replace(/\s/g, '-')}.csv`;
+    a.style.display = 'none';
+    a.setAttribute('download', `rekap-penilaian-asesor-${formatToday().replace(/\s/g, '-')}.csv`);
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      a.remove();
+      URL.revokeObjectURL(url);
+    }, 1000);
   };
 
   return (

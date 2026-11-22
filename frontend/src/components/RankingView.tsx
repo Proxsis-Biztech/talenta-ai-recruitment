@@ -293,7 +293,7 @@ ${app.interviewResult ? `<div class="banner"><h2>Ringkasan Penilaian AI</h2><div
 
 ${app.interviewTranscript ? `<div class="banner"><h2>Transkrip Percakapan</h2><div style="white-space:pre-wrap;font-size:11px;color:#4b5563;line-height:1.6;">${escapeHtml(app.interviewTranscript.slice(0, 12000))}</div>${app.interviewTranscript.length > 12000 ? '<p style="font-size:10px;color:#6b7280;">…(transkrip dipotong untuk cetak)</p>' : ''}</div>` : ''}
 
-<div style="margin-top:24px;font-size:10px;color:#9ca3af;">Dokumen dihasilkan otomatis oleh sistem AI Interviewer Kinesta • ${new Date().toLocaleString('id-ID')}</div>
+<div style="margin-top:24px;font-size:10px;color:#9ca3af;">Dokumen dihasilkan otomatis oleh sistem RIGHT Assessment Platform • ${new Date().toLocaleString('id-ID')}</div>
 <script>setTimeout(()=>window.print(),400)</script>
 </body></html>`);
     win.document.close();

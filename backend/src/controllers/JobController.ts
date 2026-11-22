@@ -39,6 +39,16 @@ const validateDateRange = (start?: Date | null, end?: Date | null): string | nul
   return null;
 };
 
+const isPublicTestJob = (job: { code?: string | null; title?: string | null }) => {
+  const code = String(job.code || '').trim();
+  const title = String(job.title || '').trim();
+  return (
+    /^(test|uji|qc|uat|dummy|demo|sandbox)(\b|[-_\s])/i.test(code) ||
+    /^(test|uji|qc|uat|dummy|demo|sandbox)(\b|[-_\s])/i.test(title) ||
+    title.toLowerCase() === 'test'
+  );
+};
+
 // Public: Get all active jobs
 export const getActiveJobs = async (req: AuthRequest, res: Response) => {
   try {
@@ -51,7 +61,7 @@ export const getActiveJobs = async (req: AuthRequest, res: Response) => {
       where: { status: "active" },
       orderBy: { createdAt: 'desc' }
     });
-    res.json({ data: jobs });
+    res.json({ data: jobs.filter((job) => !isPublicTestJob(job)) });
   } catch (error) {
     console.error("Get active jobs error:", error);
     res.status(500).json({ error: "Gagal mengambil data lowongan pekerjaan" });

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   Award,
@@ -38,7 +38,11 @@ interface ExamResult {
 
 export default function PesertaHasilScorecard() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const [selectedStateId, setSelectedStateId] = useState<string | null>(
+    () => (location.state as { programCode?: string } | null)?.programCode || searchParams.get('id')
+  );
   const [printing, setPrinting] = useState(false);
   const [downloadingLha, setDownloadingLha] = useState(false);
   const [lhaNotice, setLhaNotice] = useState<string | null>(null);
@@ -71,7 +75,7 @@ export default function PesertaHasilScorecard() {
     });
   }, [activeUser.assessmentId, activeUser.assignedProgramIds, activeUser.assessmentTitle, activeUser.companyName, serverPrograms]);
 
-  const requestedId = searchParams.get('id');
+  const requestedId = selectedStateId || searchParams.get('id');
   const activeProgram = useMemo(
     () =>
       programOptions.find((p) => p.id === requestedId) ||
@@ -84,8 +88,7 @@ export default function PesertaHasilScorecard() {
   );
 
   const handleSelectProgram = (programId: string) => {
-    searchParams.set('id', programId);
-    setSearchParams(searchParams, { replace: true });
+    setSelectedStateId(programId);
   };
 
   useEffect(() => {
@@ -257,7 +260,7 @@ export default function PesertaHasilScorecard() {
             </div>
             <h1 className="text-xl font-extrabold text-ink font-heading">Hasil Ujian Belum Tersedia</h1>
             <p className="text-sm text-muted-slate">{error}</p>
-            <Button variant="primary" onClick={() => navigate(`/peserta/asesmen?id=${activeProgram.id}`)} className="text-xs">
+            <Button variant="primary" onClick={() => navigate('/peserta/asesmen', { state: { programCode: activeProgram.id } })} className="text-xs">
               Buka Program di Asesmen Saya
             </Button>
           </div>
@@ -406,7 +409,7 @@ export default function PesertaHasilScorecard() {
         </div>
         )}
 
-        {(result?.manualReviewCount ?? 0) > 0 && (
+        {!lha?.signed && (result?.manualReviewCount ?? 0) > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3">
             <TrendingUp className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
@@ -415,6 +418,19 @@ export default function PesertaHasilScorecard() {
               </p>
               <p className="text-xs text-amber-800 mt-1">
                 Butir objektif telah dinilai secara otomatis. Nilai akhir, klasifikasi, dan LHA diterbitkan setelah asesor menyelesaikan review.
+              </p>
+            </div>
+          </div>
+        )}
+        {lha?.signed && (result?.manualReviewCount ?? 0) > 0 && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-emerald-950">
+                Seluruh {result?.manualReviewCount} jawaban esai telah diverifikasi pada LHA resmi
+              </p>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                Penilaian objektif, esai, dan wawancara telah dikonsolidasikan ke Laporan Hasil Asesmen bertanda tangan digital.
               </p>
             </div>
           </div>

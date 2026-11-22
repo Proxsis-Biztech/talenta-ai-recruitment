@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { recordAuditLog } from '../services/auditService';
+import { recordAuditLog, resolveRequestIp } from '../services/auditService';
 import { type AuthRequest, getJwtSecret } from '../middleware/auth';
 import { buildOtpAuthUrl, generateTotpSecret, verifyTotp } from '../services/totpService';
 
@@ -40,7 +40,7 @@ export const login = async (req: AuthRequest, res: Response) => {
           actor: admin.username,
           action: 'ADMIN_LOGIN_2FA_FAILED',
           category: 'AUTH',
-          ip: req.ip || '127.0.0.1',
+          ip: resolveRequestIp(req),
           target: 'Admin Auth Gate',
           details: 'Kode TOTP tidak valid',
           status: 'FAILED'
@@ -59,7 +59,7 @@ export const login = async (req: AuthRequest, res: Response) => {
       actor: admin.username,
       action: 'ADMIN_LOGIN',
       category: 'AUTH',
-      ip: req.ip || '127.0.0.1',
+      ip: resolveRequestIp(req),
       target: 'Admin Auth Gate',
       details: `Login berhasil sebagai role '${admin.role}'`,
       status: 'SUCCESS'
@@ -314,7 +314,7 @@ export const enableTwoFactor = async (req: AuthRequest, res: Response) => {
       actor: admin.username,
       action: 'ADMIN_2FA_ENABLED',
       category: 'AUTH',
-      ip: req.ip || '127.0.0.1',
+      ip: resolveRequestIp(req),
       target: 'Admin Auth Gate',
       details: 'Verifikasi dua langkah diaktifkan',
       status: 'SUCCESS'
@@ -351,7 +351,7 @@ export const disableTwoFactor = async (req: AuthRequest, res: Response) => {
       actor: admin.username,
       action: 'ADMIN_2FA_DISABLED',
       category: 'AUTH',
-      ip: req.ip || '127.0.0.1',
+      ip: resolveRequestIp(req),
       target: 'Admin Auth Gate',
       details: 'Verifikasi dua langkah dinonaktifkan',
       status: 'SUCCESS'

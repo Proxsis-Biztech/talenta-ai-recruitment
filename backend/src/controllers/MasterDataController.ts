@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { type AuthRequest } from '../middleware/auth';
-import { recordAuditLog } from '../services/auditService';
+import { recordAuditLog, resolveRequestIp } from '../services/auditService';
 import { invalidateAiConfigCache } from '../services/aiConfigService';
 
 const prisma = new PrismaClient();
@@ -44,7 +44,7 @@ export const putMasterRecord = async (req: AuthRequest, res: Response) => {
       actor: req.user?.username || 'admin',
       action: 'MASTER_DATA_UPDATE',
       category: 'DATA_MUTATION',
-      ip: req.ip || '127.0.0.1',
+      ip: resolveRequestIp(req),
       target: `${scope}/${key}`,
       details: `Data master ${scope}/${key} diperbarui.`,
       status: 'SUCCESS'
@@ -66,7 +66,7 @@ export const deleteMasterRecord = async (req: AuthRequest, res: Response) => {
       actor: req.user?.username || 'admin',
       action: 'MASTER_DATA_DELETE',
       category: 'DATA_MUTATION',
-      ip: req.ip || '127.0.0.1',
+      ip: resolveRequestIp(req),
       target: `${scope}/${key}`,
       details: `Data master ${scope}/${key} dihapus.`,
       status: 'SUCCESS'

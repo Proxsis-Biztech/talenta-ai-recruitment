@@ -12,7 +12,7 @@ import { Dropbox } from 'dropbox';
 import 'isomorphic-fetch';
 import { runCvScreening } from '../services/cvScreeningService';
 import { runInterviewScoring } from '../services/interviewScoringService';
-import { recordAuditLog, getAuditLogs } from '../services/auditService';
+import { recordAuditLog, getAuditLogs, resolveRequestIp } from '../services/auditService';
 import {
   evaluateInterviewWithLangChain,
   transcribeInterviewAudio,
@@ -832,7 +832,7 @@ export const batchScreenApplicants = async (req: Request, res: Response) => {
       actor: (req as any).user?.username || 'admin',
       action: 'BATCH_CV_SCREENING',
       category: 'AI_SCREENING',
-      ip: req.ip || '127.0.0.1',
+      ip: resolveRequestIp(req),
       target: 'Applicant Batch Pool',
       details: `Batch screening selesai: ${successCount} sukses, ${failedCount} gagal dari ${results.length} antrean`,
       status: failedCount > 0 ? 'WARNING' : 'SUCCESS'
@@ -880,7 +880,7 @@ export const generateDecisionLetter = async (req: Request, res: Response) => {
     const jobTitle = applicant.job?.title || applicant.appliedPosition || 'Posisi Terkait';
     const compEval = computeCompositeEvaluation(applicant.screeningScore, applicant.interviewScore, applicant.proctorFlags);
 
-    const prompt = `Anda adalah Direktur HR & Talent Acquisition eksekutif di Kinesta HR.
+    const prompt = `Anda adalah Direktur HR & Talent Acquisition eksekutif di RIGHT Assessment & Recruitment.
 Tuliskan draft resmi surat keputusan rekrutmen profesional dalam Bahasa Indonesia berbobot analitis tinggi.
 
 Data Kandidat:
@@ -899,12 +899,12 @@ Tipe Surat yang diminta: ${decisionType === 'offer' ? 'OFFER LETTER (SURAT PENAW
 
 KETENTUAN SURAT:
 ${decisionType === 'offer' ? `
-1. Format kop surat profesional Kinesta HR (Tanggal, Nomor Surat Ref, Kepada Yth).
+1. Format kop surat profesional RIGHT Assessment & Recruitment (Tanggal, Nomor Surat Ref, Kepada Yth).
 2. Nyatakan secara tegas penawaran posisi "${jobTitle}".
 3. Sebutkan secara spesifik 2 alasan utama mengapa kandidat terpilih berdasarkan performa CV dan sesi wawancara AI (apresiasi kompetensi nyata mereka).
 4. Cantumkan rincian: Posisi, Departemen, Tanggal Mulai Efektif (gunakan placeholder [Tanggal Mulai]), Status Kerja (Full-time), serta Paket Kompensasi & Benefit (placeholder [Nominal Gaji / Paket]).
 5. Cantumkan langkah selanjutnya (Onboarding) dan batas waktu konfirmasi penerimaan tawaran (3 hari kerja).
-6. Tanda tangan penutup: Tim Talent Acquisition & HR Leadership Kinesta HR.
+6. Tanda tangan penutup: Tim Talent Acquisition & HR Leadership RIGHT Assessment & Recruitment.
 ` : `
 1. Format surat profesional beretika tinggi (Tanggal, Kepada Yth).
 2. Sampaikan apresiasi mendalam atas waktu dan usaha yang didedikasikan kandidat dalam seluruh rangkaian seleksi.
@@ -944,7 +944,7 @@ Keluarkan respon HANYA dalam format JSON valid berikut (tanpa markdown backtick)
       actor: (req as any).user?.username || 'admin',
       action: 'DECISION_LETTER_GENERATED',
       category: 'DECISION',
-      ip: req.ip || '127.0.0.1',
+      ip: resolveRequestIp(req),
       target: applicant.fullName,
       details: `Surat keputusan '${decisionType}' diterbitkan dengan skor komposit ${compEval.compositeScore} (${compEval.recommendation})`,
       status: 'SUCCESS'

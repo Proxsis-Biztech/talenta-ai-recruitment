@@ -46,6 +46,7 @@ interface CandidateAssessorScoreRow {
   candidateName: string;
   programCode: string | null;
   programTitle: string;
+  competencies?: string;
   interviewScore: number;
   compositeScore: number;
   recommendation: string;
@@ -351,6 +352,7 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
     return res.json({
       data: {
         ...serializeCandidate(user, bestScore, applicant?.proctorFlags || null),
+        competencies: bestScore?.competencies ? parseJson<any[]>(bestScore.competencies, []) : [],
         essayAnswers
       }
     });

@@ -310,22 +310,24 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden relative w-full bg-[#DCEBFE] flex flex-col lg:flex-row items-center justify-center lg:justify-end p-4 sm:p-6 lg:p-0 font-sans antialiased">
-      {/* Full-bleed 3D Desk Background on Desktop */}
-      <div className="hidden lg:block absolute inset-0 z-0">
-        <img
-          src="/img/login-scene-right.jpg"
-          alt="RIGHT Assessment Platform"
-          className="w-full h-full object-cover object-left"
-        />
+    <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden relative w-full bg-gradient-to-br from-[#C7DFFF] via-[#DCEBFF] to-[#B9D7FF] flex flex-col lg:flex-row items-center justify-center lg:justify-between p-4 sm:p-6 lg:p-0 font-sans antialiased">
+      {/* Left Half: 3D Workflow Hero Illustration on Desktop */}
+      <div className="hidden lg:flex lg:w-1/2 lg:h-full items-center justify-center p-8 xl:p-12">
+        <div className="w-full max-w-[680px] rounded-3xl overflow-hidden shadow-[0_24px_70px_-20px_rgba(15,39,92,0.22)] border border-white/60 bg-[#D9E9FF]">
+          <img
+            src="/img/login-scene-right.png"
+            alt="Alur Asesmen RIGHT: Undangan, Asesmen, Hasil, Keputusan"
+            className="w-full h-auto object-contain block"
+          />
+        </div>
       </div>
 
       {/* Compact Mobile Header Illustration */}
-      <div className="lg:hidden w-full max-w-[460px] h-44 rounded-3xl overflow-hidden mb-4 shadow-md border border-white/70">
+      <div className="lg:hidden w-full max-w-[460px] rounded-3xl overflow-hidden mb-4 shadow-md border border-white/70 bg-[#D9E9FF]">
         <img
-          src="/img/login-scene-right.jpg"
-          alt="RIGHT Assessment Platform"
-          className="w-full h-full object-cover object-left"
+          src="/img/login-scene-right.png"
+          alt="Alur Asesmen RIGHT: Undangan, Asesmen, Hasil, Keputusan"
+          className="w-full h-auto object-contain block"
         />
       </div>
 

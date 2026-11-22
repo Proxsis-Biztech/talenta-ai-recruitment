@@ -571,7 +571,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
               <p className="text-slate-600 mt-0.5">Skor CSI merosot dari 89 ke 83 pada segmen nasabah prioritas karena antrean fisik counter teller yang menumpuk.</p>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="font-bold text-slate-900">3. Lonjakan Beban OPEX Listrik (+14.2%)</p>
+              <p className="font-bold text-slate-900">3. Lonjakan Beban OPEX Listrik (+14%)</p>
               <p className="text-slate-600 mt-0.5">Beban tagihan listrik cabang melonjak Rp 180 Juta (+14%) tanpa pengendalian sistem kelistrikan terpusat.</p>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
