@@ -49,10 +49,10 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-slate-900/40 backdrop-blur-xs" />
         <DialogPrimitive.Content
           className={cn(
-            'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] min-w-0 -translate-x-1/2 -translate-y-1/2',
+            'fixed left-1/2 top-1/2 z-[70] w-[calc(100vw-2rem)] min-w-0 -translate-x-1/2 -translate-y-1/2',
             'bg-white rounded-xl border border-slate-200/90',
             'shadow-[0_10px_25px_-5px_rgba(15,23,42,0.1),0_8px_10px_-6px_rgba(15,23,42,0.06)]',
             'overflow-hidden flex flex-col max-h-[90vh]',

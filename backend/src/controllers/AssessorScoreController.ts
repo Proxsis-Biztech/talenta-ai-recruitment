@@ -34,8 +34,10 @@ const serializeScore = (score: {
   lhaNumber: string | null;
   signedAt: Date | null;
   updatedAt: Date;
+  assessor?: { name: string } | null;
 }) => ({
   ...score,
+  assessorName: score.assessor?.name || null,
   competencies: parseJson(score.competencies, []),
   signedAt: score.signedAt
 });
@@ -178,15 +180,14 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
 
 export const listAssessorScores = async (req: AuthRequest, res: Response) => {
   try {
-    const isAdmin = Boolean(req.user);
     const tenantId = tenantForRequest(req);
     const candidateCodes = await candidateCodesForTenant(tenantId);
     const scores = await prisma.assessorScore.findMany({
       where: {
-        ...(isAdmin ? {} : { assessorId: req.portalUser?.id }),
         ...(candidateCodes ? { candidateCode: { in: candidateCodes } } : {})
       },
-      orderBy: { updatedAt: 'desc' }
+      include: { assessor: { select: { name: true } } },
+      orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
     });
     return res.json({ data: scores.map(serializeScore) });
   } catch (error) {

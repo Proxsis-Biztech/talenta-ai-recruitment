@@ -337,7 +337,7 @@ const factSheetLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Terlalu banyak permintaan AI Fact Sheet Matching. Silakan coba lagi nanti.' }
 });
-router.post('/admin/ai/fact-sheet-match', authenticateAny, factSheetLimiter, async (req, res) => {
+const handleFactSheetMatch = async (req: any, res: any) => {
   try {
     const { submission, factSheet } = req.body;
     if (!submission) {
@@ -348,6 +348,9 @@ router.post('/admin/ai/fact-sheet-match', authenticateAny, factSheetLimiter, asy
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Gagal mengevaluasi Fact Sheet' });
   }
-});
+};
+
+router.post('/admin/ai/fact-sheet-match', authenticateAny, factSheetLimiter, handleFactSheetMatch);
+router.post('/asesor/ai/fact-sheet-match', authenticatePortal, requirePortalRole('asesor'), factSheetLimiter, handleFactSheetMatch);
 
 export default router;

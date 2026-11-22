@@ -1,6 +1,13 @@
 import axios from 'axios';
 import { getPortalToken } from './portalAuthService';
 
+export interface AssessorEssayAnswer {
+  questionId: string;
+  orderNo: number;
+  prompt: string;
+  answer: string;
+}
+
 export interface AssessorCandidate {
   id: string;
   code: string;
@@ -16,6 +23,7 @@ export interface AssessorCandidate {
   submittedAt: string | null;
   interviewStatus: string;
   interviewScore: number | null;
+  compositeScore?: number | null;
   scheduledAt: string | null;
   calledAt: string | null;
   completedAt: string | null;
@@ -23,7 +31,11 @@ export interface AssessorCandidate {
   recommendation: string | null;
   lhaStatus: string | null;
   lhaNumber: string | null;
+  lhaHash?: string | null;
   signedAt: string | null;
+  assessorNotes?: string | null;
+  isTestAccount?: boolean;
+  essayAnswers?: AssessorEssayAnswer[];
 }
 
 export interface AssessorProctoringEvent {
@@ -34,6 +46,7 @@ export interface AssessorProctoringEvent {
   description: string;
   status: 'pending' | 'valid' | 'false_positive';
   assessorNotes: string;
+  snapshotUrl?: string | null;
 }
 
 const authHeaders = () => {
@@ -75,4 +88,36 @@ export const fetchAssessorProctoring = async (
     { headers: authHeaders() }
   );
   return response.data?.data || [];
+};
+
+export const fetchAssessorProctoringSummary = async (
+  code: string
+): Promise<{ events: AssessorProctoringEvent[]; integrityScore: number | null }> => {
+  const response = await axios.get(
+    `/api/asesor/candidates/${encodeURIComponent(code)}/proctoring`,
+    { headers: authHeaders() }
+  );
+  return {
+    events: response.data?.data || [],
+    integrityScore:
+      typeof response.data?.integrityScore === 'number'
+        ? response.data.integrityScore
+        : null
+  };
+};
+
+export const fetchAssessorScoreByCode = async (
+  code: string,
+  programTitle?: string | null
+): Promise<any | null> => {
+  try {
+    const response = await axios.get(`/api/asesor/scores/${encodeURIComponent(code)}`, {
+      params: programTitle ? { programTitle } : undefined,
+      headers: authHeaders()
+    });
+    return response.data?.data || null;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) return null;
+    throw error;
+  }
 };

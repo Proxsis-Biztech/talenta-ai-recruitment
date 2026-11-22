@@ -43,7 +43,25 @@ export default function AsesorDashboard() {
     };
   }, []);
 
-  const visibleCandidates = candidates;
+  const [accountFilter, setAccountFilter] = useState<'all' | 'real' | 'test'>('all');
+
+  const visibleCandidates = useMemo(() => {
+    if (accountFilter === 'real') return candidates.filter((c) => !c.isTestAccount);
+    if (accountFilter === 'test') return candidates.filter((c) => c.isTestAccount);
+    return candidates;
+  }, [candidates, accountFilter]);
+
+  const todayDateStr = useMemo(() => new Date().toLocaleDateString('id-ID'), []);
+  const todayScheduledCount = useMemo(
+    () =>
+      visibleCandidates.filter(
+        (c) =>
+          Boolean(c.scheduledAt) &&
+          new Date(c.scheduledAt as string).toLocaleDateString('id-ID') === todayDateStr
+      ).length,
+    [visibleCandidates, todayDateStr]
+  );
+
   const todaySlots = useMemo(() => {
     return visibleCandidates.slice(0, 5).map((c) => ({
       id: c.id,
@@ -51,6 +69,10 @@ export default function AsesorDashboard() {
       code: c.code,
       program: c.program,
       company: c.company,
+      catRawScore: c.catScore,
+      integrityScore: c.integrityScore,
+      interviewStatusRaw: c.interviewStatus,
+      isTestAccount: Boolean(c.isTestAccount),
       time: c.scheduledAt
         ? `${new Date(c.scheduledAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`
         : 'Belum dijadwalkan',
@@ -72,16 +94,29 @@ export default function AsesorDashboard() {
     }));
   }, [visibleCandidates]);
 
-  const primaryCode = todaySlots[0]?.code;
+  const primaryCandidate = useMemo(
+    () =>
+      visibleCandidates.find((c) => c.interviewStatus === 'called') ||
+      visibleCandidates.find((c) => c.interviewStatus !== 'completed') ||
+      visibleCandidates[0] ||
+      null,
+    [visibleCandidates]
+  );
+  const primaryCode = primaryCandidate?.code;
   const openConsole = () => {
     if (primaryCode) navigate(`/asesor/live-console/${primaryCode}`);
   };
-  const pendingLha = candidates.filter(
+  const openScoring = () => {
+    if (primaryCode) navigate(`/asesor/scoring/${primaryCode}`);
+    else navigate('/asesor/scoring');
+  };
+  const pendingLha = visibleCandidates.filter(
     (candidate) => candidate.interviewStatus === 'completed' && candidate.lhaStatus !== 'signed'
   ).length;
-  const proctoringFindings = candidates.filter(
+  const proctoringFindings = visibleCandidates.filter(
     (candidate) => candidate.integrityScore != null && candidate.integrityScore < 100
   ).length;
+  const programCount = new Set(visibleCandidates.map((c) => c.program).filter(Boolean)).size;
 
   return (
     <AsesorLayout activeTab="dashboard">
@@ -108,7 +143,7 @@ export default function AsesorDashboard() {
                 <Building2 className="w-4 h-4 text-slate-400" />
                 <span>Instansi Pengujian: <strong className="text-ink font-semibold">{activeAsesor.companyName || 'PT Telkom Indonesia Tbk'}</strong></span>
                 <span className="text-slate-300">•</span>
-                <span>Program: <strong className="text-primary-navy font-semibold">Lead Cloud Architect (SE-402)</strong></span>
+                <span>Program: <strong className="text-primary-navy font-semibold">{programCount > 1 ? `${programCount} Program Aktif` : visibleCandidates[0]?.program || 'Semua Program Aktif'}</strong></span>
               </p>
             </div>
 
@@ -116,21 +151,22 @@ export default function AsesorDashboard() {
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1.5 text-muted-slate">
                   <Calendar className="w-4 h-4 text-primary-navy" />
-                  <span>Jadwal Hari Ini: <strong className="text-ink">{candidates.length} Kandidat</strong></span>
+                  <span>Jadwal Hari Ini: <strong className="text-ink">{todayScheduledCount} Kandidat</strong></span>
                 </div>
                 <div className="flex items-center gap-1.5 text-muted-slate">
                   <Clock className="w-4 h-4 text-blue-accent" />
-                  <span>Antrean Dipanggil: <strong className="text-emerald-600">{candidates.filter((candidate) => candidate.interviewStatus === 'called').length} Kandidat</strong></span>
+                  <span>Antrean Dipanggil: <strong className="text-emerald-600">{visibleCandidates.filter((candidate) => candidate.interviewStatus === 'called').length} Kandidat</strong></span>
                 </div>
               </div>
 
               <Button
                 variant="primary"
                 onClick={openConsole}
-                className="py-2.5 px-5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xs cursor-pointer"
+                disabled={!primaryCode}
+                className="py-2.5 px-5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
               >
                 <Video className="w-4 h-4 text-blue-100" />
-                <span>Masuk Konsol Sesi 1 Sekarang</span>
+                <span>Masuk Konsol Wawancara</span>
               </Button>
             </div>
           </div>
@@ -142,27 +178,59 @@ export default function AsesorDashboard() {
                 <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-primary-navy bg-white px-2.5 py-0.5 rounded border border-slate-200">
                   KANDIDAT BERIKUTNYA
                 </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                  Siap di Room
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                    primaryCandidate?.interviewStatus === 'called'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      primaryCandidate?.interviewStatus === 'called'
+                        ? 'bg-emerald-600 animate-pulse'
+                        : 'bg-slate-400'
+                    }`}
+                  />
+                  {primaryCandidate?.interviewStatus === 'called'
+                    ? 'Siap di Room'
+                    : primaryCandidate?.interviewStatus === 'completed'
+                      ? 'Selesai Dinilai'
+                      : 'Menunggu Antrean'}
                 </span>
               </div>
 
               <h3 className="font-heading font-bold text-base text-ink">
-                {todaySlots[0]?.candidate || (loadingCandidates ? 'Memuat kandidat...' : 'Belum ada kandidat')}
+                {primaryCandidate?.name || (loadingCandidates ? 'Memuat kandidat...' : 'Belum ada kandidat')}
               </h3>
               <p className="font-mono text-xs text-muted-slate mt-0.5">
-                {todaySlots[0]?.code || '-'}
+                {primaryCandidate?.code || '-'}
               </p>
 
               <div className="mt-4 space-y-2 text-xs">
                 <div className="flex justify-between py-1 border-b border-slate-200/60">
                   <span className="text-muted-slate">Skor CAT Teknis</span>
-                  <span className="font-mono font-bold text-emerald-700">{todaySlots[0]?.catScore || '-'}</span>
+                  <span className="font-mono font-bold text-emerald-700">
+                    {primaryCandidate?.catScore != null ? `${primaryCandidate.catScore}/100` : '-'}
+                  </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-200/60">
                   <span className="text-muted-slate">Proctoring AI</span>
-                  <span className="font-semibold text-emerald-700">100% Bersih (0 Flag)</span>
+                  <span
+                    className={`font-semibold ${
+                      primaryCandidate?.integrityScore == null
+                        ? 'text-slate-500'
+                        : primaryCandidate.integrityScore >= 90
+                          ? 'text-emerald-700'
+                          : 'text-amber-700'
+                    }`}
+                  >
+                    {primaryCandidate?.integrityScore == null
+                      ? 'Belum Ada Data'
+                      : primaryCandidate.integrityScore >= 90
+                        ? `${primaryCandidate.integrityScore}% (Aman)`
+                        : `${primaryCandidate.integrityScore}% (Perlu Review)`}
+                  </span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-muted-slate">Alokasi Waktu</span>
@@ -175,7 +243,7 @@ export default function AsesorDashboard() {
               <Button
                 variant="outline"
                 size="xs"
-                onClick={openConsole}
+                onClick={openScoring}
                 className="w-full py-2 rounded-xl text-primary-navy font-bold flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 border-slate-200 cursor-pointer"
               >
                 <span>Buka Lembar Penilaian BARS</span>
@@ -198,14 +266,32 @@ export default function AsesorDashboard() {
                   Slot waktu, hasil ujian CAT mandatori, dan tautan langsung ke ruang pengujian
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => navigate('/asesor/interview-queue')}
-                className="text-xs py-1.5 px-3 rounded-lg font-semibold cursor-pointer"
-              >
-                Lihat Semua Antrean ({todaySlots.length})
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px] font-semibold">
+                  {(['all', 'real', 'test'] as const).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setAccountFilter(key)}
+                      className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                        accountFilter === key
+                          ? 'bg-white text-primary-navy shadow-2xs'
+                          : 'text-slate-500 hover:text-ink'
+                      }`}
+                    >
+                      {key === 'all' ? 'Semua' : key === 'real' ? 'Peserta Asli' : 'Akun Uji'}
+                    </button>
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => navigate('/asesor/interview-queue')}
+                  className="text-xs py-1.5 px-3 rounded-lg font-semibold cursor-pointer"
+                >
+                  Lihat Semua Antrean ({visibleCandidates.length})
+                </Button>
+              </div>
             </div>
 
             <Table>

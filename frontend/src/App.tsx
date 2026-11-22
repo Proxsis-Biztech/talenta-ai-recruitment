@@ -225,13 +225,15 @@ function App() {
             <Route path="/asesor" element={<RequireRole roles={['asesor']}><AsesorDashboard /></RequireRole>} />
             <Route path="/asesor/dashboard" element={<RequireRole roles={['asesor']}><AsesorDashboard /></RequireRole>} />
             <Route path="/asesor/interview-queue" element={<RequireRole roles={['asesor']}><AsesorQueueTable /></RequireRole>} />
+            <Route path="/asesor/live-console" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
             <Route path="/asesor/live-console/:id" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
             <Route path="/asesor/proctoring" element={<RequireRole roles={['asesor']}><AsesorProctoringReview /></RequireRole>} />
-            <Route path="/asesor/live-console" element={<Navigate to="/asesor/live-console/KND-0891" replace />} />
-            <Route path="/asesor/scoring" element={<Navigate to="/asesor/scoring/KND-0891" replace />} />
+            <Route path="/asesor/scoring" element={<RequireRole roles={['asesor']}><AsesorScoringForm /></RequireRole>} />
             <Route path="/asesor/scoring/:id" element={<RequireRole roles={['asesor']}><AsesorScoringForm /></RequireRole>} />
-            <Route path="/asesor/penilaian" element={<Navigate to="/asesor/scoring/KND-0891" replace />} />
+            <Route path="/asesor/penilaian" element={<RequireRole roles={['asesor']}><AsesorScoringForm /></RequireRole>} />
             <Route path="/asesor/rekap" element={<RequireRole roles={['asesor']}><AsesorRekapProgram /></RequireRole>} />
+            <Route path="/asesor/bars" element={<Navigate to="/asesor/dashboard?modal=bars" replace />} />
+            <Route path="/asesor/factsheet" element={<Navigate to="/asesor/dashboard?modal=factsheet" replace />} />
 
             {/* Route Group C: ADMIN (/admin) */}
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />

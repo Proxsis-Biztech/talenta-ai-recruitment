@@ -28,7 +28,11 @@ import {
   ASSESSOR_NAME,
   ASSESSOR_TITLE
 } from '../../services/asesorScoreService';
-import { fetchAssessorCandidate, type AssessorCandidate } from '../../services/assessorService';
+import {
+  fetchAssessorCandidate,
+  fetchAssessorCandidates,
+  type AssessorCandidate
+} from '../../services/assessorService';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getPortalToken } from '../../services/portalAuthService';
 
@@ -54,18 +58,60 @@ export default function AsesorScoringForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [candidate, setCandidate] = useState<AssessorCandidate | null>(null);
+  const [candidateList, setCandidateList] = useState<AssessorCandidate[]>([]);
   const [candidateLoading, setCandidateLoading] = useState(true);
   const activeAssessor = getActiveSessionUser();
 
   useEffect(() => {
     let cancelled = false;
+    setCandidateLoading(true);
     if (!id) {
-      setCandidateLoading(false);
-      return;
+      setCandidate(null);
+      fetchAssessorCandidates()
+        .then((list) => {
+          if (!cancelled) setCandidateList(list);
+        })
+        .catch(() => {
+          if (!cancelled) setCandidateList([]);
+        })
+        .finally(() => {
+          if (!cancelled) setCandidateLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
     }
+
     fetchAssessorCandidate(id)
       .then((data) => {
-        if (!cancelled) setCandidate(data);
+        if (cancelled) return;
+        setCandidate(data);
+        if (data) {
+          if (data.lhaStatus === 'signed') {
+            setIsSigned(true);
+            setLhaNumber(data.lhaNumber || '');
+            setLhaHash(data.lhaHash || '');
+            setSaveMessage(
+              `LHA sudah ditandatangani & diterbitkan (${data.lhaNumber || 'CERTIFIED'}). Penilaian terkunci.`
+            );
+          } else {
+            setIsSigned(false);
+            setLhaNumber(data.lhaNumber || '');
+            setLhaHash(data.lhaHash || '');
+            setSaveMessage('');
+          }
+          if (
+            data.recommendation === 'LANJUT' ||
+            data.recommendation === 'DIPERTIMBANGKAN' ||
+            data.recommendation === 'TIDAK'
+          ) {
+            setRecommendation(data.recommendation);
+          } else {
+            setRecommendation('LANJUT');
+          }
+          if (data.assessorNotes) setAssessorNotes(data.assessorNotes);
+          if (data.assessorName) setAssessorName(data.assessorName);
+        }
       })
       .catch(() => {
         if (!cancelled) setCandidate(null);
@@ -84,16 +130,12 @@ export default function AsesorScoringForm() {
   // Competencies State
   const [competencies, setCompetencies] = useState<CompetencyItem[]>(DEFAULT_7_COMPETENCIES);
 
-  // Candidate written answers used as the AI Fact Sheet input
+  // Optional assessor field notes (no hardcoded dummy candidate submission)
   const [writtenAnswers, setWrittenAnswers] = useState({
-    problemIdentification:
-      'Penurunan OTP dari 99.2% menjadi 97.8% dan CSI dari 89 menjadi 83 adalah akar masalah utama. Keduanya menandakan degradasi layanan yang langsung dirasakan nasabah prioritas, sementara kenaikan beban listrik +14% dan keterlambatan vendor CRM memperparah kapasitas layanan pada peak hour.',
-    priorityMatrix:
-      'Priority 1 (Kritis): pemulihan OTP dan CSI dalam 24 jam pertama. Priority 2 (Penting): efisiensi OPEX listrik +14% dan renegosiasi SLA vendor ATM/CRM. Priority 3 (Sekunder): optimasi penjadwalan teller untuk peak hour 08.00-10.30.',
-    solutionStrategy:
-      'Intervensi darurat 24 jam: tim teknisi dikerahkan ke 4 titik transit dengan matriks eskalasi berjenjang. Jangka menengah: migrasi vendor CRM dengan SLA baru, kompensasi loyalitas bagi nasabah terdampak, dan transparansi update status antrean.',
-    costEfficiency:
-      'Fokus pada beban OPEX listrik (+14%) melalui renegosiasi penalti SLA vendor, efisiensi jadwal mesin ATM/CRM di luar jam sibuk, dan prioritas perbaikan pada unit dengan rasio antrean tertinggi agar anggaran tidak terbuang merata.'
+    problemIdentification: '',
+    priorityMatrix: '',
+    solutionStrategy: '',
+    costEfficiency: ''
   });
 
   // AI Fact Sheet Engine State
@@ -170,19 +212,50 @@ export default function AsesorScoringForm() {
     .reduce((acc, curr) => acc + (curr.score * curr.weight) / 100, 0)
     .toFixed(2);
 
-  // Run AI Fact Sheet Matching against the real Gemini engine
+  // Run AI Fact Sheet Matching against the assessor endpoint using real essay data
   const handleTriggerAiMatch = async () => {
+    if (isSigned) {
+      setAiError('LHA sudah final dan terkunci. Tidak dapat mengubah draf rubrik.');
+      return;
+    }
+    const realEssays = candidate?.essayAnswers || [];
+    const hasManualNotes = Object.values(writtenAnswers).some((val) => val.trim().length > 0);
+    if (realEssays.length === 0 && !hasManualNotes) {
+      setAiError('Belum ada jawaban esai CAT atau catatan kasus kandidat yang tersedia untuk dianalisis.');
+      return;
+    }
+
+    const token = getPortalToken();
+    if (!token) {
+      setAiError('Sesi asesor tidak ditemukan. Silakan masuk kembali.');
+      return;
+    }
+
+    const combinedEssayText = realEssays
+      .map((item) => `[Soal #${item.orderNo}] ${item.prompt}\nJawaban: ${item.answer}`)
+      .join('\n\n');
+
     setIsMatchingLoading(true);
     setAiError('');
     try {
-      const res = await axios.post('/api/admin/ai/fact-sheet-match', {
-        submission: {
-          candidateName: candidate!.name,
-          programTitle: `${candidate!.program} (${candidate!.company})`,
-          caseStudyTitle: 'In-Basket Simulation PT Anjak (OTP, CSI & OPEX)',
-          ...writtenAnswers
-        }
-      });
+      const res = await axios.post(
+        '/api/asesor/ai/fact-sheet-match',
+        {
+          submission: {
+            candidateName: candidate!.name,
+            programTitle: `${candidate!.program} (${candidate!.company})`,
+            caseStudyTitle: candidate!.program,
+            problemIdentification:
+              writtenAnswers.problemIdentification.trim() ||
+              combinedEssayText ||
+              '-',
+            priorityMatrix: writtenAnswers.priorityMatrix.trim() || '-',
+            solutionStrategy: writtenAnswers.solutionStrategy.trim() || '-',
+            costEfficiency: writtenAnswers.costEfficiency.trim() || '-'
+          }
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       const result = res.data?.data;
       if (!result) throw new Error('Respons AI tidak lengkap.');
 
@@ -232,6 +305,7 @@ export default function AsesorScoringForm() {
   };
 
   const handleUpdateScore = (compId: string, delta: number) => {
+    if (isSigned) return;
     setCompetencies((prev) =>
       prev.map((c) =>
         c.id === compId
@@ -365,13 +439,78 @@ export default function AsesorScoringForm() {
     );
   }
 
+  if (!id) {
+    return (
+      <AsesorLayout activeTab="scoring">
+        <div className="max-w-5xl mx-auto p-6 sm:p-8 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="font-heading text-2xl font-extrabold text-ink">
+                Pilih Kandidat untuk Penilaian & LHA E-Sign
+              </h1>
+              <p className="text-xs text-muted-slate mt-1">
+                Daftar kandidat pada tenant Anda. Pilih salah satu untuk membuka lembar BARS dan menerbitkan LHA.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate('/asesor/interview-queue')}>
+              Lihat Antrean Lengkap
+            </Button>
+          </div>
+
+          {candidateList.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-muted-slate">
+              Belum ada kandidat pada tenant ini.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {candidateList.map((item) => {
+                const signed = item.lhaStatus === 'signed';
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between gap-4 shadow-2xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-primary-navy">{item.code}</span>
+                        <Badge variant={signed ? 'success' : item.interviewStatus === 'completed' ? 'warning' : 'outline'}>
+                          {signed ? 'LHA Terbit (Terkunci)' : item.interviewStatus === 'completed' ? 'Siap E-Sign' : item.interviewStatus}
+                        </Badge>
+                        {item.isTestAccount && (
+                          <Badge variant="outline">Akun Uji</Badge>
+                        )}
+                      </div>
+                      <p className="font-bold text-sm text-ink mt-1 truncate">{item.name}</p>
+                      <p className="text-xs text-muted-slate truncate">{item.program}</p>
+                      <p className="text-[11px] font-mono text-slate-500 mt-1">
+                        CAT: {item.catScore ?? '-'} • Komposit: {item.compositeScore ?? '-'} • {item.lhaNumber || 'Belum Terbit LHA'}
+                      </p>
+                    </div>
+                    <Button
+                      variant={signed ? 'outline' : 'primary'}
+                      size="sm"
+                      onClick={() => navigate(`/asesor/scoring/${item.code}`)}
+                      className="shrink-0 cursor-pointer"
+                    >
+                      {signed ? 'Lihat LHA' : 'Nilai'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </AsesorLayout>
+    );
+  }
+
   if (!candidate) {
     return (
       <AsesorLayout activeTab="scoring">
         <div className="p-10 text-center space-y-3">
           <p className="text-sm font-semibold text-ink">Kandidat tidak ditemukan.</p>
-          <Button variant="primary" size="sm" onClick={() => navigate('/asesor/interview-queue')}>
-            Kembali ke Antrean
+          <Button variant="primary" size="sm" onClick={() => navigate('/asesor/scoring')}>
+            Pilih Kandidat Lain
           </Button>
         </div>
       </AsesorLayout>
@@ -449,12 +588,14 @@ export default function AsesorScoringForm() {
             <Button
               variant="primary"
               size="sm"
-              disabled={isMatchingLoading}
+              disabled={isMatchingLoading || isSigned}
               onClick={handleTriggerAiMatch}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs disabled:opacity-50"
             >
               {isMatchingLoading ? (
                 <span>Menganalisis Jawaban...</span>
+              ) : isSigned ? (
+                <span>LHA Terkunci</span>
               ) : (
                 <>
                   <Sparkles className="w-3.5 h-3.5 mr-1.5" />
@@ -464,17 +605,45 @@ export default function AsesorScoringForm() {
             </Button>
           </CardHeader>
           <CardContent className="p-5 space-y-4">
-            {/* Respon tertulis kandidat — input untuk AI Fact Sheet Matching */}
+            {/* Jawaban Esai Asli Kandidat dari CAT */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700">
-                  Respon Tertulis Kandidat (In-Basket PT Anjak)
+                  Jawaban Esai Asli Kandidat (Hasil Ujian CAT)
                 </span>
                 <Badge variant="outline" className="text-[10px] font-mono">
-                  4 Aspek Jawaban
+                  {candidate.essayAnswers?.length || 0} Esai CAT
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              {candidate.essayAnswers && candidate.essayAnswers.length > 0 ? (
+                <div className="space-y-2.5">
+                  {candidate.essayAnswers.map((essay) => (
+                    <div
+                      key={essay.questionId}
+                      className="p-3 bg-white rounded-xl border border-blue-100 space-y-1"
+                    >
+                      <p className="text-[11px] font-bold text-slate-800">
+                        Soal #{essay.orderNo}: {essay.prompt}
+                      </p>
+                      <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed">
+                        {essay.answer || '-'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                  Kandidat ini belum mengerjakan atau tidak memiliki jawaban esai CAT pada sistem.
+                </div>
+              )}
+            </div>
+
+            {/* Catatan observasi opsional asesor untuk AI Fact Sheet Matching */}
+            <details className="rounded-xl border border-blue-100 bg-white/80 p-3">
+              <summary className="text-xs font-bold text-slate-700 cursor-pointer">
+                Catatan Kasus Tambahan dari Asesor (Opsional untuk AI Fact Sheet)
+              </summary>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mt-3">
                 {(
                   [
                     ['problemIdentification', 'Identifikasi Masalah'],
@@ -488,17 +657,19 @@ export default function AsesorScoringForm() {
                       {label}
                     </label>
                     <textarea
+                      disabled={isSigned}
                       value={writtenAnswers[key]}
                       onChange={(e) =>
                         setWrittenAnswers((prev) => ({ ...prev, [key]: e.target.value }))
                       }
-                      rows={4}
-                      className="w-full text-xs text-slate-700 bg-white border border-blue-100 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-y"
+                      placeholder={`Catatan ${label.toLowerCase()} (opsional)...`}
+                      rows={3}
+                      className="w-full text-xs text-slate-700 bg-white border border-blue-100 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-y disabled:bg-slate-100"
                     />
                   </div>
                 ))}
               </div>
-            </div>
+            </details>
 
             {aiError && (
               <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
@@ -508,32 +679,15 @@ export default function AsesorScoringForm() {
 
             {!factSheetMatched && !aiError && (
               <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800">
-                AI Fact Sheet Matching belum dijalankan untuk kandidat ini. Klik tombol di kanan
-                atas untuk menganalisis respon tertulis.
+                AI Fact Sheet Matching belum dijalankan untuk kandidat ini. Analisis hanya menggunakan jawaban esai CAT asli atau catatan kasus yang diisi asesor.
               </div>
             )}
 
             {factSheetMatched && (
               <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 bg-white rounded-xl border border-blue-100 shadow-2xs">
-                <span className="text-slate-500 block mb-1">Fakta 1: Penurunan OTP (97.8%)</span>
-                <span className="text-emerald-700 font-bold flex items-center gap-1 font-mono">
-                  <Check className="w-3.5 h-3.5" /> Teridentifikasi (Priority 1)
-                </span>
-              </div>
-              <div className="p-3 bg-white rounded-xl border border-blue-100 shadow-2xs">
-                <span className="text-slate-500 block mb-1">Fakta 2: Penurunan CSI (89 ke 83)</span>
-                <span className="text-emerald-700 font-bold flex items-center gap-1 font-mono">
-                  <Check className="w-3.5 h-3.5" /> Teridentifikasi (Priority 1)
-                </span>
-              </div>
-              <div className="p-3 bg-white rounded-xl border border-blue-100 shadow-2xs">
-                <span className="text-slate-500 block mb-1">Fakta 3: Beban Listrik (+14%)</span>
-                <span className="text-blue-700 font-bold flex items-center gap-1 font-mono">
-                  <Check className="w-3.5 h-3.5" /> Terakomodasi (Priority 2)
-                </span>
-              </div>
+            <div className="p-3 bg-white rounded-xl border border-blue-100 shadow-2xs text-xs flex items-center justify-between">
+              <span className="font-semibold text-slate-700">Skor Akurasi Fakta AI Fact Sheet</span>
+              <span className="font-mono font-bold text-emerald-700">{priorityAccuracy}/100</span>
             </div>
 
             <div className="p-3 bg-white/80 rounded-xl border border-blue-100 text-xs text-slate-700 leading-relaxed font-mono">
@@ -581,8 +735,9 @@ export default function AsesorScoringForm() {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      disabled={isSigned}
                       onClick={() => handleUpdateScore(comp.id, -0.1)}
-                      className="w-7 h-7 rounded border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700"
+                      className="w-7 h-7 rounded border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       -
                     </button>
@@ -591,8 +746,9 @@ export default function AsesorScoringForm() {
                     </span>
                     <button
                       type="button"
+                      disabled={isSigned}
                       onClick={() => handleUpdateScore(comp.id, 0.1)}
-                      className="w-7 h-7 rounded border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700"
+                      className="w-7 h-7 rounded border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       +
                     </button>
@@ -603,6 +759,7 @@ export default function AsesorScoringForm() {
                   <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Catatan Perilaku:</span>
                   <input
                     type="text"
+                    disabled={isSigned}
                     value={comp.notes}
                     onChange={(e) => {
                       const updated = e.target.value;
@@ -610,7 +767,7 @@ export default function AsesorScoringForm() {
                         prev.map((c) => (c.id === comp.id ? { ...c, notes: updated } : c))
                       );
                     }}
-                    className="w-full text-xs text-slate-700 bg-transparent focus:outline-none"
+                    className="w-full text-xs text-slate-700 bg-transparent focus:outline-none disabled:text-slate-500"
                   />
                 </div>
               </div>
@@ -626,8 +783,9 @@ export default function AsesorScoringForm() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   type="button"
+                  disabled={isSigned}
                   onClick={() => setRecommendation('LANJUT')}
-                  className={`p-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+                  className={`p-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${
                     recommendation === 'LANJUT'
                       ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-1 ring-emerald-500'
                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -639,8 +797,9 @@ export default function AsesorScoringForm() {
 
                 <button
                   type="button"
+                  disabled={isSigned}
                   onClick={() => setRecommendation('DIPERTIMBANGKAN')}
-                  className={`p-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+                  className={`p-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${
                     recommendation === 'DIPERTIMBANGKAN'
                       ? 'bg-amber-50 border-amber-500 text-amber-800 ring-1 ring-amber-500'
                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -652,8 +811,9 @@ export default function AsesorScoringForm() {
 
                 <button
                   type="button"
+                  disabled={isSigned}
                   onClick={() => setRecommendation('TIDAK')}
-                  className={`p-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+                  className={`p-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${
                     recommendation === 'TIDAK'
                       ? 'bg-red-50 border-red-500 text-red-800 ring-1 ring-red-500'
                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'

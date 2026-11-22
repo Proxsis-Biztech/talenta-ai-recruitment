@@ -18,6 +18,7 @@ import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/
 export default function AsesorQueueTable() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [accountFilter, setAccountFilter] = useState<'all' | 'real' | 'test'>('all');
 
   const [candidates, setCandidates] = useState<AssessorCandidate[]>([]);
 
@@ -29,7 +30,7 @@ export default function AsesorQueueTable() {
       })
       .catch(() => {
         if (!cancelled) setCandidates([]);
-      })
+      });
     return () => {
       cancelled = true;
     };
@@ -43,6 +44,7 @@ export default function AsesorQueueTable() {
         email: candidate.email,
         code: candidate.code,
         program: candidate.program,
+        isTestAccount: Boolean(candidate.isTestAccount),
         time: candidate.scheduledAt
           ? `${new Date(candidate.scheduledAt).toLocaleTimeString('id-ID', {
               hour: '2-digit',
@@ -52,12 +54,14 @@ export default function AsesorQueueTable() {
         room: 'Room-A1',
         status:
           candidate.interviewStatus === 'called'
-            ? 'Sedang Berlangsung'
+            ? 'Di Ruang Tunggu / Dipanggil'
             : candidate.interviewStatus === 'completed'
               ? 'Selesai Dinilai'
               : candidate.interviewStatus === 'scheduled'
                 ? 'Terjadwal'
-                : 'Di Ruang Tunggu',
+                : candidate.examStatus === 'submitted'
+                  ? 'Selesai CAT (Menunggu Panggil)'
+                  : 'Menunggu CAT / Jadwal',
         statusVariant: (candidate.interviewStatus === 'called'
           ? 'teal'
           : candidate.interviewStatus === 'completed'
@@ -68,11 +72,17 @@ export default function AsesorQueueTable() {
     [candidates]
   );
 
-  const filtered = slots.filter((s) =>
-    s.candidate.toLowerCase().includes(search.toLowerCase()) ||
-    s.code.toLowerCase().includes(search.toLowerCase()) ||
-    s.program.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = slots.filter((s) => {
+    const matchesSearch =
+      s.candidate.toLowerCase().includes(search.toLowerCase()) ||
+      s.code.toLowerCase().includes(search.toLowerCase()) ||
+      s.program.toLowerCase().includes(search.toLowerCase());
+    const matchesAccount =
+      accountFilter === 'all' ||
+      (accountFilter === 'real' && !s.isTestAccount) ||
+      (accountFilter === 'test' && s.isTestAccount);
+    return matchesSearch && matchesAccount;
+  });
 
   return (
     <AsesorLayout activeTab="queue">
@@ -83,11 +93,27 @@ export default function AsesorQueueTable() {
               Antrean Live Interview Asesor
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Daftar slot wawancara kompetensi yang ditugaskan kepada Anda hari ini.
+              Daftar slot wawancara kompetensi yang ditugaskan kepada Anda.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex rounded-xl border border-slate-200 bg-white p-0.5 text-xs font-semibold shadow-2xs">
+              {(['all', 'real', 'test'] as const).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setAccountFilter(key)}
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                    accountFilter === key
+                      ? 'bg-primary-navy text-white shadow-2xs'
+                      : 'text-slate-500 hover:text-ink'
+                  }`}
+                >
+                  {key === 'all' ? 'Semua' : key === 'real' ? 'Peserta Asli' : 'Akun Uji'}
+                </button>
+              ))}
+            </div>
             <div className="relative w-72">
               <input
                 type="text"

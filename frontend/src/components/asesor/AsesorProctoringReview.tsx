@@ -16,22 +16,20 @@ import {
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge } from '../ui';
 import { getPortalToken } from '../../services/portalAuthService';
-import { fetchAssessorCandidates, fetchAssessorProctoring, type AssessorCandidate } from '../../services/assessorService';
+import {
+  fetchAssessorCandidates,
+  fetchAssessorProctoringSummary,
+  type AssessorCandidate,
+  type AssessorProctoringEvent
+} from '../../services/assessorService';
 
-interface ProctoringEvent {
-  id: string;
-  time: string;
-  type: string;
-  severity: 'high' | 'medium' | 'low';
-  description: string;
-  status: 'pending' | 'valid' | 'false_positive';
-  assessorNotes: string;
-}
+type ProctoringEvent = AssessorProctoringEvent;
 
 export default function AsesorProctoringReview() {
   const navigate = useNavigate();
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'high' | 'medium' | 'low'>('all');
-  const [integrityScore, setIntegrityScore] = useState(100);
+  const [apiIntegrityScore, setApiIntegrityScore] = useState<number | null>(null);
+  const [integrityScore, setIntegrityScore] = useState<number | null>(null);
   const [candidates, setCandidates] = useState<AssessorCandidate[]>([]);
   const [selectedCode, setSelectedCode] = useState('');
   const [events, setEvents] = useState<ProctoringEvent[]>([]);
@@ -43,7 +41,11 @@ export default function AsesorProctoringReview() {
       .then((data) => {
         if (cancelled) return;
         setCandidates(data);
-        if (data.length > 0) setSelectedCode(data[0].candidateCode || data[0].id);
+        if (data.length > 0) {
+          const flaggedCandidate =
+            data.find((c) => c.integrityScore != null && c.integrityScore < 100) || data[0];
+          setSelectedCode(flaggedCandidate.candidateCode || flaggedCandidate.id);
+        }
       })
       .catch(() => {
         if (!cancelled) setCandidates([]);
@@ -57,15 +59,22 @@ export default function AsesorProctoringReview() {
     let cancelled = false;
     if (!selectedCode) {
       setEvents([]);
+      setApiIntegrityScore(null);
       return;
     }
     setLoadingEvents(true);
-    fetchAssessorProctoring(selectedCode)
-      .then((data) => {
-        if (!cancelled) setEvents(data);
+    fetchAssessorProctoringSummary(selectedCode)
+      .then(({ events: evts, integrityScore: score }) => {
+        if (!cancelled) {
+          setEvents(evts);
+          setApiIntegrityScore(score);
+        }
       })
       .catch(() => {
-        if (!cancelled) setEvents([]);
+        if (!cancelled) {
+          setEvents([]);
+          setApiIntegrityScore(null);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingEvents(false);
@@ -75,18 +84,51 @@ export default function AsesorProctoringReview() {
     };
   }, [selectedCode]);
 
-  useEffect(() => {
-    const validCount = events.filter(
-      (event) =>
-        event.status === 'valid' &&
-        !String(event.type).toLowerCase().includes('face_verified')
-    ).length;
-    setIntegrityScore(Math.max(0, 100 - validCount * 6));
-  }, [events]);
-
   const selectedCandidate = candidates.find(
     (candidate) => (candidate.candidateCode || candidate.id) === selectedCode
   );
+
+  useEffect(() => {
+    const baseScore = apiIntegrityScore ?? selectedCandidate?.integrityScore ?? null;
+    if (baseScore == null && events.length === 0) {
+      setIntegrityScore(null);
+      return;
+    }
+    const nonVerified = events.filter(
+      (event) => !String(event.type).toLowerCase().includes('face_verified')
+    );
+    const validCount = nonVerified.filter((event) => event.status === 'valid').length;
+    const falsePositiveCount = nonVerified.filter((event) => event.status === 'false_positive').length;
+    const pendingCount = nonVerified.filter((event) => event.status === 'pending').length;
+
+    const initialScore = baseScore ?? 100;
+    const recovery =
+      nonVerified.length > 0 && initialScore < 100
+        ? Math.round((falsePositiveCount / nonVerified.length) * (100 - initialScore))
+        : 0;
+    const computed = Math.min(
+      100,
+      Math.max(
+        0,
+        Math.min(initialScore + recovery, 100 - validCount * 6 - (baseScore === 100 ? pendingCount * 4 : 0))
+      )
+    );
+    setIntegrityScore(computed);
+  }, [events, apiIntegrityScore, selectedCandidate?.integrityScore]);
+
+  const pendingReviewCount = events.filter(
+    (event) =>
+      event.status === 'pending' &&
+      !String(event.type).toLowerCase().includes('face_verified')
+  ).length;
+  const validFlagCount = events.filter(
+    (event) =>
+      event.status === 'valid' &&
+      !String(event.type).toLowerCase().includes('face_verified')
+  ).length;
+  const falsePositiveFlagCount = events.filter(
+    (event) => event.status === 'false_positive'
+  ).length;
   const severityCounts = {
     high: events.filter((event) => event.severity === 'high').length,
     medium: events.filter((event) => event.severity === 'medium').length,
@@ -189,24 +231,48 @@ export default function AsesorProctoringReview() {
                   cx="72"
                   cy="72"
                   r="56"
-                  stroke={integrityScore > 80 ? '#16A34A' : integrityScore > 60 ? '#F59E0B' : '#DC2626'}
+                  stroke={
+                    integrityScore == null
+                      ? '#94A3B8'
+                      : integrityScore > 80 && pendingReviewCount === 0
+                        ? '#16A34A'
+                        : integrityScore > 60
+                          ? '#F59E0B'
+                          : '#DC2626'
+                  }
                   strokeWidth="12"
                   fill="transparent"
                   strokeDasharray="351"
-                  strokeDashoffset={351 - (351 * integrityScore) / 100}
+                  strokeDashoffset={integrityScore == null ? 351 : 351 - (351 * integrityScore) / 100}
                   strokeLinecap="round"
                   className="transition-all duration-700"
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="font-mono text-3xl font-extrabold text-ink">
-                  {integrityScore}
+                  {integrityScore == null ? '-' : integrityScore}
                 </span>
                 <span className="text-[10px] text-muted-slate">/ 100</span>
               </div>
             </div>
-            <p className="text-xs font-bold mt-2 text-warning-amber">
-              {integrityScore > 80 ? 'Status: Bersih & Valid' : 'Status: Perlu Pemeriksaan'}
+            <p
+              className={`text-xs font-bold mt-2 ${
+                integrityScore == null
+                  ? 'text-slate-500'
+                  : integrityScore <= 60
+                    ? 'text-red-600'
+                    : integrityScore <= 80 || pendingReviewCount > 0
+                      ? 'text-amber-600'
+                      : 'text-emerald-600'
+              }`}
+            >
+              {integrityScore == null
+                ? 'Status: Belum Ada Data CAT'
+                : integrityScore <= 80
+                  ? 'Status: Perlu Pemeriksaan'
+                  : pendingReviewCount > 0
+                    ? 'Status: Menunggu Verifikasi Flag'
+                    : 'Status: Bersih & Valid'}
             </p>
           </div>
 
@@ -236,9 +302,9 @@ export default function AsesorProctoringReview() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-muted-slate">
-              <span>Kamera: 100% Waktu Terbuka</span>
-              <span>Audio: Tidak Terdeteksi Bisikan Manusia</span>
+            <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-slate">
+              <span>Status Verifikasi: {pendingReviewCount} Pending • {validFlagCount} Valid • {falsePositiveFlagCount} False Positive</span>
+              <span>Skor Sistem Awal: {apiIntegrityScore ?? selectedCandidate?.integrityScore ?? '-'}</span>
             </div>
           </div>
         </div>
@@ -272,18 +338,28 @@ export default function AsesorProctoringReview() {
               key={evt.id}
               className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs flex flex-col lg:flex-row gap-6 items-start"
             >
-              {/* Snapshot Thumbnail Placeholder (Simulated Webcam Capture) */}
-              <div className="w-full lg:w-48 aspect-video bg-slate-900 rounded-xl border border-slate-800 shrink-0 relative overflow-hidden flex items-center justify-center">
-                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-400">
-                  FP
+              {/* Snapshot Evidence or Honest Event Log Badge */}
+              {evt.snapshotUrl ? (
+                <div className="w-full lg:w-48 aspect-video bg-slate-900 rounded-xl border border-slate-800 shrink-0 relative overflow-hidden">
+                  <img
+                    src={evt.snapshotUrl}
+                    alt={`Bukti ${evt.type}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <span className="absolute bottom-2 right-2 bg-black/75 text-white font-mono text-[9px] px-1.5 py-0.5 rounded">
+                    {evt.time}
+                  </span>
                 </div>
-                <span className="absolute top-2 left-2 bg-red-600 text-white font-mono text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">
-                  CAPTURE
-                </span>
-                <span className="absolute bottom-2 right-2 bg-black/70 text-slate-300 font-mono text-[9px] px-1 rounded">
-                  {evt.time}
-                </span>
-              </div>
+              ) : (
+                <div className="w-full lg:w-48 aspect-video bg-slate-100 rounded-xl border border-slate-200 shrink-0 relative overflow-hidden flex flex-col items-center justify-center p-3 text-center">
+                  <Camera className="w-6 h-6 text-slate-400 mb-1.5" />
+                  <span className="text-[11px] font-semibold text-slate-600">Log Sistem Otomatis</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5">Tanpa snapshot visual</span>
+                  <span className="absolute bottom-2 right-2 bg-slate-700 text-white font-mono text-[9px] px-1.5 py-0.5 rounded">
+                    {evt.time}
+                  </span>
+                </div>
+              )}
 
               {/* Event Content */}
               <div className="flex-1 space-y-3">

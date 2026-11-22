@@ -78,9 +78,23 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
     (candidate) => candidate.integrityScore != null && candidate.integrityScore < 100
   );
   const calledCandidates = notifCandidates.filter(
-    (candidate) => candidate.interviewStatus === 'called'
+    (candidate) =>
+      candidate.interviewStatus === 'called' ||
+      candidate.interviewStatus === 'waiting' ||
+      (candidate.interviewStatus !== 'completed' && candidate.examStatus === 'submitted')
   );
+  const activeQueueCandidates = notifCandidates.filter(
+    (candidate) => candidate.interviewStatus !== 'completed'
+  );
+  const firstConsoleTarget =
+    calledCandidates[0]?.code || activeQueueCandidates[0]?.code || notifCandidates[0]?.code || '';
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    const modalParam = new URLSearchParams(location.search).get('modal');
+    if (modalParam === 'bars') setBarsModalOpen(true);
+    if (modalParam === 'factsheet') setFactsheetModalOpen(true);
+  }, [location.search]);
 
   const toggleCollapse = () => {
     const next = !isCollapsed;
@@ -92,10 +106,28 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
     {
       group: 'KONSOL PENILAIAN',
       items: [
-        { id: 'dashboard', label: 'Dashboard', path: '/asesor', icon: LayoutDashboard },
-        { id: 'queue', label: 'Antrean Interview', path: '/asesor/interview-queue', icon: Users, badge: '5 Slot' },
-        { id: 'console', label: 'Live Console', path: '/asesor/interview-queue', icon: Video, badge: 'Scoring' },
-        { id: 'proctoring', label: 'Review Proctoring', path: '/asesor/proctoring', icon: ShieldAlert, badge: '7 Flag' },
+        { id: 'dashboard', label: 'Dashboard', path: '/asesor/dashboard', icon: LayoutDashboard },
+        {
+          id: 'queue',
+          label: 'Antrean Interview',
+          path: '/asesor/interview-queue',
+          icon: Users,
+          badge: `${activeQueueCandidates.length} Slot`
+        },
+        {
+          id: 'console',
+          label: 'Live Console',
+          path: firstConsoleTarget ? `/asesor/live-console/${firstConsoleTarget}` : '/asesor/live-console',
+          icon: Video,
+          badge: 'Scoring'
+        },
+        {
+          id: 'proctoring',
+          label: 'Review Proctoring',
+          path: '/asesor/proctoring',
+          icon: ShieldAlert,
+          badge: `${proctoringAlerts.length} Flag`
+        },
         { id: 'scoring', label: 'Penilaian & LHA', path: '/asesor/scoring', icon: ClipboardCheck, badge: 'E-Sign' },
         { id: 'rekap', label: 'Rekap Program', path: '/asesor/rekap', icon: FileSpreadsheet },
       ]
@@ -242,6 +274,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                 return (
                   <button
                     key={item.id}
+                    type="button"
                     onClick={() => {
                       if ('action' in item && typeof item.action === 'function') {
                         item.action();
@@ -573,7 +606,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
             <Users className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-bold text-blue-950">Jadwal Sesi Live Interview Berikutnya</p>
-              <p className="text-blue-800 text-[11px] mt-0.5">{calledCandidates.length > 0 ? `Kandidat ${calledCandidates[0].name} (${calledCandidates[0].code}) telah bersiap di waiting room.` : 'Belum ada kandidat yang dipanggil ke waiting room.'}</p>
+              <p className="text-blue-800 text-[11px] mt-0.5">{calledCandidates.length > 0 ? `${calledCandidates.length} kandidat siap/menunggu wawancara (termasuk ${calledCandidates[0].name} • ${calledCandidates[0].code}).` : 'Belum ada kandidat di ruang tunggu saat ini.'}</p>
               <button
                 onClick={() => {
                   setNotifModalOpen(false);

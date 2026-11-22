@@ -18,14 +18,19 @@ import {
 } from 'lucide-react';
 import { Button, Badge, Card } from '../ui';
 import { calculateCompositeScore } from '../../services/asesorScoreService';
-import { fetchAssessorCandidate, type AssessorCandidate } from '../../services/assessorService';
+import {
+  fetchAssessorCandidate,
+  fetchAssessorCandidates,
+  fetchAssessorScoreByCode,
+  type AssessorCandidate
+} from '../../services/assessorService';
 import { getPortalToken } from '../../services/portalAuthService';
 
 interface RubricItem {
   id: string;
   name: string;
   weight: number; // percentage
-  score: number; // 1 to 5
+  score: number; // 0 = belum dinilai, 1 to 5
   notes: string;
   descriptors: { [key: number]: string };
 }
@@ -34,44 +39,24 @@ export default function AsesorLiveConsole() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [candidate, setCandidate] = useState<AssessorCandidate | null>(null);
+  const [candidateList, setCandidateList] = useState<AssessorCandidate[]>([]);
   const [candidateLoading, setCandidateLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!id) {
-      setCandidateLoading(false);
-      return;
-    }
-    fetchAssessorCandidate(id)
-      .then((data) => {
-        if (!cancelled) setCandidate(data);
-      })
-      .catch(() => {
-        if (!cancelled) setCandidate(null);
-      })
-      .finally(() => {
-        if (!cancelled) setCandidateLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
   const [isRecording, setIsRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(380); // ~6 mins
+  const [elapsed, setElapsed] = useState(0);
   const [activeCompetency, setActiveCompetency] = useState<string>('c1');
   const [flagModalOpen, setFlagModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [callingNext, setCallingNext] = useState(false);
 
-  // Rubric state
+  // Rubric state — clean initial state (no dummy 85/100 or dummy assessor notes)
   const [rubrics, setRubrics] = useState<RubricItem[]>([
     {
       id: 'c1',
       name: 'System Architecture & Scalability',
       weight: 30,
-      score: 4,
-      notes: 'Mampu menjelaskan strategi sharding dan caching multi-tier dengan argumen teknis yang solid.',
+      score: 0,
+      notes: '',
       descriptors: {
         1: 'Tidak memahami konsep dasar arsitektur terdistribusi.',
         2: 'Mengetahui istilah umum namun kesulitan merancang diagram alur data.',
@@ -84,8 +69,8 @@ export default function AsesorLiveConsole() {
       id: 'c2',
       name: 'Database Optimization & Tuning',
       weight: 25,
-      score: 4,
-      notes: 'Paham pemanfaatan explain analyze dan indeks composite.',
+      score: 0,
+      notes: '',
       descriptors: {
         1: 'Hanya memahami query CRUD dasar.',
         2: 'Kurang memahami indeks B-Tree dan indexing pitfalls.',
@@ -98,8 +83,8 @@ export default function AsesorLiveConsole() {
       id: 'c3',
       name: 'Problem Solving & Algorithmic Thinking',
       weight: 25,
-      score: 5,
-      notes: 'Solusi rekursif dan penanganan edge case sangat efisien.',
+      score: 0,
+      notes: '',
       descriptors: {
         1: 'Kesulitan menemukan pendekatan awal masalah.',
         2: 'Solusi brute force tanpa optimasi kompleksitas.',
@@ -112,8 +97,8 @@ export default function AsesorLiveConsole() {
       id: 'c4',
       name: 'Komunikasi & Artikulasi Teknis',
       weight: 20,
-      score: 4,
-      notes: 'Gaya penyampaian runtut, profesional, dan terbuka terhadap feedback penguji.',
+      score: 0,
+      notes: '',
       descriptors: {
         1: 'Tidak komunikatif dan pasif.',
         2: 'Penjelasan berbelit-belit dan sulit dipahami.',
@@ -125,9 +110,67 @@ export default function AsesorLiveConsole() {
   ]);
 
   useEffect(() => {
+    let cancelled = false;
+    setCandidateLoading(true);
+    if (!id) {
+      setCandidate(null);
+      fetchAssessorCandidates()
+        .then((list) => {
+          if (!cancelled) setCandidateList(list);
+        })
+        .catch(() => {
+          if (!cancelled) setCandidateList([]);
+        })
+        .finally(() => {
+          if (!cancelled) setCandidateLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    fetchAssessorCandidate(id)
+      .then(async (data) => {
+        if (cancelled) return;
+        setCandidate(data);
+        if (!data) return;
+        try {
+          const saved = await fetchAssessorScoreByCode(data.code, data.program);
+          if (!cancelled && saved && Array.isArray(saved.competencies) && saved.competencies.length > 0) {
+            setRubrics((prev) =>
+              prev.map((item, idx) => {
+                const match =
+                  saved.competencies.find((c: any) => c.name === item.name) ||
+                  saved.competencies[idx];
+                if (!match) return item;
+                return {
+                  ...item,
+                  score: typeof match.score === 'number' ? match.score : item.score,
+                  notes: typeof match.notes === 'string' ? match.notes : item.notes
+                };
+              })
+            );
+          }
+        } catch {
+          // Ignore missing draft scores
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCandidate(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCandidateLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (!isRecording) return;
     const timer = setInterval(() => setElapsed((prev) => prev + 1), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isRecording]);
 
   const formatTimer = (s: number) => {
     const m = Math.floor(s / 60);
@@ -147,14 +190,19 @@ export default function AsesorLiveConsole() {
     );
   };
 
+  const hasScoredAny = rubrics.some((r) => r.score > 0);
   // Calculate weighted score (scaled to 100)
   const totalWeightedScore = rubrics.reduce((acc, r) => {
-    return acc + (r.score / 5) * r.weight;
+    return acc + (r.score > 0 ? (r.score / 5) * r.weight : 0);
   }, 0);
 
   const currentRubric = rubrics.find((r) => r.id === activeCompetency) || rubrics[0];
 
   const handleEndSession = async () => {
+    if (!hasScoredAny) {
+      window.alert('Silakan berikan minimal satu nilai rubrik (skala 1-5) sebelum menyimpan sesi wawancara.');
+      return;
+    }
     setSaving(true);
     try {
       const token = getPortalToken();
@@ -216,6 +264,64 @@ export default function AsesorLiveConsole() {
     return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center text-sm">Memuat kandidat...</div>;
   }
 
+  if (!id) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white p-6 sm:p-10">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-5">
+            <div>
+              <h1 className="font-heading text-xl font-extrabold">Live Console Scoring Wawancara</h1>
+              <p className="text-xs text-slate-400 mt-1">
+                Pilih kandidat yang siap diuji untuk membuka sesi Live Console & Rubrik BARS.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate('/asesor/interview-queue')} className="border-slate-700 text-slate-200 hover:bg-slate-900">
+              Buka Daftar Antrean
+            </Button>
+          </div>
+          {candidateList.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-sm text-slate-400">
+              Belum ada kandidat pada tenant ini.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {candidateList.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-center justify-between gap-4 hover:border-slate-700 transition-colors"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-blue-400 font-bold">{item.code}</span>
+                      {item.isTestAccount && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          Akun Uji
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-bold text-sm text-white mt-1">{item.name}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{item.program}</p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      CAT: {item.catScore != null ? `${item.catScore}/100` : 'Belum Ujian'} • Status: {item.interviewStatus}
+                    </p>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => navigate(`/asesor/live-console/${item.code}`)}
+                    className="shrink-0"
+                  >
+                    Masuk Console
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (!candidate) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-4">
@@ -233,7 +339,7 @@ export default function AsesorLiveConsole() {
       <header className="h-16 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold font-heading">
-            R
+            {candidate.name.charAt(0).toUpperCase()}
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-tight">
@@ -333,7 +439,7 @@ export default function AsesorLiveConsole() {
             <div className="text-right">
               <span className="text-[10px] text-muted-slate uppercase font-bold">Skor Wawancara:</span>
               <p className="font-mono text-2xl font-extrabold text-primary-navy">
-                {totalWeightedScore.toFixed(1)} / 100
+                {hasScoredAny ? `${totalWeightedScore.toFixed(1)} / 100` : 'Belum Dinilai'}
               </p>
             </div>
           </div>
@@ -351,7 +457,9 @@ export default function AsesorLiveConsole() {
                 }`}
               >
                 <span>{r.name.split(' ')[0]}</span>
-                <span className="ml-1 text-[10px] font-mono text-slate-400">({r.score}/5)</span>
+                <span className="ml-1 text-[10px] font-mono text-slate-400">
+                  ({r.score > 0 ? `${r.score}/5` : '-/5'})
+                </span>
               </button>
             ))}
           </div>

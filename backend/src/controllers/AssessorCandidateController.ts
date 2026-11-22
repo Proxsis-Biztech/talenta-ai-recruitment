@@ -34,34 +34,68 @@ const candidateSelect = {
       status: true,
       score: true,
       integrityScore: true,
-      submittedAt: true
+      submittedAt: true,
+      answers: true
     }
-  },
-  assessorScores: {
-    select: {
-      interviewScore: true,
-      compositeScore: true,
-      recommendation: true,
-      status: true,
-      lhaNumber: true,
-      signedAt: true,
-      updatedAt: true
-    },
-    orderBy: { updatedAt: 'desc' as const },
-    take: 1
   }
 } as const;
 
-const latestAttempt = (attempts: Array<{ programCode: string; status: string; score: number | null; integrityScore: number | null; submittedAt: Date | null }>) =>
+interface CandidateAssessorScoreRow {
+  candidateCode: string;
+  candidateName: string;
+  programCode: string | null;
+  programTitle: string;
+  interviewScore: number;
+  compositeScore: number;
+  recommendation: string;
+  notes: string | null;
+  status: string;
+  lhaHash: string | null;
+  lhaNumber: string | null;
+  signedAt: Date | null;
+  updatedAt: Date;
+  assessor?: { name: string } | null;
+}
+
+const pickBestScore = (scores: CandidateAssessorScoreRow[]): CandidateAssessorScoreRow | null => {
+  if (!scores || scores.length === 0) return null;
+  return [...scores].sort((a, b) => {
+    if (a.status === 'signed' && b.status !== 'signed') return -1;
+    if (b.status === 'signed' && a.status !== 'signed') return 1;
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  })[0];
+};
+
+const latestAttempt = (
+  attempts: Array<{
+    programCode: string;
+    status: string;
+    score: number | null;
+    integrityScore: number | null;
+    submittedAt: Date | null;
+    answers?: string;
+  }>
+) =>
   [...attempts].sort((a, b) => {
     const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
     const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
     return bTime - aTime;
   })[0];
 
-const serializeCandidate = (user: any) => {
+const isTestAccountUser = (user: { email?: string | null; candidateCode?: string | null; name?: string | null }) => {
+  const email = String(user.email || '').toLowerCase();
+  const code = String(user.candidateCode || '').toUpperCase();
+  const name = String(user.name || '');
+  return (
+    email.endsWith('@right.id') ||
+    email.endsWith('@kandidat.id') ||
+    code.startsWith('KND-UAT-') ||
+    /\b(uji|qc|test)\b/i.test(name)
+  );
+};
+
+const serializeCandidate = (user: any, score: CandidateAssessorScoreRow | null = null) => {
   const attempt = latestAttempt(user.examAttempts || []);
-  const score = user.assessorScores?.[0] || null;
   return {
     id: user.id,
     code: user.candidateCode || user.id.slice(0, 8),
@@ -76,15 +110,19 @@ const serializeCandidate = (user: any) => {
     examStatus: attempt?.status || 'not_started',
     submittedAt: attempt?.submittedAt || null,
     interviewStatus: user.interviewStatus,
-    interviewScore: user.interviewScore ?? score?.compositeScore ?? null,
+    interviewScore: score?.interviewScore ?? user.interviewScore ?? null,
+    compositeScore: score?.compositeScore ?? null,
     scheduledAt: user.interviewScheduledAt,
     calledAt: user.interviewCalledAt,
     completedAt: user.interviewCompletedAt,
-    assessorName: user.assessorName,
+    assessorName: score?.assessor?.name || user.assessorName || null,
     recommendation: score?.recommendation ?? null,
     lhaStatus: score?.status ?? null,
     lhaNumber: score?.lhaNumber ?? null,
-    signedAt: score?.signedAt ?? null
+    lhaHash: score?.lhaHash ?? null,
+    signedAt: score?.signedAt ?? null,
+    assessorNotes: score?.notes ?? null,
+    isTestAccount: isTestAccountUser(user)
   };
 };
 
@@ -120,11 +158,26 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
     const search = String(req.query.search || '').trim();
     const programCode = String(req.query.programCode || '').trim().toUpperCase();
 
+    let tenantCompanyName: string | null = req.portalUser.companyName || null;
+    if (tenantId && !tenantCompanyName) {
+      const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+      tenantCompanyName = tenant?.name || null;
+    }
+
     const users = await prisma.portalUser.findMany({
       where: {
         role: 'peserta',
         status: 'Aktif',
-        ...(tenantId ? { AND: [{ OR: [{ tenantId }, { tenantId: null }] }] } : {}),
+        ...(tenantId
+          ? {
+              OR: [
+                { tenantId },
+                ...(tenantCompanyName ? [{ companyName: tenantCompanyName }] : [])
+              ]
+            }
+          : tenantCompanyName
+            ? { companyName: tenantCompanyName }
+            : {}),
         ...(programCode ? { assessmentId: programCode } : {}),
         ...(search
           ? {
@@ -143,7 +196,32 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
       select: candidateSelect
     });
 
-    return res.json({ data: users.map(serializeCandidate) });
+    const codes = users
+      .map((u) => u.candidateCode || u.id.slice(0, 8))
+      .filter(Boolean);
+    const scoreRows =
+      codes.length > 0
+        ? await prisma.assessorScore.findMany({
+            where: { candidateCode: { in: codes } },
+            include: { assessor: { select: { name: true } } },
+            orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
+          })
+        : [];
+
+    const scoresByCode = new Map<string, CandidateAssessorScoreRow[]>();
+    for (const row of scoreRows) {
+      const list = scoresByCode.get(row.candidateCode) || [];
+      list.push(row);
+      scoresByCode.set(row.candidateCode, list);
+    }
+
+    return res.json({
+      data: users.map((u) => {
+        const key = u.candidateCode || u.id.slice(0, 8);
+        const bestScore = pickBestScore(scoresByCode.get(key) || []);
+        return serializeCandidate(u, bestScore);
+      })
+    });
   } catch (error) {
     console.error('List assessor candidates error:', error);
     return res.status(500).json({ error: 'Gagal memuat daftar kandidat asesor.' });
@@ -165,7 +243,58 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
     if (req.portalUser.tenantId && user.tenantId && user.tenantId !== req.portalUser.tenantId) {
       return res.status(403).json({ error: 'Kandidat bukan milik tenant Anda.' });
     }
-    return res.json({ data: serializeCandidate(user) });
+
+    const codeKey = user.candidateCode || user.id.slice(0, 8);
+    const scores = await prisma.assessorScore.findMany({
+      where: {
+        OR: [{ candidateCode: codeKey }, { candidateCode: identifier }]
+      },
+      include: { assessor: { select: { name: true } } },
+      orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
+    });
+    const bestScore = pickBestScore(scores);
+
+    const attempt = latestAttempt(user.examAttempts || []);
+    const essayAnswers: Array<{ questionId: string; orderNo: number; prompt: string; answer: string }> = [];
+    if (attempt && attempt.answers) {
+      const answersObj = parseJson<Record<string, unknown>>(attempt.answers, {});
+      const essayQuestions = await prisma.programQuestion.findMany({
+        where: { programCode: attempt.programCode, type: 'essay' },
+        orderBy: { orderNo: 'asc' },
+        select: { id: true, orderNo: true, prompt: true }
+      });
+
+      if (essayQuestions.length > 0) {
+        for (const q of essayQuestions) {
+          const rawAns = answersObj[String(q.orderNo)] ?? answersObj[q.id];
+          essayAnswers.push({
+            questionId: q.id,
+            orderNo: q.orderNo,
+            prompt: q.prompt,
+            answer: typeof rawAns === 'string' ? rawAns : rawAns != null ? JSON.stringify(rawAns) : ''
+          });
+        }
+      } else {
+        // Fallback: include any non-empty long-text answers directly from attempt.answers
+        Object.entries(answersObj).forEach(([k, val], idx) => {
+          if (typeof val === 'string' && val.trim().length > 25) {
+            essayAnswers.push({
+              questionId: k,
+              orderNo: Number(k) || idx + 1,
+              prompt: `Butir Uraian #${k}`,
+              answer: val
+            });
+          }
+        });
+      }
+    }
+
+    return res.json({
+      data: {
+        ...serializeCandidate(user, bestScore),
+        essayAnswers
+      }
+    });
   } catch (error) {
     console.error('Get assessor candidate error:', error);
     return res.status(500).json({ error: 'Gagal memuat detail kandidat.' });
@@ -187,7 +316,7 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
         candidateCode: true,
         tenantId: true,
         examAttempts: {
-          select: { violations: true, submittedAt: true, programCode: true }
+          select: { violations: true, submittedAt: true, programCode: true, integrityScore: true }
         }
       }
     });
@@ -210,6 +339,7 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
       description: string;
       status: string;
       assessorNotes: string;
+      snapshotUrl: string | null;
     }> = [];
 
     const attempt = [...user.examAttempts].sort((a, b) => {
@@ -232,7 +362,8 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
             'Aktivitas mencurigakan terdeteksi selama pengerjaan ujian CAT.'
         ),
         status: review?.status || 'pending',
-        assessorNotes: review?.notes || ''
+        assessorNotes: review?.notes || '',
+        snapshotUrl: typeof violation.snapshot === 'string' ? violation.snapshot : typeof violation.imageUrl === 'string' ? violation.imageUrl : null
       });
     });
 
@@ -251,11 +382,15 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
             'Kejadian integritas tercatat selama sesi wawancara.'
         ),
         status: review?.status || 'pending',
-        assessorNotes: review?.notes || ''
+        assessorNotes: review?.notes || '',
+        snapshotUrl: typeof flag.snapshot === 'string' ? flag.snapshot : typeof flag.imageUrl === 'string' ? flag.imageUrl : null
       });
     });
 
-    return res.json({ data: events });
+    return res.json({
+      data: events,
+      integrityScore: attempt?.integrityScore ?? null
+    });
   } catch (error) {
     console.error('Get assessor proctoring error:', error);
     return res.status(500).json({ error: 'Gagal memuat event proctoring kandidat.' });
