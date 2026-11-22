@@ -102,7 +102,10 @@ const isTestAccountUser = (user: { email?: string | null; candidateCode?: string
 const countNonPeriodicEvents = (jsonStr: string | null | undefined): number => {
   const parsed = parseJson<unknown[]>(jsonStr, []);
   if (!Array.isArray(parsed)) return 0;
-  return parsed.filter((item: any) => String(item?.type || '') !== 'PERIODIC_SNAPSHOT').length;
+  return parsed.filter((item: any) => {
+    const type = String(item?.type || '');
+    return type !== 'PERIODIC_SNAPSHOT' && type !== 'face_verified' && type !== 'VERIFIKASI_BERKALA';
+  }).length;
 };
 
 const serializeCandidate = (
@@ -153,17 +156,23 @@ const serializeCandidate = (
 
 const severityFor = (type: string): 'high' | 'medium' | 'low' => {
   const normalized = String(type || '').toLowerCase();
-  if (normalized.includes('face_verified') || normalized.includes('face verified') || normalized.includes('verifikasi wajah')) {
+  if (
+    normalized.includes('face_verified') ||
+    normalized.includes('face verified') ||
+    normalized.includes('verifikasi wajah') ||
+    normalized.includes('periodic_snapshot') ||
+    normalized.includes('uniform_cadence')
+  ) {
     return 'low';
   }
   if (
-    ['face', 'multiple', 'tab', 'fullscreen', 'devtools', 'blur', 'hidden', 'leave'].some((key) =>
+    ['face_missing', 'multi_face', 'identity_mismatch', 'second_voice', 'multi', 'tab', 'fullscreen', 'devtools', 'blur', 'hidden', 'leave', 'virtual_camera'].some((key) =>
       normalized.includes(key)
     )
   ) {
     return 'high';
   }
-  if (['noise', 'voice', 'looking', 'gaze', 'copy', 'paste'].some((key) => normalized.includes(key))) {
+  if (['noise', 'voice', 'looking', 'gaze', 'copy', 'paste', 'rapid_response'].some((key) => normalized.includes(key))) {
     return 'medium';
   }
   return 'low';
@@ -434,19 +443,30 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
     interviewFlags.forEach((flag, index) => {
       const eventId = `INT-${index + 1}`;
       const review = reviewMap.get(eventId);
+      const rawType = String(flag.type || 'Catatan Wawancara');
+      const isInfoAudit = rawType === 'PERIODIC_SNAPSHOT' || rawType === 'face_verified';
       events.push({
         id: eventId,
         time: formatEventTime(flag.timestamp || flag.time),
-        type: String(flag.type || 'Catatan Wawancara'),
-        severity: severityFor(String(flag.type || '')),
+        type: isInfoAudit ? 'VERIFIKASI_BERKALA' : rawType,
+        severity: isInfoAudit ? 'low' : severityFor(rawType),
         description: String(
           flag.detail ||
             flag.description ||
-            'Kejadian integritas tercatat selama sesi wawancara.'
+            (isInfoAudit
+              ? 'Verifikasi kehadiran wajah berkala selama sesi wawancara.'
+              : 'Kejadian integritas tercatat selama sesi wawancara.')
         ),
-        status: review?.status || 'pending',
+        status: review?.status || (isInfoAudit ? 'info' : 'pending'),
         assessorNotes: review?.notes || '',
-        snapshotUrl: typeof flag.snapshot === 'string' ? flag.snapshot : typeof flag.imageUrl === 'string' ? flag.imageUrl : null
+        snapshotUrl:
+          typeof flag.snapshot === 'string'
+            ? flag.snapshot
+            : typeof flag.evidenceSnapshot === 'string'
+              ? flag.evidenceSnapshot
+              : typeof flag.imageUrl === 'string'
+                ? flag.imageUrl
+                : null
       });
     });
 

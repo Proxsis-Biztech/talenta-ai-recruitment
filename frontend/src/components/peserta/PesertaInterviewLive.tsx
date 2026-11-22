@@ -36,6 +36,15 @@ import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getProgramById } from '../../services/assessmentCatalog';
 import { getPortalToken } from '../../services/portalAuthService';
 import { ProctoringCharacter, type ProctoringMood } from './ProctoringCharacter';
+import {
+  captureVideoSnapshot,
+  computeFaceSignatureFromDataUrl,
+  computeFaceSignatureFromSource,
+  cosineSimilarity,
+  evaluateTurnBehavior,
+  type FaceSignature,
+  type InterviewProctorEvent
+} from '../../utils/interviewProctor';
 
 interface QuestionItem {
   id: number;
@@ -117,13 +126,46 @@ export default function PesertaInterviewLive() {
   const [micErrorMsg, setMicErrorMsg] = useState<string | null>(null);
   const [micAnswerCaptured, setMicAnswerCaptured] = useState(false);
   const micAnswerCapturedRef = useRef(false);
+  const questionActivatedAtRef = useRef<number>(Date.now());
+  const firstSpeechAtRef = useRef<number | null>(null);
+  const speechChunkTimesRef = useRef<number[]>([]);
+  const proctorEventsRef = useRef<InterviewProctorEvent[]>([]);
+  const proctorCooldownRef = useRef<Record<string, number>>({});
+  const referenceFaceSigRef = useRef<FaceSignature | null>(null);
+  const baselineCentroidsRef = useRef<number[]>([]);
+  const voiceSampleCounterRef = useRef(0);
+  const voiceShiftStreakRef = useRef(0);
+
+  const pushProctorEvent = (
+    evt: Omit<InterviewProctorEvent, 'timestamp'>,
+    cooldownMs = 30000
+  ) => {
+    const now = Date.now();
+    const last = proctorCooldownRef.current[evt.type] || 0;
+    if (now - last < cooldownMs) return;
+    proctorCooldownRef.current[evt.type] = now;
+
+    const existingWithSnaps = proctorEventsRef.current.filter((item) => Boolean(item.snapshot)).length;
+    const sanitizedSnapshot = existingWithSnaps >= 10 ? undefined : evt.snapshot;
+    proctorEventsRef.current.push({
+      ...evt,
+      snapshot: sanitizedSnapshot,
+      hasVisualEvidence: Boolean(sanitizedSnapshot),
+      timestamp: new Date().toISOString()
+    });
+  };
+
   const markMicAnswerCaptured = () => {
+    if (!firstSpeechAtRef.current) firstSpeechAtRef.current = Date.now();
     micAnswerCapturedRef.current = true;
     setMicAnswerCaptured(true);
   };
   const resetMicAnswerCaptured = () => {
     micAnswerCapturedRef.current = false;
     setMicAnswerCaptured(false);
+    questionActivatedAtRef.current = Date.now();
+    firstSpeechAtRef.current = null;
+    speechChunkTimesRef.current = [];
   };
 
   // Proctoring Character states
@@ -255,6 +297,164 @@ export default function PesertaInterviewLive() {
       }
     };
   }, [camOn]);
+
+  // Continuous Video Identity, Multi-Face, Gaze Off-Screen & Tab-Switch Proctoring (Tahap 2)
+  useEffect(() => {
+    if (savedFacePhoto && !referenceFaceSigRef.current) {
+      void computeFaceSignatureFromDataUrl(savedFacePhoto).then((sig) => {
+        if (sig) referenceFaceSigRef.current = sig;
+      });
+    }
+  }, [savedFacePhoto]);
+
+  useEffect(() => {
+    if (!camOn || !hasStartedInterview) return;
+    let cancelled = false;
+    let missingStreak = 0;
+    let multiStreak = 0;
+    let gazeOffStreak = 0;
+    let mismatchStreak = 0;
+    let periodicTaken = 0;
+    let ticks = 0;
+
+    const Detector = (window as any).FaceDetector;
+    const detector = Detector ? new Detector({ fastMode: true, maxDetectedFaces: 3 }) : null;
+
+    const interval = window.setInterval(async () => {
+      if (cancelled || !videoRef.current || videoRef.current.readyState < 2) return;
+      ticks++;
+
+      // Capture up to 3 periodic verification snapshots (~every 90s)
+      if (ticks % 30 === 1 && periodicTaken < 3) {
+        const snap = captureVideoSnapshot(videoRef.current);
+        if (snap) {
+          periodicTaken++;
+          pushProctorEvent(
+            {
+              type: 'PERIODIC_SNAPSHOT',
+              severity: 'low',
+              detail: 'Foto verifikasi identitas berkala selama sesi wawancara AI',
+              snapshot: snap
+            },
+            60000
+          );
+        }
+      }
+
+      if (detector) {
+        try {
+          const faces = await detector.detect(videoRef.current);
+          if (faces.length === 0) {
+            multiStreak = 0;
+            gazeOffStreak = 0;
+            mismatchStreak = 0;
+            missingStreak++;
+            if (missingStreak >= 3) {
+              missingStreak = 0;
+              const snap = captureVideoSnapshot(videoRef.current);
+              setProctorMood('warning');
+              setProctorCustomMessage('Wajah tidak terlihat di kamera. Pastikan Anda tetap di frame.');
+              pushProctorEvent({
+                type: 'FACE_MISSING',
+                severity: 'high',
+                detail: 'Wajah kandidat tidak terdeteksi di kamera selama >9 detik saat wawancara.',
+                snapshot: snap || undefined
+              });
+            }
+          } else if (faces.length > 1) {
+            missingStreak = 0;
+            gazeOffStreak = 0;
+            mismatchStreak = 0;
+            multiStreak++;
+            if (multiStreak >= 2) {
+              multiStreak = 0;
+              const snap = captureVideoSnapshot(videoRef.current);
+              setProctorMood('warning');
+              setProctorCustomMessage('Terdeteksi lebih dari 1 wajah di kamera.');
+              pushProctorEvent({
+                type: 'MULTI_FACE',
+                severity: 'high',
+                detail: `Terdeteksi ${faces.length} wajah di ruangan selama sesi wawancara.`,
+                snapshot: snap || undefined
+              });
+            }
+          } else {
+            missingStreak = 0;
+            multiStreak = 0;
+            const box = faces[0].boundingBox;
+            const vw = videoRef.current.videoWidth || 640;
+            const centerOffsetRatio = Math.abs((box.x + box.width / 2) / vw - 0.5);
+            if (centerOffsetRatio > 0.26) {
+              gazeOffStreak++;
+              if (gazeOffStreak >= 4) {
+                gazeOffStreak = 0;
+                const snap = captureVideoSnapshot(videoRef.current);
+                pushProctorEvent(
+                  {
+                    type: 'GAZE_OFF_SCREEN',
+                    severity: 'medium',
+                    detail: 'Posisi wajah / pandangan konsisten mengarah jauh ke sisi luar layar (>12 dtk).',
+                    snapshot: snap || undefined
+                  },
+                  45000
+                );
+              }
+            } else {
+              gazeOffStreak = 0;
+            }
+
+            const sig = computeFaceSignatureFromSource(videoRef.current, box);
+            if (sig) {
+              if (!referenceFaceSigRef.current) {
+                referenceFaceSigRef.current = sig;
+              } else if (sig.avgLuma > 35 && referenceFaceSigRef.current.avgLuma > 35) {
+                const sim = cosineSimilarity(sig.vector, referenceFaceSigRef.current.vector);
+                if (sim < 0.52) {
+                  mismatchStreak++;
+                  if (mismatchStreak >= 4) {
+                    mismatchStreak = 0;
+                    const snap = captureVideoSnapshot(videoRef.current);
+                    pushProctorEvent(
+                      {
+                        type: 'IDENTITY_MISMATCH',
+                        severity: 'high',
+                        detail: `Perubahan ciri visual wajah terhadap foto KYC awal (kemiripan ${(sim * 100).toFixed(0)}%) — untuk tinjauan asesor.`,
+                        snapshot: snap || undefined
+                      },
+                      60000
+                    );
+                  }
+                } else {
+                  mismatchStreak = 0;
+                }
+              }
+            }
+          }
+        } catch {
+          // FaceDetector unsupported or frame not ready
+        }
+      }
+    }, 3000);
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        const snap = captureVideoSnapshot(videoRef.current);
+        pushProctorEvent({
+          type: 'TAB_SWITCH',
+          severity: 'high',
+          detail: 'Kandidat berpindah tab atau meminimalkan jendela selama wawancara live.',
+          snapshot: snap || undefined
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [camOn, hasStartedInterview]);
 
   // Timer
   useEffect(() => {
@@ -678,6 +878,7 @@ export default function PesertaInterviewLive() {
   // Initial Auto-Greeting from AI Interviewer Ava
   const startInitialGreeting = async () => {
     setHasStartedInterview(true);
+    questionActivatedAtRef.current = Date.now();
     getOrCreateAudioContext();
 
     const greetingText = `Halo ${sessionUser.name || 'Farhan Pratama'}, saya Ava. Mari mulai wawancara untuk posisi ${program.title}. ${questions[0].question}`;
@@ -856,11 +1057,48 @@ export default function PesertaInterviewLive() {
         const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
         analyserRef.current.getByteFrequencyData(dataArray);
         let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        let weightedSum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+          weightedSum += i * dataArray[i];
+        }
         const avg = sum / dataArray.length;
         // Non-linear scale for natural speaking volume (shows 25% - 90% clearly)
         const level = Math.min(100, Math.max(0, Math.round((avg / 35) * 100)));
         setMicVolumeLevel(level);
+
+        // Lightweight vocal spectral centroid monitor (roughly ~every 500ms at 60fps -> every 30 frames)
+        voiceSampleCounterRef.current++;
+        if (voiceSampleCounterRef.current % 30 === 0 && !isAiSpeakingRef.current && avg > 22 && sum > 0) {
+          const centroid = weightedSum / sum;
+          if (baselineCentroidsRef.current.length < 12) {
+            baselineCentroidsRef.current.push(centroid);
+          } else {
+            const baseline =
+              baselineCentroidsRef.current.reduce((s, v) => s + v, 0) /
+              baselineCentroidsRef.current.length;
+            const shiftRatio = baseline > 0 ? Math.abs(centroid - baseline) / baseline : 0;
+            if (shiftRatio > 0.45) {
+              voiceShiftStreakRef.current++;
+              if (voiceShiftStreakRef.current >= 6) {
+                voiceShiftStreakRef.current = 0;
+                const snap = captureVideoSnapshot(videoRef.current);
+                pushProctorEvent(
+                  {
+                    type: 'SECOND_VOICE_DETECTED',
+                    severity: 'high',
+                    detail: 'Terdeteksi perubahan profil frekuensi vokal berkelanjutan (indikasi suara kedua / live coaching) — perlu tinjauan asesor.',
+                    snapshot: snap || undefined
+                  },
+                  45000
+                );
+              }
+            } else {
+              voiceShiftStreakRef.current = Math.max(0, voiceShiftStreakRef.current - 1);
+            }
+          }
+        }
+
         volumeAnimRef.current = requestAnimationFrame(updateVolume);
       };
       updateVolume();
@@ -890,6 +1128,7 @@ export default function PesertaInterviewLive() {
             }
             const clean = fullTranscript.trim();
             if (clean) {
+              speechChunkTimesRef.current.push(Date.now());
               markMicAnswerCaptured();
               setUserAnswer(clean);
               setLiveInterimText(clean);
@@ -1108,6 +1347,19 @@ export default function PesertaInterviewLive() {
 
     const textToSubmit = answerText.trim() || activeQuestion.sampleAnswer || 'Saya telah menjelaskan solusi arsitektur saya secara langsung.';
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+    // Evaluate behavioral timing & reading cadence signals (neutral signals for assessor review)
+    const behaviorSignals = evaluateTurnBehavior({
+      answerText: textToSubmit,
+      questionActivatedAt: questionActivatedAtRef.current,
+      firstResponseAt: firstSpeechAtRef.current,
+      submittedAt: Date.now(),
+      chunkTimestamps: speechChunkTimesRef.current,
+      wasTypedInput: showManualInput && speechChunkTimesRef.current.length === 0
+    });
+    for (const sig of behaviorSignals) {
+      pushProctorEvent(sig, 15000);
+    }
 
     // Append candidate answer to messages (lewati jika suara yang sama sudah tercatat dari transkripsi live)
     setMessages((prev) => {
@@ -1338,7 +1590,10 @@ export default function PesertaInterviewLive() {
           transcript: formattedTranscript,
           summary: `Wawancara AI LangChain & BARS selesai dengan skor rata-rata ${avg}/5.0. Kandidat mendemonstrasikan penguasaan kompetensi teknis yang tinggi.`,
           score: Number(avg) * 20,
-          proctor: [{ type: 'face_verified', timestamp: new Date().toISOString() }]
+          proctor: [
+            { type: 'face_verified', timestamp: new Date().toISOString() },
+            ...proctorEventsRef.current
+          ]
         })
       });
 
@@ -1946,6 +2201,17 @@ export default function PesertaInterviewLive() {
                   <Volume2 className="w-3.5 h-3.5" />
                   <span>Dengarkan Ulang Soal #{activeQuestion.id}</span>
                 </button>
+              </div>
+
+              {/* Transparansi Proctoring (Prinsip #3: Beritahu kandidat di depan) */}
+              <div className="p-3 rounded-2xl bg-blue-50/80 border border-blue-200 text-[11px] text-blue-950 space-y-1">
+                <p className="font-bold flex items-center gap-1.5 text-primary-navy">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Transparansi Pengawasan Sesi Wawancara</span>
+                </p>
+                <p className="text-blue-900 leading-relaxed">
+                  Selama wawancara, sistem memantau konsistensi kehadiran wajah terhadap foto KYC, suara sekitar, fokus tab, dan pola waktu respons. Seluruh catatan bersifat pendukung review Dewan Asesor dan tidak menggagalkan otomatis.
+                </p>
               </div>
 
               {/* Panduan Menjawab Berbasis Kompetensi STAR */}
