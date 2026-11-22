@@ -102,7 +102,9 @@ const isTestAccountUser = (user: { email?: string | null; candidateCode?: string
 const serializeCandidate = (user: any, score: CandidateAssessorScoreRow | null = null) => {
   const attempt = latestAttempt(user.examAttempts || []);
   const rawViolations = parseJson<unknown[]>(attempt?.violations, []);
-  const violationCount = Array.isArray(rawViolations) ? rawViolations.length : 0;
+  const violationCount = Array.isArray(rawViolations)
+    ? rawViolations.filter((item: any) => String(item?.type || '') !== 'PERIODIC_SNAPSHOT').length
+    : 0;
   const proctoringFlagCount =
     violationCount > 0
       ? violationCount
@@ -375,19 +377,28 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
     violations.forEach((violation, index) => {
       const eventId = `EXAM-${index + 1}`;
       const review = reviewMap.get(eventId);
+      const rawType = String(violation.type || 'Pelanggaran Ujian');
+      const isPeriodicAudit = rawType === 'PERIODIC_SNAPSHOT';
       events.push({
         id: eventId,
         time: formatEventTime(violation.timestamp || violation.time || attempt?.submittedAt),
-        type: String(violation.type || 'Pelanggaran Ujian'),
-        severity: severityFor(String(violation.type || '')),
+        type: isPeriodicAudit ? 'VERIFIKASI_BERKALA' : rawType,
+        severity: isPeriodicAudit ? 'low' : severityFor(rawType),
         description: String(
           violation.detail ||
             violation.description ||
             'Aktivitas mencurigakan terdeteksi selama pengerjaan ujian CAT.'
         ),
-        status: review?.status || 'pending',
+        status: review?.status || (isPeriodicAudit ? 'info' : 'pending'),
         assessorNotes: review?.notes || '',
-        snapshotUrl: typeof violation.snapshot === 'string' ? violation.snapshot : typeof violation.imageUrl === 'string' ? violation.imageUrl : null
+        snapshotUrl:
+          typeof violation.snapshot === 'string'
+            ? violation.snapshot
+            : typeof violation.evidenceSnapshot === 'string'
+              ? violation.evidenceSnapshot
+              : typeof violation.imageUrl === 'string'
+                ? violation.imageUrl
+                : null
       });
     });
 

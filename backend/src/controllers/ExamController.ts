@@ -423,9 +423,12 @@ export const submitExam = async (req: AuthRequest, res: Response) => {
     const answers = req.body.answers && typeof req.body.answers === 'object' ? req.body.answers : {};
     const markedDoubt = req.body.markedDoubt && typeof req.body.markedDoubt === 'object' ? req.body.markedDoubt : {};
     const violations = Array.isArray(req.body.violations) ? req.body.violations : [];
+    const penaltyViolations = violations.filter(
+      (item: any) => String(item?.type || '') !== 'PERIODIC_SNAPSHOT'
+    );
     const integrityScore = Number.isFinite(Number(req.body.integrityScore))
       ? Math.max(0, Math.min(100, Math.round(Number(req.body.integrityScore))))
-      : Math.max(0, 100 - violations.length * 5);
+      : Math.max(0, 100 - penaltyViolations.length * 5);
 
     const existingAttempt = await prisma.examAttempt.findUnique({
       where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } }

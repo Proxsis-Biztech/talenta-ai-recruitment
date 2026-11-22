@@ -15,11 +15,17 @@ export interface ProctoringViolationEvent {
     | 'SHARE_SCREEN_STOPPED'
     | 'VIRTUAL_BG_DETECTED'
     | 'VIRTUAL_CAMERA'
+    | 'MULTI_MONITOR'
+    | 'BACKGROUND_VOICE'
+    | 'PERIODIC_SNAPSHOT'
     | 'AUTO_SUBMIT_LEAVE';
   timestamp: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
   description: string;
+  snapshot?: string;
   evidenceSnapshot?: string;
+  durationSec?: number;
+  hasVisualEvidence?: boolean;
 }
 
 export type ProctoringPreset = 'Ringan' | 'Sedang' | 'Ketat';
@@ -27,6 +33,7 @@ export type ProctoringPreset = 'Ringan' | 'Sedang' | 'Ketat';
 export interface ProctoringConfig {
   preset?: ProctoringPreset;
   maxViolations?: number;
+  autoSubmitOnMaxViolations?: boolean;
   enforceFullscreen?: boolean;
   blockShortcuts?: boolean;
   blockContextMenu?: boolean;
@@ -34,11 +41,23 @@ export interface ProctoringConfig {
   detectFace?: boolean;
   detectGaze?: boolean;
   detectObject?: boolean;
+  detectAudio?: boolean;
+  blockMultiMonitor?: boolean;
   forbidVirtualBg?: boolean;
   checkShareScreen?: boolean;
+  snapshotIntervalMs?: number;
   onViolation?: (event: ProctoringViolationEvent) => void;
+  onPeriodicSnapshot?: (event: ProctoringViolationEvent) => void;
   onMaxViolationsReached?: () => void;
 }
+
+export const isMultiMonitorScreen = (): boolean => {
+  try {
+    return Boolean((window.screen as unknown as { isExtended?: boolean })?.isExtended);
+  } catch {
+    return false;
+  }
+};
 
 const VIRTUAL_CAMERA_PATTERNS = [
   'virtual',
@@ -85,15 +104,24 @@ export class ProctoringEngine {
   private events: ProctoringViolationEvent[] = [];
   private faceCheckInterval: any = null;
   private deviceWatchInterval: any = null;
+  private multiMonitorInterval: any = null;
+  private randomSnapshotTimeout: any = null;
+  private audioMonitorTimer: any = null;
+  private audioContext: AudioContext | null = null;
   private blurTimeout: any = null;
+  private awayStartedAt: number | null = null;
   private lastCameraLabel: string | null = null;
+  private lastEventTimestamps: Record<string, number> = {};
+  private webcamSnapshotProvider: (() => string | null) | null = null;
+  private screenSnapshotProvider: (() => string | null) | null = null;
 
   constructor(config: ProctoringConfig = {}) {
     const preset = config.preset || 'Sedang';
 
     let defaults: Partial<ProctoringConfig> = {
       preset,
-      maxViolations: 3,
+      maxViolations: 10,
+      autoSubmitOnMaxViolations: false,
       enforceFullscreen: true,
       blockShortcuts: true,
       blockContextMenu: true,
@@ -101,28 +129,40 @@ export class ProctoringEngine {
       detectFace: true,
       detectGaze: false,
       detectObject: false,
+      detectAudio: false,
+      blockMultiMonitor: false,
       forbidVirtualBg: false,
       checkShareScreen: false,
+      snapshotIntervalMs: 120000,
     };
 
     if (preset === 'Ringan') {
       defaults = {
         ...defaults,
-        maxViolations: 5,
+        maxViolations: 15,
+        enforceFullscreen: false,
+        blockShortcuts: false,
+        blockContextMenu: false,
+        blockCopyPaste: false,
         detectFace: false,
         detectGaze: false,
         detectObject: false,
+        detectAudio: false,
+        blockMultiMonitor: false,
         forbidVirtualBg: false,
       };
     } else if (preset === 'Ketat') {
       defaults = {
         ...defaults,
-        maxViolations: 3,
+        maxViolations: 10,
         detectFace: true,
         detectGaze: true,
         detectObject: true,
+        detectAudio: true,
+        blockMultiMonitor: true,
         forbidVirtualBg: true,
         checkShareScreen: true,
+        snapshotIntervalMs: 90000,
       };
     }
 
@@ -130,6 +170,14 @@ export class ProctoringEngine {
       ...defaults,
       ...config,
     };
+  }
+
+  public setWebcamSnapshotProvider(provider: (() => string | null) | null): void {
+    this.webcamSnapshotProvider = provider;
+  }
+
+  public setScreenSnapshotProvider(provider: (() => string | null) | null): void {
+    this.screenSnapshotProvider = provider;
   }
 
   public start(): void {
@@ -165,9 +213,15 @@ export class ProctoringEngine {
       document.addEventListener('fullscreenchange', this.handleFullscreenChange);
     }
 
-    // 7. Periodic Face & Gaze Check simulation (every 15s per BRD 4.4)
-    if (this.config.detectFace) {
-      this.startFaceCheckLoop();
+    // 7. Multi-monitor guard (high-stakes timed exams)
+    if (this.config.blockMultiMonitor) {
+      this.checkMultiMonitor();
+      this.multiMonitorInterval = setInterval(() => this.checkMultiMonitor(), 15000);
+    }
+
+    // 8. Randomized periodic webcam verification photos
+    if (this.config.detectFace || this.config.onPeriodicSnapshot) {
+      this.scheduleNextRandomSnapshot();
     }
   }
 
@@ -193,6 +247,22 @@ export class ProctoringEngine {
       clearInterval(this.deviceWatchInterval);
       this.deviceWatchInterval = null;
     }
+    if (this.multiMonitorInterval) {
+      clearInterval(this.multiMonitorInterval);
+      this.multiMonitorInterval = null;
+    }
+    if (this.randomSnapshotTimeout) {
+      clearTimeout(this.randomSnapshotTimeout);
+      this.randomSnapshotTimeout = null;
+    }
+    if (this.audioMonitorTimer) {
+      clearInterval(this.audioMonitorTimer);
+      this.audioMonitorTimer = null;
+    }
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.audioContext.close().catch(() => {});
+      this.audioContext = null;
+    }
     if (this.blurTimeout) {
       clearTimeout(this.blurTimeout);
       this.blurTimeout = null;
@@ -202,47 +272,99 @@ export class ProctoringEngine {
   public recordManualViolation(
     type: ProctoringViolationEvent['type'],
     description: string,
-    severity: ProctoringViolationEvent['severity']
+    severity: ProctoringViolationEvent['severity'],
+    explicitSnapshot?: string | null,
+    durationSec?: number
   ): void {
+    let snapshot: string | undefined = explicitSnapshot || undefined;
+    if (!snapshot) {
+      if (type === 'TAB_SWITCH' || type === 'BLUR_WINDOW' || type === 'SCREENSHOT_ATTEMPT') {
+        snapshot = this.screenSnapshotProvider?.() || this.webcamSnapshotProvider?.() || undefined;
+      } else if (
+        type === 'FACE_MISSING' ||
+        type === 'MULTI_FACE' ||
+        type === 'BACKGROUND_VOICE' ||
+        type === 'GAZE_AWAY' ||
+        type === 'OBJECT_DETECTED' ||
+        type === 'PERIODIC_SNAPSHOT'
+      ) {
+        snapshot = this.webcamSnapshotProvider?.() || undefined;
+      }
+    }
+
     const event: ProctoringViolationEvent = {
       id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       type,
       timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       severity,
       description,
+      ...(snapshot ? { snapshot, evidenceSnapshot: snapshot, hasVisualEvidence: true } : { hasVisualEvidence: false }),
+      ...(typeof durationSec === 'number' ? { durationSec } : {}),
     };
 
     this.events.unshift(event);
+    if (type === 'PERIODIC_SNAPSHOT') {
+      this.config.onPeriodicSnapshot?.(event);
+      return;
+    }
+
     this.violationCount++;
 
     if (this.config.onViolation) {
       this.config.onViolation(event);
     }
 
-    if (this.config.maxViolations && this.violationCount >= this.config.maxViolations) {
+    if (
+      this.config.autoSubmitOnMaxViolations &&
+      this.config.maxViolations &&
+      this.violationCount >= this.config.maxViolations
+    ) {
       if (this.config.onMaxViolationsReached) {
         this.config.onMaxViolationsReached();
       }
     }
   }
 
+  private canEmitWithCooldown(type: string, cooldownMs: number): boolean {
+    const now = Date.now();
+    const prev = this.lastEventTimestamps[type] || 0;
+    if (now - prev < cooldownMs) return false;
+    this.lastEventTimestamps[type] = now;
+    return true;
+  }
+
   private handleVisibilityChange = (): void => {
     if (document.hidden) {
+      this.awayStartedAt = Date.now();
+      const screenSnap = this.screenSnapshotProvider?.() || this.webcamSnapshotProvider?.() || null;
       this.recordManualViolation(
         'TAB_SWITCH',
-        'Kandidat berpindah tab atau meminimalkan browser ujian (Page Visibility API)',
-        'high'
+        screenSnap
+          ? 'Kandidat berpindah tab atau meminimalkan browser ujian (cuplikan layar/kamera tersimpan)'
+          : 'Kandidat berpindah tab atau meminimalkan browser ujian (Page Visibility API)',
+        'high',
+        screenSnap
       );
+    } else if (this.awayStartedAt) {
+      const durationSec = Math.max(1, Math.round((Date.now() - this.awayStartedAt) / 1000));
+      this.awayStartedAt = null;
+      const latest = this.events.find((evt) => evt.type === 'TAB_SWITCH');
+      if (latest && latest.durationSec === undefined) {
+        latest.durationSec = durationSec;
+        latest.description = `${latest.description} • Durasi keluar: ${durationSec} detik`;
+      }
     }
   };
 
   private handleWindowBlur = (): void => {
     // 1.5 second tolerance before logging window blur (catches OS snipping/screenshot tools too)
     this.blurTimeout = setTimeout(() => {
+      const screenSnap = this.screenSnapshotProvider?.() || this.webcamSnapshotProvider?.() || null;
       this.recordManualViolation(
         'BLUR_WINDOW',
         'Kandidat kehilangan fokus dari layar ujian > 1.5 detik (kemungkinan pindah aplikasi atau tool screenshot)',
-        'medium'
+        'medium',
+        screenSnap
       );
     }, 1500);
 
@@ -358,48 +480,110 @@ export class ProctoringEngine {
     }
   };
 
-  // Automated 15-second visual presence check (BRD 4.4: Constant Face Check)
-  private startFaceCheckLoop(): void {
-    this.faceCheckInterval = setInterval(() => {
-      // In production with camera stream, this is hooked to MediaPipe / OpenCV.js
-      // Here we maintain listener telemetry integrity
-    }, 15000);
+  private scheduleNextRandomSnapshot(): void {
+    if (!this.isListening) return;
+    const baseMs = this.config.snapshotIntervalMs || 120000;
+    const jitterMs = Math.round(baseMs * (0.75 + Math.random() * 0.5));
+    this.randomSnapshotTimeout = setTimeout(() => {
+      if (!this.isListening) return;
+      const snap = this.webcamSnapshotProvider?.();
+      if (snap) {
+        this.recordManualViolation(
+          'PERIODIC_SNAPSHOT',
+          'Foto verifikasi berkala acak selama sesi CAT (audit kehadiran peserta)',
+          'low',
+          snap
+        );
+      }
+      this.scheduleNextRandomSnapshot();
+    }, jitterMs);
   }
 
-  // Simulated triggers for automated / camera inference callbacks
-  public triggerGazeAway(seconds: number = 6): void {
-    if (this.config.detectGaze) {
-      this.recordManualViolation(
-        'GAZE_AWAY',
-        `Pandangan mata peserta berpaling dari layar monitor selama ${seconds}s (> 5 detik)`,
-        'medium'
-      );
-    }
-  }
-
-  public triggerObjectDetection(objectName: string = 'Smartphone'): void {
-    if (this.config.detectObject) {
-      this.recordManualViolation(
-        'OBJECT_DETECTED',
-        `AI mendeteksi keberadaan objek mencurigakan di area ujian: ${objectName}`,
-        'high'
-      );
-    }
-  }
-
-  public triggerMultiFace(): void {
+  private checkMultiMonitor(): void {
+    if (!isMultiMonitorScreen()) return;
+    if (!this.canEmitWithCooldown('MULTI_MONITOR', 60000)) return;
     this.recordManualViolation(
-      'MULTI_FACE',
-      'AI mendeteksi keberadaan lebih dari 1 orang di dalam bingkai webcam',
+      'MULTI_MONITOR',
+      'Terdeteksi lebih dari 1 monitor terhubung (Extended Display). Gunakan satu layar untuk ujian berisiko tinggi.',
       'high'
     );
   }
 
-  public triggerFaceMissing(): void {
+  /**
+   * Monitors microphone vocal-band energy during silent CAT sessions to detect
+   * sustained nearby speech (potential live coaching / whispering).
+   */
+  public startAudioMonitor(stream: MediaStream): void {
+    if (!this.config.detectAudio) return;
+    const audioTracks = stream.getAudioTracks();
+    if (!audioTracks || audioTracks.length === 0) return;
+
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      if (this.audioContext && this.audioContext.state !== 'closed') {
+        this.audioContext.close().catch(() => {});
+      }
+      const ctx = new AudioCtx();
+      this.audioContext = ctx;
+      const source = ctx.createMediaStreamSource(new MediaStream([audioTracks[0]]));
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      let consecutiveSpeechTicks = 0;
+
+      if (this.audioMonitorTimer) clearInterval(this.audioMonitorTimer);
+      this.audioMonitorTimer = setInterval(() => {
+        if (!this.isListening) return;
+        analyser.getByteFrequencyData(data);
+        // Roughly 300Hz-3000Hz voice energy bins
+        const startBin = 4;
+        const endBin = Math.min(data.length - 1, 40);
+        let sum = 0;
+        for (let i = startBin; i <= endBin; i++) sum += data[i];
+        const avg = sum / Math.max(1, endBin - startBin + 1);
+
+        if (avg > 42) {
+          consecutiveSpeechTicks++;
+          // Require >= 4 seconds (8 * 500ms) sustained speech to avoid coughing/noise false positives
+          if (consecutiveSpeechTicks >= 8 && this.canEmitWithCooldown('BACKGROUND_VOICE', 45000)) {
+            consecutiveSpeechTicks = 0;
+            const snap = this.webcamSnapshotProvider?.() || null;
+            this.recordManualViolation(
+              'BACKGROUND_VOICE',
+              'Terdeteksi percakapan/suara vokal berkelanjutan di sekitar peserta saat sesi CAT hening (perlu verifikasi asesor)',
+              'medium',
+              snap
+            );
+          }
+        } else {
+          consecutiveSpeechTicks = Math.max(0, consecutiveSpeechTicks - 1);
+        }
+      }, 500);
+    } catch {
+      // Audio monitoring optional fallback when Web Audio API restricted
+    }
+  }
+
+  public triggerMultiFace(snapshot?: string | null): void {
+    if (!this.canEmitWithCooldown('MULTI_FACE', 30000)) return;
+    this.recordManualViolation(
+      'MULTI_FACE',
+      'AI mendeteksi keberadaan lebih dari 1 wajah di dalam bingkai webcam',
+      'high',
+      snapshot
+    );
+  }
+
+  public triggerFaceMissing(snapshot?: string | null): void {
+    if (!this.canEmitWithCooldown('FACE_MISSING', 30000)) return;
     this.recordManualViolation(
       'FACE_MISSING',
-      'Wajah peserta tidak terdeteksi di webcam lebih dari 10 detik',
-      'high'
+      'Wajah peserta tidak terdeteksi di webcam selama beberapa detik berturut-turut',
+      'high',
+      snapshot
     );
   }
 

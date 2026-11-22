@@ -45,7 +45,7 @@ export interface AssessorProctoringEvent {
   type: string;
   severity: 'high' | 'medium' | 'low';
   description: string;
-  status: 'pending' | 'valid' | 'false_positive';
+  status: 'pending' | 'valid' | 'false_positive' | 'info';
   assessorNotes: string;
   snapshotUrl?: string | null;
 }

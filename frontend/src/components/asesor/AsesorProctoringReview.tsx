@@ -104,7 +104,10 @@ export default function AsesorProctoringReview() {
       return;
     }
     const nonVerified = events.filter(
-      (event) => !String(event.type).toLowerCase().includes('face_verified')
+      (event) =>
+        event.status !== 'info' &&
+        !String(event.type).toLowerCase().includes('face_verified') &&
+        !String(event.type).toLowerCase().includes('verifikasi_berkala')
     );
     const validCount = nonVerified.filter((event) => event.status === 'valid').length;
     const falsePositiveCount = nonVerified.filter((event) => event.status === 'false_positive').length;
@@ -136,8 +139,8 @@ export default function AsesorProctoringReview() {
     low: events.filter((event) => event.severity === 'low').length
   };
 
-  const persistReview = async (id: string, status: 'pending' | 'valid' | 'false_positive', notes: string) => {
-    if (status === 'pending') return;
+  const persistReview = async (id: string, status: 'pending' | 'valid' | 'false_positive' | 'info', notes: string) => {
+    if (status === 'pending' || status === 'info') return;
     const token = getPortalToken();
     if (!token) return;
     try {
@@ -166,7 +169,7 @@ export default function AsesorProctoringReview() {
 
   const handleNotesSave = (id: string, notes: string) => {
     const current = events.find((event) => event.id === id);
-    if (!current || current.status === 'pending') return;
+    if (!current || current.status === 'pending' || current.status === 'info') return;
     void persistReview(id, current.status, notes);
   };
 
@@ -356,8 +359,8 @@ export default function AsesorProctoringReview() {
               ) : (
                 <div className="w-full lg:w-48 aspect-video bg-slate-100 rounded-xl border border-slate-200 shrink-0 relative overflow-hidden flex flex-col items-center justify-center p-3 text-center">
                   <Camera className="w-6 h-6 text-slate-400 mb-1.5" />
-                  <span className="text-[11px] font-semibold text-slate-600">Log Sistem Otomatis</span>
-                  <span className="text-[10px] text-slate-400 mt-0.5">Tanpa snapshot visual</span>
+                  <span className="text-[11px] font-semibold text-slate-600">Tanpa Snapshot Visual</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5">Log sistem (perlu review)</span>
                   <span className="absolute bottom-2 right-2 bg-slate-700 text-white font-mono text-[9px] px-1.5 py-0.5 rounded">
                     {evt.time}
                   </span>
@@ -386,6 +389,11 @@ export default function AsesorProctoringReview() {
                   </div>
 
                   <div>
+                    {evt.status === 'info' && (
+                      <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md">
+                        ℹ Foto Verifikasi Berkala (Audit Kehadiran)
+                      </span>
+                    )}
                     {evt.status === 'valid' && (
                       <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1 rounded-md">
                         ✓ Dikonfirmasi Valid (Pelanggaran)

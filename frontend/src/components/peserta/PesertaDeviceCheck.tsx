@@ -30,7 +30,7 @@ import { Button, Badge } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { clearPortalSession, getPortalToken, getPortalUser, savePortalSession } from '../../services/portalAuthService';
 import { getProgramById, DEFAULT_ASSESSMENT_PROGRAMS } from '../../services/assessmentCatalog';
-import { isVirtualCameraLabel } from '../../utils/proctoringEngine';
+import { isVirtualCameraLabel, isMultiMonitorScreen } from '../../utils/proctoringEngine';
 
 export default function PesertaDeviceCheck() {
   const navigate = useNavigate();
@@ -418,6 +418,10 @@ export default function PesertaDeviceCheck() {
   const isSpeakerOk = speakerTested;
   const isConnectionOk = connectionTested && !testingConnection;
   const isBrowserOk = browserVerified;
+  const multiMonitorDetected = useMemo(
+    () => isMultiMonitorScreen(),
+    [browserVerified, screenResolution]
+  );
   const isFaceOk = faceCheckedInSession || initialFaceRegistered;
 
   const kycPoints = [
@@ -976,7 +980,11 @@ export default function PesertaDeviceCheck() {
                 </span>
               </div>
               <p className="text-[10px] text-muted-slate truncate">
-                {testingBrowser ? 'Mengecek resolusi...' : `${browserInfo.split(' ').slice(-1)[0]} • ${screenResolution}`}
+                {testingBrowser
+                  ? 'Mengecek resolusi & layar...'
+                  : multiMonitorDetected
+                    ? `Multi-monitor terdeteksi • ${screenResolution}`
+                    : `${browserInfo.split(' ').slice(-1)[0]} • ${screenResolution} (1 Layar)`}
               </p>
               <div
                 className={`w-full py-1.5 rounded-lg text-[11px] font-bold text-center flex items-center justify-center gap-1 ${
@@ -1066,8 +1074,8 @@ export default function PesertaDeviceCheck() {
                   }}
                   className="w-4 h-4 text-primary-navy rounded border-slate-300 focus:ring-primary-navy cursor-pointer shrink-0"
                 />
-                <span className="text-[11px] font-semibold text-slate-700 truncate">
-                  Saya menyetujui verifikasi biometrik wajah &amp; integritas ujian sesuai UU PDP No. 27/2022.
+                <span className="text-[11px] font-semibold text-slate-700">
+                  Saya menyetujui verifikasi wajah &amp; pemantauan proctoring (fokus tab/layar, kamera berkala, audio sekitar, &amp; deteksi multi-monitor; seluruh flag ditinjau asesor dan tidak otomatis menggagalkan) sesuai UU PDP No. 27/2022.
                 </span>
               </label>
 

@@ -7,19 +7,55 @@ export function CameraProctorTile({
   active = true,
   compact = false,
   floating = false,
+  captureAudio = false,
   className = '',
+  captureRef,
+  onStreamReady,
+  onFaceAnomaly,
   onStatusChange
 }: {
   active?: boolean;
   compact?: boolean;
   floating?: boolean;
+  captureAudio?: boolean;
   className?: string;
+  captureRef?: React.MutableRefObject<(() => string | null) | null>;
+  onStreamReady?: (stream: MediaStream) => void;
+  onFaceAnomaly?: (kind: 'FACE_MISSING' | 'MULTI_FACE', snapshot: string | null) => void;
   onStatusChange?: (status: ProctorStatus) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const onFaceAnomalyRef = useRef(onFaceAnomaly);
+  const onStreamReadyRef = useRef(onStreamReady);
+  onFaceAnomalyRef.current = onFaceAnomaly;
+  onStreamReadyRef.current = onStreamReady;
+
   const [status, setStatus] = useState<ProctorStatus>(active ? 'loading' : 'inactive');
   const [message, setMessage] = useState(active ? 'Menyiapkan kamera...' : 'Kamera belum aktif');
+
+  const captureFrame = (): string | null => {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2 || video.videoWidth === 0) return null;
+    if (!canvasRef.current) canvasRef.current = document.createElement('canvas');
+    const canvas = canvasRef.current;
+    canvas.width = 320;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.55);
+  };
+
+  useEffect(() => {
+    if (captureRef) {
+      captureRef.current = captureFrame;
+      return () => {
+        captureRef.current = null;
+      };
+    }
+  }, [captureRef]);
 
   useEffect(() => {
     onStatusChange?.(status);
@@ -35,16 +71,30 @@ export function CameraProctorTile({
     let cancelled = false;
     let detector: any = null;
     let detectTimer: number | undefined;
+    let missingStreak = 0;
+    let multiStreak = 0;
 
     const start = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480 },
+            audio: captureAudio
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480 },
+            audio: false
+          });
+        }
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
+        onStreamReadyRef.current?.(stream);
         setStatus('warning');
         setMessage('Posisikan wajah di tengah');
 
@@ -56,14 +106,28 @@ export function CameraProctorTile({
             try {
               const faces = await detector.detect(videoRef.current);
               if (faces.length === 1) {
+                missingStreak = 0;
+                multiStreak = 0;
                 setStatus('ok');
                 setMessage('1 wajah terverifikasi');
               } else if (faces.length === 0) {
+                multiStreak = 0;
+                missingStreak++;
                 setStatus('warning');
                 setMessage('Wajah tidak terdeteksi');
+                if (missingStreak >= 3) {
+                  missingStreak = 0;
+                  onFaceAnomalyRef.current?.('FACE_MISSING', captureFrame());
+                }
               } else {
+                missingStreak = 0;
+                multiStreak++;
                 setStatus('error');
                 setMessage(`${faces.length} wajah terdeteksi`);
+                if (multiStreak >= 2) {
+                  multiStreak = 0;
+                  onFaceAnomalyRef.current?.('MULTI_FACE', captureFrame());
+                }
               }
             } catch {
               setStatus('warning');
@@ -89,7 +153,7 @@ export function CameraProctorTile({
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     };
-  }, [active]);
+  }, [active, captureAudio]);
 
   const border =
     status === 'ok' ? 'border-emerald-400' :

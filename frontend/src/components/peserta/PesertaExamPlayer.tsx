@@ -40,7 +40,7 @@ import {
   Paperclip
 } from 'lucide-react';
 import { PesertaLayout } from './PesertaLayout';
-import { ProctoringEngine, type ProctoringViolationEvent } from '../../utils/proctoringEngine';
+import { ProctoringEngine, type ProctoringPreset, type ProctoringViolationEvent } from '../../utils/proctoringEngine';
 import { Button, Badge, Modal, Card, CardContent } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { markCatCompleted } from '../../services/progressService';
@@ -220,7 +220,13 @@ export default function PesertaExamPlayer() {
   const [violationAlertOpen, setViolationAlertOpen] = useState(false);
   const [latestViolation, setLatestViolation] = useState<ProctoringViolationEvent | null>(null);
   const [violations, setViolations] = useState<ProctoringViolationEvent[]>([]);
+  const [periodicSnapshots, setPeriodicSnapshots] = useState<ProctoringViolationEvent[]>([]);
   const [cameraStatus, setCameraStatus] = useState<ProctorStatus>('loading');
+  const [screenCaptureActive, setScreenCaptureActive] = useState(false);
+  const webcamCaptureRef = useRef<(() => string | null) | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const screenVideoRef = useRef<HTMLVideoElement | null>(null);
+  const screenCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Live Helpdesk Chat
   const [liveChatOpen, setLiveChatOpen] = useState(false);
@@ -340,30 +346,101 @@ export default function PesertaExamPlayer() {
   const unansweredCount = totalQuestions - answeredCount;
   const progressPercent = Math.round((answeredCount / totalQuestions) * 100);
 
-  // Initialize Proctoring Engine (Tolerant & supportive for smooth experience)
+  // Determine strictness per exam type (Principle #4: strict on timed CAT, light on untimed/take-home)
+  const proctoringPreset: ProctoringPreset = useMemo(() => {
+    const mins = activeProgram.durationMinutes || 0;
+    if (mins > 0 && mins <= 180) return 'Ketat';
+    return 'Ringan';
+  }, [activeProgram.durationMinutes]);
+
+  const captureScreenFrame = useCallback((): string | null => {
+    const video = screenVideoRef.current;
+    if (!video || video.readyState < 2 || video.videoWidth === 0) return null;
+    if (!screenCanvasRef.current) screenCanvasRef.current = document.createElement('canvas');
+    const canvas = screenCanvasRef.current;
+    canvas.width = 360;
+    canvas.height = 220;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.48);
+  }, []);
+
+  const enableScreenCapture = async () => {
+    if (!navigator.mediaDevices?.getDisplayMedia) return;
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'monitor' } as MediaTrackConstraints,
+        audio: false
+      });
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = stream;
+      if (!screenVideoRef.current) {
+        const video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        screenVideoRef.current = video;
+      }
+      screenVideoRef.current.srcObject = stream;
+      await screenVideoRef.current.play().catch(() => {});
+      setScreenCaptureActive(true);
+      proctoringRef.current?.setScreenSnapshotProvider(captureScreenFrame);
+
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        track.onended = () => {
+          setScreenCaptureActive(false);
+          proctoringRef.current?.setScreenSnapshotProvider(null);
+          proctoringRef.current?.triggerShareScreenStopped();
+        };
+      }
+    } catch {
+      // User cancelled or browser blocked screen share prompt
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    };
+  }, []);
+
+  // Initialize Proctoring Engine (Principle #1: flags go to human review, NEVER auto-fail)
   useEffect(() => {
     if (isExamLocked) return;
 
     const engine = new ProctoringEngine({
-      preset: 'Sedang',
+      preset: proctoringPreset,
       maxViolations: 10,
-      enforceFullscreen: true,
-      blockShortcuts: true,
-      blockContextMenu: true,
-      blockCopyPaste: true,
-      detectFace: false,
-      forbidVirtualBg: true,
+      autoSubmitOnMaxViolations: false,
+      enforceFullscreen: proctoringPreset !== 'Ringan',
+      blockShortcuts: proctoringPreset !== 'Ringan',
+      blockContextMenu: proctoringPreset !== 'Ringan',
+      blockCopyPaste: proctoringPreset !== 'Ringan',
+      detectFace: proctoringPreset !== 'Ringan',
+      detectAudio: proctoringPreset !== 'Ringan',
+      blockMultiMonitor: proctoringPreset === 'Ketat',
+      forbidVirtualBg: proctoringPreset !== 'Ringan',
+      checkShareScreen: false,
+      snapshotIntervalMs: proctoringPreset === 'Ketat' ? 90000 : 180000,
       onViolation: (evt) => {
         setLatestViolation(evt);
-        setViolations((prev) => [evt, ...prev]);
+        setViolations((prev) => {
+          // Keep at most 12 embedded snapshots to stay well below payload limits
+          const withSnaps = prev.filter((item) => Boolean(item.snapshot)).length;
+          const sanitized = withSnaps >= 12 && evt.snapshot ? { ...evt, snapshot: undefined, evidenceSnapshot: undefined } : evt;
+          return [sanitized, ...prev];
+        });
         setViolationAlertOpen(true);
       },
-      onMaxViolationsReached: () => {
-        alert('Pemberitahuan: Batas pengawasan tercapai. Jawaban Anda akan diserahkan secara aman ke panitia seleksi.');
-        navigate('/peserta/hasil');
+      onPeriodicSnapshot: (evt) => {
+        setPeriodicSnapshots((prev) => [evt, ...prev].slice(0, 4));
       }
     });
 
+    engine.setWebcamSnapshotProvider(() => webcamCaptureRef.current?.() || null);
+    engine.setScreenSnapshotProvider(captureScreenFrame);
     engine.start();
     proctoringRef.current = engine;
 
@@ -381,7 +458,7 @@ export default function PesertaExamPlayer() {
     return () => {
       engine.stop();
     };
-  }, [navigate, isExamLocked]);
+  }, [navigate, isExamLocked, proctoringPreset, captureScreenFrame]);
 
   // Auto-enter Fullscreen when taking CAT exam
   useEffect(() => {
@@ -545,16 +622,19 @@ export default function PesertaExamPlayer() {
         throw new Error('Sesi Anda telah berakhir. Silakan masuk kembali.');
       }
       const cameraInactive = cameraStatus === 'inactive' || cameraStatus === 'error';
-      const effectiveViolations = cameraInactive
-        ? [
-            ...violations,
-            {
-              type: 'camera_inactive',
-              message: 'Kamera proctoring tidak aktif selama sesi ujian.',
-              timestamp: new Date().toISOString()
-            }
-          ]
-        : violations;
+      const combinedEvents = [
+        ...(cameraInactive
+          ? [
+              ...violations,
+              {
+                type: 'camera_inactive',
+                message: 'Kamera proctoring tidak aktif selama sesi ujian.',
+                timestamp: new Date().toISOString()
+              }
+            ]
+          : violations),
+        ...periodicSnapshots
+      ];
       const computedIntegrity = Math.max(
         60,
         100 - violations.length * 5 - (cameraInactive ? 15 : 0)
@@ -564,7 +644,7 @@ export default function PesertaExamPlayer() {
         {
           answers,
           markedDoubt,
-          violations: effectiveViolations,
+          violations: combinedEvents,
           integrityScore: computedIntegrity
         },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -852,7 +932,24 @@ export default function PesertaExamPlayer() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans select-none antialiased">
-      {!isExamLocked && <CameraProctorTile floating onStatusChange={setCameraStatus} />}
+      {!isExamLocked && (
+        <CameraProctorTile
+          floating
+          captureAudio={proctoringPreset !== 'Ringan'}
+          captureRef={webcamCaptureRef}
+          onStreamReady={(stream) => {
+            proctoringRef.current?.startAudioMonitor(stream);
+          }}
+          onFaceAnomaly={(kind, snapshot) => {
+            if (kind === 'FACE_MISSING') {
+              proctoringRef.current?.triggerFaceMissing(snapshot);
+            } else {
+              proctoringRef.current?.triggerMultiFace(snapshot);
+            }
+          }}
+          onStatusChange={setCameraStatus}
+        />
+      )}
 
       {/* Split-view document panel (BR-EX-08) */}
       {!isExamLocked && docPanelOpen && currentQ.attachmentUrl && (
@@ -987,6 +1084,22 @@ export default function PesertaExamPlayer() {
               A++
             </button>
           </div>
+
+          {proctoringPreset === 'Ketat' && (
+            <button
+              type="button"
+              onClick={() => void enableScreenCapture()}
+              className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
+                screenCaptureActive
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+              }`}
+              title="Pengawasan layar opsional untuk bukti keaslian jika terjadi perpindahan tab"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>{screenCaptureActive ? 'Layar Terawasi' : 'Bagikan Layar'}</span>
+            </button>
+          )}
 
           {/* Live Helpdesk Chat Pill */}
           <button
@@ -1724,14 +1837,14 @@ export default function PesertaExamPlayer() {
               {latestViolation?.description ||
                 'Sistem mendeteksi fokus layar teralihkan dari lembar ujian. Harap tetap berada di mode layar penuh dan fokus menghadap ke kamera.'}
             </p>
-            <div className="pt-2 text-xs font-mono text-amber-800 flex items-center justify-between border-t border-amber-200/60">
+            <div className="pt-2 text-xs font-mono text-amber-800 flex flex-wrap items-center justify-between gap-2 border-t border-amber-200/60">
               <span>Waktu Kejadian: {latestViolation?.timestamp}</span>
-              <span>Catatan: {violations.length} dari 10 toleransi</span>
+              <span>Catatan #{violations.length} • Ditinjau Dewan Asesor (tidak menggagalkan otomatis)</span>
             </div>
           </div>
 
           <p className="text-slate-600 leading-relaxed text-xs">
-            Ujian ini diawasi secara otomatis untuk memastikan keadilan bagi semua peserta seleksi. Mohon untuk tidak berpindah jendela peramban.
+            Ujian ini dipantau untuk menjaga objektivitas seleksi. Catatan aktivitas bukan merupakan keputusan gagal otomatis dan akan ditinjau oleh asesor beserta konteksnya. Anda tetap dapat melanjutkan pengerjaan soal dengan tenang.
           </p>
 
           <div className="pt-2 flex justify-end">
