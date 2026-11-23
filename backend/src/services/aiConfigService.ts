@@ -14,6 +14,7 @@ export interface AiRuntimeConfig {
   integrityWeight: number;
   passingThreshold: number;
   maxDurationMinutes: number;
+  examExpiryPolicy: 'auto_submit' | 'expired';
 }
 
 const DEFAULT_CONFIG: AiRuntimeConfig = {
@@ -27,7 +28,8 @@ const DEFAULT_CONFIG: AiRuntimeConfig = {
   interviewWeight: 50,
   integrityWeight: 15,
   passingThreshold: 70,
-  maxDurationMinutes: 20
+  maxDurationMinutes: 20,
+  examExpiryPolicy: 'auto_submit'
 };
 
 let cached: { value: AiRuntimeConfig; expiresAt: number } | null = null;

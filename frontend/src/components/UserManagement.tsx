@@ -80,7 +80,7 @@ export default function UserManagement() {
   const [editingPesertaId, setEditingPesertaId] = useState<string | null>(null);
   const [pesertaFormName, setPesertaFormName] = useState('');
   const [pesertaFormUsername, setPesertaFormUsername] = useState('');
-  const [pesertaFormPassword, setPesertaFormPassword] = useState('peserta123');
+  const [pesertaFormPassword, setPesertaFormPassword] = useState('');
   const [pesertaFormPhone, setPesertaFormPhone] = useState('');
   const [pesertaFormCompanyId, setPesertaFormCompanyId] = useState(COMPANIES_CATALOG[0].id);
   const [companyOptions, setCompanyOptions] = useState(COMPANIES_CATALOG);
@@ -370,7 +370,7 @@ export default function UserManagement() {
     setEditingPesertaId(null);
     setPesertaFormName('');
     setPesertaFormUsername('');
-    setPesertaFormPassword('peserta123');
+    setPesertaFormPassword('');
     setPesertaFormPhone('');
     const defaultCompanyId = companyOptions[0]?.id || COMPANIES_CATALOG[0].id;
     setPesertaFormCompanyId(defaultCompanyId);
@@ -423,17 +423,19 @@ export default function UserManagement() {
         interviewScheduledAt: pesertaFormDate ? new Date(`${pesertaFormDate}T09:00:00.000Z`).toISOString() : null
       };
       if (pesertaFormPassword.trim()) payload.password = pesertaFormPassword;
+      let createdResponse: any = null;
       if (editingPesertaId) {
         await axios.put(`/api/admin/portal-users/${editingPesertaId}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        await axios.post('/api/admin/portal-users', {
+        const res = await axios.post('/api/admin/portal-users', {
           ...payload,
           email: pesertaFormUsername,
-          password: pesertaFormPassword || 'peserta123',
+          ...(pesertaFormPassword.trim() ? { password: pesertaFormPassword.trim() } : { activationMode: 'email_link' }),
           role: 'peserta'
         }, { headers: { Authorization: `Bearer ${token}` } });
+        createdResponse = res.data;
       }
 
       await loadPeserta();
@@ -444,17 +446,23 @@ export default function UserManagement() {
       setPesertaFormName('');
       setPesertaFormUsername('');
       setPesertaFormPhone('');
-      setPesertaFormPassword('peserta123');
+      setPesertaFormPassword('');
       setPesertaFormError('');
 
+      const fallbackActivationUrl = createdResponse?.activationUrl;
       Swal.fire({
         icon: 'success',
         title: editingPesertaId ? 'Data Peserta Diperbarui!' : 'Akun Peserta Diterbitkan!',
         html: editingPesertaId
           ? `Data <b>${pesertaFormName}</b> berhasil diperbarui.`
-          : `Akun <b>${pesertaFormUsername}</b> berhasil didaftarkan dan dialokasikan ke program asesmen CAT 40 Soal.`,
-        timer: 2500,
-        showConfirmButton: false
+          : fallbackActivationUrl
+            ? `<div class="text-left text-xs space-y-2">
+                 <p>Akun <b>${pesertaFormUsername}</b> dibuat dengan aktivasi mandiri.</p>
+                 <p class="text-slate-500">Salin tautan aktivasi berikut bila email outbox lokal digunakan:</p>
+                 <input readonly value="${fallbackActivationUrl}" onclick="this.select()" class="w-full px-2.5 py-1.5 border rounded font-mono text-[11px] bg-slate-50" />
+               </div>`
+            : `Akun <b>${pesertaFormUsername}</b> berhasil didaftarkan dan tautan aktivasi akun telah dikirim ke email peserta.`,
+        ...(fallbackActivationUrl ? { showConfirmButton: true, confirmButtonText: 'Tutup' } : { timer: 2800, showConfirmButton: false })
       });
     } catch (err: any) {
       setPesertaFormError(err.message || 'Gagal mendaftarkan akun peserta.');
@@ -509,6 +517,36 @@ export default function UserManagement() {
     } finally {
       setImporting(false);
       event.target.value = '';
+    }
+  };
+
+  const handleSendActivationLink = async (peserta: any) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await axios.post(
+        `/api/admin/portal-users/${peserta.id}/send-activation`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const fallbackUrl = res.data?.activationUrl;
+      Swal.fire({
+        icon: 'success',
+        title: 'Tautan Aktivasi Diproses',
+        html: fallbackUrl
+          ? `<div class="text-left text-xs space-y-2">
+               <p>Tautan aktivasi baru diterbitkan untuk <b>${peserta.email || peserta.username}</b>.</p>
+               <p class="text-slate-500">Salin tautan aktivasi (berlaku 7 hari):</p>
+               <input readonly value="${fallbackUrl}" onclick="this.select()" class="w-full px-2.5 py-1.5 border rounded font-mono text-[11px] bg-slate-50" />
+             </div>`
+          : `Tautan aktivasi mandiri telah dikirim ke email <b>${peserta.email || peserta.username}</b> (berlaku 7 hari).`,
+        ...(fallbackUrl ? { showConfirmButton: true, confirmButtonText: 'Tutup' } : { timer: 2800, showConfirmButton: false })
+      });
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Mengirim Aktivasi',
+        text: err?.response?.data?.error || 'Tidak dapat mengirim tautan aktivasi saat ini.'
+      });
     }
   };
 
@@ -1159,6 +1197,15 @@ export default function UserManagement() {
                           <Button
                             variant="secondary"
                             size="xs"
+                            onClick={() => handleSendActivationLink(p)}
+                            leftIcon={<Mail className="w-3 h-3" />}
+                            title="Kirim Tautan Aktivasi ke Email"
+                          >
+                            Aktivasi
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="xs"
                             onClick={() => handleEditPeserta(p)}
                             leftIcon={<Edit2 className="w-3 h-3" />}
                             title="Edit Data Peserta"
@@ -1217,6 +1264,15 @@ export default function UserManagement() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    onClick={() => handleSendActivationLink(p)}
+                    leftIcon={<Mail className="w-3 h-3" />}
+                    className="flex-1"
+                  >
+                    Aktivasi
+                  </Button>
                   <Button
                     variant="secondary"
                     size="xs"
@@ -1291,16 +1347,20 @@ export default function UserManagement() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Kata Sandi Akun
+                    Kata Sandi Akun (Opsional)
                   </label>
                   <input
                     type="text"
-                    required={!editingPesertaId}
+                    placeholder="Kosongkan untuk aktivasi mandiri via email"
                     value={pesertaFormPassword}
                     onChange={(e) => setPesertaFormPassword(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy font-mono"
                   />
-                  <span className="text-[10px] text-slate-400 mt-1 block">{editingPesertaId ? 'Kosongkan jika tidak ingin mengganti kata sandi.' : 'Default: peserta123'}</span>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    {editingPesertaId
+                      ? 'Kosongkan jika tidak ingin mengganti kata sandi.'
+                      : 'Direkomendasikan kosong: sistem mengirim tautan aktivasi ke email agar peserta membuat kata sandi sendiri.'}
+                  </span>
                 </div>
 
                 <div>

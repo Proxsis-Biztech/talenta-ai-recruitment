@@ -7,7 +7,8 @@ import { z } from 'zod';
 import { type AuthRequest, getJwtSecret, portalTokenTtl } from '../middleware/auth';
 import { resolveAdminTenantId } from '../middleware/tenant';
 import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
-import { sendCredentialsEmail, sendPasswordResetEmail } from '../services/mailService';
+import { sendActivationEmail, sendCredentialsEmail, sendPasswordResetEmail } from '../services/mailService';
+import { getLhaVersionMeta } from '../services/lhaGovernanceService';
 
 const prisma = new PrismaClient();
 
@@ -640,6 +641,7 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
       lha: lha
         ? {
             signed: true,
+            version: (await getLhaVersionMeta(lha.candidateCode, lha.programTitle)).currentVersion,
             recommendation: lha.recommendation,
             compositeScore: lha.compositeScore,
             interviewScore: lha.interviewScore,
@@ -724,14 +726,47 @@ export const listPortalUsers = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const ACTIVATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export const issueUserActivationToken = async (user: {
+  id: string;
+  email: string;
+  name: string;
+  assessmentTitle?: string | null;
+  assessmentId?: string | null;
+}) => {
+  const token = crypto.randomBytes(24).toString('hex');
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + ACTIVATION_TTL_MS)
+    }
+  });
+  const activationUrl = `${appBaseUrl()}/login?activate=${token}`;
+  const mail = await sendActivationEmail(
+    user.email,
+    user.name,
+    token,
+    activationUrl,
+    user.assessmentTitle || user.assessmentId || undefined
+  );
+  return { mail, token, activationUrl };
+};
+
 export const createPortalUser = async (req: AuthRequest, res: Response) => {
   try {
     const email = emailSchema.parse(req.body.email);
-    const password = passwordSchema.parse(req.body.password);
+    const rawPassword = typeof req.body.password === 'string' ? req.body.password.trim() : '';
     const role = String(req.body.role || 'peserta');
     if (!['peserta', 'asesor'].includes(role)) {
       return res.status(400).json({ error: 'Role harus peserta atau asesor.' });
     }
+    const useSelfActivation = !rawPassword && role === 'peserta';
+    const password = useSelfActivation
+      ? crypto.randomBytes(32).toString('hex')
+      : passwordSchema.parse(rawPassword);
+
     const existing = await prisma.portalUser.findUnique({ where: { email } });
     if (existing) {
       return res.status(409).json({ error: 'Email sudah digunakan.' });
@@ -751,7 +786,7 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
         role,
         tenantId: resolvedTenantId,
         profileCompleted: role !== 'peserta',
-        mustChangePassword: false,
+        mustChangePassword: useSelfActivation,
         phone: req.body.phone ? String(req.body.phone) : null,
         companyId: req.body.companyId ? String(req.body.companyId) : null,
         companyName: req.body.companyName ? String(req.body.companyName) : null,
@@ -781,15 +816,41 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
     });
     if (role === 'peserta') await ensureApplicantForPortalUser(user.id);
     let mail: Awaited<ReturnType<typeof sendCredentialsEmail>> | null = null;
+    let activationUrl: string | undefined;
+    let devActivationToken: string | undefined;
+
     if (req.body.sendEmail !== false) {
-      mail = await sendCredentialsEmail(user.email, user.name, {
-        loginUrl: `${appBaseUrl()}/login`,
-        programTitle: user.assessmentTitle || user.assessmentId || undefined,
-        username: user.username || undefined,
-        temporaryPassword: password
-      });
+      if (useSelfActivation) {
+        const activation = await issueUserActivationToken({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          assessmentTitle: user.assessmentTitle,
+          assessmentId: user.assessmentId
+        });
+        mail = activation.mail;
+        if (!mail.delivered) {
+          activationUrl = activation.activationUrl;
+          if (process.env.NODE_ENV !== 'production') {
+            devActivationToken = activation.token;
+          }
+        }
+      } else {
+        mail = await sendCredentialsEmail(user.email, user.name, {
+          loginUrl: `${appBaseUrl()}/login`,
+          programTitle: user.assessmentTitle || user.assessmentId || undefined,
+          username: user.username || undefined,
+          temporaryPassword: password
+        });
+      }
     }
-    return res.status(201).json({ data: user, mail });
+    return res.status(201).json({
+      data: user,
+      mail,
+      activationSent: useSelfActivation && req.body.sendEmail !== false,
+      ...(activationUrl ? { activationUrl } : {}),
+      ...(devActivationToken ? { devActivationToken } : {})
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.issues[0]?.message || 'Data tidak valid.' });
@@ -1091,6 +1152,24 @@ export const sendPortalUserCredentials = async (req: AuthRequest, res: Response)
       return res.status(403).json({ error: 'Pengguna bukan milik tenant Anda.' });
     }
 
+    if (existing.role === 'peserta' || existing.mustChangePassword || req.body?.mode === 'activation') {
+      const activation = await issueUserActivationToken({
+        id: existing.id,
+        email: existing.email,
+        name: existing.name,
+        assessmentTitle: existing.assessmentTitle,
+        assessmentId: existing.assessmentId
+      });
+      return res.json({
+        message: 'Tautan aktivasi akun diproses.',
+        mail: activation.mail,
+        ...(!activation.mail.delivered ? { activationUrl: activation.activationUrl } : {}),
+        ...(process.env.NODE_ENV !== 'production' && !activation.mail.delivered
+          ? { devActivationToken: activation.token }
+          : {})
+      });
+    }
+
     const programTitle = existing.assessmentTitle || existing.assessmentId || undefined;
     const mail = await sendCredentialsEmail(existing.email, existing.name, {
       loginUrl: `${appBaseUrl()}/login`,
@@ -1101,6 +1180,38 @@ export const sendPortalUserCredentials = async (req: AuthRequest, res: Response)
   } catch (error) {
     console.error('Send credentials error:', error);
     return res.status(500).json({ error: 'Gagal mengirim email kredensial.' });
+  }
+};
+
+export const sendPortalUserActivation = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const existing = await prisma.portalUser.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Pengguna portal tidak ditemukan.' });
+    const tenantId = resolveAdminTenantId(req);
+    const tenantName = await resolveTenantNameById(tenantId);
+    if (tenantId && existing.tenantId !== tenantId && (!tenantName || existing.companyName !== tenantName)) {
+      return res.status(403).json({ error: 'Pengguna bukan milik tenant Anda.' });
+    }
+
+    const activation = await issueUserActivationToken({
+      id: existing.id,
+      email: existing.email,
+      name: existing.name,
+      assessmentTitle: existing.assessmentTitle,
+      assessmentId: existing.assessmentId
+    });
+    return res.json({
+      message: 'Tautan aktivasi akun berhasil dikirim.',
+      mail: activation.mail,
+      ...(!activation.mail.delivered ? { activationUrl: activation.activationUrl } : {}),
+      ...(process.env.NODE_ENV !== 'production' && !activation.mail.delivered
+        ? { devActivationToken: activation.token }
+        : {})
+    });
+  } catch (error) {
+    console.error('Send portal activation error:', error);
+    return res.status(500).json({ error: 'Gagal mengirim tautan aktivasi akun.' });
   }
 };
 

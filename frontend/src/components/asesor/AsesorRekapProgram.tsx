@@ -13,6 +13,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
+import { downloadCsvFile } from '../../utils/csvExport';
 import { Button, Badge, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
 import { calculateCompositeScore, formatToday } from '../../services/asesorScoreService';
 import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
@@ -25,16 +26,22 @@ export default function AsesorRekapProgram() {
   const [accountFilter, setAccountFilter] = useState<'all' | 'real' | 'test'>('all');
 
   const [savedScores, setSavedScores] = useState<Record<string, any>>({});
+  const [calibrationByCode, setCalibrationByCode] = useState<Record<string, any>>({});
   const [candidateList, setCandidateList] = useState<AssessorCandidate[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     const loadData = async () => {
       const token = getPortalToken();
-      const [candidateResult, scoreResult] = await Promise.allSettled([
+      const [candidateResult, scoreResult, calResult] = await Promise.allSettled([
         fetchAssessorCandidates(),
         token
           ? axios.get('/api/asesor/scores', {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+          : Promise.resolve({ data: { data: [] } }),
+        token
+          ? axios.get('/api/asesor/calibration', {
               headers: { Authorization: `Bearer ${token}` }
             })
           : Promise.resolve({ data: { data: [] } })
@@ -54,6 +61,15 @@ export default function AsesorRekapProgram() {
       } else {
         setSavedScores({});
       }
+      if (calResult.status === 'fulfilled') {
+        const calMap: Record<string, any> = {};
+        for (const row of calResult.value.data?.data || []) {
+          calMap[row.candidateCode] = row;
+        }
+        setCalibrationByCode(calMap);
+      } else {
+        setCalibrationByCode({});
+      }
     };
     void loadData();
     return () => {
@@ -63,6 +79,8 @@ export default function AsesorRekapProgram() {
 
   const candidates = candidateList.map((c) => {
     const saved = savedScores[c.candidateCode || c.code] || savedScores[c.code];
+    const cal = calibrationByCode[c.candidateCode || c.code] || calibrationByCode[c.code];
+    const calStatus = cal?.metrics?.status || null;
     const interviewScore = saved?.interviewScore ?? c.interviewScore ?? null;
     const compositeScore =
       saved?.compositeScore ??
@@ -81,6 +99,8 @@ export default function AsesorRekapProgram() {
       interviewScore,
       compositeScore,
       recommendation,
+      calibrationStatus: calStatus,
+      secondaryInterviewScore: cal?.secondary?.interviewScore ?? null,
       assessor: saved?.assessor?.name || c.assessorName || '-',
       verifiedDate: saved?.signedAt
         ? new Date(saved.signedAt).toLocaleDateString('id-ID')
@@ -120,6 +140,8 @@ export default function AsesorRekapProgram() {
       'PROGRAM',
       'SKOR CAT (40%)',
       'SKOR INTERVIEW (60%)',
+      'PENILAI KE-2',
+      'STATUS KALIBRASI',
       'SKOR KOMPOSIT',
       'REKOMENDASI',
       'ASESOR',
@@ -137,6 +159,8 @@ export default function AsesorRekapProgram() {
         c.program,
         c.catScore,
         c.interviewScore,
+        c.secondaryInterviewScore,
+        c.calibrationStatus || 'tunggal',
         c.compositeScore,
         c.recommendation,
         c.assessor,
@@ -146,18 +170,7 @@ export default function AsesorRekapProgram() {
         .join(',')
     );
     const csv = [header.map(escape).join(','), ...rows].join('\r\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.style.display = 'none';
-    a.setAttribute('download', `rekap-penilaian-asesor-${formatToday().replace(/\s/g, '-')}.csv`);
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      a.remove();
-      URL.revokeObjectURL(url);
-    }, 1000);
+    downloadCsvFile(csv, `rekap-penilaian-asesor-${formatToday().replace(/\s/g, '-')}.csv`);
   };
 
   return (
@@ -242,6 +255,7 @@ export default function AsesorRekapProgram() {
               <TableHead>SKOR CAT (40%)</TableHead>
               <TableHead>SKOR INTERVIEW (60%)</TableHead>
               <TableHead>SKOR KOMPOSIT (0-100)</TableHead>
+              <TableHead>KALIBRASI</TableHead>
               <TableHead>REKOMENDASI</TableHead>
               <TableHead>TGL VERIFIKASI</TableHead>
               <TableHead className="text-right">AKSI</TableHead>
@@ -266,6 +280,19 @@ export default function AsesorRekapProgram() {
                 <TableCell className="font-mono font-bold text-slate-700">{c.interviewScore ?? '—'}</TableCell>
                 <TableCell className="font-mono text-base font-extrabold text-primary-navy">
                   {c.compositeScore ?? '—'}
+                </TableCell>
+                <TableCell>
+                  {c.calibrationStatus === 'perlu_kalibrasi' ? (
+                    <Badge variant="danger" format="soft">
+                      Perlu Kalibrasi ({c.secondaryInterviewScore ?? '-'})
+                    </Badge>
+                  ) : c.calibrationStatus === 'selaras' ? (
+                    <Badge variant="success" format="soft">
+                      Selaras ({c.secondaryInterviewScore ?? '-'})
+                    </Badge>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">Penilai Tunggal</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   {c.recommendation && c.recommendation !== 'BELUM DINILAI' ? (

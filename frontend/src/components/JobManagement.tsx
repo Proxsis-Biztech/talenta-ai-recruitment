@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import { downloadCsvFile } from '../utils/csvExport';
 import { 
   Trash2, Briefcase, Plus, Edit2, AlertCircle, Clock, 
   Target, Search, RefreshCw, Building2,
@@ -556,18 +557,15 @@ export default function JobManagement() {
     ];
 
     const escapeCsv = (val: string) => `"${(val || '').replace(/"/g, '""')}"`;
-    const csvContent = '\uFEFF' + [
+    const csvContent = [
       headers.map(escapeCsv).join(','),
       ...rows.map((r) => r.map(escapeCsv).join(','))
     ].join('\r\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Template_Bank_Soal_CAT_${(editingJob?.code || 'Formasi').replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCsvFile(
+      csvContent,
+      `Template_Bank_Soal_CAT_${(editingJob?.code || 'Formasi').replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`
+    );
   };
 
   const syncQuestionsToServer = async (programCode: string, questions: QuestionItem[]) => {

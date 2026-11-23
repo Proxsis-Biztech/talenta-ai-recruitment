@@ -25,14 +25,18 @@ import { login, me as getCurrentAdmin, getAdmins, createAdmin, updateAdmin, dele
 import {
   loginPortal, registerPeserta, googleLogin, tokenLogin, me as getPortalMe, updateProfile, changePassword, completeOnboarding, completeDeviceCheck, completeDeviceCheckSession, getPortalDashboard,
   listPortalUsers, createPortalUser, updatePortalUser, deletePortalUser,
-  forgotPassword, resetPassword, refreshPortalSession, logoutPortal, getAssessmentHistory, sendPortalUserCredentials,
+  forgotPassword, resetPassword, refreshPortalSession, logoutPortal, getAssessmentHistory, sendPortalUserCredentials, sendPortalUserActivation,
   getPortalConsent, acceptPortalConsent
 } from './controllers/PortalAuthController';
 import { createInterviewSessionToken } from './controllers/ApplicantController';
 import { getActiveJobs, getAdminJobs, createJob, updateJob, deleteJob } from './controllers/JobController';
 import { getBillingOverview, requestTopUpQuota, approveInvoice, verifyLhaPublic, downloadInvoicePdf } from './controllers/BillingController';
 import { startExam, saveAnswers, submitExam, getExamResult } from './controllers/ExamController';
-import { upsertAssessorScore, listAssessorScores, getAssessorScore, getSignedLha, downloadLhaPdf, downloadMyPortalLhaPdf } from './controllers/AssessorScoreController';
+import {
+  upsertAssessorScore, listAssessorScores, getAssessorScore, getSignedLha, downloadLhaPdf, downloadMyPortalLhaPdf,
+  upsertSecondaryScore, getCalibrationOverview, getCandidateCalibration, finalizeCalibrationConsensus,
+  submitLhaCorrectionRequest, getLhaVersionHistory, listAdminLhaCorrections, reviewAdminLhaCorrection
+} from './controllers/AssessorScoreController';
 import { getProctoringReviews, upsertProctoringReview } from './controllers/ProctoringController';
 import { getInterviewQuestions } from './controllers/InterviewController';
 import {
@@ -281,6 +285,7 @@ router.post('/admin/portal-users', authenticateToken, createPortalUser);
 router.put('/admin/portal-users/:id', authenticateToken, updatePortalUser);
 router.delete('/admin/portal-users/:id', authenticateToken, deletePortalUser);
 router.post('/admin/portal-users/:id/send-credentials', authenticateToken, sendPortalUserCredentials);
+router.post('/admin/portal-users/:id/send-activation', authenticateToken, sendPortalUserActivation);
 router.put('/admin/portal-users/:userId/department', authenticateToken, assignUserDepartment);
 router.put('/admin/portal-users/:userId/classes', authenticateToken, assignUserClasses);
 
@@ -305,13 +310,23 @@ router.get('/asesor/proctoring', authenticatePortal, requirePortalRole('asesor')
 router.get('/asesor/proctoring/:candidateCode', authenticatePortal, requirePortalRole('asesor'), getProctoringReviews);
 router.put('/asesor/proctoring/:candidateCode/:eventId', authenticatePortal, requirePortalRole('asesor'), upsertProctoringReview);
 
-// Assessor scoring, e-sign, and LHA
+// Assessor scoring, e-sign, calibration, and LHA corrections/versioning
 router.post('/asesor/scores', authenticatePortal, requirePortalRole('asesor'), upsertAssessorScore);
+router.post('/asesor/scores/:candidateCode/secondary', authenticatePortal, requirePortalRole('asesor'), upsertSecondaryScore);
 router.get('/asesor/scores', authenticateAny, listAssessorScores);
 router.get('/asesor/scores/:candidateCode', authenticateAny, getAssessorScore);
+router.get('/asesor/calibration', authenticateAny, getCalibrationOverview);
+router.get('/asesor/calibration/:candidateCode', authenticateAny, getCandidateCalibration);
+router.post('/asesor/calibration/:candidateCode/finalize', authenticatePortal, requirePortalRole('asesor'), finalizeCalibrationConsensus);
+router.post('/asesor/lha/:candidateCode/correction-request', authenticatePortal, requirePortalRole('asesor'), submitLhaCorrectionRequest);
+router.get('/asesor/lha/:candidateCode/versions', authenticateAny, getLhaVersionHistory);
 router.get('/asesor/lha/:candidateCode', authenticateAny, getSignedLha);
 router.get('/asesor/lha/:candidateCode/pdf', authenticateAny, downloadLhaPdf);
 router.get('/asesor/candidates/:candidateCode/recordings', authenticatePortal, requirePortalRole('asesor'), listCandidateRecordings);
+
+// Admin LHA correction approvals
+router.get('/admin/lha/corrections', authenticateToken, listAdminLhaCorrections);
+router.post('/admin/lha/corrections/:id/review', authenticateToken, reviewAdminLhaCorrection);
 
 // Admin Management routes (superadmin only)
 router.get('/admin/users', authenticateToken, requireSuperadmin, getAdmins);

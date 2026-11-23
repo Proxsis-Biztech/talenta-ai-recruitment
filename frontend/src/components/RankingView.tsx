@@ -11,6 +11,7 @@ import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
+import { downloadCsvFile } from '../utils/csvExport';
 
 interface SkillItem { skill: string; score: number; notes: string }
 interface PhaseItem {
@@ -192,14 +193,8 @@ export default function RankingView() {
       ];
     });
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `ranking_kandidat_ai_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    downloadCsvFile(csvContent, `ranking_kandidat_ai_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   const escapeHtml = (s: string | null | undefined) =>

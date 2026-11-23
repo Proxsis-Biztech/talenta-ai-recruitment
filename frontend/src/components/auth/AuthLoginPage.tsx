@@ -43,8 +43,9 @@ export default function AuthLoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
-  // Password reset flow
+  // Password reset & self-activation flow
   const [resetOpen, setResetOpen] = useState(false);
+  const [activationMode, setActivationMode] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [resetPassword, setResetPassword] = useState('');
@@ -75,9 +76,17 @@ export default function AuthLoginPage() {
   }, [navigate]);
 
   useEffect(() => {
-    const tokenFromUrl = searchParams.get('reset');
-    if (tokenFromUrl) {
-      setResetToken(tokenFromUrl);
+    const activateFromUrl = searchParams.get('activate');
+    const resetFromUrl = searchParams.get('reset');
+    if (activateFromUrl) {
+      setActivationMode(true);
+      setResetToken(activateFromUrl);
+      setResetOpen(true);
+      return;
+    }
+    if (resetFromUrl) {
+      setActivationMode(false);
+      setResetToken(resetFromUrl);
       setResetOpen(true);
     }
   }, [searchParams]);
@@ -614,32 +623,43 @@ export default function AuthLoginPage() {
 
       <Modal
         isOpen={resetOpen}
-        onClose={() => setResetOpen(false)}
-        title="Pemulihan Akun"
-        description="Minta tautan reset melalui email terdaftar, atau tempel kode reset yang Anda terima."
+        onClose={() => {
+          setResetOpen(false);
+          setActivationMode(false);
+        }}
+        title={activationMode ? 'Aktivasi Akun & Buat Kata Sandi' : 'Pemulihan Akun'}
+        description={
+          activationMode
+            ? 'Masukkan kata sandi baru minimal 8 karakter untuk mengaktifkan akun peserta Anda.'
+            : 'Minta tautan reset melalui email terdaftar, atau tempel kode reset yang Anda terima.'
+        }
         size="md"
       >
         <div className="space-y-5 p-1">
-          <form onSubmit={handleRequestReset} className="space-y-3">
-            <label className="block text-xs font-semibold text-slate-700">Email terdaftar</label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="email"
-                value={resetEmail}
-                onChange={(event) => setResetEmail(event.target.value)}
-                placeholder="nama@email.com"
-                className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm outline-none"
-              />
-              <Button type="submit" variant="primary" disabled={resetLoading || !resetEmail.trim()} className="px-4 py-2.5 text-xs font-bold rounded-xl">
-                {resetLoading ? 'Memproses...' : 'Kirim Tautan'}
-              </Button>
-            </div>
-          </form>
+          {!activationMode && (
+            <form onSubmit={handleRequestReset} className="space-y-3">
+              <label className="block text-xs font-semibold text-slate-700">Email terdaftar</label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="email"
+                  value={resetEmail}
+                  onChange={(event) => setResetEmail(event.target.value)}
+                  placeholder="nama@email.com"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm outline-none"
+                />
+                <Button type="submit" variant="primary" disabled={resetLoading || !resetEmail.trim()} className="px-4 py-2.5 text-xs font-bold rounded-xl">
+                  {resetLoading ? 'Memproses...' : 'Kirim Tautan'}
+                </Button>
+              </div>
+            </form>
+          )}
 
-          <div className="border-t border-slate-200 pt-4 space-y-3">
+          <div className={activationMode ? 'space-y-3' : 'border-t border-slate-200 pt-4 space-y-3'}>
             <form onSubmit={handleSubmitNewPassword} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Kode reset</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  {activationMode ? 'Kode aktivasi' : 'Kode reset'}
+                </label>
                 <input
                   value={resetToken}
                   onChange={(event) => setResetToken(event.target.value)}
@@ -663,7 +683,11 @@ export default function AuthLoginPage() {
                 disabled={resetLoading || !resetToken.trim() || resetPassword.length < 8}
                 className="w-full py-2.5 text-xs font-bold rounded-xl"
               >
-                {resetLoading ? 'Menyimpan...' : 'Atur Kata Sandi Baru'}
+                {resetLoading
+                  ? 'Menyimpan...'
+                  : activationMode
+                    ? 'Aktifkan Akun & Simpan Kata Sandi'
+                    : 'Atur Kata Sandi Baru'}
               </Button>
             </form>
           </div>

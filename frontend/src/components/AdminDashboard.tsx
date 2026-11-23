@@ -8,7 +8,7 @@ import {
   X, Menu, Brain, Radio, Sun, Mail, Phone,
   GraduationCap, MapPin, BookOpen, Award, Building,
   Star, Eye, Printer, ShieldAlert, BarChart3, AlertTriangle, Target, Activity,
-  Copy, Check, Send, Layers, Loader2, FileCheck, ArrowUpRight, CheckSquare, Video, Sliders, Plus, Network, MessageSquare, Bot
+  Copy, Check, Send, Layers, Loader2, FileCheck, ArrowUpRight, CheckSquare, Video, Sliders, Plus, Network, MessageSquare, Bot, Scale
 } from 'lucide-react';
 import UserManagement from './UserManagement';
 import JobManagement from './JobManagement';
@@ -29,6 +29,7 @@ import AdminOrgStructure from './admin/AdminOrgStructure';
 import AdminSecurityCard from './admin/AdminSecurityCard';
 import AdminBillingCredit from './admin/AdminBillingCredit';
 import AdminFaqHelpdesk from './AdminFaqHelpdesk';
+import AdminLhaGovernanceView from './admin/AdminLhaGovernanceView';
 import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
 import Swal from 'sweetalert2';
 import { SuperadminLayout, type AdminMenuKey } from './SuperadminLayout';
@@ -231,7 +232,7 @@ export default function AdminDashboard() {
   const [activeMenu, setActiveMenu] = useState<AdminMenuKey>(() => {
     const menu = new URLSearchParams(window.location.search).get('menu');
     const allowed: AdminMenuKey[] = [
-      'dashboard', 'peserta', 'pipeline', 'jobs', 'ranking', 'proctoring', 'users',
+      'dashboard', 'peserta', 'pipeline', 'jobs', 'ranking', 'lha-governance', 'proctoring', 'users',
       'ai-config', 'audit-logs', 'analytics', 'materi', 'bank-soal', 'perusahaan',
       'billing', 'faq-helpdesk', 'chatbot-faq', 'helpdesk-internal', 'help'
     ];
@@ -403,13 +404,17 @@ export default function AdminDashboard() {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob'
       });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/octet-stream' }));
       const link = document.createElement('a');
       link.href = url;
+      link.style.display = 'none';
       link.setAttribute('download', 'data_pelamar.csv');
       document.body.appendChild(link);
       link.click();
-      link.remove();
+      window.setTimeout(() => {
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      }, 1500);
     } catch {
       Swal.fire({ icon: 'error', title: 'Gagal', text: 'Gagal mengekspor data CSV', timer: 2000, showConfirmButton: false });
     }
@@ -917,6 +922,7 @@ ${app.interviewResult ? `
       label: 'Intelijen & Evaluasi AI',
       items: [
         { key: 'ranking', label: 'Peringkat & Matriks', icon: BarChart3 },
+        { key: 'lha-governance', label: 'Kalibrasi & Koreksi LHA', icon: Scale },
         { key: 'proctoring', label: 'Audit Proctoring', icon: ShieldAlert, badge: 'Live' },
         { key: 'faq-helpdesk', label: 'Konten FAQ (RAG)', icon: BookOpen },
         { key: 'chatbot-faq', label: 'Chatbot AI', icon: Bot },
@@ -990,6 +996,12 @@ ${app.interviewResult ? `
       subtitle: 'Matriks komparasi skor komposit AI, peringkat talenta, dan rekomendasi hiring',
       short: 'Hasil',
       dotColor: 'bg-success-green'
+    },
+    'lha-governance': {
+      title: 'Kalibrasi Asesor & Koreksi Resmi LHA',
+      subtitle: 'Tinjau perbandingan penilaian ganda (Penilai 1 vs Penilai 2) dan setujui permintaan koreksi LHA berversi',
+      short: 'Kalibrasi & LHA',
+      dotColor: 'bg-primary-navy'
     },
     proctoring: {
       title: 'Proctoring & Integritas Ujian',
@@ -1865,6 +1877,10 @@ ${app.interviewResult ? `
           ) : activeMenu === 'ranking' ? (
             <div className="animate-fade-in">
               <RankingView />
+            </div>
+          ) : activeMenu === 'lha-governance' ? (
+            <div className="animate-fade-in">
+              <AdminLhaGovernanceView />
             </div>
           ) : activeMenu === 'proctoring' ? (
             <div className="animate-fade-in">

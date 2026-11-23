@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { downloadCsvFile } from '../../utils/csvExport';
 import {
   Building2,
   Users,
@@ -377,19 +378,13 @@ export function AdminCompanyMatrix() {
       m.statusGagal
     ]);
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [`# MATRIKS SEBARAN PESERTA - ${selectedPt.name}`, headers.join(','), ...rows.map((e) => e.join(','))].join(
-        '\n'
-      );
+    const csvContent = [
+      `# MATRIKS SEBARAN PESERTA - ${selectedPt.name}`,
+      headers.join(','),
+      ...rows.map((e) => e.join(','))
+    ].join('\r\n');
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Matriks_Peserta_${selectedPt.name.replace(/\s+/g, '_')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCsvFile(csvContent, `Matriks_Peserta_${selectedPt.name.replace(/\s+/g, '_')}.csv`);
 
     showToast(`Matriks peserta untuk ${selectedPt.name} berhasil diekspor ke file CSV!`);
   };

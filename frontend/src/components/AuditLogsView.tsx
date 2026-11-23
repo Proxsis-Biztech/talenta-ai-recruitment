@@ -9,6 +9,7 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from './ui/Table';
+import { downloadCsvFile } from '../utils/csvExport';
 
 interface AuditLog {
   id: string;
@@ -65,15 +66,8 @@ export default function AuditLogsView() {
       `"${l.details.replace(/"/g, '""')}"`
     ]);
 
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `audit_logs_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    downloadCsvFile(csvContent, `audit_logs_${Date.now()}.csv`);
   };
 
   const getCategoryVariant = (cat: string): 'info' | 'navy' | 'success' | 'neutral' | 'danger' => {

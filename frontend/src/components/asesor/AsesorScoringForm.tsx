@@ -35,6 +35,7 @@ import {
 } from '../../services/assessorService';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getPortalToken } from '../../services/portalAuthService';
+import AsesorGovernancePanels from './AsesorGovernancePanels';
 
 interface CompetencyItem {
   id: string;
@@ -1093,6 +1094,26 @@ export default function AsesorScoringForm() {
             </div>
           </div>
         </form>
+
+        {/* Dual-Assessor Calibration + Post-Publication Official Correction & Versioning */}
+        <AsesorGovernancePanels
+          candidateCode={candidate!.code}
+          candidateName={candidate!.name}
+          programCode={candidate!.programCode || undefined}
+          programTitle={candidate!.program}
+          catScore={candidate!.catScore ?? null}
+          competencies={competencies}
+          recommendation={recommendation}
+          assessorNotes={assessorNotes}
+          isSigned={isSigned}
+          lhaNumber={lhaNumber}
+          onApplyConsensusToDraft={(consensus) => {
+            setCompetencies(consensus.competencies);
+            setRecommendation(consensus.recommendation);
+            setAssessorNotes(consensus.notes);
+            setSaveMessage('Konsensus kalibrasi 2 asesor telah diterapkan ke draf penilaian Penilai 1.');
+          }}
+        />
 
         {/* ─── LHA (LAPORAN HASIL ASESMEN) PREVIEW MODAL (BRD 6.2) ─── */}
         <Modal

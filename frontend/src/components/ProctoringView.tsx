@@ -8,6 +8,7 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from './ui/Table';
+import { downloadCsvFile } from '../utils/csvExport';
 
 interface Applicant {
   id: string;
@@ -151,15 +152,8 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
       ];
     });
 
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `audit_proctoring_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    downloadCsvFile(csvContent, `audit_proctoring_${Date.now()}.csv`);
   };
 
   return (

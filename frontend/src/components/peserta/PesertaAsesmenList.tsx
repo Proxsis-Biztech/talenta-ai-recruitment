@@ -178,6 +178,7 @@ export default function PesertaAsesmenList() {
     Record<string, { status?: string; score?: number | null }>
   >({});
   const [serverInterview, setServerInterview] = useState<{ status?: string; score?: number | null } | null>(null);
+  const [serverLha, setServerLha] = useState<{ signed?: boolean; recommendation?: string | null } | null>(null);
   const [serverPrograms, setServerPrograms] = useState<Array<{
     code: string;
     title: string;
@@ -199,6 +200,7 @@ export default function PesertaAsesmenList() {
           setServerExam(response.data?.exam || null);
           setServerExamsByProgram(response.data?.examsByProgram || {});
           setServerInterview(response.data?.interview || null);
+          setServerLha(response.data?.lha || null);
           if (Array.isArray(response.data?.programs)) {
             setServerPrograms(response.data.programs);
           }
@@ -347,8 +349,11 @@ export default function PesertaAsesmenList() {
     (code: string) =>
       code === activeProg.id &&
       isProgramCatCompleted(code) &&
-      serverInterview?.status === 'completed',
-    [activeProg.id, isProgramCatCompleted, serverInterview?.status]
+      (
+        ['completed', 'scored'].includes(String(serverInterview?.status || '')) ||
+        Boolean(serverLha?.signed)
+      ),
+    [activeProg.id, isProgramCatCompleted, serverInterview?.status, serverLha?.signed]
   );
 
   const activeProgramCode = selectedProgramId || activeProg.id;

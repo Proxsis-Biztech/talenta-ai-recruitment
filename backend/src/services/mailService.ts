@@ -163,6 +163,33 @@ export const sendCredentialsEmail = async (
     text: `Akun Talenta+ siap. Masuk: ${params.loginUrl}${params.temporaryPassword ? ` | Sandi sementara: ${params.temporaryPassword}` : ''}`,
   });
 
+export const sendActivationEmail = async (
+  to: string,
+  name: string,
+  token: string,
+  activationUrl: string,
+  programTitle?: string | null
+): Promise<MailResult> =>
+  sendMail({
+    to,
+    subject: programTitle
+      ? `Aktivasi Akun Asesmen: ${programTitle} — Talenta+`
+      : 'Aktivasi Akun Peserta Talenta+',
+    html: layout(
+      'Aktivasi akun peserta',
+      `<p>Halo ${name || 'Peserta'},</p>
+       <p>Akun asesmen Anda pada <strong>Talenta+</strong> telah dibuat.${
+         programTitle ? ` Anda dijadwalkan untuk program <strong>${programTitle}</strong>.` : ''
+       }</p>
+       <p>Untuk alasan keamanan, silakan buat kata sandi pribadi Anda sendiri melalui tautan aktivasi di bawah ini:</p>
+       ${button(activationUrl, 'Aktivasi Akun & Buat Kata Sandi')}
+       <p style="color:#475569;font-size:13px">Atau tempelkan kode aktivasi berikut pada halaman masuk:</p>
+       <p style="font-family:monospace;background:#f1f5f9;padding:10px 14px;border-radius:8px;display:inline-block">${token}</p>
+       <p style="color:#64748b">Tautan ini berlaku selama 7 hari dan hanya dapat digunakan satu kali.</p>`
+    ),
+    text: `Aktivasi akun Talenta+. Buka tautan berikut untuk membuat kata sandi Anda (berlaku 7 hari): ${activationUrl} | Kode: ${token}`,
+  });
+
 export const sendInvitationEmail = async (
   to: string,
   name: string,

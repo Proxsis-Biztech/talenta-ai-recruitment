@@ -280,7 +280,7 @@ export default function PesertaHasilScorecard() {
                 <CheckCircle2 className="w-4 h-4 text-emerald-300 print:text-emerald-600" />
                 <span>
                   {lha?.signed
-                    ? 'LHA Resmi Terverifikasi Asesor'
+                    ? `LHA Resmi Terverifikasi Asesor${lha.version && lha.version > 1 ? ` • Versi v${lha.version}` : ''}`
                     : lha
                       ? 'Evaluasi Asesor Tersedia'
                       : 'Hasil CAT Tersimpan di Server'}
@@ -321,10 +321,24 @@ export default function PesertaHasilScorecard() {
                 {finalScore !== null ? finalScore : 'Tersimpan'}
               </span>
               <span className="text-xs text-blue-200 print:text-slate-500 mt-1 font-medium">
-                {lha ? 'LHA terverifikasi asesor' : 'Menunggu verifikasi asesor'}
+                {lha ? 'LHA Terverifikasi Asesor' : 'Menunggu verifikasi asesor'}
               </span>
-              <span className={`mt-2 text-[11px] font-bold px-2.5 py-0.5 rounded-full ${lha ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
-                {lha ? lha.recommendation : 'Menunggu asesor'}
+              <span
+                className={`mt-2 text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                  !lha
+                    ? 'bg-amber-500/20 text-amber-200'
+                    : lha.recommendation === 'TIDAK'
+                    ? 'bg-rose-500/25 text-rose-100 border border-rose-300/30'
+                    : lha.recommendation === 'DIPERTIMBANGKAN'
+                    ? 'bg-amber-500/25 text-amber-100 border border-amber-300/30'
+                    : 'bg-emerald-500/25 text-emerald-100 border border-emerald-300/30'
+                }`}
+              >
+                {lha
+                  ? `Rekomendasi: ${
+                      lha.recommendation === 'TIDAK' ? 'TIDAK DIREKOMENDASIKAN' : lha.recommendation
+                    }`
+                  : 'Menunggu asesor'}
               </span>
             </div>
           </div>
@@ -346,9 +360,11 @@ export default function PesertaHasilScorecard() {
                 <h2 className="font-heading font-bold text-base sm:text-lg text-ink">
                   Rincian Skor Per Kompetensi
                 </h2>
-                <p className="text-xs text-muted-slate mt-0.5">
-                  Dihitung server dari {result?.autoGradedCount ?? 0} butir objektif. Jawaban esai dinilai asesor.
-                </p>
+                {!lha && (
+                  <p className="text-xs text-muted-slate mt-0.5">
+                    Dihitung server dari {result?.autoGradedCount ?? 0} butir objektif. Jawaban esai dinilai asesor.
+                  </p>
+                )}
               </div>
               <span className="shrink-0 text-xs font-mono font-bold text-primary-navy bg-soft-blue px-3 py-1 rounded-lg border border-accent-border">
                 Server-Scored

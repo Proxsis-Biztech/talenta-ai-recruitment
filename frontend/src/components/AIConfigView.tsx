@@ -22,6 +22,7 @@ export interface AIConfiguration {
   maxDurationMinutes: number;
   proctoringPreset: 'ringan' | 'sedang' | 'ketat';
   blockVirtualBackground: boolean;
+  examExpiryPolicy: 'auto_submit' | 'expired';
 }
 
 const DEFAULT_CONFIG: AIConfiguration = {
@@ -34,7 +35,8 @@ const DEFAULT_CONFIG: AIConfiguration = {
   passingThreshold: 70,
   maxDurationMinutes: 20,
   proctoringPreset: 'sedang',
-  blockVirtualBackground: true
+  blockVirtualBackground: true,
+  examExpiryPolicy: 'auto_submit'
 };
 
 export default function AIConfigView() {
@@ -584,6 +586,61 @@ export default function AIConfigView() {
             />
             <span className="text-xs font-bold text-slate-700">Wajib Latar Asli</span>
           </label>
+        </div>
+
+        {/* Exam Expiry Policy Selector */}
+        <div className="pt-2 border-t border-slate-100 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-primary-navy" />
+                Kebijakan Saat Waktu Ujian CAT Habis
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Tentukan bagaimana sistem menangani lembar jawaban tersimpan ketika durasi ujian berakhir sebelum peserta menekan Kumpulkan.
+              </p>
+            </div>
+            <Badge variant={config.examExpiryPolicy === 'expired' ? 'warning' : 'teal'} format="soft">
+              {config.examExpiryPolicy === 'expired' ? 'Mode: Kedaluwarsa (Expired)' : 'Mode: Auto-Submit'}
+            </Badge>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setConfig({ ...config, examExpiryPolicy: 'auto_submit' })}
+              className={`text-left p-4 rounded-xl border transition-all cursor-pointer ${
+                config.examExpiryPolicy !== 'expired'
+                  ? 'bg-soft-blue/70 border-primary-navy ring-1 ring-primary-navy/30 shadow-2xs'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold text-xs text-primary-navy">Otomatis Kumpulkan (Auto-Submit)</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded">Direkomendasikan</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Jawaban terakhir yang tersimpan di server otomatis dinilai dan dikumpulkan sebagai hasil ujian resmi peserta.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setConfig({ ...config, examExpiryPolicy: 'expired' })}
+              className={`text-left p-4 rounded-xl border transition-all cursor-pointer ${
+                config.examExpiryPolicy === 'expired'
+                  ? 'bg-amber-50/70 border-amber-500 ring-1 ring-amber-400/40 shadow-2xs'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold text-xs text-amber-950">Anggap Kedaluwarsa (Expired)</span>
+                <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">Ketat</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Sesi langsung ditutup dengan status Kedaluwarsa (Expired). Jawaban tidak dinilai atau dihitung sebagai pengumpulan sah.
+              </p>
+            </button>
+          </div>
         </div>
       </Card>
 

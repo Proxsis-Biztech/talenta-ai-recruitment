@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { deductQuotaForExam } from '../services/billingQuotaService';
+import { getAiConfig } from '../services/aiConfigService';
 import { type AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
@@ -120,6 +121,44 @@ const sanitizeQuestions = (questions: Array<{
 const examDurationMinutes = (job: { interviewDuration: number | null }): number =>
   job.interviewDuration && job.interviewDuration > 0 ? job.interviewDuration : 90;
 
+const getExamExpiryPolicy = async (): Promise<'auto_submit' | 'expired'> => {
+  const cfg = await getAiConfig();
+  return cfg.examExpiryPolicy === 'expired' ? 'expired' : 'auto_submit';
+};
+
+const finalizeExpiredAttempt = async (
+  attempt: { id: string; answers: string; score: number | null; competencyScores: string | null; submittedAt: Date | null },
+  program: { questions: Array<{ orderNo: number; type: string; competency: string; correctAnswer: string | null }> },
+  endsAt: Date,
+  policy: 'auto_submit' | 'expired'
+) => {
+  const savedAnswers = parseJson<Record<string, unknown>>(attempt.answers, {});
+  if (policy === 'expired') {
+    const expiredAttempt = await prisma.examAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: 'expired',
+        submittedAt: attempt.submittedAt || endsAt
+      }
+    });
+    return { updated: expiredAttempt, totalAnswered: Object.keys(savedAnswers).length };
+  }
+
+  const result = scoreAnswers(program.questions, savedAnswers);
+  const graded = await prisma.examAttempt.update({
+    where: { id: attempt.id },
+    data: {
+      score: attempt.score ?? result.score,
+      autoGradedCount: result.autoGraded,
+      manualReviewCount: result.manualReview,
+      competencyScores: attempt.competencyScores || JSON.stringify(result.competencyScores),
+      status: 'submitted',
+      submittedAt: attempt.submittedAt || endsAt
+    }
+  });
+  return { updated: graded, totalAnswered: Object.keys(savedAnswers).length };
+};
+
 const resolveEndsAt = (
   attempt: { startedAt: Date; endsAt: Date | null },
   job: { interviewDuration: number | null }
@@ -194,10 +233,11 @@ export const startExam = async (req: AuthRequest, res: Response) => {
     const existing = await prisma.examAttempt.findUnique({
       where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } }
     });
+    const expiryPolicy = await getExamExpiryPolicy();
 
     const alreadySubmitted = Boolean(
       existing &&
-        (['submitted', 'graded', 'completed'].includes(existing.status) ||
+        (['submitted', 'graded', 'completed', 'expired'].includes(existing.status) ||
           existing.submittedAt ||
           existing.score !== null)
     );
@@ -226,7 +266,7 @@ export const startExam = async (req: AuthRequest, res: Response) => {
 
     if (
       existing &&
-      (['submitted', 'graded', 'completed'].includes(existing.status) ||
+      (['submitted', 'graded', 'completed', 'expired'].includes(existing.status) ||
         Boolean(existing.submittedAt) ||
         existing.score !== null)
     ) {
@@ -239,6 +279,8 @@ export const startExam = async (req: AuthRequest, res: Response) => {
       }).length;
       return res.json({
         locked: true,
+        expired: existing.status === 'expired',
+        examExpiryPolicy: expiryPolicy,
         attempt: {
           id: existing.id,
           status: existing.status,
@@ -272,29 +314,23 @@ export const startExam = async (req: AuthRequest, res: Response) => {
 
     const endsAt = attempt.endsAt as Date;
     if (isExpired(endsAt, 0)) {
-      const savedAnswers = parseJson<Record<string, unknown>>(attempt.answers, {});
-      const result = scoreAnswers(program.questions, savedAnswers);
-      const graded = await prisma.examAttempt.update({
-        where: { id: attempt.id },
-        data: {
-          score: attempt.score ?? result.score,
-          autoGradedCount: result.autoGraded,
-          manualReviewCount: result.manualReview,
-          competencyScores: attempt.competencyScores || JSON.stringify(result.competencyScores),
-          status: 'submitted',
-          submittedAt: attempt.submittedAt || endsAt
-        }
-      });
+      const { updated: finalized, totalAnswered } = await finalizeExpiredAttempt(
+        attempt,
+        program,
+        endsAt,
+        expiryPolicy
+      );
       return res.json({
         locked: true,
         expired: true,
+        examExpiryPolicy: expiryPolicy,
         attempt: {
-          id: graded.id,
-          status: graded.status,
-          score: graded.score,
-          integrityScore: graded.integrityScore,
-          submittedAt: graded.submittedAt,
-          totalAnswered: Object.keys(savedAnswers).length,
+          id: finalized.id,
+          status: finalized.status,
+          score: finalized.score,
+          integrityScore: finalized.integrityScore,
+          submittedAt: finalized.submittedAt,
+          totalAnswered,
           totalQuestions: program.questions.length
         },
         program: { code: program.code, title: program.job.title },
@@ -304,6 +340,7 @@ export const startExam = async (req: AuthRequest, res: Response) => {
 
     return res.json({
       locked: false,
+      examExpiryPolicy: expiryPolicy,
       attempt: {
         id: attempt.id,
         status: attempt.status,
@@ -348,11 +385,21 @@ export const saveAnswers = async (req: AuthRequest, res: Response) => {
         current.score !== null ||
         isExpired(endsAt)
       ) {
+        const expiryPolicy = await getExamExpiryPolicy();
+        let effectiveStatus = current.submittedAt || current.score !== null ? 'submitted' : current.status;
+        if (current.status === 'in_progress' && isExpired(endsAt)) {
+          const { updated } = await finalizeExpiredAttempt(current, program, endsAt, expiryPolicy);
+          effectiveStatus = updated.status;
+        }
         return res.status(409).json({
-          error: 'Waktu ujian sudah berakhir. Jawaban tidak dapat diubah lagi.',
+          error:
+            effectiveStatus === 'expired'
+              ? 'Waktu ujian telah habis dan sesi dinyatakan kedaluwarsa.'
+              : 'Waktu ujian sudah berakhir. Jawaban tidak dapat diubah lagi.',
           expired: true,
+          examExpiryPolicy: expiryPolicy,
           endsAt,
-          status: current.submittedAt || current.score !== null ? 'submitted' : current.status
+          status: effectiveStatus
         });
       }
     }
@@ -430,17 +477,23 @@ export const submitExam = async (req: AuthRequest, res: Response) => {
       ? Math.max(0, Math.min(100, Math.round(Number(req.body.integrityScore))))
       : Math.max(0, 100 - penaltyViolations.length * 5);
 
+    const expiryPolicy = await getExamExpiryPolicy();
     const existingAttempt = await prisma.examAttempt.findUnique({
       where: { userId_programCode: { userId: req.portalUser.id, programCode: program.code } }
     });
     if (
       existingAttempt &&
-      (['submitted', 'graded', 'completed'].includes(existingAttempt.status) ||
+      (['submitted', 'graded', 'completed', 'expired'].includes(existingAttempt.status) ||
         Boolean(existingAttempt.submittedAt) ||
         existingAttempt.score !== null)
     ) {
       return res.status(409).json({
-        error: 'Ujian sudah dikumpulkan sebelumnya.',
+        error:
+          existingAttempt.status === 'expired'
+            ? 'Sesi ujian sudah kedaluwarsa.'
+            : 'Ujian sudah dikumpulkan sebelumnya.',
+        expired: existingAttempt.status === 'expired',
+        examExpiryPolicy: expiryPolicy,
         status: existingAttempt.status,
         score: existingAttempt.score,
         submittedAt: existingAttempt.submittedAt
@@ -448,7 +501,34 @@ export const submitExam = async (req: AuthRequest, res: Response) => {
     }
 
     const endsAt = existingAttempt ? resolveEndsAt(existingAttempt, program.job) : null;
-    const lateSubmission = endsAt ? isExpired(endsAt) : false;
+    const isTimeoutReason = String(req.body?.reason || '') === 'timeout';
+    const lateSubmission = endsAt ? isExpired(endsAt, isTimeoutReason ? 0 : 15) : false;
+
+    if ((lateSubmission || isTimeoutReason) && expiryPolicy === 'expired') {
+      const expiredTime = endsAt || new Date();
+      if (existingAttempt) {
+        await finalizeExpiredAttempt(existingAttempt, program, expiredTime, 'expired');
+      } else {
+        await prisma.examAttempt.create({
+          data: {
+            userId: req.portalUser.id,
+            programCode: program.code,
+            answers: JSON.stringify(answers),
+            markedDoubt: JSON.stringify(markedDoubt),
+            status: 'expired',
+            submittedAt: expiredTime,
+            endsAt: expiredTime
+          }
+        });
+      }
+      return res.status(409).json({
+        error: 'Waktu ujian telah habis. Berdasarkan kebijakan ujian, sesi dinyatakan kedaluwarsa.',
+        expired: true,
+        examExpiryPolicy: 'expired',
+        status: 'expired',
+        submittedAt: expiredTime
+      });
+    }
     const effectiveAnswers = Object.keys(answers).length > 0
       ? answers
       : parseJson<Record<string, unknown>>(existingAttempt?.answers, {});

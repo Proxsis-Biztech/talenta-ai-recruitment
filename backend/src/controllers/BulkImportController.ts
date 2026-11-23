@@ -1,11 +1,13 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
 import { type AuthRequest } from '../middleware/auth';
 import { recordAuditLog, resolveRequestIp } from '../services/auditService';
 import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
+import { issueUserActivationToken } from './PortalAuthController';
 
 const prisma = new PrismaClient();
 
@@ -51,7 +53,7 @@ const normalizeRow = (row: Record<string, unknown>) => {
   return {
     name: pick(HEADER_ALIASES.name),
     email: pick(HEADER_ALIASES.email).toLowerCase(),
-    password: pick(HEADER_ALIASES.password) || 'peserta123',
+    password: pick(HEADER_ALIASES.password),
     phone: pick(HEADER_ALIASES.phone),
     programCode: pick(HEADER_ALIASES.programCode).toUpperCase(),
     companyName: pick(HEADER_ALIASES.companyName),
@@ -76,7 +78,7 @@ export const downloadPortalUserTemplate = async (_req: AuthRequest, res: Respons
       ['Petunjuk:'],
       ['1. Isi sheet "Data Peserta" tanpa mengubah nama kolom.'],
       ['2. Nama Lengkap, Email, dan Kode Program wajib diisi.'],
-      ['3. Password minimal 8 karakter. Jika kosong, sistem memakai "peserta123".'],
+      ['3. Opsional: Password minimal 8 karakter. Jika dikosongkan (disarankan), sistem otomatis mengirim tautan aktivasi mandiri ke email peserta.'],
       ['4. Kode Program harus salah satu dari daftar di sheet "Referensi Program".'],
       ['5. Satu email hanya boleh digunakan satu kali.'],
       ['6. Maksimal 500 baris per file, ukuran maksimal 5 MB.'],
@@ -90,7 +92,7 @@ export const downloadPortalUserTemplate = async (_req: AuthRequest, res: Respons
       {
         'Nama Lengkap': 'Contoh Kandidat',
         Email: 'contoh.kandidat@email.com',
-        Password: 'peserta123',
+        Password: '',
         'No. Telepon': '081234567890',
         'Kode Program': jobs[0]?.code || 'SE-402',
         Perusahaan: 'PT Telkom Indonesia Tbk',
@@ -170,7 +172,7 @@ export const importPortalUsers = async (req: AuthRequest, res: Response) => {
         skipped += 1;
         continue;
       }
-      if (data.password.length < 8) {
+      if (data.password && data.password.length < 8) {
         errors.push({ row: rowNumber, email: data.email, message: 'Password minimal 8 karakter.' });
         skipped += 1;
         continue;
@@ -188,12 +190,14 @@ export const importPortalUsers = async (req: AuthRequest, res: Response) => {
       }
 
       const companyFromTitle = job.title.match(/\(([^)]+)\)\s*$/)?.[1] || '';
+      const useSelfActivation = !data.password;
+      const effectivePassword = useSelfActivation ? crypto.randomBytes(32).toString('hex') : data.password;
       try {
         const createdUser = await prisma.portalUser.create({
           data: {
             name: data.name,
             email: data.email,
-            password: await bcrypt.hash(data.password, 10),
+            password: await bcrypt.hash(effectivePassword, 10),
             phone: data.phone || null,
             role: 'peserta',
             mustChangePassword: true,
@@ -206,6 +210,15 @@ export const importPortalUsers = async (req: AuthRequest, res: Response) => {
           }
         });
         await ensureApplicantForPortalUser(createdUser.id);
+        if (useSelfActivation) {
+          await issueUserActivationToken({
+            id: createdUser.id,
+            email: createdUser.email,
+            name: createdUser.name,
+            assessmentTitle: createdUser.assessmentTitle,
+            assessmentId: createdUser.assessmentId
+          });
+        }
         existingEmails.add(data.email);
         created += 1;
       } catch {

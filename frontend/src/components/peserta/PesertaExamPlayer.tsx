@@ -197,6 +197,8 @@ export default function PesertaExamPlayer() {
   const [examReady, setExamReady] = useState(false);
   const [examError, setExamError] = useState('');
   const [isExamLocked, setIsExamLocked] = useState(false);
+  const [isExpiredStatus, setIsExpiredStatus] = useState(false);
+  const [examExpiryPolicy, setExamExpiryPolicy] = useState<'auto_submit' | 'expired'>('auto_submit');
   const [submissionData, setSubmissionData] = useState<{
     submittedAt?: string;
     totalAnswered?: number;
@@ -263,7 +265,12 @@ export default function PesertaExamPlayer() {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (cancelled) return;
+        if (response.data.examExpiryPolicy === 'expired' || response.data.examExpiryPolicy === 'auto_submit') {
+          setExamExpiryPolicy(response.data.examExpiryPolicy);
+        }
         if (response.data.locked) {
+          const expiredLock = response.data.attempt?.status === 'expired' || Boolean(response.data.expired && response.data.attempt?.status === 'expired');
+          setIsExpiredStatus(expiredLock);
           setIsExamLocked(true);
           setSubmissionData({
             submittedAt: response.data.attempt?.submittedAt
@@ -274,12 +281,14 @@ export default function PesertaExamPlayer() {
             score: response.data.attempt?.score,
             integrityScore: response.data.attempt?.integrityScore
           });
-          markCatCompleted(activeProgram.id);
-          localStorage.setItem(`talenta_cat_submitted_${activeProgram.id}`, JSON.stringify({
-            score: response.data.attempt?.score,
-            integrityScore: response.data.attempt?.integrityScore,
-            submittedAt: response.data.attempt?.submittedAt
-          }));
+          if (!expiredLock) {
+            markCatCompleted(activeProgram.id);
+            localStorage.setItem(`talenta_cat_submitted_${activeProgram.id}`, JSON.stringify({
+              score: response.data.attempt?.score,
+              integrityScore: response.data.attempt?.integrityScore,
+              submittedAt: response.data.attempt?.submittedAt
+            }));
+          }
           setExamReady(true);
           return;
         }
@@ -612,7 +621,7 @@ export default function PesertaExamPlayer() {
     }
   };
 
-  const handleSubmitExam = async () => {
+  const handleSubmitExam = async (options?: { reason?: 'manual' | 'timeout' }) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     setAutoSaveStatus('Mengirim jawaban ke server...');
@@ -645,7 +654,8 @@ export default function PesertaExamPlayer() {
           answers,
           markedDoubt,
           violations: combinedEvents,
-          integrityScore: computedIntegrity
+          integrityScore: computedIntegrity,
+          reason: options?.reason || 'manual'
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -667,6 +677,7 @@ export default function PesertaExamPlayer() {
         integrityScore: response.data.integrityScore,
         manualReviewCount: response.data.manualReviewCount
       });
+      setIsExpiredStatus(false);
       markCatCompleted(activeProgram.id);
       localStorage.setItem(`talenta_cat_submitted_${activeProgram.id}`, JSON.stringify({
         score: response.data.score,
@@ -679,9 +690,16 @@ export default function PesertaExamPlayer() {
       setSubmitSuccessModalOpen(true);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409 && err.response.data?.status) {
+        const expired = err.response.data.status === 'expired';
+        setIsExpiredStatus(expired);
         setIsExamLocked(true);
-        setSubmitSuccessModalOpen(true);
-        setAutoSaveStatus('Ujian sudah dikumpulkan sebelumnya.');
+        setSummaryModalOpen(false);
+        if (expired) {
+          setAutoSaveStatus('Waktu ujian habis — sesi kedaluwarsa');
+        } else {
+          setSubmitSuccessModalOpen(true);
+          setAutoSaveStatus('Ujian sudah dikumpulkan sebelumnya.');
+        }
         return;
       }
       const message = axios.isAxiosError(err)
@@ -698,10 +716,10 @@ export default function PesertaExamPlayer() {
 
   useEffect(() => {
     if (timeLeft === 0 && examReady && !isExamLocked && !isSubmitting) {
-      void handleSubmitExam();
+      void handleSubmitExam({ reason: 'timeout' });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeLeft, examReady, isExamLocked, isSubmitting]);
+  }, [timeLeft, examReady, isExamLocked, isSubmitting, examExpiryPolicy]);
 
   // Filtered navigator numbers
   const filteredIndices = Array.from({ length: totalQuestions }).map((_, i) => i).filter((idx) => {
@@ -771,26 +789,44 @@ export default function PesertaExamPlayer() {
               <span>Kembali ke Daftar Asesmen Saya</span>
             </button>
 
-            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto shadow-2xs">
-              <Lock className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Lembar Ujian Telah Dikunci &amp; Diarsipkan</span>
+            <span
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border self-start sm:self-auto shadow-2xs ${
+                isExpiredStatus
+                  ? 'bg-rose-50 text-rose-800 border-rose-200'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              }`}
+            >
+              <Lock className={`w-3.5 h-3.5 ${isExpiredStatus ? 'text-rose-600' : 'text-emerald-600'}`} />
+              <span>
+                {isExpiredStatus ? 'Waktu Habis — Sesi Kedaluwarsa' : 'Lembar Ujian Telah Dikunci & Diarsipkan'}
+              </span>
             </span>
           </div>
 
-          {/* Main Hero Card: Submission Confirmed */}
+          {/* Main Hero Card: Submission Confirmed / Expired */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-10 shadow-xs space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
               <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-xs">
-                  <CheckCircle2 className="w-8 h-8" />
+                <div
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
+                    isExpiredStatus ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                  }`}
+                >
+                  {isExpiredStatus ? <AlertTriangle className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
                 </div>
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2.5">
                     <span className="font-mono text-xs font-bold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded-md border border-accent-border">
                       {activeProgram.id}
                     </span>
-                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      Sesi Ujian CAT Selesai
+                    <span
+                      className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                        isExpiredStatus
+                          ? 'text-rose-800 bg-rose-50 border-rose-200'
+                          : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                      }`}
+                    >
+                      {isExpiredStatus ? 'Sesi Ujian Kedaluwarsa (Expired)' : 'Sesi Ujian CAT Selesai'}
                     </span>
                   </div>
                   <h1 className="text-xl sm:text-2xl font-extrabold font-heading text-ink">
@@ -1749,7 +1785,7 @@ export default function PesertaExamPlayer() {
             </Button>
             <Button
               variant="primary"
-              onClick={handleSubmitExam}
+              onClick={() => void handleSubmitExam()}
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-2.5 rounded-xl font-bold cursor-pointer"
             >
               Ya, Kumpulkan Jawaban Saya

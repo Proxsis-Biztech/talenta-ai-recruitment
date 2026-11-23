@@ -30,6 +30,7 @@ import {
   MessageSquare,
   Bot,
   Network,
+  Scale,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
@@ -43,6 +44,7 @@ export type AdminMenuKey =
   | 'bank-soal'
   | 'perusahaan'
   | 'organisasi'
+  | 'lha-governance'
   | 'billing'
   | 'ranking'
   | 'pipeline'
@@ -111,6 +113,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'pipeline', label: 'Live Interview Asesor', icon: Video },
       { key: 'proctoring', label: 'Monitoring Proctoring', icon: ShieldAlert },
       { key: 'ranking', label: 'Hasil & Peringkat (LHA)', icon: BarChart3 },
+      { key: 'lha-governance', label: 'Kalibrasi & Koreksi LHA', icon: Scale },
       { key: 'organisasi', label: 'Organisasi & Kelas', icon: Network },
       { key: 'helpdesk-internal', label: 'Helpdesk Internal', icon: MessageSquare, badge: 'Live' },
     ],

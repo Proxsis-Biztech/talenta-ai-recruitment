@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { downloadCsvFile } from '../../utils/csvExport';
 import {
   FileText,
   Plus,
@@ -753,15 +754,8 @@ export function AdminMasterMateriTree() {
       m.behavioralIndicators.length
     ]);
 
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Master_Materi_Kurikulum_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    downloadCsvFile(csvContent, `Master_Materi_Kurikulum_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   // Reset to default seed
