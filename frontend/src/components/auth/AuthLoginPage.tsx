@@ -310,183 +310,206 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] lg:h-screen lg:overflow-hidden relative w-full bg-[#B9D7FF] flex flex-col lg:flex-row items-center justify-center lg:justify-between p-4 sm:p-6 lg:p-0 font-sans antialiased">
-      {/* Left Half: Seamless Full-Bleed 3D Workflow Hero Illustration on Desktop */}
-      <div className="hidden lg:flex lg:w-1/2 lg:h-full relative items-center justify-center overflow-hidden bg-gradient-to-b from-[#A2C7FB] via-[#D0E4FF] to-[#B7D4FC]">
-        <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/25 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 right-0 w-[420px] h-[420px] rounded-full bg-[#7BB0F8]/30 blur-3xl" />
-        <img
-          src="/img/login-scene-right.png"
-          alt="Alur Asesmen RIGHT: Undangan, Asesmen, Hasil, Keputusan"
-          className="relative z-10 w-full h-auto max-h-full object-contain select-none pointer-events-none [mask-image:linear-gradient(to_bottom,transparent_0%,black_14%,black_86%,transparent_100%)]"
-        />
-      </div>
+    <div className="min-h-[100dvh] w-full relative overflow-x-hidden bg-gradient-to-br from-[#1A78D8] via-[#0F5EBA] to-[#084491] flex items-center justify-center p-4 sm:p-8 lg:p-10 font-sans antialiased">
+      {/* Subtle ambient background highlights matching royal blue canvas */}
+      <div className="pointer-events-none absolute -top-28 -left-28 w-[420px] h-[420px] rounded-full bg-white/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-24 w-[460px] h-[460px] rounded-full bg-[#042352]/40 blur-3xl" />
 
-      {/* Compact Mobile Header Illustration */}
-      <div className="lg:hidden w-full max-w-[460px] rounded-3xl overflow-hidden mb-4 shadow-md border border-white/70 bg-[#D9E9FF]">
-        <img
-          src="/img/login-scene-right.png"
-          alt="Alur Asesmen RIGHT: Undangan, Asesmen, Hasil, Keputusan"
-          className="w-full h-auto object-contain block"
-        />
-      </div>
+      {/* Centered Two-Column Card */}
+      <div className="relative z-10 w-full max-w-[1040px] bg-white rounded-[24px] shadow-[0_32px_80px_-15px_rgba(4,24,66,0.55)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 lg:min-h-[610px]">
+        {/* Left Column: Layered 3D Blue Spheres & Welcome Copy (Desktop) */}
+        <div className="hidden lg:block lg:col-span-6 relative bg-white overflow-hidden select-none">
+          {/* Main sweeping top-left blue sphere */}
+          <div className="pointer-events-none absolute -top-[115px] -left-[100px] w-[570px] h-[570px] rounded-full bg-[radial-gradient(circle_at_30%_25%,#2E8DEE_0%,#1465C3_56%,#0A4595_100%)] shadow-[0_24px_55px_-12px_rgba(9,57,128,0.45)]" />
+          {/* Bottom-left overlapping 3D sphere */}
+          <div className="pointer-events-none absolute -bottom-[95px] -left-[55px] w-[260px] h-[260px] rounded-full bg-[radial-gradient(circle_at_35%_25%,#419DF7_0%,#176AC9_58%,#0B4797_100%)] shadow-[0_-10px_35px_rgba(5,32,80,0.3)]" />
+          {/* Floating mid-lower 3D sphere */}
+          <div className="pointer-events-none absolute bottom-[32px] left-[220px] w-[190px] h-[190px] rounded-full bg-[radial-gradient(circle_at_30%_25%,#3591F2_0%,#1564C0_58%,#0B428F_100%)] shadow-[0_22px_40px_-8px_rgba(6,38,94,0.45)]" />
 
-      {/* Clean Full Half-Page White Login Section on Right */}
-      <div className="relative z-10 w-full max-w-[500px] lg:max-w-none lg:w-1/2 lg:h-full lg:mr-0 bg-[#FCFCFD] lg:bg-white rounded-[32px] lg:rounded-none p-6 sm:p-10 lg:p-14 shadow-[0_30px_80px_-20px_rgba(15,39,92,0.28)] lg:shadow-none border border-white/90 lg:border-0 flex flex-col justify-center">
-        <div className="w-full max-w-[460px] lg:max-w-[480px] mx-auto">
-          <div className="flex flex-col items-center text-center mb-8">
-            <img
-              src="/img/logoRIght.jpeg"
-              alt="RIGHT Assessment Platform"
-              className="h-11 sm:h-12 w-auto max-w-[200px] object-contain mb-4"
-            />
-            <h1 className="text-[28px] sm:text-[32px] font-extrabold text-slate-900 font-heading tracking-tight leading-tight">
-              Masuk ke Akun
-            </h1>
-            <p className="text-sm sm:text-[15px] text-slate-500 mt-1.5 leading-relaxed">
-              Portal Asesmen &amp; Seleksi Terpadu RIGHT
+          <div className="relative z-10 px-12 xl:px-14 pt-20 pb-48 max-w-[420px]">
+            <h2 className="text-[32px] xl:text-[36px] font-extrabold text-white tracking-tight uppercase leading-none">
+              SELAMAT DATANG
+            </h2>
+            <p className="text-sm font-bold text-blue-100 uppercase tracking-wider mt-2.5">
+              RIGHT ASSESSMENT PLATFORM
+            </p>
+            <p className="text-xs sm:text-[13px] text-blue-100/90 mt-4 leading-relaxed max-w-[295px]">
+              Platform asesmen digital, seleksi talenta, dan evaluasi kompetensi terstandar dalam satu portal terpadu untuk keputusan rekrutmen yang objektif.
             </p>
           </div>
+        </div>
 
-          {error && (
-            <div className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-sm text-rose-700 flex items-center gap-2.5 animate-shake">
-              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-              <span>{error}</span>
+        {/* Mobile Compact Blue Header */}
+        <div className="lg:hidden relative bg-gradient-to-br from-[#2381E3] via-[#1363C1] to-[#0A4595] px-6 py-7 text-white overflow-hidden">
+          <div className="pointer-events-none -right-10 -bottom-12 absolute w-36 h-36 rounded-full bg-white/10" />
+          <div className="pointer-events-none right-16 -bottom-16 absolute w-28 h-28 rounded-full bg-white/10" />
+          <div className="relative z-10">
+            <h2 className="text-xl font-extrabold tracking-tight uppercase">SELAMAT DATANG</h2>
+            <p className="text-[11px] font-bold text-blue-100 uppercase tracking-wider mt-1">
+              RIGHT ASSESSMENT PLATFORM
+            </p>
+            <p className="text-xs text-blue-100/90 mt-2 leading-relaxed">
+              Portal asesmen digital dan evaluasi kompetensi terpadu.
+            </p>
+          </div>
+        </div>
+
+        {/* Bottom-right corner decorative 3D quarter-sphere accent */}
+        <div className="hidden sm:block pointer-events-none absolute -bottom-[72px] -right-[66px] w-[165px] h-[165px] rounded-full bg-[radial-gradient(circle_at_35%_30%,#3893F0_0%,#1564C0_62%,#0B4493_100%)] shadow-[0_12px_30px_rgba(8,46,105,0.28)]" />
+
+        {/* Right Column: Clean White Login Form with RIGHT Branding */}
+        <div className="lg:col-span-6 relative z-10 px-6 py-8 sm:px-11 sm:py-12 lg:px-12 xl:px-14 flex flex-col justify-center">
+          <div className="w-full max-w-[400px] mx-auto">
+            <div className="mb-7">
+              <img
+                src="/img/logoRIght.jpeg"
+                alt="RIGHT Assessment Platform"
+                className="h-9 sm:h-10 w-auto max-w-[165px] object-contain mb-3.5"
+              />
+              <h1 className="text-2xl sm:text-[30px] font-extrabold text-slate-900 font-heading tracking-tight leading-tight">
+                Masuk ke Akun
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                Portal Asesmen &amp; Seleksi Terpadu RIGHT
+              </p>
             </div>
-          )}
 
-          {successRole && (
-            <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm text-emerald-800 flex items-center gap-2.5">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            {error && (
+              <div className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-center gap-2.5 animate-shake">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {successRole && (
+              <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div>
+                  <p className="font-bold">
+                    Terverifikasi:{' '}
+                    {successRole === 'admin'
+                      ? 'Administrator / Superadmin'
+                      : successRole === 'asesor'
+                        ? 'Dewan Asesor Independen'
+                        : 'Peserta Ujian (Kandidat)'}
+                  </p>
+                  <p className="text-xs text-emerald-700">Mengalihkan ke portal...</p>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <p className="font-bold">
-                  Terverifikasi:{' '}
-                  {successRole === 'admin'
-                    ? 'Administrator / Superadmin'
-                    : successRole === 'asesor'
-                      ? 'Dewan Asesor Independen'
-                      : 'Peserta Ujian (Kandidat)'}
-                </p>
-                <p className="text-xs text-emerald-700">Mengalihkan ke portal...</p>
-              </div>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2 pl-1">
-                Username atau Email
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4.5 flex items-center pointer-events-none">
-                  <User className="h-[18px] w-[18px] text-slate-400" />
+                <label className="sr-only">Username atau Email</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <User className="h-[18px] w-[18px] text-slate-700" />
+                  </div>
+                  <input
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="Masukkan username atau email"
+                    required
+                    className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-transparent bg-[#F1F4F8] text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:bg-white focus:border-[#1261BE] focus:ring-4 focus:ring-[#1261BE]/10"
+                  />
                 </div>
-                <input
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="Masukkan username atau email"
-                  required
-                  className="w-full pl-12 pr-6 py-3.5 sm:py-4 rounded-full border border-slate-200 bg-white text-[15px] font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0B2559] focus:ring-4 focus:ring-[#0B2559]/10"
-                />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2 pl-1">
-                Kata Sandi
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4.5 flex items-center pointer-events-none">
-                  <Lock className="h-[18px] w-[18px] text-slate-400" />
+              <div>
+                <label className="sr-only">Kata Sandi</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Lock className="h-[18px] w-[18px] text-slate-700" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Masukkan kata sandi"
+                    required
+                    className="w-full pl-11 pr-16 py-3.5 rounded-xl border border-transparent bg-[#F1F4F8] text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:bg-white focus:border-[#1261BE] focus:ring-4 focus:ring-[#1261BE]/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] font-extrabold tracking-wider uppercase text-[#0B4686] hover:text-[#08376B] cursor-pointer"
+                  >
+                    {showPassword ? 'TUTUP' : 'LIHAT'}
+                  </button>
                 </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Masukkan kata sandi"
-                  required
-                  className="w-full pl-12 pr-12 py-3.5 sm:py-4 rounded-full border border-slate-200 bg-white text-[15px] font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0B2559] focus:ring-4 focus:ring-[#0B2559]/10"
-                />
+              </div>
+
+              <div className="flex items-center justify-between text-xs sm:text-[13px] pt-0.5">
+                <label className="inline-flex items-center gap-2 text-slate-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    defaultChecked
+                    className="w-4 h-4 rounded border-slate-300 text-[#0B4686] focus:ring-[#0B4686]"
+                  />
+                  <span>Ingat saya</span>
+                </label>
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  onClick={() => {
+                    setResetOpen(true);
+                    setResetError('');
+                    setResetNotice('');
+                    setResetEmail(identifier.includes('@') ? identifier.trim() : '');
+                  }}
+                  className="text-[#1365C4] hover:underline font-semibold cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+                  Lupa Kata Sandi?
                 </button>
               </div>
-            </div>
 
-            <div className="flex items-center justify-between text-sm px-1">
-              <label className="inline-flex items-center gap-2 text-slate-600 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  className="w-4 h-4 rounded border-slate-300 text-[#0B2559] focus:ring-[#0B2559]"
-                />
-                <span>Ingat saya</span>
-              </label>
+              <div className="pt-1.5">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-full py-3.5 text-sm sm:text-[15px] font-bold flex items-center justify-center gap-2 rounded-xl bg-[#0B4686] hover:bg-[#08376B] border-0 shadow-sm cursor-pointer"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span>Masuk</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+
+            {googleReady && (
+              <>
+                <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
+                  <span className="h-px flex-1 bg-slate-200" />
+                  <span>Atau</span>
+                  <span className="h-px flex-1 bg-slate-200" />
+                </div>
+
+                <div className="flex flex-col items-center gap-2">
+                  <div id="google-signin-button" className="w-full flex justify-center" />
+                  {googleLoading && (
+                    <p className="text-xs text-slate-500">Memverifikasi akun Google...</p>
+                  )}
+                </div>
+              </>
+            )}
+
+            <p className="mt-7 text-center text-xs text-slate-500">
+              Akun peserta dibuat oleh admin melalui email undangan.{' '}
               <button
                 type="button"
-                onClick={() => {
-                  setResetOpen(true);
-                  setResetError('');
-                  setResetNotice('');
-                  setResetEmail(identifier.includes('@') ? identifier.trim() : '');
-                }}
-                className="text-[#0B2559] hover:underline font-bold cursor-pointer"
+                onClick={() => navigate('/')}
+                className="font-bold text-[#0B4686] hover:underline cursor-pointer"
               >
-                Lupa Kata Sandi?
+                Beranda
               </button>
-            </div>
-
-            <div className="pt-1.5">
-              <Button
-                type="submit"
-                variant="primary"
-                className="w-full py-4 text-[15px] font-bold flex items-center justify-center gap-2 rounded-full bg-[#0B2559] hover:bg-[#081A40] border-0 shadow-sm cursor-pointer"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span>Masuk</span>
-                    <ArrowRight className="w-[18px] h-[18px]" />
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-
-          {googleReady && (
-            <>
-              <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-                <span className="h-px flex-1 bg-slate-200" />
-                <span>Atau lanjutkan dengan</span>
-                <span className="h-px flex-1 bg-slate-200" />
-              </div>
-
-              <div className="flex flex-col items-center gap-2">
-                <div id="google-signin-button" className="w-full flex justify-center" />
-                {googleLoading && (
-                  <p className="text-xs text-slate-500">Memverifikasi akun Google...</p>
-                )}
-              </div>
-            </>
-          )}
-
-          <p className="mt-8 text-center text-sm text-slate-500">
-            Akun peserta dibuat oleh admin melalui email undangan.{' '}
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="font-semibold text-[#0F275C] hover:underline cursor-pointer"
-            >
-              Beranda
-            </button>
-          </p>
+            </p>
+          </div>
         </div>
       </div>
 
