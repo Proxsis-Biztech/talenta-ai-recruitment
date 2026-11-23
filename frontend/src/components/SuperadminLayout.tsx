@@ -28,7 +28,6 @@ import {
   ShieldCheck,
   MessageSquare,
   Bot,
-  Network,
   Scale,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
@@ -43,7 +42,6 @@ export type AdminMenuKey =
   | 'materi'
   | 'bank-soal'
   | 'perusahaan'
-  | 'organisasi'
   | 'lha-governance'
   | 'ranking'
   | 'pipeline'
@@ -100,7 +98,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'ASESMEN & SOAL',
     items: [
       { key: 'perusahaan', label: 'Perusahaan (PT)', icon: Building2 },
-      { key: 'organisasi', label: 'Organisasi & Kelas', icon: Network },
       { key: 'jobs', label: 'Program Asesmen', icon: BookOpen },
       { key: 'materi', label: 'Materi & Soal', icon: FileText },
     ],
