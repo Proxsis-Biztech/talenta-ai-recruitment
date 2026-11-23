@@ -141,6 +141,43 @@ export default function PesertaProfile() {
 
   const isFaceRegistered = Boolean(savedFacePhoto || getPortalUser()?.faceVerifiedAt);
 
+  const isNameValid = fullName.trim().length >= 2 && !isPlaceholderName(fullName);
+  const cleanPhoneDigits = phone.replace(/[\s-]/g, '');
+  const isPhoneValid = /^(?:\+62|62|0)8[0-9]{8,12}$/.test(cleanPhoneDigits);
+  const cleanNikDigits = nik.replace(/\D/g, '');
+  const isNikValid = cleanNikDigits.length === 16;
+  const isEducationValid = education.trim().length > 0;
+  const isUniversityValid = university.trim().length > 0;
+  const isCityValid = city.trim().length > 0;
+
+  const completedItemsCount = [
+    isNameValid,
+    isPhoneValid,
+    isNikValid,
+    isEducationValid,
+    isUniversityValid,
+    isCityValid,
+    isFaceRegistered
+  ].filter(Boolean).length;
+
+  const fieldValidationBorderClass = (valid: boolean) =>
+    valid
+      ? 'border-emerald-400 bg-emerald-50/15 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/10'
+      : 'border-rose-300 bg-rose-50/20 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10';
+
+  const renderValidationStatus = (valid: boolean, missingText = 'Wajib diisi', validText = 'Lengkap') =>
+    valid ? (
+      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+        <span>{validText}</span>
+      </span>
+    ) : (
+      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600">
+        <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+        <span>{missingText}</span>
+      </span>
+    );
+
   const handleOpenLiveScanOnProfile = () => {
     navigate('/peserta/live-scan');
   };
@@ -148,24 +185,42 @@ export default function PesertaProfile() {
   const renderLiveScanIdentityPanel = () => (
     <div
       id="profile-live-scan"
-      className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-4 sm:p-6 space-y-4"
+      className={`rounded-2xl border p-4 sm:p-6 space-y-4 transition-colors ${
+        isFaceRegistered
+          ? 'border-emerald-300/90 bg-emerald-50/25'
+          : 'border-rose-300 bg-rose-50/30'
+      }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
         <div>
           <h3 className="text-sm sm:text-base font-bold text-slate-900 font-heading flex items-center gap-2">
-            <Camera className="w-4 h-4 text-primary-navy" />
-            <span>Foto Identitas Resmi (Live Scan Kamera) *</span>
+            <Camera className={`w-4 h-4 ${isFaceRegistered ? 'text-emerald-600' : 'text-rose-600'}`} />
+            <span>
+              Foto Identitas Resmi (Live Scan Kamera) <span className="text-rose-600">*</span>
+            </span>
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Gunakan halaman Live Scan Kamera berlayar lebar dengan garis panduan kepala &amp; setengah badan.
           </p>
         </div>
         <span
-          className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-            isFaceRegistered ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+            isFaceRegistered
+              ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+              : 'bg-rose-100 text-rose-700 border-rose-200'
           }`}
         >
-          {isFaceRegistered ? '✓ Foto Identitas Terdaftar' : 'Wajib Diambil'}
+          {isFaceRegistered ? (
+            <>
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Foto Identitas Lengkap</span>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+              <span>Wajib Diambil</span>
+            </>
+          )}
         </span>
       </div>
 
@@ -622,21 +677,34 @@ export default function PesertaProfile() {
               </div>
             )}
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2">
+            <div
+              className={`rounded-xl border p-3.5 space-y-2 ${
+                completedItemsCount === 7
+                  ? 'border-emerald-200 bg-emerald-50/40'
+                  : 'border-rose-200 bg-rose-50/30'
+              }`}
+            >
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-700">Kelengkapan profil &amp; foto identitas</span>
-                <span className="font-mono font-bold text-primary-navy">
-                  {[fullName, phone, nik, education, university, city, isFaceRegistered ? 'ok' : ''].filter(Boolean).length} / 7
+                <span className="font-semibold text-slate-700">Kelengkapan identitas &amp; foto resmi</span>
+                <span
+                  className={`font-mono font-bold flex items-center gap-1 ${
+                    completedItemsCount === 7 ? 'text-emerald-700' : 'text-rose-600'
+                  }`}
+                >
+                  {completedItemsCount === 7 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                  {completedItemsCount} / 7
                 </span>
               </div>
               <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
                 <div
-                  className="h-full bg-primary-navy rounded-full"
-                  style={{ width: `${([fullName, phone, nik, education, university, city, isFaceRegistered ? 'ok' : ''].filter(Boolean).length / 7) * 100}%` }}
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    completedItemsCount === 7 ? 'bg-emerald-600' : 'bg-rose-500'
+                  }`}
+                  style={{ width: `${(completedItemsCount / 7) * 100}%` }}
                 />
               </div>
-              <p className="text-[11px] text-slate-500">
-                <span className="text-rose-600 font-bold">*</span> wajib diisi dan ambil foto identitas setengah badan melalui kamera live scan sebelum melanjutkan ke uji perangkat.
+              <p className="text-[11px] text-slate-600">
+                Kolom bertanda <span className="text-rose-600 font-bold">*</span> wajib dilengkapi (merah = belum valid/kosong, hijau checklist = sudah lengkap).
               </p>
             </div>
 
@@ -658,18 +726,30 @@ export default function PesertaProfile() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {/* Nama Lengkap */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Nama Lengkap (Sesuai KTP) *
-                  </label>
-                  <input
-                    type="text"
-                    id="profile-fullname"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Masukkan nama lengkap resmi sesuai KTP Anda"
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all placeholder:text-slate-400"
-                  />
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Nama Lengkap (Sesuai KTP) <span className="text-rose-600">*</span>
+                    </label>
+                    {renderValidationStatus(isNameValid, 'Wajib diisi', 'Lengkap')}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="profile-fullname"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Masukkan nama lengkap resmi sesuai KTP Anda"
+                      required
+                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all placeholder:text-slate-400 ${fieldValidationBorderClass(isNameValid)}`}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                      {isNameValid ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Email (Readonly) */}
@@ -693,34 +773,47 @@ export default function PesertaProfile() {
 
                 {/* No Telepon / WA */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
                     <label className="block text-xs font-bold text-slate-700">
-                      Nomor WhatsApp / Seluler *
+                      Nomor WhatsApp / Seluler <span className="text-rose-600">*</span>
                     </label>
-                    <span className={`text-[11px] font-mono font-bold ${/^(?:\+62|62|0)8[0-9]{8,12}$/.test(phone.replace(/[\s-]/g, '')) ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {phone.replace(/[\s-]/g, '').length > 0 ? `${phone.replace(/[\s-]/g, '').length} Digit` : ''}
+                    {renderValidationStatus(
+                      isPhoneValid,
+                      cleanPhoneDigits.length > 0 ? 'Format 08 / +628 (10-14 digit)' : 'Wajib diisi',
+                      `${cleanPhoneDigits.length} Digit`
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="tel"
+                      id="profile-phone"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Contoh: 081234567890"
+                      required
+                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all font-mono ${fieldValidationBorderClass(isPhoneValid)}`}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                      {isPhoneValid ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-500" />
+                      )}
                     </span>
                   </div>
-                  <input
-                    type="tel"
-                    id="profile-phone"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Contoh: 081234567890"
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all font-mono"
-                  />
                 </div>
 
                 {/* NIK / KTP */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
                     <label className="block text-xs font-bold text-slate-700">
-                      Nomor Induk Kependudukan (NIK) *
+                      Nomor Induk Kependudukan (NIK) <span className="text-rose-600">*</span>
                     </label>
-                    <span className={`text-[11px] font-mono font-bold ${nik.replace(/\D/g, '').length === 16 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {nik.replace(/\D/g, '').length} / 16 Digit
-                    </span>
+                    {renderValidationStatus(
+                      isNikValid,
+                      cleanNikDigits.length > 0 ? `${cleanNikDigits.length} / 16 Digit` : 'Wajib 16 Digit',
+                      '16 / 16 Digit'
+                    )}
                   </div>
                   <div className="relative">
                     <input
@@ -731,8 +824,15 @@ export default function PesertaProfile() {
                       placeholder="16 digit angka NIK sesuai KTP"
                       maxLength={20}
                       required
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all font-mono tracking-wider"
+                      className={`w-full pl-3.5 pr-16 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all font-mono tracking-wider ${fieldValidationBorderClass(isNikValid)}`}
                     />
+                    <span className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2">
+                      {isNikValid ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </span>
                     <button
                       type="button"
                       onClick={() => setShowNik(!showNik)}
@@ -749,47 +849,86 @@ export default function PesertaProfile() {
 
                 {/* Pendidikan Terakhir */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Jenjang &amp; Jurusan Pendidikan *
-                  </label>
-                  <input
-                    type="text"
-                    id="profile-education"
-                    value={education}
-                    onChange={(e) => setEducation(e.target.value)}
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all"
-                  />
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Jenjang &amp; Jurusan Pendidikan <span className="text-rose-600">*</span>
+                    </label>
+                    {renderValidationStatus(isEducationValid, 'Wajib diisi', 'Lengkap')}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="profile-education"
+                      value={education}
+                      onChange={(e) => setEducation(e.target.value)}
+                      placeholder="Contoh: S1 Teknik Informatika"
+                      required
+                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all ${fieldValidationBorderClass(isEducationValid)}`}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                      {isEducationValid ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Perguruan Tinggi */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Universitas / Institusi Asal *
-                  </label>
-                  <input
-                    type="text"
-                    id="profile-university"
-                    value={university}
-                    onChange={(e) => setUniversity(e.target.value)}
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all"
-                  />
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Universitas / Institusi Asal <span className="text-rose-600">*</span>
+                    </label>
+                    {renderValidationStatus(isUniversityValid, 'Wajib diisi', 'Lengkap')}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="profile-university"
+                      value={university}
+                      onChange={(e) => setUniversity(e.target.value)}
+                      placeholder="Contoh: Institut Teknologi Bandung"
+                      required
+                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all ${fieldValidationBorderClass(isUniversityValid)}`}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                      {isUniversityValid ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Domisili */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Kota Domisili Saat Ini *
-                  </label>
-                  <input
-                    type="text"
-                    id="profile-city"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all"
-                  />
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Kota Domisili Saat Ini <span className="text-rose-600">*</span>
+                    </label>
+                    {renderValidationStatus(isCityValid, 'Wajib diisi', 'Lengkap')}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="profile-city"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="Contoh: Jakarta Selatan"
+                      required
+                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all ${fieldValidationBorderClass(isCityValid)}`}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                      {isCityValid ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Nomor Pegawai */}
