@@ -1429,10 +1429,7 @@ export default function PesertaAsesmenList() {
 
                     <div className="space-y-4">
                       {/* Header Badges */}
-                      <div className="flex items-center justify-between gap-2 pr-32">
-                        <span className="text-[11px] font-semibold text-primary-navy bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200/60 truncate">
-                          {item.category}
-                        </span>
+                      <div className="flex items-center pr-32">
                         <Badge variant={item.badgeVariant}>{item.badgeStatus}</Badge>
                       </div>
 
