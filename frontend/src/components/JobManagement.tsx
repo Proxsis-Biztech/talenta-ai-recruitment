@@ -399,6 +399,10 @@ export default function JobManagement() {
       setAddError('Judul posisi wajib diisi.');
       return;
     }
+    if (!newDescription.trim()) {
+      setAddError('Deskripsi / job deskripsi wajib diisi.');
+      return;
+    }
     setAddLoading(true);
     setAddError('');
     try {

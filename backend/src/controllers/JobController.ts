@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { bootstrapDatabaseSeed } from '../services/bootstrapSeedService';
 import { type AuthRequest } from '../middleware/auth';
-import { resolveAdminTenantId, requireAdminTenantId } from '../middleware/tenant';
+import { resolveAdminTenantId, requireAdminTenantId, UNASSIGNED_TENANT } from '../middleware/tenant';
 
 const prisma = new PrismaClient();
 
@@ -84,7 +84,7 @@ export const getAdminJobs = async (req: AuthRequest, res: Response) => {
     
     const tenantId = resolveAdminTenantId(req);
     const whereClause: any = {
-      ...(tenantId ? { tenantId } : {}),
+      ...(tenantId === UNASSIGNED_TENANT ? { tenantId: null } : tenantId ? { tenantId } : {}),
       OR: [
         { title: { contains: search } },
         { description: { contains: search } }
@@ -122,12 +122,18 @@ export const createJob = async (req: AuthRequest, res: Response) => {
     const rangeError = validateDateRange(validatedData.assessmentDate, validatedData.assessmentEndDate);
     if (rangeError) return res.status(400).json({ error: rangeError });
 
-    const existingJob = await prisma.job.findUnique({
-      where: { title: validatedData.title }
+    const resolvedTenant = resolveAdminTenantId(req);
+    const tenantId =
+      resolvedTenant === UNASSIGNED_TENANT
+        ? null
+        : resolvedTenant || (req.body.tenantId ? String(req.body.tenantId) : null);
+
+    const existingJob = await prisma.job.findFirst({
+      where: { title: validatedData.title, tenantId }
     });
-    
+
     if (existingJob) {
-      return res.status(400).json({ error: "Judul lowongan sudah ada" });
+      return res.status(400).json({ error: "Judul program sudah ada pada perusahaan ini" });
     }
     if (validatedData.code) {
       const existingCode = await prisma.job.findUnique({ where: { code: validatedData.code } });
@@ -139,14 +145,18 @@ export const createJob = async (req: AuthRequest, res: Response) => {
     const job = await prisma.job.create({
       data: {
         ...validatedData,
-        tenantId: resolveAdminTenantId(req) || (req.body.tenantId ? String(req.body.tenantId) : null)
+        tenantId
       }
     });
     
     res.status(201).json({ message: "Lowongan berhasil dibuat", data: job });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validasi gagal", details: (error as any).errors });
+      const firstIssue = error.issues[0];
+      return res.status(400).json({
+        error: firstIssue?.message || 'Validasi gagal',
+        details: error.issues
+      });
     }
     console.error("Create job error:", error);
     res.status(500).json({ error: "Gagal membuat lowongan baru" });
@@ -161,15 +171,19 @@ export const updateJob = async (req: AuthRequest, res: Response) => {
     const rangeError = validateDateRange(validatedData.assessmentDate, validatedData.assessmentEndDate);
     if (rangeError) return res.status(400).json({ error: rangeError });
 
+    const resolvedTenant = resolveAdminTenantId(req);
+    const tenantId = resolvedTenant === UNASSIGNED_TENANT ? null : resolvedTenant;
+
     const existingJob = await prisma.job.findFirst({
       where: { 
         title: validatedData.title,
+        tenantId,
         NOT: { id }
       }
     });
     
     if (existingJob) {
-      return res.status(400).json({ error: "Judul lowongan sudah ada" });
+      return res.status(400).json({ error: "Judul program sudah ada pada perusahaan ini" });
     }
     if (validatedData.code) {
       const existingCode = await prisma.job.findFirst({
@@ -180,10 +194,9 @@ export const updateJob = async (req: AuthRequest, res: Response) => {
       }
     }
     
-    const tenantId = resolveAdminTenantId(req);
-    if (tenantId) {
+    if (req.user?.role !== 'superadmin') {
       const owned = await prisma.job.findFirst({ where: { id, tenantId } });
-      if (!owned) return res.status(403).json({ error: 'Lowongan bukan milik tenant Anda.' });
+      if (!owned) return res.status(403).json({ error: 'Program bukan milik tenant Anda.' });
     }
     const job = await prisma.job.update({
       where: { id },
@@ -193,7 +206,11 @@ export const updateJob = async (req: AuthRequest, res: Response) => {
     res.json({ message: "Lowongan berhasil diperbarui", data: job });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validasi gagal", details: (error as any).errors });
+      const firstIssue = error.issues[0];
+      return res.status(400).json({
+        error: firstIssue?.message || 'Validasi gagal',
+        details: error.issues
+      });
     }
     console.error("Update job error:", error);
     res.status(500).json({ error: "Gagal memperbarui lowongan" });
@@ -204,10 +221,11 @@ export const updateJob = async (req: AuthRequest, res: Response) => {
 export const deleteJob = async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const tenantId = resolveAdminTenantId(req);
-    if (tenantId) {
-      const owned = await prisma.job.findFirst({ where: { id, tenantId } });
-      if (!owned) return res.status(403).json({ error: 'Lowongan bukan milik tenant Anda.' });
+    if (req.user?.role !== 'superadmin') {
+      const resolvedTenant = resolveAdminTenantId(req);
+      const scopedTenantId = resolvedTenant === UNASSIGNED_TENANT ? null : resolvedTenant;
+      const owned = await prisma.job.findFirst({ where: { id, tenantId: scopedTenantId } });
+      if (!owned) return res.status(403).json({ error: 'Program bukan milik tenant Anda.' });
     }
     
     // Check if there are applicants linked to this job

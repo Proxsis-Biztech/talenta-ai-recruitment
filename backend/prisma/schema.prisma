@@ -81,7 +81,7 @@ model Experience {
 model Job {
   id                   String      @id @default(uuid())
   code                 String?     @unique // Program code used by the assessment portal (e.g. SE-402)
-  title                String      @unique
+  title                String
   description          String      // Berisi jobdesk & requirements
   status               String      @default("active") // "active" | "inactive"
   interviewDuration    Int?        // Durasi wawancara dalam menit
