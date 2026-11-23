@@ -310,84 +310,55 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] w-full relative overflow-x-hidden bg-white flex items-center justify-center p-4 sm:p-8 lg:p-10 font-sans antialiased">
+    <div className="min-h-[100dvh] w-full relative overflow-hidden bg-gradient-to-br from-[#F2F7FF] via-[#FFFFFF] to-[#EAF1FF] flex items-center justify-center p-4 sm:p-8 lg:p-10 font-sans antialiased">
+      {/* Subtle architectural dot-grid & soft ambient sky/cobalt glows */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-75"
+        style={{
+          backgroundImage: 'radial-gradient(rgba(19, 101, 196, 0.11) 1px, transparent 1px)',
+          backgroundSize: '24px 24px'
+        }}
+      />
+      <div className="pointer-events-none absolute -top-36 -left-24 w-[460px] h-[460px] rounded-full bg-[#93C5FD]/35 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-36 -right-24 w-[500px] h-[500px] rounded-full bg-[#60A5FA]/30 blur-3xl" />
+      <div className="pointer-events-none hidden md:block absolute top-12 right-14 w-28 h-28 rounded-[28px] border border-blue-200/70 bg-white/45 backdrop-blur-xs rotate-[22deg] shadow-xs" />
+      <div className="pointer-events-none hidden md:block absolute bottom-12 left-14 w-24 h-24 rounded-[24px] border border-sky-200/75 bg-white/45 backdrop-blur-xs -rotate-[18deg] shadow-xs" />
+
       {/* Centered Two-Column Card */}
-      <div className="relative z-10 w-full max-w-[1040px] bg-white rounded-[24px] border border-slate-200/80 shadow-[0_24px_64px_-16px_rgba(15,39,92,0.16)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 lg:min-h-[610px]">
-        {/* Left Column: Architectural Blue Panel with Diagonal Glass Prisms & Assessment Preview Cards (Desktop) */}
-        <div className="hidden lg:flex lg:col-span-6 relative bg-white overflow-hidden select-none">
-          {/* Smooth curved blue architectural backdrop (no spheres) */}
-          <div className="absolute inset-y-0 left-0 right-6 bg-gradient-to-br from-[#1673D6] via-[#0E51AD] to-[#082E6F] rounded-br-[110px] shadow-[14px_0_40px_-15px_rgba(8,46,111,0.32)] overflow-hidden">
-            {/* Subtle dot-grid texture */}
-            <div
-              className="pointer-events-none absolute inset-0 opacity-20"
-              style={{
-                backgroundImage: 'radial-gradient(rgba(255,255,255,0.55) 1px, transparent 1px)',
-                backgroundSize: '20px 20px'
-              }}
-            />
-            {/* Sleek diagonal translucent prism ribbons */}
-            <div className="pointer-events-none absolute -top-20 -right-14 w-72 h-72 rounded-[44px] rotate-[24deg] bg-gradient-to-br from-sky-300/25 via-white/10 to-transparent border border-white/15" />
-            <div className="pointer-events-none absolute -bottom-24 -left-12 w-80 h-64 rounded-[48px] -rotate-[18deg] bg-gradient-to-tr from-[#38BDF8]/20 via-white/10 to-transparent border border-white/15" />
-            <div className="pointer-events-none absolute bottom-12 right-10 w-44 h-44 rounded-[32px] rotate-[38deg] bg-white/5 border border-white/10" />
+      <div className="relative z-10 w-full max-w-[1040px] bg-white rounded-[24px] border border-blue-100/90 shadow-[0_28px_72px_-16px_rgba(11,70,134,0.18)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 lg:min-h-[610px]">
+        {/* Left Column: Layered 3D Rounded Diamond/Squircle Geometry & Welcome Copy (No Circles) */}
+        <div className="hidden lg:block lg:col-span-6 relative bg-white overflow-hidden select-none">
+          {/* Main sweeping top-left tilted rounded-square blue block */}
+          <div className="pointer-events-none absolute -top-[105px] -left-[95px] w-[545px] h-[545px] rounded-[96px] rotate-[16deg] bg-[linear-gradient(145deg,#2E8DEE_0%,#1465C3_56%,#0A4595_100%)] shadow-[0_26px_55px_-12px_rgba(9,57,128,0.42)] border border-white/15" />
+          {/* Bottom-left overlapping 3D tilted rounded cube */}
+          <div className="pointer-events-none absolute -bottom-[85px] -left-[45px] w-[235px] h-[235px] rounded-[52px] rotate-[24deg] bg-[linear-gradient(135deg,#419DF7_0%,#176AC9_58%,#0B4797_100%)] shadow-[0_-10px_35px_rgba(5,32,80,0.28)] border border-white/20">
+            <div className="absolute top-6 left-7 w-16 h-6 rounded-xl bg-white/20 blur-[4px] -rotate-12" />
+          </div>
+          {/* Floating mid-lower 3D tilted diamond prism */}
+          <div className="pointer-events-none absolute bottom-[36px] left-[220px] w-[168px] h-[168px] rounded-[40px] rotate-[38deg] bg-[linear-gradient(145deg,#3895F4_0%,#1564C0_58%,#0B428F_100%)] shadow-[0_22px_40px_-8px_rgba(6,38,94,0.44)] border border-white/25">
+            <div className="absolute top-4 left-5 w-12 h-5 rounded-lg bg-white/25 blur-[3px] -rotate-12" />
           </div>
 
-          <div className="relative z-10 w-full px-11 xl:px-13 py-12 pr-14 flex flex-col justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-white/15 backdrop-blur-md border border-white/20 text-[11px] font-bold tracking-wider uppercase text-sky-50 mb-5">
-                <Sparkles className="w-3.5 h-3.5 text-sky-200" />
-                <span>AI Talent Assessment</span>
-              </div>
-              <h2 className="text-[32px] xl:text-[36px] font-extrabold text-white tracking-tight uppercase leading-none">
-                SELAMAT DATANG
-              </h2>
-              <p className="text-sm font-bold text-sky-100 uppercase tracking-wider mt-2.5">
-                RIGHT ASSESSMENT PLATFORM
-              </p>
-              <p className="text-xs sm:text-[13px] text-blue-100/95 mt-3.5 leading-relaxed max-w-[340px]">
-                Platform asesmen digital, seleksi talenta, dan evaluasi kompetensi terstandar dalam satu portal terpadu untuk keputusan rekrutmen yang objektif.
-              </p>
-            </div>
-
-            {/* Distinct Glassmorphic Pillar Cards instead of spheres */}
-            <div className="space-y-3 mt-8">
-              <div className="bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 flex items-center gap-3.5 shadow-sm">
-                <div className="w-10 h-10 rounded-xl bg-white/20 border border-white/25 flex items-center justify-center shrink-0">
-                  <Scale className="w-5 h-5 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-white">Evaluasi Kompetensi Terstandar</p>
-                  <p className="text-[11px] text-blue-100/85 truncate">Ujian CAT objektif &amp; wawancara rubrik BARS 1–5</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl p-3.5">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <ShieldCheck className="w-4 h-4 text-sky-200 shrink-0" />
-                    <span className="text-[11px] font-bold text-white">Proctoring AI</span>
-                  </div>
-                  <p className="text-[11px] text-blue-100/85 leading-snug">Verifikasi wajah &amp; pengawasan integritas sesi</p>
-                </div>
-
-                <div className="bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl p-3.5">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <Award className="w-4 h-4 text-sky-200 shrink-0" />
-                    <span className="text-[11px] font-bold text-white">LHA Digital</span>
-                  </div>
-                  <p className="text-[11px] text-blue-100/85 leading-snug">Laporan hasil resmi &amp; tanda tangan terverifikasi</p>
-                </div>
-              </div>
-            </div>
+          <div className="relative z-10 px-12 xl:px-14 pt-20 pb-48 max-w-[420px]">
+            <h2 className="text-[32px] xl:text-[36px] font-extrabold text-white tracking-tight uppercase leading-none">
+              SELAMAT DATANG
+            </h2>
+            <p className="text-sm font-bold text-blue-100 uppercase tracking-wider mt-2.5">
+              RIGHT ASSESSMENT PLATFORM
+            </p>
+            <p className="text-xs sm:text-[13px] text-blue-100/95 mt-4 leading-relaxed max-w-[295px]">
+              Platform asesmen digital, seleksi talenta, dan evaluasi kompetensi terstandar dalam satu portal terpadu untuk keputusan rekrutmen yang objektif.
+            </p>
           </div>
         </div>
 
         {/* Mobile Compact Blue Header */}
-        <div className="lg:hidden relative bg-gradient-to-br from-[#1673D6] via-[#0E51AD] to-[#082E6F] px-6 py-7 text-white overflow-hidden">
+        <div className="lg:hidden relative bg-gradient-to-br from-[#2381E3] via-[#1363C1] to-[#0A4595] px-6 py-7 text-white overflow-hidden">
           <div className="pointer-events-none -right-8 -bottom-10 absolute w-36 h-36 rounded-3xl rotate-[24deg] bg-white/10 border border-white/15" />
           <div className="pointer-events-none right-16 -bottom-14 absolute w-24 h-24 rounded-2xl -rotate-[14deg] bg-white/10" />
           <div className="relative z-10">
             <h2 className="text-xl font-extrabold tracking-tight uppercase">SELAMAT DATANG</h2>
-            <p className="text-[11px] font-bold text-sky-100 uppercase tracking-wider mt-1">
+            <p className="text-[11px] font-bold text-blue-100 uppercase tracking-wider mt-1">
               RIGHT ASSESSMENT PLATFORM
             </p>
             <p className="text-xs text-blue-100/90 mt-2 leading-relaxed">
@@ -396,9 +367,8 @@ export default function AuthLoginPage() {
           </div>
         </div>
 
-        {/* Bottom-right corner angled geometric prism ribbons (no spheres) */}
-        <div className="hidden sm:block pointer-events-none absolute -bottom-8 -right-6 w-36 h-12 rounded-2xl -rotate-[32deg] bg-gradient-to-r from-[#1A78D8]/85 to-[#0B4686]/90 shadow-md" />
-        <div className="hidden sm:block pointer-events-none absolute bottom-3 -right-10 w-28 h-6 rounded-xl -rotate-[32deg] bg-[#38BDF8]/25 border border-[#1A78D8]/20" />
+        {/* Bottom-right corner matching 3D tilted diamond accent (No Circles) */}
+        <div className="hidden sm:block pointer-events-none absolute -bottom-[70px] -right-[58px] w-[155px] h-[155px] rounded-[38px] rotate-[28deg] bg-[linear-gradient(135deg,#3893F0_0%,#1564C0_62%,#0B4493_100%)] shadow-[0_12px_30px_rgba(8,46,105,0.28)] border border-white/25" />
 
         {/* Right Column: Clean White Login Form with RIGHT Branding */}
         <div className="lg:col-span-6 relative z-10 px-6 py-8 sm:px-11 sm:py-12 lg:px-12 xl:px-14 flex flex-col justify-center">
@@ -510,7 +480,7 @@ export default function AuthLoginPage() {
                 <Button
                   type="submit"
                   variant="primary"
-                  className="w-full py-3.5 text-sm sm:text-[15px] font-bold flex items-center justify-center gap-2 rounded-xl bg-[#0B4686] hover:bg-[#08376B] border-0 shadow-sm cursor-pointer"
+                  className="w-full py-3.5 text-sm sm:text-[15px] font-bold flex items-center justify-center gap-2 rounded-full bg-[#0B4686] hover:bg-[#08376B] border-0 shadow-sm cursor-pointer"
                   disabled={isLoading}
                 >
                   {isLoading ? (
