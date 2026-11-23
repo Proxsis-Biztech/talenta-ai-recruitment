@@ -42,6 +42,7 @@ import {
   CardFooter,
   Input,
   Select,
+  Textarea,
   TelemetryStrip,
   TelemetryItem,
   Modal,
@@ -1422,44 +1423,50 @@ ${app.interviewResult ? `
                 </div>
 
                 {/* PT Filter */}
-                <select
-                  value={ptFilter}
-                  onChange={(e) => { setPtFilter(e.target.value); setPage(1); }}
-                  className="h-11 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl px-3.5 pr-8 focus:outline-none focus:border-primary-navy shadow-2xs cursor-pointer"
-                >
-                  <option value="">Semua Perusahaan (PT)</option>
-                  <option value="Telkom">PT Telkom Indonesia Tbk</option>
-                  <option value="Mandiri">Bank Mandiri Tbk</option>
-                  <option value="CIMB">Bank CIMB Niaga Tbk</option>
-                  <option value="Astra">Astra International Tbk</option>
-                  <option value="Pertamina">Pertamina Hulu Energi</option>
-                </select>
+                <div className="w-full sm:w-52">
+                  <Select
+                    value={ptFilter}
+                    onChange={(e) => { setPtFilter(e.target.value); setPage(1); }}
+                    className="h-11 rounded-xl font-semibold"
+                  >
+                    <option value="">Semua Perusahaan (PT)</option>
+                    <option value="Telkom">PT Telkom Indonesia Tbk</option>
+                    <option value="Mandiri">Bank Mandiri Tbk</option>
+                    <option value="CIMB">Bank CIMB Niaga Tbk</option>
+                    <option value="Astra">Astra International Tbk</option>
+                    <option value="Pertamina">Pertamina Hulu Energi</option>
+                  </Select>
+                </div>
 
                 {/* Program Filter */}
-                <select
-                  value={programFilter}
-                  onChange={(e) => { setProgramFilter(e.target.value); setPage(1); }}
-                  className="h-11 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl px-3.5 pr-8 focus:outline-none focus:border-primary-navy shadow-2xs cursor-pointer max-w-sm truncate"
-                >
-                  <option value="">Semua Program Asesmen</option>
-                  {DEFAULT_ASSESSMENT_PROGRAMS.map((prog) => (
-                    <option key={prog.id} value={prog.title}>
-                      {prog.title} ({prog.companyName})
-                    </option>
-                  ))}
-                </select>
+                <div className="w-full sm:w-64">
+                  <Select
+                    value={programFilter}
+                    onChange={(e) => { setProgramFilter(e.target.value); setPage(1); }}
+                    className="h-11 rounded-xl font-semibold"
+                  >
+                    <option value="">Semua Program Asesmen</option>
+                    {DEFAULT_ASSESSMENT_PROGRAMS.map((prog) => (
+                      <option key={prog.id} value={prog.title}>
+                        {prog.title} ({prog.companyName})
+                      </option>
+                    ))}
+                  </Select>
+                </div>
 
                 {/* Status Filter */}
-                <select
-                  value={statusFilter}
-                  onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                  className="h-11 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl px-3.5 pr-8 focus:outline-none focus:border-primary-navy shadow-2xs cursor-pointer"
-                >
-                  <option value="">Semua Status</option>
-                  <option value="proses">Proses</option>
-                  <option value="lulus">Lulus</option>
-                  <option value="gagal">Gagal</option>
-                </select>
+                <div className="w-full sm:w-40">
+                  <Select
+                    value={statusFilter}
+                    onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                    className="h-11 rounded-xl font-semibold"
+                  >
+                    <option value="">Semua Status</option>
+                    <option value="proses">Proses</option>
+                    <option value="lulus">Lulus</option>
+                    <option value="gagal">Gagal</option>
+                  </Select>
+                </div>
               </div>
 
               {/* Action buttons */}
@@ -2475,67 +2482,61 @@ ${app.interviewResult ? `
                     />
                   </div>
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">No. Telepon</label>
-                    <input
+                    <Input
+                      label="No. Telepon"
                       type="text"
                       value={editingApplicant.phone || ''}
                       onChange={e => setEditingApplicant({ ...editingApplicant, phone: e.target.value })}
-                      className="w-full h-11 px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 focus:bg-white focus:border-primary-navy focus:ring-1 focus:ring-primary-navy outline-none transition-colors"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">Jenis Kelamin</label>
-                    <select
+                    <Select
+                      label="Jenis Kelamin"
                       value={editingApplicant.gender}
                       onChange={e => setEditingApplicant({ ...editingApplicant, gender: e.target.value })}
-                      className="w-full h-11 px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 focus:bg-white focus:border-primary-navy focus:ring-1 focus:ring-primary-navy outline-none transition-colors cursor-pointer"
                     >
                       <option value="Laki-laki">Laki-laki</option>
                       <option value="Perempuan">Perempuan</option>
-                    </select>
+                    </Select>
                   </div>
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">Tempat Lahir</label>
-                    <input
+                    <Input
+                      label="Tempat Lahir"
                       type="text"
                       value={editingApplicant.placeOfBirth || ''}
                       onChange={e => setEditingApplicant({ ...editingApplicant, placeOfBirth: e.target.value })}
-                      className="w-full h-11 px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 focus:bg-white focus:border-primary-navy focus:ring-1 focus:ring-primary-navy outline-none transition-colors"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">Tanggal Lahir</label>
-                    <input
+                    <Input
+                      label="Tanggal Lahir"
                       type="date"
                       value={editingApplicant.dateOfBirth ? editingApplicant.dateOfBirth.split('T')[0] : ''}
                       onChange={e => setEditingApplicant({ ...editingApplicant, dateOfBirth: e.target.value })}
-                      className="w-full h-11 px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 focus:bg-white focus:border-primary-navy focus:ring-1 focus:ring-primary-navy outline-none transition-colors"
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">Alamat</label>
-                    <textarea
+                    <Textarea
+                      label="Alamat"
                       value={editingApplicant.address || ''}
                       onChange={e => setEditingApplicant({ ...editingApplicant, address: e.target.value })}
                       rows={2}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 focus:bg-white focus:border-primary-navy focus:ring-1 focus:ring-primary-navy outline-none transition-colors resize-none"
+                      className="resize-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">Posisi Dilamar</label>
-                    <input
+                    <Input
+                      label="Posisi Dilamar"
                       type="text"
                       value={editingApplicant.appliedPosition || ''}
                       onChange={e => setEditingApplicant({ ...editingApplicant, appliedPosition: e.target.value })}
-                      className="w-full h-11 px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 focus:bg-white focus:border-primary-navy focus:ring-1 focus:ring-primary-navy outline-none transition-colors"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">Pendidikan</label>
-                    <select
+                    <Select
+                      label="Pendidikan"
                       value={editingApplicant.education || ''}
                       onChange={e => setEditingApplicant({ ...editingApplicant, education: e.target.value })}
-                      className="w-full h-11 px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 focus:bg-white focus:border-primary-navy focus:ring-1 focus:ring-primary-navy outline-none transition-colors cursor-pointer"
                     >
                       <option value="SMA">SMA Sederajat</option>
                       <option value="D1">D1</option>
@@ -2543,7 +2544,7 @@ ${app.interviewResult ? `
                       <option value="D3">D3</option>
                       <option value="D4">D4</option>
                       <option value="S1">S1</option>
-                    </select>
+                    </Select>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Universitas</label>

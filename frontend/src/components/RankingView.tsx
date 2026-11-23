@@ -11,6 +11,7 @@ import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
+import { Select } from './ui/Select';
 import { downloadCsvFile } from '../utils/csvExport';
 
 interface SkillItem { skill: string; score: number; notes: string }
@@ -346,16 +347,15 @@ ${app.interviewTranscript ? `<div class="banner"><h2>Transkrip Percakapan</h2><d
           )}
         </div>
 
-        <div className="relative min-w-[220px]">
-          <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <select
+        <div className="min-w-[230px]">
+          <Select
             value={jobFilter}
             onChange={(e) => setJobFilter(e.target.value)}
-            className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:bg-white focus:ring-1 focus:ring-primary-navy focus:border-primary-navy outline-none transition-colors appearance-none cursor-pointer hover:border-slate-300 font-sans"
+            leftIcon={<Briefcase className="w-4 h-4 text-slate-400" />}
           >
             <option value="">Semua Lowongan Pekerjaan</option>
             {jobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
-          </select>
+          </Select>
         </div>
       </div>
 

@@ -34,6 +34,7 @@ import {
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
+import { Select } from './ui/Select';
 
 export type AdminMenuKey =
   | 'dashboard'
@@ -492,23 +493,26 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                 {tenants.length > 0 && (
                   <div className="hidden lg:flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-500">Tenant</span>
-                    <select
-                      value={activeTenantId}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setActiveTenantId(value);
-                        if (value) localStorage.setItem('activeTenantId', value);
-                        else localStorage.removeItem('activeTenantId');
-                        window.location.reload();
-                      }}
-                      disabled={userRole !== 'superadmin'}
-                      className="max-w-[220px] h-10 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-800 shadow-2xs focus:outline-none focus:border-primary-navy disabled:bg-slate-50 disabled:text-slate-500 cursor-pointer"
-                    >
-                      {userRole === 'superadmin' && <option value="">Semua tenant</option>}
-                      {tenants.map((tenant) => (
-                        <option key={tenant.id} value={tenant.id}>{tenant.name}</option>
-                      ))}
-                    </select>
+                    <div className="w-[220px]">
+                      <Select
+                        value={activeTenantId}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setActiveTenantId(value);
+                          if (value) localStorage.setItem('activeTenantId', value);
+                          else localStorage.removeItem('activeTenantId');
+                          window.location.reload();
+                        }}
+                        disabled={userRole !== 'superadmin'}
+                        placeholder="Semua tenant"
+                        className="h-10 rounded-xl font-semibold"
+                      >
+                        {userRole === 'superadmin' && <option value="">Semua tenant</option>}
+                        {tenants.map((tenant) => (
+                          <option key={tenant.id} value={tenant.id}>{tenant.name}</option>
+                        ))}
+                      </Select>
+                    </div>
                   </div>
                 )}
 

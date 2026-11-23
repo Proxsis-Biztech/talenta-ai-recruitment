@@ -26,6 +26,7 @@ import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
+import { Select } from './ui/Select';
 
 interface FaqChunkItem {
   id: string;
@@ -644,18 +645,20 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
 
         {activeTab === 'knowledge' && (
           <div className="flex items-center gap-2">
-            <select
-              value={selectedCompanyKey}
-              onChange={(e) => setSelectedCompanyKey(e.target.value)}
-              className="px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white text-slate-800 font-medium"
-            >
-              <option value="DEFAULT">Global Platform (DEFAULT)</option>
-              {tenants.map((t) => (
-                <option key={t.id} value={t.name}>
-                  Tenant: {t.name}
-                </option>
-              ))}
-            </select>
+            <div className="w-56">
+              <Select
+                value={selectedCompanyKey}
+                onChange={(e) => setSelectedCompanyKey(e.target.value)}
+                className="rounded-xl font-medium"
+              >
+                <option value="DEFAULT">Global Platform (DEFAULT)</option>
+                {tenants.map((t) => (
+                  <option key={t.id} value={t.name}>
+                    Tenant: {t.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <Button variant="secondary" size="sm" onClick={handleDownloadWordTemplate}>
               <Download className="w-4 h-4 mr-1.5" />
               Template Word (.docx)
@@ -1020,18 +1023,20 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
                   </p>
                 </div>
               </div>
-              <select
-                value={selectedCompanyKey}
-                onChange={(e) => setSelectedCompanyKey(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-lg bg-white/10 border border-white/20 text-white"
-              >
-                <option value="DEFAULT" className="text-slate-900">Global Platform (DEFAULT)</option>
-                {tenants.map((t) => (
-                  <option key={t.id} value={t.name} className="text-slate-900">
-                    Tenant: {t.name}
-                  </option>
-                ))}
-              </select>
+              <div className="w-52">
+                <Select
+                  value={selectedCompanyKey}
+                  onChange={(e) => setSelectedCompanyKey(e.target.value)}
+                  className="h-9 text-xs bg-white/15 border-white/25 text-white hover:border-white/40 [&_svg]:text-blue-200"
+                >
+                  <option value="DEFAULT">Global Platform (DEFAULT)</option>
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.name}>
+                      Tenant: {t.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </div>
 
             {chunks.length > 0 && (

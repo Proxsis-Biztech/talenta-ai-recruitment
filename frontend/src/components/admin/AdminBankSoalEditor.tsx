@@ -36,6 +36,8 @@ import {
   Card,
   CardContent,
   Input,
+  Select,
+  Textarea,
   Table,
   TableHeader,
   TableBody,
@@ -294,54 +296,54 @@ function QuestionFormFields({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Tipe Soal</label>
-          <select
+          <Select
+            label="Tipe Soal"
             value={question.type}
             onChange={(e) => onChange({ type: e.target.value as BankQuestion['type'] })}
-            className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
+            className="h-11 rounded-xl font-semibold"
           >
             <option value="Pilihan Ganda">Pilihan Ganda</option>
             <option value="Multi-Select">Multi-Select</option>
             <option value="Isian Singkat">Isian Singkat</option>
             <option value="Esai">Esai</option>
             <option value="Matching">Matching</option>
-          </select>
+          </Select>
         </div>
         <div>
-          <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Tingkat Kesulitan</label>
-          <select
+          <Select
+            label="Tingkat Kesulitan"
             value={question.difficulty}
             onChange={(e) => onChange({ difficulty: e.target.value as BankQuestion['difficulty'] })}
-            className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
+            className="h-11 rounded-xl font-semibold"
           >
             <option value="Mudah">Mudah</option>
             <option value="Sedang">Sedang</option>
             <option value="Sulit">Sulit</option>
-          </select>
+          </Select>
         </div>
         <div>
-          <label className="block text-xs sm:text-sm font-bold text-ink mb-1.5">Status Butir</label>
-          <select
+          <Select
+            label="Status Butir"
             value={question.status}
             onChange={(e) => onChange({ status: e.target.value as BankQuestion['status'] })}
-            className="w-full h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy"
+            className="h-11 rounded-xl font-semibold"
           >
             <option value="Published">Published</option>
             <option value="Review">Review</option>
             <option value="Draft">Draft</option>
             <option value="Retired">Retired</option>
-          </select>
+          </Select>
         </div>
       </div>
 
       <div>
-        <label className="block font-bold text-ink mb-1">Teks Pertanyaan (Studi Kasus / Soal):</label>
-        <textarea
+        <Textarea
+          label="Teks Pertanyaan (Studi Kasus / Soal):"
           rows={4}
           value={question.text}
           onChange={(e) => onChange({ text: e.target.value })}
           placeholder="Tuliskan butir soal secara lengkap..."
-          className="w-full p-3 rounded-xl border border-border-slate focus:border-primary-navy text-xs outline-none leading-relaxed"
+          className="rounded-xl text-xs leading-relaxed"
         />
       </div>
 
@@ -1153,43 +1155,47 @@ export function AdminBankSoalEditor() {
                   <ChevronLeft className="w-3.5 h-3.5 mr-1" />
                   Semua Program
                 </Button>
-                <div className="min-w-0">
+                <div className="min-w-0 sm:w-[360px]">
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Program Asesmen</label>
-                  <select value={selectedProgramCode} onChange={(e) => setSelectedProgramCode(e.target.value)} className="w-full sm:w-[360px] h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy">
+                  <Select value={selectedProgramCode} onChange={(e) => setSelectedProgramCode(e.target.value)} className="h-11 rounded-xl font-semibold">
                     {programs.map((program) => (
                       <option key={program.id} value={program.id}>[{program.id}] {program.title}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Pencarian</label>
-                <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="Cari kode atau teks soal..." className="w-full h-11 pl-10 pr-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm outline-none focus:border-primary-navy" />
-                </div>
+                <Input
+                  type="text"
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  placeholder="Cari kode atau teks soal..."
+                  leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+                  className="h-11 rounded-xl"
+                />
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Tipe Soal</label>
-                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy">
+                <Select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="h-11 rounded-xl font-semibold">
                   <option value="all">Semua Tipe</option>
                   <option value="Pilihan Ganda">Pilihan Ganda</option>
                   <option value="Multi-Select">Multi-Select</option>
                   <option value="Isian Singkat">Isian Singkat</option>
                   <option value="Esai">Esai</option>
                   <option value="Matching">Matching</option>
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Kesulitan</label>
-                <select value={filterDiff} onChange={(e) => setFilterDiff(e.target.value)} className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 shadow-2xs cursor-pointer focus:outline-none focus:border-primary-navy">
+                <Select value={filterDiff} onChange={(e) => setFilterDiff(e.target.value)} className="h-11 rounded-xl font-semibold">
                   <option value="all">Semua Kesulitan</option>
                   <option value="Mudah">Mudah</option>
                   <option value="Sedang">Sedang</option>
                   <option value="Sulit">Sulit</option>
-                </select>
+                </Select>
               </div>
             </div>
           </div>
@@ -1580,20 +1586,22 @@ export function AdminBankSoalEditor() {
           </div>
 
           {/* Preset Selector */}
-          <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
             <span className="font-bold text-slate-800 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-primary-navy" />
               Preset AI Proctoring &amp; Threshold Toleransi (BR-PR-05):
             </span>
-            <select
-              value={selectedPreset}
-              onChange={(e) => setSelectedPreset(e.target.value as any)}
-              className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-bold text-primary-navy cursor-pointer"
-            >
-              <option value="Ringan">Preset Ringan (Browser only, th: 80)</option>
-              <option value="Sedang">Preset Sedang (Webcam basic, th: 50)</option>
-              <option value="Ketat">Preset Ketat (Identitas, gaze, gadget, th: 30)</option>
-            </select>
+            <div className="w-full sm:w-80">
+              <Select
+                value={selectedPreset}
+                onChange={(e) => setSelectedPreset(e.target.value as any)}
+                className="h-9 text-xs font-bold text-primary-navy"
+              >
+                <option value="Ringan">Preset Ringan (Browser only, th: 80)</option>
+                <option value="Sedang">Preset Sedang (Webcam basic, th: 50)</option>
+                <option value="Ketat">Preset Ketat (Identitas, gaze, gadget, th: 30)</option>
+              </Select>
+            </div>
           </div>
 
           {/* Fact Sheet Table */}
@@ -1660,52 +1668,51 @@ export function AdminBankSoalEditor() {
       >
         <form onSubmit={handleAddFactItem} className="p-4 space-y-4 text-xs">
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Kategori Masalah</label>
-            <input
+            <Input
+              label="Kategori Masalah"
               type="text"
               value={factCategory}
               onChange={(e) => setFactCategory(e.target.value)}
               placeholder="Contoh: Operational SLA, OPEX Listrik, Customer Satisfaction..."
               required
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs outline-none focus:border-primary-navy"
             />
           </div>
 
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Uraian Fakta Kunci Skenario</label>
-            <textarea
+            <Textarea
+              label="Uraian Fakta Kunci Skenario"
               rows={3}
               value={factText}
               onChange={(e) => setFactText(e.target.value)}
               placeholder="Contoh: Penurunan On-Time Performance (OTP) 99.2% ke 97.8% pada mesin CRM..."
               required
-              className="w-full p-2.5 rounded-lg border border-slate-300 text-xs outline-none leading-relaxed"
+              className="text-xs leading-relaxed"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Prioritas Analisis</label>
-              <select
+              <Select
+                label="Prioritas Analisis"
                 value={factPriority}
                 onChange={(e) => setFactPriority(e.target.value as any)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white cursor-pointer"
+                className="text-xs"
               >
                 <option value="Priority 1 (Critical)">Priority 1 (Critical)</option>
                 <option value="Priority 2 (Important)">Priority 2 (Important)</option>
                 <option value="Priority 3 (Secondary)">Priority 3 (Secondary)</option>
-              </select>
+              </Select>
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Bobot Penilaian (1 - 5)</label>
-              <input
+              <Input
+                label="Bobot Penilaian (1 - 5)"
                 type="number"
                 min={1}
                 max={5}
                 value={factWeight}
                 onChange={(e) => setFactWeight(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-mono font-bold"
+                isMonospace
               />
             </div>
           </div>

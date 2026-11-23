@@ -14,6 +14,7 @@ import {
   Button,
   Badge,
   Input,
+  Select,
   Table,
   TableHeader,
   TableBody,
@@ -1242,17 +1243,15 @@ export default function JobManagement() {
           <p className="text-[11px] text-slate-500 -mt-2">Rentang tanggal pelaksanaan asesmen. Dapat diubah kapan saja.</p>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-800 mb-1.5">
-              Status Formasi
-            </label>
-            <select
+            <Select
+              label="Status Formasi"
               value={newStatus}
               onChange={(e) => setNewStatus(e.target.value as 'active' | 'inactive')}
-              className="w-full h-11 px-3.5 py-2 text-sm font-medium text-slate-800 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
+              className="h-11 rounded-xl font-medium"
             >
               <option value="active">Aktif (Terbuka untuk Pendaftaran)</option>
               <option value="inactive">Nonaktif (Arsip Internal)</option>
-            </select>
+            </Select>
           </div>
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
@@ -1411,15 +1410,15 @@ export default function JobManagement() {
                 <p className="text-[11px] text-slate-500 -mt-2">Kosongkan bila jadwal asesmen belum ditentukan.</p>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-800 mb-1.5">Status Formasi</label>
-                  <select
+                  <Select
+                    label="Status Formasi"
                     value={editStatus}
                     onChange={(e) => setEditStatus(e.target.value as 'active' | 'inactive')}
-                    className="w-full h-11 px-3.5 py-2 text-sm font-medium text-slate-800 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
+                    className="h-11 rounded-xl font-medium"
                   >
                     <option value="active">Aktif (Terbuka untuk Pendaftaran)</option>
                     <option value="inactive">Nonaktif (Arsip Internal)</option>
-                  </select>
+                  </Select>
                 </div>
 
                 <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900 flex items-start gap-2.5">
@@ -1607,31 +1606,27 @@ export default function JobManagement() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                         {/* 1. Sumber Program */}
                         <div>
-                          <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
-                            1. Program Sumber Bank Soal
-                          </label>
-                          <select
+                          <Select
+                            label="1. Program Sumber Bank Soal"
                             value={importSourceProgramId}
                             onChange={(e) => setImportSourceProgramId(e.target.value)}
-                            className="w-full h-11 px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-primary-navy font-medium text-slate-800 shadow-2xs cursor-pointer"
+                            className="h-11 rounded-xl font-medium"
                           >
                             {allProgramsList.map((prog) => (
                               <option key={prog.id} value={prog.id}>
                                 [{prog.id}] {prog.title.replace(/\s*\([^)]*\)\s*$/, '')} ({prog.companyName})
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </div>
 
                         {/* 2. Dropdown Tipe Soal */}
                         <div>
-                          <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
-                            2. Dropdown Tipe Soal di Bank Soal CAT *
-                          </label>
-                          <select
+                          <Select
+                            label="2. Dropdown Tipe Soal di Bank Soal CAT *"
                             value={importTypeFilter}
                             onChange={(e) => setImportTypeFilter(e.target.value)}
-                            className="w-full h-11 px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-primary-navy font-bold text-primary-navy shadow-2xs cursor-pointer"
+                            className="h-11 rounded-xl font-bold text-primary-navy"
                           >
                             <option value="ALL">Semua Tipe Soal ({availableBankQuestionsForImport.length} Butir)</option>
                             <option value="single">Pilihan Ganda ({countByImportType.single || 0} Butir)</option>
@@ -1639,22 +1634,20 @@ export default function JobManagement() {
                             <option value="short">Isian Singkat ({countByImportType.short || 0} Butir)</option>
                             <option value="essay">Studi Kasus / Esai ({countByImportType.essay || 0} Butir)</option>
                             <option value="matching">Matching / Menjodohkan ({countByImportType.matching || 0} Butir)</option>
-                          </select>
+                          </Select>
                         </div>
 
                         {/* 3. Mode Aksi Impor */}
                         <div>
-                          <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
-                            3. Mode Aksi Impor
-                          </label>
-                          <select
+                          <Select
+                            label="3. Mode Aksi Impor"
                             value={importMode}
                             onChange={(e) => setImportMode(e.target.value as 'append' | 'replace')}
-                            className="w-full h-11 px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-primary-navy font-medium text-slate-800 shadow-2xs cursor-pointer"
+                            className="h-11 rounded-xl font-medium"
                           >
                             <option value="append">Tambahkan ke Soal yang Ada (Append)</option>
                             <option value="replace">Gantikan / Timpa Seluruh Soal (Replace)</option>
-                          </select>
+                          </Select>
                         </div>
                       </div>
 
@@ -1804,29 +1797,29 @@ export default function JobManagement() {
                                   </div>
                                   <div>
                                     <label className={labelCls}>Tipe Soal</label>
-                                    <select
+                                    <Select
                                       value={q.type}
                                       onChange={(e) => updateEditQuestion(q.id, { type: e.target.value as QuestionItem['type'] })}
-                                      className={`${editInputCls} h-11 py-2 font-medium cursor-pointer`}
+                                      className="h-11 rounded-xl font-medium"
                                     >
                                       <option value="single">Pilihan Ganda</option>
                                       <option value="multi">Multi-Select</option>
                                       <option value="short">Isian Singkat</option>
                                       <option value="essay">Studi Kasus / Esai</option>
                                       <option value="matching">Matching</option>
-                                    </select>
+                                    </Select>
                                   </div>
                                   <div>
                                     <label className={labelCls}>Tingkat Kesulitan</label>
-                                    <select
+                                    <Select
                                       value={q.difficulty}
                                       onChange={(e) => updateEditQuestion(q.id, { difficulty: e.target.value as QuestionItem['difficulty'] })}
-                                      className={`${editInputCls} h-11 py-2 font-medium cursor-pointer`}
+                                      className="h-11 rounded-xl font-medium"
                                     >
                                       <option value="Mudah">Mudah</option>
                                       <option value="Sedang">Sedang</option>
                                       <option value="Sulit">Sulit</option>
-                                    </select>
+                                    </Select>
                                   </div>
                                 </div>
 
@@ -2070,16 +2063,16 @@ export default function JobManagement() {
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Status Modul</label>
-                                <select
+                                <Select
+                                  label="Status Modul"
                                   value={mat.status || 'Aktif'}
                                   onChange={(e) => updateEditMaterial(mat.id, { status: e.target.value as MasterMateriItem['status'] })}
-                                  className="w-full h-11 px-3.5 py-2 text-sm font-medium bg-white border border-slate-300 rounded-xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                                  className="h-11 rounded-xl font-medium"
                                 >
                                   <option value="Aktif">Aktif</option>
                                   <option value="Draft">Draft</option>
                                   <option value="Reviu">Reviu</option>
-                                </select>
+                                </Select>
                               </div>
                             </div>
                           </div>
@@ -2309,30 +2302,34 @@ export default function JobManagement() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2.5">
-                    <select
-                      value={qTypeFilter}
-                      onChange={(e) => setQTypeFilter(e.target.value)}
-                      className="h-11 px-3.5 py-2 text-sm font-medium text-slate-800 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-primary-navy shadow-2xs cursor-pointer"
-                    >
-                      <option value="ALL">Semua Tipe Soal</option>
-                      <option value="single">Pilihan Ganda</option>
-                      <option value="multi">Multi-Select</option>
-                      <option value="matching">Matching (Menjodohkan)</option>
-                      <option value="short">Isian Singkat</option>
-                      <option value="essay">Esai / Studi Kasus</option>
-                    </select>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="w-48">
+                      <Select
+                        value={qTypeFilter}
+                        onChange={(e) => setQTypeFilter(e.target.value)}
+                        className="h-11 rounded-xl font-medium"
+                      >
+                        <option value="ALL">Semua Tipe Soal</option>
+                        <option value="single">Pilihan Ganda</option>
+                        <option value="multi">Multi-Select</option>
+                        <option value="matching">Matching (Menjodohkan)</option>
+                        <option value="short">Isian Singkat</option>
+                        <option value="essay">Esai / Studi Kasus</option>
+                      </Select>
+                    </div>
 
-                    <select
-                      value={qDiffFilter}
-                      onChange={(e) => setQDiffFilter(e.target.value)}
-                      className="h-11 px-3.5 py-2 text-sm font-medium text-slate-800 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-primary-navy shadow-2xs cursor-pointer"
-                    >
-                      <option value="ALL">Semua Tingkat Kesulitan</option>
-                      <option value="Mudah">Mudah</option>
-                      <option value="Sedang">Sedang</option>
-                      <option value="Sulit">Sulit</option>
-                    </select>
+                    <div className="w-52">
+                      <Select
+                        value={qDiffFilter}
+                        onChange={(e) => setQDiffFilter(e.target.value)}
+                        className="h-11 rounded-xl font-medium"
+                      >
+                        <option value="ALL">Semua Tingkat Kesulitan</option>
+                        <option value="Mudah">Mudah</option>
+                        <option value="Sedang">Sedang</option>
+                        <option value="Sulit">Sulit</option>
+                      </Select>
+                    </div>
                   </div>
                 </div>
 

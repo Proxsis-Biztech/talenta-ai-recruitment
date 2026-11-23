@@ -32,7 +32,7 @@ import {
 import axios from 'axios';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import { getAllPrograms } from '../../services/assessmentCatalog';
-import { Button, Badge, Card, CardContent, Modal } from '../ui';
+import { Button, Badge, Card, CardContent, Modal, Input, Select } from '../ui';
 import {
   Table,
   TableHeader,
@@ -1096,16 +1096,18 @@ export function AdminMasterMateriTree() {
 
         <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-200/80">
           <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Program Asesmen:</span>
-          <select
-            value={selectedProgramCode}
-            onChange={(e) => setSelectedProgramCode(e.target.value)}
-            className="max-w-full sm:max-w-[420px] px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
-          >
-            <option value="ALL">Semua Program</option>
-            {programs.map((program) => (
-              <option key={program.id} value={program.id}>[{program.id}] {program.title}</option>
-            ))}
-          </select>
+          <div className="w-full sm:w-[400px]">
+            <Select
+              value={selectedProgramCode}
+              onChange={(e) => setSelectedProgramCode(e.target.value)}
+              className="h-9 text-xs font-semibold"
+            >
+              <option value="ALL">Semua Program</option>
+              {programs.map((program) => (
+                <option key={program.id} value={program.id}>[{program.id}] {program.title}</option>
+              ))}
+            </Select>
+          </div>
           <span className="text-[11px] text-slate-500">Silabus difilter berdasarkan kode program asesmen.</span>
         </div>
 
@@ -1116,10 +1118,10 @@ export function AdminMasterMateriTree() {
               <Layers className="w-3.5 h-3.5 text-blue-600" />
               <span>Jenis Asesmen:</span>
             </label>
-            <select
+            <Select
               value={selectedTypeFilter}
               onChange={(e) => setSelectedTypeFilter(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs bg-white text-slate-800 font-semibold outline-hidden focus:ring-2 focus:ring-blue-500/20"
+              className="h-9 rounded-xl text-xs font-semibold"
             >
               <option value="ALL">Semua Jenis Asesmen</option>
               {ASSESSMENT_TYPES.map((t) => (
@@ -1127,7 +1129,7 @@ export function AdminMasterMateriTree() {
                   {t}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
@@ -1135,10 +1137,10 @@ export function AdminMasterMateriTree() {
               <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
               <span>Level Asesmen:</span>
             </label>
-            <select
+            <Select
               value={selectedLevelFilter}
               onChange={(e) => setSelectedLevelFilter(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs bg-white text-slate-800 font-semibold outline-hidden focus:ring-2 focus:ring-blue-500/20"
+              className="h-9 rounded-xl text-xs font-semibold"
             >
               <option value="ALL">Semua Level Asesmen</option>
               {ASSESSMENT_LEVELS.map((lvl) => (
@@ -1146,7 +1148,7 @@ export function AdminMasterMateriTree() {
                   {lvl}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
@@ -1154,17 +1156,17 @@ export function AdminMasterMateriTree() {
               <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600" />
               <span>Tipe Modul:</span>
             </label>
-            <select
+            <Select
               value={selectedMatTypeFilter}
               onChange={(e) => setSelectedMatTypeFilter(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs bg-white text-slate-800 font-semibold outline-hidden focus:ring-2 focus:ring-blue-500/20"
+              className="h-9 rounded-xl text-xs font-semibold"
             >
               <option value="ALL">Semua Tipe Modul</option>
               <option value="Studi Kasus">Studi Kasus</option>
               <option value="Teori">Teori Konseptual</option>
               <option value="Algoritma">Algoritma</option>
               <option value="Praktikum">Praktikum / Lab</option>
-            </select>
+            </Select>
           </div>
 
           <div>
@@ -1463,48 +1465,48 @@ export function AdminMasterMateriTree() {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Perusahaan / PT Mitra</label>
-                <select
+                <Select
+                  label="Perusahaan / PT Mitra"
                   value={formCompanyId}
                   onChange={(e) => setFormCompanyId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white font-bold text-primary-navy outline-hidden focus:ring-2 focus:ring-blue-500/20"
+                  className="h-9 rounded-xl text-xs font-bold text-primary-navy"
                 >
                   {MASTER_COMPANIES.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Jenis Asesmen</label>
-                <select
+                <Select
+                  label="Jenis Asesmen"
                   value={formAssessmentType}
                   onChange={(e) => setFormAssessmentType(e.target.value as any)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white font-semibold text-slate-800 outline-hidden focus:ring-2 focus:ring-blue-500/20"
+                  className="h-9 rounded-xl text-xs font-semibold"
                 >
                   {ASSESSMENT_TYPES.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Level Asesmen</label>
-                <select
+                <Select
+                  label="Level Asesmen"
                   value={formAssessmentLevel}
                   onChange={(e) => setFormAssessmentLevel(e.target.value as any)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white font-semibold text-slate-800 outline-hidden focus:ring-2 focus:ring-blue-500/20"
+                  className="h-9 rounded-xl text-xs font-semibold"
                 >
                   {ASSESSMENT_LEVELS.map((lvl) => (
                     <option key={lvl} value={lvl}>
                       {lvl}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
           </div>
@@ -1512,29 +1514,30 @@ export function AdminMasterMateriTree() {
           {/* Kode & Judul Modul */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block font-bold text-ink mb-1">Kode Modul / ID</label>
-              <select
+              <Select
+                label="Kode Modul / ID"
                 required
                 value={formCode}
                 onChange={(e) => setFormCode(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 font-mono font-bold text-xs outline-hidden focus:border-primary-navy bg-white"
+                placeholder="Pilih program asesmen"
+                className="h-9 rounded-xl font-mono font-bold text-xs"
               >
                 <option value="">Pilih program asesmen</option>
                 {programs.map((program) => (
                   <option key={program.id} value={program.id}>[{program.id}] {program.title}</option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block font-bold text-ink mb-1">Judul Materi / Modul</label>
-              <input
+              <Input
+                label="Judul Materi / Modul"
                 type="text"
                 required
                 value={formTitle}
                 onChange={(e) => setFormTitle(e.target.value)}
                 placeholder="misal: Modul Credit Scoring Telemetry & Fraud Detection"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 font-semibold text-xs sm:text-sm outline-hidden focus:border-primary-navy"
+                className="h-9 rounded-xl font-semibold text-xs sm:text-sm"
               />
             </div>
           </div>
@@ -1542,24 +1545,24 @@ export function AdminMasterMateriTree() {
           {/* Kategori Silabus & Subkategori */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-ink mb-1">Kategori Silabus Induk</label>
-              <input
+              <Input
+                label="Kategori Silabus Induk"
                 type="text"
                 value={formCategory}
                 onChange={(e) => setFormCategory(e.target.value)}
                 placeholder="misal: Finansial, Credit Risk & Data Science"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs outline-hidden focus:border-primary-navy"
+                className="h-9 rounded-xl text-xs"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-ink mb-1">Sub-Kategori / Topik Spesifik (Opsional)</label>
-              <input
+              <Input
+                label="Sub-Kategori / Topik Spesifik (Opsional)"
                 type="text"
                 value={formSubcategory}
                 onChange={(e) => setFormSubcategory(e.target.value)}
                 placeholder="misal: Pemodelan Risiko Kredit & Algoritma Fraud"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs outline-hidden focus:border-primary-navy"
+                className="h-9 rounded-xl text-xs"
               />
             </div>
           </div>
@@ -1567,27 +1570,28 @@ export function AdminMasterMateriTree() {
           {/* Tipe & Versi */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-ink mb-1">Tipe Materi</label>
-              <select
+              <Select
+                label="Tipe Materi"
                 value={formType}
                 onChange={(e) => setFormType(e.target.value as any)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs outline-hidden bg-white cursor-pointer font-medium"
+                className="h-9 rounded-xl text-xs font-medium"
               >
                 <option value="Studi Kasus">Studi Kasus</option>
                 <option value="Teori">Teori Konseptual</option>
                 <option value="Algoritma">Algoritma &amp; Pemecahan Masalah</option>
                 <option value="Praktikum">Praktikum / Lab</option>
-              </select>
+              </Select>
             </div>
 
             <div>
-              <label className="block font-bold text-ink mb-1">Nomor Versi</label>
-              <input
+              <Input
+                label="Nomor Versi"
                 type="text"
                 value={formVersion}
                 onChange={(e) => setFormVersion(e.target.value)}
                 placeholder="misal: v2.1"
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono outline-hidden"
+                isMonospace
+                className="h-9 rounded-xl"
               />
             </div>
           </div>

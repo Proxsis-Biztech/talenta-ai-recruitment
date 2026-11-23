@@ -4,6 +4,8 @@ export * from './Badge';
 export * from './Card';
 export * from './Input';
 export * from './Select';
+export * from './Textarea';
+export * from './Checkbox';
 export * from './Table';
 export * from './TelemetryStrip';
 export * from './Modal';

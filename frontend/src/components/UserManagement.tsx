@@ -35,6 +35,8 @@ import {
   Button,
   Badge,
   Input,
+  Select,
+  Checkbox,
   Table,
   TableHeader,
   TableBody,
@@ -1003,42 +1005,46 @@ export default function UserManagement() {
           {/* Action Ribbon & Filters */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
             <div className="flex flex-wrap items-center gap-2.5 flex-1">
-              <div className="relative min-w-[220px] flex-1 max-w-sm">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
+              <div className="min-w-[220px] flex-1 max-w-sm">
+                <Input
                   type="text"
                   placeholder="Cari nama, email, program, atau ID peserta..."
                   value={pesertaSearch}
                   onChange={(e) => setPesertaSearch(e.target.value)}
-                  className="w-full h-11 pl-10 pr-3.5 py-2 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                  leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+                  className="h-11 rounded-xl"
                 />
               </div>
 
               {/* PT Filter */}
-              <select
-                value={pesertaCompanyFilter}
-                onChange={(e) => setPesertaCompanyFilter(e.target.value)}
-                className="h-11 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl shadow-2xs focus:outline-none focus:border-primary-navy cursor-pointer"
-              >
-                <option value="ALL">Semua Perusahaan (PT)</option>
-                {companyOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <div className="w-full sm:w-56">
+                <Select
+                  value={pesertaCompanyFilter}
+                  onChange={(e) => setPesertaCompanyFilter(e.target.value)}
+                  className="h-11 rounded-xl font-semibold"
+                >
+                  <option value="ALL">Semua Perusahaan (PT)</option>
+                  {companyOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
 
               {/* Grade Filter */}
-              <select
-                value={pesertaGradeFilter}
-                onChange={(e) => setPesertaGradeFilter(e.target.value)}
-                className="h-11 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl shadow-2xs focus:outline-none focus:border-primary-navy cursor-pointer"
-              >
-                <option value="ALL">Semua Grade Soal</option>
-                <option value="Grade C">Grade C (Junior / Dasar)</option>
-                <option value="Grade B">Grade B (Specialist / Mid)</option>
-                <option value="Grade A">Grade A (Lead / Senior)</option>
-              </select>
+              <div className="w-full sm:w-52">
+                <Select
+                  value={pesertaGradeFilter}
+                  onChange={(e) => setPesertaGradeFilter(e.target.value)}
+                  className="h-11 rounded-xl font-semibold"
+                >
+                  <option value="ALL">Semua Grade Soal</option>
+                  <option value="Grade C">Grade C (Junior / Dasar)</option>
+                  <option value="Grade B">Grade B (Specialist / Mid)</option>
+                  <option value="Grade A">Grade A (Lead / Senior)</option>
+                </Select>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -1385,20 +1391,18 @@ export default function UserManagement() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
-                      Pilih Instansi / Perusahaan (PT) *
-                    </label>
-                    <select
+                    <Select
+                      label="Pilih Instansi / Perusahaan (PT) *"
                       value={pesertaFormCompanyId}
                       onChange={(e) => setPesertaFormCompanyId(e.target.value)}
-                      className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium text-slate-800 shadow-2xs"
+                      className="h-11 rounded-xl font-medium"
                     >
                       {companyOptions.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name} ({c.industry})
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
 
                   <div>
@@ -1427,20 +1431,20 @@ export default function UserManagement() {
                                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                               }`}
                             >
-                              <input
-                                type="checkbox"
+                              <Checkbox
                                 checked={isChecked}
-                                onChange={(e) => {
-                                  const nextIds = e.target.checked
+                                onCheckedChange={(checked) => {
+                                  const nextChecked = checked === true;
+                                  const nextIds = nextChecked
                                     ? [...pesertaFormAssessmentIds, p.id]
                                     : pesertaFormAssessmentIds.filter((id) => id !== p.id);
                                   setPesertaFormAssessmentIds(nextIds);
                                   setPesertaFormAssessmentId(nextIds[0] || '');
-                                  if (e.target.checked && nextIds.length === 1) {
+                                  if (nextChecked && nextIds.length === 1) {
                                     setPesertaFormGrade(p.gradeLevel);
                                   }
                                 }}
-                                className="mt-0.5 rounded border-slate-300 text-primary-navy focus:ring-primary-navy cursor-pointer"
+                                className="mt-0.5"
                               />
                               <div className="min-w-0 flex-1">
                                 <div className="text-xs font-semibold leading-snug">
@@ -1458,32 +1462,26 @@ export default function UserManagement() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
-                      Tingkat Kesulitan / Grade Soal *
-                    </label>
-                    <select
+                    <Select
+                      label="Tingkat Kesulitan / Grade Soal *"
                       value={pesertaFormGrade}
                       onChange={(e: any) => setPesertaFormGrade(e.target.value)}
-                      className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium text-slate-800 shadow-2xs"
+                      hint="Mencakup 5 tipe soal: Single Choice, Multiple Choice, Short Answer, Essay, & Matching Pairs."
+                      className="h-11 rounded-xl font-medium"
                     >
                       <option value="Grade C (Junior)">Grade C (Junior / Dasar - 40 Soal)</option>
                       <option value="Grade B (Specialist / Mid)">Grade B (Specialist / Mid - 40 Soal)</option>
                       <option value="Grade A (Lead / Senior)">Grade A (Lead / Senior - 40 Soal)</option>
-                    </select>
-                    <span className="text-[10px] text-slate-500 mt-1 block">
-                      Mencakup 5 tipe soal: Single Choice, Multiple Choice, Short Answer, Essay, & Matching Pairs.
-                    </span>
+                    </Select>
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Tanggal Pelaksanaan Ujian *
-                    </label>
-                    <input
+                    <Input
+                      label="Tanggal Pelaksanaan Ujian *"
                       type="date"
                       value={pesertaFormDate}
                       onChange={(e) => setPesertaFormDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                      className="h-11 rounded-xl"
                     />
                   </div>
                 </div>
@@ -1597,30 +1595,32 @@ export default function UserManagement() {
           {/* Action Ribbon & Filters */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
             <div className="flex flex-wrap items-center gap-2.5 flex-1">
-              <div className="relative min-w-[220px] flex-1 max-w-sm">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
+              <div className="min-w-[220px] flex-1 max-w-sm">
+                <Input
                   type="text"
                   placeholder="Cari nama asesor, username, atau spesialisasi..."
                   value={asesorSearch}
                   onChange={(e) => setAsesorSearch(e.target.value)}
-                  className="w-full h-11 pl-10 pr-3.5 py-2 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                  leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+                  className="h-11 rounded-xl"
                 />
               </div>
 
               {/* PT Filter */}
-              <select
-                value={asesorCompanyFilter}
-                onChange={(e) => setAsesorCompanyFilter(e.target.value)}
-                className="h-11 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl shadow-2xs focus:outline-none focus:border-primary-navy cursor-pointer"
-              >
-                <option value="ALL">Semua Instansi PT</option>
-                {companyOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <div className="w-full sm:w-56">
+                <Select
+                  value={asesorCompanyFilter}
+                  onChange={(e) => setAsesorCompanyFilter(e.target.value)}
+                  className="h-11 rounded-xl font-semibold"
+                >
+                  <option value="ALL">Semua Instansi PT</option>
+                  {companyOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </div>
 
             <Button
@@ -1797,20 +1797,18 @@ export default function UserManagement() {
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1.5">
-                  Instansi / PT Penugasan Asesor *
-                </label>
-                <select
+                <Select
+                  label="Instansi / PT Penugasan Asesor *"
                   value={asesorFormCompanyId}
                   onChange={(e) => setAsesorFormCompanyId(e.target.value)}
-                  className="w-full h-11 px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer font-medium text-slate-800 shadow-2xs"
+                  className="h-11 rounded-xl font-medium"
                 >
                   {companyOptions.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div>
@@ -1965,26 +1963,28 @@ export default function UserManagement() {
               {/* Action Ribbon */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
                 <div className="flex items-center gap-2.5 flex-1 max-w-md">
-                  <div className="relative w-full">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
+                  <div className="w-full">
+                    <Input
                       type="text"
                       placeholder="Cari admin berdasarkan username atau ID..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full h-11 pl-10 pr-3.5 py-2 text-sm font-sans bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                      leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+                      className="h-11 rounded-xl"
                     />
                   </div>
 
-                  <select
-                    value={roleFilter}
-                    onChange={(e: any) => setRoleFilter(e.target.value)}
-                    className="h-11 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl shadow-2xs focus:outline-none focus:border-primary-navy cursor-pointer"
-                  >
-                    <option value="ALL">Semua Peran</option>
-                    <option value="superadmin">Superadmin</option>
-                    <option value="admin">Administrator</option>
-                  </select>
+                  <div className="w-44 shrink-0">
+                    <Select
+                      value={roleFilter}
+                      onChange={(e: any) => setRoleFilter(e.target.value)}
+                      className="h-11 rounded-xl font-semibold"
+                    >
+                      <option value="ALL">Semua Peran</option>
+                      <option value="superadmin">Superadmin</option>
+                      <option value="admin">Administrator</option>
+                    </Select>
+                  </div>
                 </div>
 
                 <Button
@@ -2094,49 +2094,40 @@ export default function UserManagement() {
                   )}
 
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Username Pengguna
-                    </label>
-                    <input
+                    <Input
+                      label="Username Pengguna"
                       type="text"
                       required
                       value={newUsername}
                       onChange={(e) => setNewUsername(e.target.value)}
                       placeholder="e.g. admin_asesmen"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Kata Sandi Sementara
-                    </label>
-                    <input
+                    <Input
+                      label="Kata Sandi Sementara"
                       type="password"
                       required
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Minimal 8 karakter..."
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Perusahaan (PT) yang Dikelola
-                    </label>
-                    <select
+                    <Select
+                      label="Perusahaan (PT) yang Dikelola"
                       required
                       value={newAdminCompanyId}
                       onChange={(e) => setNewAdminCompanyId(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
                     >
                       {companyOptions.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
@@ -2177,54 +2168,42 @@ export default function UserManagement() {
                     )}
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">
-                        Username Pengguna
-                      </label>
-                      <input
+                      <Input
+                        label="Username Pengguna"
                         type="text"
                         required
                         value={editUsername}
                         onChange={(e) => setEditUsername(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                       />
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">
-                        Kata Sandi Baru (Kosongkan jika tidak diubah)
-                      </label>
-                      <input
+                      <Input
+                        label="Kata Sandi Baru (Kosongkan jika tidak diubah)"
                         type="password"
                         value={editPassword}
                         onChange={(e) => setEditPassword(e.target.value)}
                         placeholder="Biarkan kosong untuk mempertahankan kata sandi lama"
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
                       />
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">
-                        Tingkat Otoritas / Peran
-                      </label>
-                      <select
+                      <Select
+                        label="Tingkat Otoritas / Peran"
                         value={editRole}
                         onChange={(e) => setEditRole(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
                       >
                         <option value="admin">Administrator (Operasional)</option>
                         <option value="superadmin">Superadmin (Otoritas Penuh)</option>
-                      </select>
+                      </Select>
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">
-                        Perusahaan (PT) yang Dikelola
-                      </label>
-                      <select
+                      <Select
+                        label="Perusahaan (PT) yang Dikelola"
                         value={editAdminCompanyId}
                         onChange={(e) => setEditAdminCompanyId(e.target.value)}
                         required={editRole === 'admin'}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy cursor-pointer"
                       >
                         {editRole === 'superadmin' && (
                           <option value="">Semua PT (Akses Global Superadmin)</option>
@@ -2234,7 +2213,7 @@ export default function UserManagement() {
                             {c.name}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
 
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">

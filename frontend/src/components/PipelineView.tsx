@@ -8,6 +8,7 @@ import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
+import { Select } from './ui/Select';
 
 interface Applicant {
   id: string;
@@ -195,27 +196,25 @@ export default function PipelineView({
       {/* Top Filter Bar */}
       <Card elevation="flat" className="p-4 border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
         <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-3">
-          <div className="relative flex-1 max-w-none sm:max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input 
+          <div className="flex-1 max-w-none sm:max-w-md">
+            <Input
               type="text"
               placeholder="Cari pelamar atau posisi di pipeline..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-navy focus:border-primary-navy transition-colors font-sans"
+              leftIcon={<Search className="w-4 h-4 text-slate-400" />}
             />
           </div>
-          <div className="relative w-full sm:w-auto">
-            <select
+          <div className="w-full sm:w-56">
+            <Select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-navy transition-colors font-sans cursor-pointer"
             >
               <option value="ALL">Semua Lowongan</option>
               {availablePositions.map(pos => (
                 <option key={pos} value={pos}>{pos}</option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
 

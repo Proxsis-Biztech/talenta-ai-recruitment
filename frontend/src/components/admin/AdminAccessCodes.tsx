@@ -5,6 +5,7 @@ import {
   Button,
   Badge,
   Input,
+  Select,
   Table,
   TableHeader,
   TableBody,
@@ -242,11 +243,12 @@ export function AdminAccessCodes() {
             />
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1.5">Program Asesmen</label>
-            <select
+            <Select
+              label="Program Asesmen"
               value={form.programCode}
               onChange={(event) => setForm((prev) => ({ ...prev, programCode: event.target.value }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700 bg-white"
+              placeholder="Pilih program"
+              className="rounded-xl"
             >
               <option value="">Pilih program</option>
               {programs.map((program) => (
@@ -254,7 +256,7 @@ export function AdminAccessCodes() {
                   {program.code} — {program.title}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>

@@ -18,7 +18,7 @@ import {
   ChevronDown,
   Building
 } from 'lucide-react';
-import { Button, Badge, Input, Card } from '../ui';
+import { Button, Badge, Input, Select, Card } from '../ui';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 
 interface StageItem {
@@ -290,17 +290,17 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
             </div>
 
             <div>
-              <label className="block font-bold text-ink mb-1">PT / Perusahaan Terkait</label>
-              <select
+              <Select
+                label="PT / Perusahaan Terkait"
                 value={programInfo.pt}
                 onChange={(e) => setProgramInfo({ ...programInfo, pt: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-border-slate focus:border-primary-navy text-xs outline-none bg-white"
+                className="h-9 text-xs"
               >
                 <option value="PT Telkom Indonesia Tbk">PT Telkom Indonesia Tbk</option>
                 <option value="Astra International Tbk">Astra International Tbk</option>
                 <option value="Bank Mandiri Tbk">Bank Mandiri Tbk</option>
                 <option value="Pertamina Hulu Energi">Pertamina Hulu Energi</option>
-              </select>
+              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -463,18 +463,18 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-ink mb-1">Tipe Evaluasi</label>
-                  <select
+                  <Select
+                    label="Tipe Evaluasi"
                     value={current.type}
                     onChange={(e) => handleUpdateStage(current.id, { type: e.target.value as any })}
-                    className="w-full px-3 py-2 rounded-lg border border-border-slate text-xs outline-none bg-white"
+                    className="h-9 text-xs"
                   >
                     <option value="CAT_TEST">Tes Soal (CAT Computer-Adaptive)</option>
                     <option value="PROCTORING">AI Proctoring & Integritas</option>
                     <option value="INTERVIEW">Live Interview Asesor</option>
                     <option value="REVIEW">Review Portofolio & Berkas</option>
                     <option value="DECISION">Keputusan Akhir</option>
-                  </select>
+                  </Select>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">

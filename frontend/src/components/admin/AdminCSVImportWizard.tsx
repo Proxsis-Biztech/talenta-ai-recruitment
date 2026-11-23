@@ -11,7 +11,7 @@ import {
   Database,
   Check
 } from 'lucide-react';
-import { Button, Badge, Modal, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
+import { Button, Badge, Modal, Select, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
 
 interface AdminCSVImportWizardProps {
   isOpen: boolean;
@@ -109,51 +109,51 @@ export function AdminCSVImportWizard({ isOpen, onClose, onSuccess }: AdminCSVImp
             <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div className="grid grid-cols-2 gap-4 items-center">
                 <span className="font-bold text-ink">Nama Lengkap Peserta (Wajib)</span>
-                <select
+                <Select
                   value={columnMapping.name}
                   onChange={(e) => setColumnMapping({ ...columnMapping, name: e.target.value })}
-                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                  className="h-9 text-xs font-semibold"
                 >
                   <option value="nama_lengkap">nama_lengkap</option>
                   <option value="full_name">full_name</option>
                   <option value="candidate_name">candidate_name</option>
-                </select>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4 items-center">
                 <span className="font-bold text-ink">Alamat Email (Wajib)</span>
-                <select
+                <Select
                   value={columnMapping.email}
                   onChange={(e) => setColumnMapping({ ...columnMapping, email: e.target.value })}
-                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                  className="h-9 text-xs font-semibold"
                 >
                   <option value="alamat_email">alamat_email</option>
                   <option value="email">email</option>
-                </select>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4 items-center">
                 <span className="font-bold text-ink">Nomor WhatsApp / HP</span>
-                <select
+                <Select
                   value={columnMapping.phone}
                   onChange={(e) => setColumnMapping({ ...columnMapping, phone: e.target.value })}
-                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                  className="h-9 text-xs font-semibold"
                 >
                   <option value="nomor_wa">nomor_wa</option>
                   <option value="phone">phone</option>
-                </select>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4 items-center">
                 <span className="font-bold text-ink">Perusahaan / PT Terkait</span>
-                <select
+                <Select
                   value={columnMapping.pt}
                   onChange={(e) => setColumnMapping({ ...columnMapping, pt: e.target.value })}
-                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                  className="h-9 text-xs font-semibold"
                 >
                   <option value="perusahaan_tujuan">perusahaan_tujuan</option>
                   <option value="company">company</option>
-                </select>
+                </Select>
               </div>
             </div>
           </div>

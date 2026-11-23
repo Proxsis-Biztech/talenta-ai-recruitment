@@ -10,6 +10,7 @@ import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
+import { Select } from './ui/Select';
 
 export interface AIConfiguration {
   liveAudioModel: string;
@@ -270,13 +271,11 @@ export default function AIConfigView() {
 
           <div className="space-y-4 text-sm font-sans">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Model Wawancara Suara Multimodal (Live Audio)
-              </label>
-              <select
+              <Select
+                label="Model Wawancara Suara Multimodal (Live Audio)"
                 value={config.liveAudioModel}
                 onChange={(e) => setConfig({ ...config, liveAudioModel: e.target.value })}
-                className="w-full px-3 py-2 text-xs font-sans bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-navy cursor-pointer"
+                hint="Mengontrol streaming audio websocket dua arah antara kandidat dan pewawancara virtual."
               >
                 <option value="gemini-2.5-flash-native-audio-latest">
                   gemini-2.5-flash-native-audio-latest (Resmi - Native Bidirectional Audio)
@@ -287,20 +286,15 @@ export default function AIConfigView() {
                 <option value="gemini-3.5-flash-lite">
                   gemini-3.5-flash-lite (Ultra Low Latency)
                 </option>
-              </select>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Mengontrol streaming audio websocket dua arah antara kandidat dan pewawancara virtual.
-              </p>
+              </Select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Model Analisis ATS Resume (CV Screening)
-              </label>
-              <select
+              <Select
+                label="Model Analisis ATS Resume (CV Screening)"
                 value={config.cvScreeningModel}
                 onChange={(e) => setConfig({ ...config, cvScreeningModel: e.target.value })}
-                className="w-full px-3 py-2 text-xs font-sans bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-navy cursor-pointer"
+                hint="Digunakan untuk membedah teks PDF CV, riwayat kerja, kecocokan kompetensi, dan ringkasan penilaian."
               >
                 <option value="gemini-2.5-flash">
                   gemini-2.5-flash (Direkomendasikan - Ekstraksi Presisi Tinggi)
@@ -311,10 +305,7 @@ export default function AIConfigView() {
                 <option value="gemini-flash-latest">
                   gemini-flash-latest (Kompatibilitas Standar)
                 </option>
-              </select>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Digunakan untuk membedah teks PDF CV, riwayat kerja, kecocokan kompetensi, dan ringkasan penilaian.
-              </p>
+              </Select>
             </div>
 
             <div>
