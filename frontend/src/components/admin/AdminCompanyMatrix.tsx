@@ -637,7 +637,7 @@ export function AdminCompanyMatrix({
                 <Button
                   variant="outline"
                   size="xs"
-                  className="cursor-pointer transition-colors group-hover:bg-primary-navy group-hover:text-white group-hover:border-primary-navy"
+                  className="cursor-pointer bg-white text-slate-700 border-slate-300 transition-colors group-hover:bg-primary-navy group-hover:text-white group-hover:border-primary-navy hover:bg-navy-dark hover:text-white hover:border-navy-dark"
                   leftIcon={<Eye className="w-3.5 h-3.5" />}
                   onClick={() => {
                     setSelectedPtId(c.id);
