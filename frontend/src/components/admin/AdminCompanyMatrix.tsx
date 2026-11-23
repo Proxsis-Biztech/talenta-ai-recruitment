@@ -561,11 +561,10 @@ export function AdminCompanyMatrix({
         </div>
       )}
 
-      {/* ─── PT Grid: Card per PT ─── */}
+      {/* ─── PT Grid: Card per PT (hover-only highlight) ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {companies.map((c) => {
           const pct = Math.min(100, Math.round((c.quotaUsed / (c.quotaMax || 1)) * 100));
-          const isSelected = selectedPtId === c.id;
           const matchedPrograms = getProgramsForCompany(c);
           const programCount = matchedPrograms.length || c.activeProgramsCount;
 
@@ -573,20 +572,12 @@ export function AdminCompanyMatrix({
             <div
               key={c.id}
               onClick={() => setSelectedPtId(c.id)}
-              className={`rounded-2xl border p-5 transition-all cursor-pointer flex flex-col justify-between gap-4 ${
-                isSelected
-                  ? 'bg-soft-blue/40 border-primary-navy ring-1 ring-primary-navy/25 shadow-sm'
-                  : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
-              }`}
+              className="group rounded-2xl border border-slate-200 bg-white p-5 transition-all cursor-pointer flex flex-col justify-between gap-4 hover:bg-soft-blue/40 hover:border-primary-navy hover:ring-1 hover:ring-primary-navy/25 hover:shadow-sm"
             >
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                        isSelected ? 'bg-primary-navy text-white' : 'bg-soft-blue text-primary-navy'
-                      }`}
-                    >
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-soft-blue text-primary-navy transition-colors group-hover:bg-primary-navy group-hover:text-white">
                       <Building2 className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
@@ -600,11 +591,6 @@ export function AdminCompanyMatrix({
                       </div>
                     </div>
                   </div>
-                  {isSelected && (
-                    <span className="text-[10px] font-bold text-primary-navy bg-white px-2 py-0.5 rounded-full border border-accent-border shrink-0">
-                      Aktif Dipilih
-                    </span>
-                  )}
                 </div>
 
                 <div>
@@ -650,9 +636,9 @@ export function AdminCompanyMatrix({
                   <span>{programCount} program asesmen</span>
                 </span>
                 <Button
-                  variant={isSelected ? 'primary' : 'outline'}
+                  variant="outline"
                   size="xs"
-                  className="cursor-pointer"
+                  className="cursor-pointer transition-colors group-hover:bg-primary-navy group-hover:text-white group-hover:border-primary-navy"
                   leftIcon={<Eye className="w-3.5 h-3.5" />}
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
