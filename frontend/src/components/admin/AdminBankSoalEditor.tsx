@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   CheckSquare,
   Plus,
-  Search,
   Filter,
   BarChart3,
   Edit,
@@ -559,9 +558,6 @@ export function AdminBankSoalEditor({
 
   const [activeCategory, setActiveCategory] = useState<QuestionCategory>('psikotes');
   const [typeConfig, setTypeConfig] = useState<CategoryTypeConfig>({});
-  const [filterType, setFilterType] = useState('all');
-  const [filterDiff, setFilterDiff] = useState('all');
-  const [searchKeyword, setSearchKeyword] = useState('');
 
   // Preset Proctoring
   const [selectedPreset, setSelectedPreset] = useState<'Ringan' | 'Sedang' | 'Ketat'>('Ketat');
@@ -930,9 +926,6 @@ export function AdminBankSoalEditor({
       }
     };
     setTypeConfig(nextConfig);
-    if (isEnabled && filterType === type) {
-      setFilterType('all');
-    }
     void saveMasterRecord('bank-soal', 'typeConfig', nextConfig);
     showToast(
       `Tipe soal ${type} ${isEnabled ? 'dinonaktifkan' : 'diaktifkan'} pada ${
@@ -941,19 +934,12 @@ export function AdminBankSoalEditor({
     );
   };
 
-  const filtered = programQuestionsForSelected.filter((q) => {
-    if (getQuestionCategory(q) !== activeCategory) return false;
-    if (filterType !== 'all' && q.type !== filterType) return false;
-    if (filterDiff !== 'all' && q.difficulty !== filterDiff) return false;
-    if (
-      searchKeyword &&
-      !q.text.toLowerCase().includes(searchKeyword.toLowerCase()) &&
-      !q.id.toLowerCase().includes(searchKeyword.toLowerCase())
-    ) {
-      return false;
-    }
-    return true;
-  });
+  const selectedProgramObj = useMemo(
+    () => programs.find((p) => p.id === selectedProgramCode),
+    [programs, selectedProgramCode]
+  );
+
+  const filtered = programQuestionsForSelected.filter((q) => getQuestionCategory(q) === activeCategory);
 
   const typeCounts = ALL_QUESTION_TYPES.map((type) => ({
     type,
@@ -1303,32 +1289,46 @@ export function AdminBankSoalEditor({
       {/* View Switcher Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded border border-accent-border">
               MATERI &amp; BANK SOAL CAT
             </span>
+            {viewMode !== 'programs' && (
+              <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                {selectedProgramCode}
+              </span>
+            )}
             <Badge variant="navy">
               {viewMode === 'programs'
                 ? `${programRows.reduce((sum, p) => sum + p.total, 0)} Soal • ${programRows.length} Program`
-                : `${filtered.length} Butir Soal • ${selectedProgramMateri.length} Panduan • ${selectedProgramCode}`}
+                : `${filtered.length} Butir Soal • ${selectedProgramMateri.length} Panduan`}
             </Badge>
           </div>
           <h2 className="text-xl font-extrabold font-heading text-ink tracking-tight mt-1">
-            Bank Soal &amp; Panduan Materi Asesmen
+            {viewMode === 'programs'
+              ? 'Bank Soal & Panduan Materi Asesmen'
+              : selectedProgramObj?.title || `Program Asesmen ${selectedProgramCode}`}
           </h2>
+          {viewMode !== 'programs' && selectedProgramObj?.companyName && (
+            <p className="text-xs text-slate-500 mt-0.5">
+              {selectedProgramObj.companyName} • Bank Soal &amp; Panduan Materi Asesmen
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant={viewMode === 'programs' ? 'primary' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('programs')}
-            className="text-xs flex items-center gap-1.5 cursor-pointer"
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Semua Program</span>
-          </Button>
-        </div>
+        {viewMode !== 'programs' && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setViewMode('programs')}
+              className="text-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Semua Program</span>
+            </Button>
+          </div>
+        )}
       </div>
 
       {toastMessage && (
@@ -1405,7 +1405,6 @@ export function AdminBankSoalEditor({
                         size="xs"
                         onClick={() => {
                           setSelectedProgramCode(program.id);
-                          setFilterType('all');
                           setViewMode('table');
                         }}
                         className="text-xs"
@@ -1425,58 +1424,6 @@ export function AdminBankSoalEditor({
       {/* ─── TAB 1: Tabel Soal ─── */}
       {(viewMode === 'table' || viewMode === 'editor') && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-                <Button variant="ghost" size="sm" onClick={() => setViewMode('programs')} className="text-xs self-start sm:self-auto">
-                  <ChevronLeft className="w-3.5 h-3.5 mr-1" />
-                  Semua Program
-                </Button>
-                <div className="min-w-0 sm:w-[360px]">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Program Asesmen</label>
-                  <Select value={selectedProgramCode} onChange={(e) => setSelectedProgramCode(e.target.value)} className="h-11 rounded-xl font-semibold">
-                    {programs.map((program) => (
-                      <option key={program.id} value={program.id}>[{program.id}] {program.title}</option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Pencarian</label>
-                <Input
-                  type="text"
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  placeholder="Cari kode atau teks soal..."
-                  leftIcon={<Search className="w-4 h-4 text-slate-400" />}
-                  className="h-11 rounded-xl"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Tipe Soal</label>
-                <Select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="h-11 rounded-xl font-semibold">
-                  <option value="all">Semua Tipe</option>
-                  <option value="Pilihan Ganda">Pilihan Ganda</option>
-                  <option value="Multi-Select">Multi-Select</option>
-                  <option value="Isian Singkat">Isian Singkat</option>
-                  <option value="Esai">Esai</option>
-                  <option value="Matching">Matching</option>
-                </Select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Kesulitan</label>
-                <Select value={filterDiff} onChange={(e) => setFilterDiff(e.target.value)} className="h-11 rounded-xl font-semibold">
-                  <option value="all">Semua Kesulitan</option>
-                  <option value="Mudah">Mudah</option>
-                  <option value="Sedang">Sedang</option>
-                  <option value="Sulit">Sulit</option>
-                </Select>
-              </div>
-            </div>
-          </div>
-
           {/* ─── Panduan Materi Asesmen (Panduan Peserta & Kisi-Kisi Program) ─── */}
           <div id="panduan-materi-section" className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1632,7 +1579,6 @@ export function AdminBankSoalEditor({
                 type="button"
                 onClick={() => {
                   setActiveCategory('psikotes');
-                  setFilterType('all');
                 }}
                 className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${
                   activeCategory === 'psikotes'
@@ -1672,7 +1618,6 @@ export function AdminBankSoalEditor({
                 type="button"
                 onClick={() => {
                   setActiveCategory('kompetensi');
-                  setFilterType('all');
                 }}
                 className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${
                   activeCategory === 'kompetensi'
