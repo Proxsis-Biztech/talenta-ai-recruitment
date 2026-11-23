@@ -26,7 +26,6 @@ import { AdminMateriSoalHub } from './admin/AdminMateriSoalHub';
 import { AdminCompanyMatrix } from './admin/AdminCompanyMatrix';
 import AdminOrgStructure from './admin/AdminOrgStructure';
 import AdminSecurityCard from './admin/AdminSecurityCard';
-import AdminBillingCredit from './admin/AdminBillingCredit';
 import AdminFaqHelpdesk from './AdminFaqHelpdesk';
 import AdminLhaGovernanceView from './admin/AdminLhaGovernanceView';
 import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
@@ -237,7 +236,7 @@ export default function AdminDashboard() {
     const allowed: AdminMenuKey[] = [
       'dashboard', 'peserta', 'pipeline', 'jobs', 'ranking', 'lha-governance', 'proctoring', 'users',
       'ai-config', 'audit-logs', 'analytics', 'materi', 'perusahaan',
-      'billing', 'faq-helpdesk', 'chatbot-faq', 'helpdesk-internal', 'help'
+      'faq-helpdesk', 'chatbot-faq', 'helpdesk-internal', 'help'
     ];
     return menu && allowed.includes(menu as AdminMenuKey) ? (menu as AdminMenuKey) : 'dashboard';
   });
@@ -981,12 +980,6 @@ ${app.interviewResult ? `
       subtitle: 'Kelola entitas perusahaan mitra dan klik Detail untuk melihat program asesmen pada PT terkait',
       short: 'Perusahaan (PT)',
       dotColor: 'bg-primary-navy'
-    },
-    billing: {
-      title: 'Model Monetisasi & Saldo Kredit',
-      subtitle: 'Saldo kredit prabayar (Rp 45.000 / kandidat), faktur resmi PPN 11%, dan statement perusahaan',
-      short: 'Billing',
-      dotColor: 'bg-emerald-600'
     },
     ranking: {
       title: 'Hasil Asesmen & Peringkat',
@@ -1925,10 +1918,6 @@ ${app.interviewResult ? `
                   setActiveMenu('materi');
                 }}
               />
-            </div>
-          ) : activeMenu === 'billing' ? (
-            <div className="animate-fade-in">
-              <AdminBillingCredit />
             </div>
           ) : activeMenu === 'faq-helpdesk' || activeMenu === 'chatbot-faq' || activeMenu === 'helpdesk-internal' ? (
             <div className="animate-fade-in">

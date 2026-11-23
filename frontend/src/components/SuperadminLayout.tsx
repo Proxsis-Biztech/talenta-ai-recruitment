@@ -26,7 +26,6 @@ import {
   Sparkles,
   ExternalLink,
   ShieldCheck,
-  CreditCard,
   MessageSquare,
   Bot,
   Network,
@@ -45,7 +44,6 @@ export type AdminMenuKey =
   | 'perusahaan'
   | 'organisasi'
   | 'lha-governance'
-  | 'billing'
   | 'ranking'
   | 'pipeline'
   | 'proctoring'
@@ -116,13 +114,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'lha-governance', label: 'Kalibrasi & Koreksi LHA', icon: Scale },
       { key: 'organisasi', label: 'Organisasi & Kelas', icon: Network },
       { key: 'helpdesk-internal', label: 'Helpdesk Internal', icon: MessageSquare, badge: 'Live' },
-    ],
-  },
-  {
-    id: 'enterprise',
-    label: 'ENTERPRISE & KUOTA',
-    items: [
-      { key: 'billing', label: 'Billing & Kuota Kredit', icon: CreditCard },
     ],
   },
   {
