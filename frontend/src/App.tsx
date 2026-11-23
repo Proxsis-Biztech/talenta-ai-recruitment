@@ -57,6 +57,7 @@ const PesertaAsesmenList = lazyWithRetry(() => import('./components/peserta/Pese
 const PesertaDetailAsesmen = lazyWithRetry(() => import('./components/peserta/PesertaDetailAsesmen'), 'PesertaDetailAsesmen');
 const PesertaMateri = lazyWithRetry(() => import('./components/peserta/PesertaMateri'), 'PesertaMateri');
 const PesertaDeviceCheck = lazyWithRetry(() => import('./components/peserta/PesertaDeviceCheck'), 'PesertaDeviceCheck');
+const PesertaLiveScan = lazyWithRetry(() => import('./components/peserta/PesertaLiveScan'), 'PesertaLiveScan');
 const PesertaExamPlayer = lazyWithRetry(() => import('./components/peserta/PesertaExamPlayer'), 'PesertaExamPlayer');
 const PesertaWaitingRoom = lazyWithRetry(() => import('./components/peserta/PesertaWaitingRoom'), 'PesertaWaitingRoom');
 const PesertaInterviewLive = lazyWithRetry(() => import('./components/peserta/PesertaInterviewLive'), 'PesertaInterviewLive');
@@ -212,7 +213,8 @@ function App() {
             <Route path="/peserta/asesmen" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaAsesmenList /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/materi" element={<Navigate to="/peserta/asesmen?tab=materi" replace />} />
             <Route path="/peserta/detail/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaDetailAsesmen /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
-            <Route path="/peserta/device-check" element={<RequireRole roles={['peserta']}><PesertaDeviceCheck /></RequireRole>} />
+            <Route path="/peserta/live-scan" element={<RequireRole roles={['peserta']}><PesertaLiveScan /></RequireRole>} />
+            <Route path="/peserta/device-check" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><PesertaDeviceCheck /></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/exam/:id" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><RequireFaceVerified><PesertaExamPlayer /></RequireFaceVerified></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/waiting-room" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaWaitingRoom /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />
             <Route path="/peserta/interview" element={<RequireRole roles={['peserta']}><RequireOnboarding><RequireProfileComplete><RequireDeviceCheck><PesertaInterviewLive /></RequireDeviceCheck></RequireProfileComplete></RequireOnboarding></RequireRole>} />

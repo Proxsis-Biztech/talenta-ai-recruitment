@@ -1,7 +1,7 @@
 import { isAnyCatCompleted } from '../../services/progressService';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   User,
   Mail,
@@ -83,9 +83,7 @@ export default function PesertaProfile() {
   };
 
   // Form states
-  const [searchParams] = useSearchParams();
-  const initialTab = searchParams.get('tab') === 'biometrik' ? 'biometrik' : 'biodata';
-  const [activeTab, setActiveTab] = useState<'biodata' | 'asesmen' | 'biometrik' | 'keamanan'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'biodata' | 'asesmen' | 'keamanan'>('biodata');
   const [fullName, setFullName] = useState(() => (isPlaceholderName(initialData.name) ? '' : initialData.name));
   const [phone, setPhone] = useState(initialData.phone);
   const [email] = useState(initialData.username);
@@ -119,13 +117,7 @@ export default function PesertaProfile() {
   const [passError, setPassError] = useState('');
 
   // Registered face snapshot from localStorage
-  const [savedFacePhoto, setSavedFacePhoto] = useState<string | null>(localStorage.getItem('candidate_face_photo'));
-  const faceVideoRef = useRef<HTMLVideoElement | null>(null);
-  const faceCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const faceSectionRef = useRef<HTMLDivElement | null>(null);
-  const [faceCameraActive, setFaceCameraActive] = useState(false);
-  const [faceCapturing, setFaceCapturing] = useState(false);
-  const [faceError, setFaceError] = useState('');
+  const [savedFacePhoto] = useState<string | null>(localStorage.getItem('candidate_face_photo'));
 
   const userInitials = useMemo(() => {
     return (
@@ -147,82 +139,14 @@ export default function PesertaProfile() {
     return isAnyCatCompleted();
   }, []);
 
-  const stopFaceCamera = () => {
-    const stream = faceVideoRef.current?.srcObject as MediaStream | null;
-    stream?.getTracks().forEach((track) => track.stop());
-    if (faceVideoRef.current) faceVideoRef.current.srcObject = null;
-    setFaceCameraActive(false);
-  };
-
-  const startFaceCamera = async () => {
-    setFaceError('');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
-      if (faceVideoRef.current) {
-        faceVideoRef.current.srcObject = stream;
-        await faceVideoRef.current.play().catch(() => undefined);
-      }
-      setFaceCameraActive(true);
-    } catch {
-      setFaceError('Izin kamera ditolak. Aktifkan kamera untuk registrasi wajah.');
-    }
-  };
-
-  const captureFacePhoto = async () => {
-    if (!faceVideoRef.current || faceVideoRef.current.videoWidth === 0) {
-      setFaceError('Kamera belum siap. Coba lagi.');
-      return;
-    }
-    setFaceCapturing(true);
-    setFaceError('');
-    try {
-      const canvas = faceCanvasRef.current || document.createElement('canvas');
-      canvas.width = 640;
-      canvas.height = 480;
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('Canvas tidak tersedia');
-      context.drawImage(faceVideoRef.current, 0, 0, canvas.width, canvas.height);
-      const photo = canvas.toDataURL('image/jpeg', 0.88);
-      setSavedFacePhoto(photo);
-      localStorage.setItem('candidate_face_photo', photo);
-      const token = getPortalToken();
-      if (token) {
-        const response = await axios.post('/api/portal/device-check', { faceCaptured: true }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (response.data?.user) {
-          savePortalSession({ token, user: response.data.user });
-        }
-      }
-      stopFaceCamera();
-    } catch (error) {
-      setFaceError(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal menyimpan foto wajah.' : 'Gagal mengambil foto wajah.');
-    } finally {
-      setFaceCapturing(false);
-    }
-  };
-
-  useEffect(() => () => stopFaceCamera(), []);
-
-  useEffect(() => {
-    stopFaceCamera();
-  }, [activeTab]);
-
   const isFaceRegistered = Boolean(savedFacePhoto || getPortalUser()?.faceVerifiedAt);
 
   const handleOpenLiveScanOnProfile = () => {
-    setActiveTab('biodata');
-    setTimeout(() => {
-      faceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      if (!faceCameraActive) {
-        void startFaceCamera();
-      }
-    }, 80);
+    navigate('/peserta/live-scan');
   };
 
   const renderLiveScanIdentityPanel = () => (
     <div
-      ref={faceSectionRef}
       id="profile-live-scan"
       className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-4 sm:p-6 space-y-4"
     >
@@ -233,7 +157,7 @@ export default function PesertaProfile() {
             <span>Foto Identitas Resmi (Live Scan Kamera) *</span>
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Diambil langsung dari profil saat melengkapi biodata sebagai foto identitas resmi peserta &amp; verifikasi ujian.
+            Gunakan halaman Live Scan Kamera berlayar lebar dengan garis panduan kepala &amp; setengah badan.
           </p>
         </div>
         <span
@@ -245,74 +169,38 @@ export default function PesertaProfile() {
         </span>
       </div>
 
-      <canvas ref={faceCanvasRef} className="hidden" />
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-        {/* Live Camera / Captured Identity Photo */}
+        {/* Saved Photo Summary + Launch Dedicated Live Scan Page */}
         <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200/90 p-4 flex flex-col items-center justify-between text-center space-y-3">
-          <span className="text-xs font-bold text-slate-700">Foto Live Scan Anda</span>
+          <span className="text-xs font-bold text-slate-700">Foto Identitas Anda</span>
 
-          <div className="w-44 h-52 rounded-2xl overflow-hidden border-2 border-primary-navy bg-slate-900 relative">
-            <video
-              ref={faceVideoRef}
-              autoPlay
-              muted
-              playsInline
-              className={faceCameraActive ? 'w-full h-full object-cover scale-x-[-1]' : 'hidden'}
-            />
-            {faceCameraActive && (
-              <div className="pointer-events-none absolute inset-x-2 bottom-2 rounded-lg bg-black/60 text-[10px] font-semibold text-white py-1 px-2">
-                Posisikan setengah badan &amp; wajah lurus
+          <div className="w-40 h-48 rounded-2xl overflow-hidden border-2 border-primary-navy bg-slate-100 relative">
+            {savedFacePhoto ? (
+              <img
+                src={savedFacePhoto}
+                alt="Foto identitas terdaftar"
+                className="w-full h-full object-cover object-top"
+              />
+            ) : (
+              <div className="w-full h-full border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-4 text-slate-500">
+                <Camera className="w-9 h-9 text-slate-400 mb-2" />
+                <span className="text-[11px] font-semibold text-center leading-snug">
+                  Belum ada foto identitas terdaftar
+                </span>
               </div>
             )}
-            {!faceCameraActive && (
-              savedFacePhoto ? (
-                <img
-                  src={savedFacePhoto}
-                  alt="Foto identitas terdaftar"
-                  className="w-full h-full object-cover object-top"
-                />
-              ) : (
-                <div className="w-full h-full bg-slate-100 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-4 text-slate-500">
-                  <Camera className="w-9 h-9 text-slate-400 mb-2" />
-                  <span className="text-[11px] font-semibold text-center leading-snug">
-                    Belum ada foto identitas terdaftar
-                  </span>
-                </div>
-              )
-            )}
           </div>
 
-          {faceError && (
-            <p className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
-              {faceError}
-            </p>
-          )}
-
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {faceCameraActive ? (
-              <>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  onClick={captureFacePhoto}
-                  disabled={faceCapturing}
-                  className="text-xs cursor-pointer"
-                >
-                  {faceCapturing ? 'Menyimpan...' : 'Ambil Foto Identitas'}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={stopFaceCamera} className="text-xs cursor-pointer">
-                  Batal
-                </Button>
-              </>
-            ) : (
-              <Button type="button" variant="outline" size="sm" onClick={startFaceCamera} className="text-xs cursor-pointer">
-                <Camera className="w-3.5 h-3.5 mr-1.5" />
-                {savedFacePhoto ? 'Foto Ulang Live Scan' : 'Aktifkan Kamera Live Scan'}
-              </Button>
-            )}
-          </div>
+          <Button
+            type="button"
+            variant={isFaceRegistered ? 'outline' : 'primary'}
+            size="sm"
+            onClick={handleOpenLiveScanOnProfile}
+            className="text-xs font-bold cursor-pointer flex items-center gap-1.5"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span>{isFaceRegistered ? 'Foto Ulang via Halaman Live Scan' : 'Buka Halaman Live Scan Kamera'}</span>
+          </Button>
         </div>
 
         {/* Example Reference Photo (Half Body + Neat Formal Shirt) */}
@@ -409,9 +297,6 @@ export default function PesertaProfile() {
     if (!education.trim()) validationErrors.push('Pendidikan terakhir belum diisi');
     if (!university.trim()) validationErrors.push('Universitas / Institusi belum diisi');
     if (!city.trim()) validationErrors.push('Kota Domisili belum diisi');
-    if (!savedFacePhoto && !getPortalUser()?.faceVerifiedAt) {
-      validationErrors.push('Foto Identitas Resmi (Live Scan Kamera) belum diambil');
-    }
 
     if (validationErrors.length > 0) {
       const errText = `Periksa kembali data Anda: ${validationErrors.join(' • ')}.`;
@@ -494,8 +379,10 @@ export default function PesertaProfile() {
         }
       });
 
-      if (updatedUser?.profileCompleted && (savedFacePhoto || updatedUser.faceVerifiedAt)) {
-        if (!updatedUser.deviceCheckCompletedAt) {
+      if (updatedUser?.profileCompleted) {
+        if (!updatedUser.faceVerifiedAt && !savedFacePhoto) {
+          setTimeout(() => navigate('/peserta/live-scan'), 450);
+        } else if (!updatedUser.deviceCheckCompletedAt) {
           setTimeout(() => navigate('/peserta/device-check'), 500);
         }
       }
@@ -634,15 +521,6 @@ export default function PesertaProfile() {
 
             {/* Quick Action Badges */}
             <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/peserta/device-check')}
-                className="text-xs gap-1.5 cursor-pointer"
-              >
-                <Laptop className="w-3.5 h-3.5 text-blue-600" />
-                <span>Cek Perangkat</span>
-              </Button>
               {isCatCompleted ? (
                 <Button
                   variant="primary"
@@ -691,18 +569,6 @@ export default function PesertaProfile() {
             >
               <FileCheck2 className="w-3.5 h-3.5" />
               <span>Program Asesmen ({program.companyName})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('biometrik')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
-                activeTab === 'biometrik'
-                  ? 'bg-primary-navy text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/80'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Biometrik &amp; Perangkat</span>
             </button>
 
             <button
@@ -1000,7 +866,9 @@ export default function PesertaProfile() {
                   ) : (
                     <>
                       <Save className="w-4 h-4" />
-                      <span>Simpan Perubahan Data Diri</span>
+                      <span>
+                        {!isFaceRegistered ? 'Simpan Biodata & Lanjut Live Scan' : 'Simpan Perubahan Data Diri'}
+                      </span>
                     </>
                   )}
                 </Button>
@@ -1122,87 +990,7 @@ export default function PesertaProfile() {
           </div>
         )}
 
-        {/* ─── TAB 3: VERIFIKASI BIOMETRIK & PERANGKAT ─── */}
-        {activeTab === 'biometrik' && (
-          <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 font-heading">
-                  Status Verifikasi Biometrik &amp; Perangkat
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Foto dan data telemetri yang digunakan sistem anti-cheat AI selama pengerjaan asesmen.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/peserta/device-check')}
-                className="text-xs gap-1.5 cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
-                <span>Uji Ulang Perangkat</span>
-              </Button>
-            </div>
-
-            <div className="space-y-6">
-              {renderLiveScanIdentityPanel()}
-
-              {/* Hardware Telemetry List */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
-                      <Camera className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900">Kamera Web (Webcam)</p>
-                      <p className="text-[11px] text-slate-500">HD Video Stream (1280x720) • 30 FPS</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    Siap
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
-                      <Laptop className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900">Mikrofon Sistem</p>
-                      <p className="text-[11px] text-slate-500">Web Audio API • Sinyal Responsif</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    Siap
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
-                      <ShieldCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900">Integritas Browser &amp; Layar</p>
-                      <p className="text-[11px] text-slate-500">Deteksi Tab Switch &amp; Fullscreen Lock Aktif</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    Aman
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── TAB 4: KEAMANAN & KATA SANDI ─── */}
+        {/* ─── TAB 3: KEAMANAN & KATA SANDI ─── */}
         {activeTab === 'keamanan' && (
           <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">

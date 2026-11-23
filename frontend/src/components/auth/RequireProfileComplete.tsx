@@ -15,18 +15,20 @@ export function RequireProfileComplete({ children }: { children: React.ReactNode
       n.startsWith('kandidat ')
     );
   };
-  const complete = Boolean(
+  const biodataComplete = Boolean(
     user?.name &&
     !isPlaceholderName(user.name) &&
     user?.phone &&
     user?.nik &&
     user?.education &&
     user?.university &&
-    user?.city &&
-    user?.faceVerifiedAt
+    user?.city
   );
-  if (user && !complete) {
+  if (user && !biodataComplete) {
     return <Navigate to="/peserta/profile" replace />;
+  }
+  if (user && !user.faceVerifiedAt) {
+    return <Navigate to="/peserta/live-scan" replace />;
   }
   return <>{children}</>;
 }

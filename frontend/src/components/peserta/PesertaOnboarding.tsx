@@ -66,7 +66,7 @@ export default function PesertaOnboarding() {
         bio
       }, { headers: { Authorization: `Bearer ${token}` } });
       savePortalSession({ token, user: response.data.user });
-      navigate('/peserta/profile?tab=biometrik', { replace: true });
+      navigate('/peserta/live-scan', { replace: true });
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal menyimpan data onboarding.' : 'Gagal menyimpan data onboarding.');
     } finally {

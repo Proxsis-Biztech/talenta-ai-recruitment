@@ -133,25 +133,28 @@ export default function AuthLoginPage() {
       localStorage.removeItem('adminUsername');
       savePortalSession(session);
 
-      const isPlaceholder = (n?: string | null) => {
-        if (!n) return true;
-        const s = n.trim().toLowerCase();
-        return s === '' || s === 'kandidat ujian cat' || s === 'kandidat baru' || s.startsWith('token-') || s.startsWith('kandidat ');
+      const resolvePesertaNextUrl = (user: any, requiresOnboarding?: boolean) => {
+        const isPlaceholder = (n?: string | null) => {
+          if (!n) return true;
+          const s = n.trim().toLowerCase();
+          return s === '' || s === 'kandidat ujian cat' || s === 'kandidat baru' || s.startsWith('token-') || s.startsWith('kandidat ');
+        };
+        const biodataComplete = Boolean(
+          user?.name &&
+          !isPlaceholder(user.name) &&
+          user?.phone &&
+          user?.nik &&
+          user?.education &&
+          user?.university &&
+          user?.city
+        );
+        if (requiresOnboarding || !biodataComplete) return '/peserta/profile';
+        if (!user?.faceVerifiedAt) return '/peserta/live-scan';
+        if (!user?.deviceCheckCompletedAt) return '/peserta/device-check';
+        return '/peserta';
       };
-      const isProfileComplete = Boolean(
-        session.user.name &&
-        !isPlaceholder(session.user.name) &&
-        session.user.phone &&
-        session.user.nik &&
-        session.user.education &&
-        session.user.university &&
-        session.user.city &&
-        session.user.faceVerifiedAt
-      );
-      const nextUrl = session.requiresOnboarding || !isProfileComplete
-        ? '/peserta/profile'
-        : '/peserta/device-check';
-      navigate(nextUrl, { replace: true });
+
+      navigate(resolvePesertaNextUrl(session.user, session.requiresOnboarding), { replace: true });
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal masuk dengan Google.' : 'Gagal masuk dengan Google.');
     } finally {
@@ -238,19 +241,22 @@ export default function AuthLoginPage() {
           const s = n.trim().toLowerCase();
           return s === '' || s === 'kandidat ujian cat' || s === 'kandidat baru' || s.startsWith('token-') || s.startsWith('kandidat ');
         };
-        const isProfileComplete = Boolean(
+        const biodataComplete = Boolean(
           session.user.name &&
           !isPlaceholder(session.user.name) &&
           session.user.phone &&
           session.user.nik &&
           session.user.education &&
           session.user.university &&
-          session.user.city &&
-          session.user.faceVerifiedAt
+          session.user.city
         );
-        const nextUrl = session.requiresOnboarding || !isProfileComplete
+        const nextUrl = session.requiresOnboarding || !biodataComplete
           ? '/peserta/profile'
-          : '/peserta/device-check';
+          : !session.user.faceVerifiedAt
+            ? '/peserta/live-scan'
+            : !session.user.deviceCheckCompletedAt
+              ? '/peserta/device-check'
+              : '/peserta';
         setTimeout(() => navigate(nextUrl, { replace: true }), 300);
       }
     } catch (err) {
