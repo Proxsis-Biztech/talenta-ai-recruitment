@@ -22,13 +22,25 @@ import {
   Eye,
   BookOpen,
   Clock,
-  Award
+  Award,
+  AlertCircle,
+  X,
+  CheckSquare
 } from 'lucide-react';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import { getAllPrograms, type AssessmentProgram } from '../../services/assessmentCatalog';
 import {
+  INITIAL_COMPANIES,
+  companyMatchesName,
+  type CompanyItem
+} from '../../services/companyDirectory';
+export type { CompanyItem };
+import {
   Button,
   Badge,
+  Input,
+  Select,
+  Textarea,
   Table,
   TableHeader,
   TableBody,
@@ -38,78 +50,18 @@ import {
   Modal
 } from '../ui';
 
-export interface CompanyItem {
-  id: string;
-  name: string;
-  industry: string;
-  pic: string;
-  quotaMax: number;
-  quotaUsed: number;
-  contractPeriod: string;
-  activeProgramsCount: number;
-}
-
 const STORAGE_KEY = 'talenta_companies_matrix_v1';
-
-const INITIAL_COMPANIES: CompanyItem[] = [
-  {
-    id: 'PT-01',
-    name: 'PT Telkom Indonesia Tbk',
-    industry: 'Telekomunikasi & Digital Tech',
-    pic: 'Indra Gunawan (VP Human Capital)',
-    quotaMax: 1500,
-    quotaUsed: 1240,
-    contractPeriod: 'Jan 2026 - Des 2026',
-    activeProgramsCount: 3
-  },
-  {
-    id: 'PT-02',
-    name: 'Astra International Tbk',
-    industry: 'Konglomerasi Otomotif & Energi',
-    pic: 'Budi Santosa (HR Director)',
-    quotaMax: 800,
-    quotaUsed: 620,
-    contractPeriod: 'Mar 2026 - Mar 2027',
-    activeProgramsCount: 2
-  },
-  {
-    id: 'PT-03',
-    name: 'Bank Mandiri Tbk',
-    industry: 'Perbankan & Jasa Keuangan',
-    pic: 'Rina Marlina (Talent Acquisition Lead)',
-    quotaMax: 2000,
-    quotaUsed: 1450,
-    contractPeriod: 'Feb 2026 - Feb 2027',
-    activeProgramsCount: 4
-  },
-  {
-    id: 'PT-04',
-    name: 'PT Bank CIMB Niaga Tbk',
-    industry: 'Perbankan Komersial (The Complete Banker)',
-    pic: 'Sari Handayani (VP Talent Acquisition)',
-    quotaMax: 1200,
-    quotaUsed: 780,
-    contractPeriod: 'Jan 2026 - Des 2026',
-    activeProgramsCount: 2
-  },
-  {
-    id: 'PT-05',
-    name: 'Pertamina Hulu Energi',
-    industry: 'Minyak & Gas Bumi',
-    pic: 'Agus Purnomo (Head of Talent Development)',
-    quotaMax: 500,
-    quotaUsed: 210,
-    contractPeriod: 'Mei 2026 - Mei 2027',
-    activeProgramsCount: 1
-  }
-];
+const HIDDEN_CATALOG_STORAGE_KEY = 'talenta_hidden_catalog_programs_v1';
 
 interface AdminCompanyMatrixProps {
   onNavigateToPrograms?: () => void;
-  onNavigateToBankSoal?: () => void;
+  onNavigateToBankSoal?: (programCode?: string, companyName?: string) => void;
+  onNavigateToMateri?: (programCode?: string, companyName?: string) => void;
 }
 
 interface PtProgramRow {
+  key: string;
+  jobId?: string;
   code: string;
   title: string;
   category: string;
@@ -122,41 +74,59 @@ interface PtProgramRow {
   source: 'server' | 'catalog';
 }
 
-const normalizeCompanyName = (raw?: string | null): string =>
-  String(raw || '')
-    .toLowerCase()
-    .replace(/\b(pt|tbk|persero|indonesia)\b/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-
-const companyMatchesName = (companyName: string, targetName: string): boolean => {
-  const a = normalizeCompanyName(companyName);
-  const b = normalizeCompanyName(targetName);
-  if (!a || !b) return false;
-  if (a === b || a.includes(b) || b.includes(a)) return true;
-  const aTokens = a.split(' ').filter((w) => w.length >= 3);
-  const bTokens = b.split(' ').filter((w) => w.length >= 3);
-  return aTokens.some((token) => bTokens.includes(token));
-};
-
 export function AdminCompanyMatrix({
   onNavigateToPrograms,
-  onNavigateToBankSoal
+  onNavigateToBankSoal,
+  onNavigateToMateri
 }: AdminCompanyMatrixProps = {}) {
   const [companies, setCompanies] = useState<CompanyItem[]>(INITIAL_COMPANIES);
   const [allJobs, setAllJobs] = useState<any[]>([]);
   const [allApplicants, setAllApplicants] = useState<any[]>([]);
   const [detailPt, setDetailPt] = useState<CompanyItem | null>(null);
+  const [hiddenCatalogCodes, setHiddenCatalogCodes] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(HIDDEN_CATALOG_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.map((s) => String(s).toUpperCase()) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Inline Add/Delete Program Asesmen states inside Detail PT modal
+  const [isAddProgramOpen, setIsAddProgramOpen] = useState(false);
+  const [progTitle, setProgTitle] = useState('');
+  const [progCode, setProgCode] = useState('');
+  const [progDescription, setProgDescription] = useState('');
+  const [progDuration, setProgDuration] = useState(60);
+  const [progPassingScore, setProgPassingScore] = useState(75);
+  const [progStatus, setProgStatus] = useState<'active' | 'inactive'>('active');
+  const [progStartDate, setProgStartDate] = useState('');
+  const [progEndDate, setProgEndDate] = useState('');
+  const [progSubmitting, setProgSubmitting] = useState(false);
+  const [progFormError, setProgFormError] = useState<string | null>(null);
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const [ptModalNotice, setPtModalNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    loadMasterScope<CompanyItem[]>('company')
+    loadMasterScope<any>('company')
       .then((data) => {
         if (cancelled) return;
         if (Array.isArray(data.matrix) && data.matrix.length > 0) {
           setCompanies(data.matrix);
         } else {
           void saveMasterRecord('company', 'matrix', INITIAL_COMPANIES);
+        }
+        if (Array.isArray(data.hiddenCatalogPrograms)) {
+          const normalized = data.hiddenCatalogPrograms.map((s: unknown) => String(s).toUpperCase());
+          setHiddenCatalogCodes(normalized);
+          try {
+            localStorage.setItem(HIDDEN_CATALOG_STORAGE_KEY, JSON.stringify(normalized));
+          } catch {
+            // ignore storage errors
+          }
         }
       })
       .catch(() => undefined);
@@ -330,6 +300,21 @@ export function AdminCompanyMatrix({
     statusGagal: number;
   }>>([]);
 
+  const reloadServerCatalog = async () => {
+    const token = localStorage.getItem('adminToken');
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+    try {
+      const [jobsResponse, applicantsResponse] = await Promise.all([
+        axios.get('/api/admin/jobs', { params: { limit: 200 }, headers }),
+        axios.get('/api/admin/applicants', { params: { limit: 200 }, headers })
+      ]);
+      setAllJobs(Array.isArray(jobsResponse.data?.data) ? jobsResponse.data.data : []);
+      setAllApplicants(Array.isArray(applicantsResponse.data?.data) ? applicantsResponse.data.data : []);
+    } catch {
+      // keep existing state on transient reload error
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const loadServerCatalog = async () => {
@@ -358,6 +343,156 @@ export function AdminCompanyMatrix({
 
   const catalogPrograms = useMemo<AssessmentProgram[]>(() => getAllPrograms(), []);
 
+  const persistHiddenCatalogCodes = (nextCodes: string[]) => {
+    setHiddenCatalogCodes(nextCodes);
+    try {
+      localStorage.setItem(HIDDEN_CATALOG_STORAGE_KEY, JSON.stringify(nextCodes));
+    } catch {
+      // ignore storage quota errors
+    }
+    void saveMasterRecord('company', 'hiddenCatalogPrograms', nextCodes);
+  };
+
+  const resetDetailProgramForms = () => {
+    setIsAddProgramOpen(false);
+    setProgTitle('');
+    setProgCode('');
+    setProgDescription('');
+    setProgDuration(60);
+    setProgPassingScore(75);
+    setProgStatus('active');
+    setProgStartDate('');
+    setProgEndDate('');
+    setProgFormError(null);
+    setConfirmDeleteKey(null);
+    setPtModalNotice(null);
+  };
+
+  const handleCreateProgramForPt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!detailPt) return;
+
+    const trimmedTitle = progTitle.trim();
+    const trimmedDesc = progDescription.trim();
+    const normalizedCode = progCode.trim().toUpperCase();
+
+    if (!trimmedTitle) {
+      setProgFormError('Nama program / posisi wajib diisi.');
+      return;
+    }
+    if (!trimmedDesc) {
+      setProgFormError('Deskripsi & kualifikasi program wajib diisi.');
+      return;
+    }
+    if (progStartDate && progEndDate && progEndDate < progStartDate) {
+      setProgFormError('Tanggal selesai tidak boleh lebih awal dari tanggal mulai.');
+      return;
+    }
+
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+      setProgFormError('Sesi admin tidak ditemukan. Silakan login ulang.');
+      return;
+    }
+
+    const finalTitle = companyMatchesName(detailPt.name, trimmedTitle)
+      ? trimmedTitle
+      : `${trimmedTitle} (${detailPt.name})`;
+
+    setProgSubmitting(true);
+    setProgFormError(null);
+    try {
+      const response = await axios.post(
+        '/api/admin/jobs',
+        {
+          code: normalizedCode || null,
+          title: finalTitle,
+          description: trimmedDesc,
+          status: progStatus,
+          interviewDuration: Number(progDuration) || 60,
+          interviewPassingScore: Number(progPassingScore) || 75,
+          assessmentDate: progStartDate || null,
+          assessmentEndDate: progEndDate || null
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const createdJob = response.data?.data;
+      if (createdJob) {
+        setAllJobs((prev) => [createdJob, ...prev]);
+      }
+      if (normalizedCode && hiddenCatalogCodes.includes(normalizedCode)) {
+        persistHiddenCatalogCodes(hiddenCatalogCodes.filter((c) => c !== normalizedCode));
+      }
+      await reloadServerCatalog();
+
+      setIsAddProgramOpen(false);
+      setProgTitle('');
+      setProgCode('');
+      setProgDescription('');
+      setProgDuration(60);
+      setProgPassingScore(75);
+      setProgStatus('active');
+      setProgStartDate('');
+      setProgEndDate('');
+      setPtModalNotice({
+        type: 'success',
+        text: `Program "${finalTitle}" berhasil ditambahkan ke ${detailPt.name}.`
+      });
+      showToast(`Program asesmen "${finalTitle}" ditambahkan untuk ${detailPt.name}.`);
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err)
+        ? err.response?.data?.error || 'Gagal menambahkan program asesmen.'
+        : 'Gagal menambahkan program asesmen.';
+      setProgFormError(msg);
+    } finally {
+      setProgSubmitting(false);
+    }
+  };
+
+  const handleDeleteProgramFromPt = async (prog: PtProgramRow) => {
+    if (!detailPt) return;
+    setDeletingKey(prog.key);
+    setPtModalNotice(null);
+
+    try {
+      if (prog.source === 'server' && prog.jobId) {
+        const token = localStorage.getItem('adminToken');
+        if (!token) {
+          setPtModalNotice({ type: 'error', text: 'Sesi admin tidak ditemukan. Silakan login ulang.' });
+          return;
+        }
+        await axios.delete(`/api/admin/jobs/${encodeURIComponent(prog.jobId)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setAllJobs((prev) => prev.filter((job) => job.id !== prog.jobId));
+      }
+
+      const codeUpper = String(prog.code || '').toUpperCase();
+      if (codeUpper && codeUpper !== '-' && !hiddenCatalogCodes.includes(codeUpper)) {
+        const isInCatalog = catalogPrograms.some((p) => p.id.toUpperCase() === codeUpper);
+        if (isInCatalog || prog.source === 'catalog') {
+          persistHiddenCatalogCodes([...hiddenCatalogCodes, codeUpper]);
+        }
+      }
+
+      setConfirmDeleteKey(null);
+      setPtModalNotice({
+        type: 'success',
+        text: `Program "${prog.title}" berhasil dihapus dari ${detailPt.name}.`
+      });
+      showToast(`Program "${prog.title}" dihapus dari ${detailPt.name}.`);
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err)
+        ? err.response?.data?.error || 'Gagal menghapus program asesmen.'
+        : 'Gagal menghapus program asesmen.';
+      setPtModalNotice({ type: 'error', text: msg });
+      setConfirmDeleteKey(null);
+    } finally {
+      setDeletingKey(null);
+    }
+  };
+
   const getProgramsForCompany = (company: CompanyItem): PtProgramRow[] => {
     const byKey = new Map<string, PtProgramRow>();
 
@@ -369,12 +504,15 @@ export function AdminCompanyMatrix({
       }
       const code = String(job.code || job.id || '').toUpperCase();
       const relatedApplicants = allApplicants.filter(
-        (applicant: any) => applicant.job?.title === job.title || applicant.appliedPosition === job.title
+        (applicant: any) => applicant.jobId === job.id || applicant.job?.title === job.title || applicant.appliedPosition === job.title
       );
       const cat = catalogPrograms.find(
         (p) => p.id.toUpperCase() === code || p.title.toLowerCase() === String(job.title || '').toLowerCase()
       );
-      byKey.set(code || String(job.title).toLowerCase(), {
+      const mapKey = code || String(job.id || job.title).toLowerCase();
+      byKey.set(mapKey, {
+        key: String(job.id || mapKey),
+        jobId: job.id ? String(job.id) : undefined,
         code: job.code || cat?.id || '-',
         title: job.title,
         category: cat?.category || 'Asesmen Korporasi',
@@ -391,8 +529,10 @@ export function AdminCompanyMatrix({
     for (const prog of catalogPrograms) {
       if (!companyMatchesName(company.name, prog.companyName)) continue;
       const key = prog.id.toUpperCase();
+      if (hiddenCatalogCodes.includes(key)) continue;
       if (byKey.has(key)) continue;
       byKey.set(key, {
+        key: `catalog:${key}`,
         code: prog.id,
         title: prog.title,
         category: prog.category,
@@ -566,7 +706,7 @@ export function AdminCompanyMatrix({
         {companies.map((c) => {
           const pct = Math.min(100, Math.round((c.quotaUsed / (c.quotaMax || 1)) * 100));
           const matchedPrograms = getProgramsForCompany(c);
-          const programCount = matchedPrograms.length || c.activeProgramsCount;
+          const programCount = matchedPrograms.length;
 
           return (
             <div
@@ -637,9 +777,10 @@ export function AdminCompanyMatrix({
                 <Button
                   variant="outline"
                   size="xs"
-                  className="cursor-pointer bg-white text-slate-700 border-slate-300 transition-colors group-hover:bg-primary-navy group-hover:text-white group-hover:border-primary-navy hover:bg-navy-dark hover:text-white hover:border-navy-dark"
+                  className="pt-detail-btn cursor-pointer text-slate-700 border-slate-300 transition-colors group-hover:bg-primary-navy group-hover:text-white group-hover:border-primary-navy hover:bg-navy-dark hover:text-white hover:border-navy-dark"
                   leftIcon={<Eye className="w-3.5 h-3.5" />}
                   onClick={() => {
+                    resetDetailProgramForms();
                     setSelectedPtId(c.id);
                     setDetailPt(c);
                   }}
@@ -983,7 +1124,10 @@ export function AdminCompanyMatrix({
       {/* Modal: Detail Perusahaan (PT) & Program Asesmen */}
       <Modal
         isOpen={Boolean(detailPt)}
-        onClose={() => setDetailPt(null)}
+        onClose={() => {
+          setDetailPt(null);
+          resetDetailProgramForms();
+        }}
         title={detailPt ? `Detail Perusahaan — ${detailPt.name}` : 'Detail Perusahaan (PT)'}
         description={detailPt ? `${detailPt.industry} • PIC: ${detailPt.pic}` : undefined}
         size="2xl"
@@ -1014,20 +1158,61 @@ export function AdminCompanyMatrix({
                 </div>
               </div>
 
-              <div className="space-y-2.5">
+              {ptModalNotice && (
+                <div
+                  className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+                    ptModalNotice.type === 'success'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {ptModalNotice.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    )}
+                    <span className="font-medium">{ptModalNotice.text}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPtModalNotice(null)}
+                    className="p-1 rounded hover:bg-black/5 cursor-pointer shrink-0"
+                    aria-label="Tutup notifikasi"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-primary-navy" />
                     <span>Daftar Program Asesmen pada {detailPt.name}</span>
                   </h4>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant={isAddProgramOpen ? 'outline' : 'primary'}
+                      size="xs"
+                      leftIcon={isAddProgramOpen ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                      onClick={() => {
+                        setIsAddProgramOpen((prev) => !prev);
+                        setProgFormError(null);
+                      }}
+                    >
+                      {isAddProgramOpen ? 'Tutup Form' : 'Tambah Program'}
+                    </Button>
                     {onNavigateToBankSoal && (
                       <Button
                         variant="outline"
                         size="xs"
                         onClick={() => {
+                          const firstCode = programs[0]?.code;
+                          const companyName = detailPt.name;
                           setDetailPt(null);
-                          onNavigateToBankSoal();
+                          resetDetailProgramForms();
+                          onNavigateToBankSoal(firstCode !== '-' ? firstCode : undefined, companyName);
                         }}
                       >
                         Buka Bank Soal
@@ -1035,10 +1220,11 @@ export function AdminCompanyMatrix({
                     )}
                     {onNavigateToPrograms && (
                       <Button
-                        variant="primary"
+                        variant="outline"
                         size="xs"
                         onClick={() => {
                           setDetailPt(null);
+                          resetDetailProgramForms();
                           onNavigateToPrograms();
                         }}
                       >
@@ -1048,57 +1234,281 @@ export function AdminCompanyMatrix({
                   </div>
                 </div>
 
+                {isAddProgramOpen && (
+                  <form
+                    onSubmit={handleCreateProgramForPt}
+                    className="p-4 rounded-xl border border-accent-border bg-soft-blue/35 space-y-3.5"
+                  >
+                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-accent-border/60">
+                      <div>
+                        <h5 className="font-heading font-bold text-xs sm:text-sm text-slate-900">
+                          Tambah Program Asesmen Baru — {detailPt.name}
+                        </h5>
+                        <p className="text-[11px] text-slate-500">
+                          Program otomatis terhubung ke {detailPt.name} dan siap digunakan di Bank Soal CAT serta daftar program aktif.
+                        </p>
+                      </div>
+                    </div>
+
+                    {progFormError && (
+                      <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{progFormError}</span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <Input
+                          label="Nama Program / Posisi *"
+                          value={progTitle}
+                          onChange={(e) => setProgTitle(e.target.value)}
+                          placeholder="Contoh: Management Trainee Operational"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          label="Kode Program"
+                          value={progCode}
+                          onChange={(e) => setProgCode(e.target.value.toUpperCase())}
+                          placeholder="Contoh: PT02-MT-01"
+                          isMonospace
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <Input
+                          label="Durasi CAT/Interview (menit)"
+                          type="number"
+                          min={1}
+                          max={180}
+                          value={progDuration}
+                          onChange={(e) => setProgDuration(Number(e.target.value))}
+                          isMonospace
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          label="Passing Grade (0–100)"
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={progPassingScore}
+                          onChange={(e) => setProgPassingScore(Number(e.target.value))}
+                          isMonospace
+                        />
+                      </div>
+                      <div>
+                        <Select
+                          label="Status Program"
+                          value={progStatus}
+                          onChange={(e) => setProgStatus(e.target.value as 'active' | 'inactive')}
+                        >
+                          <option value="active">Aktif</option>
+                          <option value="inactive">Nonaktif</option>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Input
+                          label="Tanggal Mulai (opsional)"
+                          type="date"
+                          value={progStartDate}
+                          onChange={(e) => setProgStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          label="Tanggal Selesai (opsional)"
+                          type="date"
+                          value={progEndDate}
+                          onChange={(e) => setProgEndDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Textarea
+                        label="Deskripsi & Kriteria Kualifikasi *"
+                        rows={3}
+                        value={progDescription}
+                        onChange={(e) => setProgDescription(e.target.value)}
+                        placeholder={`Jelaskan tujuan asesmen, kompetensi yang diuji, dan kualifikasi peserta untuk ${detailPt.name}...`}
+                        required
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => {
+                          setIsAddProgramOpen(false);
+                          setProgFormError(null);
+                        }}
+                      >
+                        Batal
+                      </Button>
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        size="xs"
+                        disabled={progSubmitting}
+                        leftIcon={<Save className="w-3.5 h-3.5" />}
+                      >
+                        {progSubmitting ? 'Menyimpan...' : 'Simpan Program'}
+                      </Button>
+                    </div>
+                  </form>
+                )}
+
                 {programs.length === 0 ? (
                   <div className="p-8 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-500">
-                    Belum ada program asesmen yang terhubung ke {detailPt.name}. Tambahkan program baru pada menu Program Asesmen dengan menyertakan nama perusahaan ini.
+                    Belum ada program asesmen yang terhubung ke {detailPt.name}. Klik tombol{' '}
+                    <strong className="text-slate-700">+ Tambah Program</strong> di atas untuk menambahkan program baru.
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    {programs.map((prog) => (
-                      <div
-                        key={`${prog.code}-${prog.title}`}
-                        className="p-4 rounded-xl border border-slate-200 bg-white hover:border-primary-navy/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                      >
-                        <div className="space-y-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2 py-0.5 rounded border border-accent-border">
-                              {prog.code}
-                            </span>
-                            <Badge variant={prog.status === 'Aktif' ? 'success' : 'teal'} format="soft">
-                              {prog.status}
-                            </Badge>
-                            <span className="text-[11px] text-slate-500 font-medium">{prog.gradeLevel}</span>
+                    {programs.map((prog) => {
+                      const isConfirming = confirmDeleteKey === prog.key;
+                      const isDeleting = deletingKey === prog.key;
+                      return (
+                        <div
+                          key={prog.key}
+                          className="p-4 rounded-xl border border-slate-200 bg-white hover:border-primary-navy/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2 py-0.5 rounded border border-accent-border">
+                                {prog.code}
+                              </span>
+                              <Badge variant={prog.status === 'Aktif' ? 'success' : 'teal'} format="soft">
+                                {prog.status}
+                              </Badge>
+                              <span className="text-[11px] text-slate-500 font-medium">{prog.gradeLevel}</span>
+                            </div>
+                            <p className="font-bold text-sm text-slate-900">{prog.title}</p>
+                            <p className="text-[11px] text-slate-500">{prog.category}</p>
                           </div>
-                          <p className="font-bold text-sm text-slate-900">{prog.title}</p>
-                          <p className="text-[11px] text-slate-500">{prog.category}</p>
-                        </div>
 
-                        <div className="flex flex-wrap items-center gap-4 text-[11px] shrink-0 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-100">
-                          <div className="flex items-center gap-1.5 text-slate-700">
-                            <Clock className="w-3.5 h-3.5 text-primary-navy" />
-                            <span className="font-mono font-bold">{prog.durationMinutes} mnt</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-slate-700">
-                            <Award className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>
-                              Pass <strong className="font-mono">{prog.passingScore}</strong>
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-slate-700">
-                            <Users className="w-3.5 h-3.5 text-blue-600" />
-                            <span>
-                              <strong className="font-mono">{prog.applicantCount}</strong> Peserta
-                            </span>
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <div className="flex flex-wrap items-center gap-4 text-[11px] bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-100">
+                              <div className="flex items-center gap-1.5 text-slate-700">
+                                <Clock className="w-3.5 h-3.5 text-primary-navy" />
+                                <span className="font-mono font-bold">{prog.durationMinutes} mnt</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-slate-700">
+                                <Award className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>
+                                  Pass <strong className="font-mono">{prog.passingScore}</strong>
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-slate-700">
+                                <Users className="w-3.5 h-3.5 text-blue-600" />
+                                <span>
+                                  <strong className="font-mono">{prog.applicantCount}</strong> Peserta
+                                </span>
+                              </div>
+                            </div>
+
+                            {isConfirming ? (
+                              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-xl">
+                                <span className="text-[11px] font-semibold text-rose-700">Hapus?</span>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="xs"
+                                  disabled={isDeleting}
+                                  onClick={() => setConfirmDeleteKey(null)}
+                                >
+                                  Batal
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="danger"
+                                  size="xs"
+                                  disabled={isDeleting}
+                                  onClick={() => handleDeleteProgramFromPt(prog)}
+                                >
+                                  {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {onNavigateToMateri && prog.code && prog.code !== '-' && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="xs"
+                                    leftIcon={<FileText className="w-3.5 h-3.5 text-primary-navy" />}
+                                    onClick={() => {
+                                      const ptName = detailPt.name;
+                                      setDetailPt(null);
+                                      resetDetailProgramForms();
+                                      onNavigateToMateri(prog.code, ptName);
+                                    }}
+                                    title={`Kelola Master Materi untuk ${prog.code}`}
+                                  >
+                                    Materi
+                                  </Button>
+                                )}
+                                {onNavigateToBankSoal && prog.code && prog.code !== '-' && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="xs"
+                                    leftIcon={<CheckSquare className="w-3.5 h-3.5 text-emerald-700" />}
+                                    onClick={() => {
+                                      const ptName = detailPt.name;
+                                      setDetailPt(null);
+                                      resetDetailProgramForms();
+                                      onNavigateToBankSoal(prog.code, ptName);
+                                    }}
+                                    title={`Kelola Bank Soal CAT untuk ${prog.code}`}
+                                  >
+                                    Soal CAT
+                                  </Button>
+                                )}
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="xs"
+                                  className="text-rose-600 border-rose-200 hover:bg-rose-600 hover:text-white hover:border-rose-600"
+                                  leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                                  onClick={() => setConfirmDeleteKey(prog.key)}
+                                  title={
+                                    prog.applicantCount > 0
+                                      ? 'Program masih memiliki peserta terdaftar'
+                                      : `Hapus program ${prog.title}`
+                                  }
+                                >
+                                  Hapus
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
               <div className="flex justify-end pt-2 border-t border-slate-100">
-                <Button variant="outline" size="sm" onClick={() => setDetailPt(null)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setDetailPt(null);
+                    resetDetailProgramForms();
+                  }}
+                >
                   Tutup Detail
                 </Button>
               </div>

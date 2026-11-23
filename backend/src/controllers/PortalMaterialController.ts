@@ -111,6 +111,21 @@ export const getPortalMaterials = async (req: AuthRequest, res: Response) => {
     }
 
     if (items.length === 0 && job) {
+      const masterMateriRec = await prisma.masterRecord.findUnique({
+        where: { scope_key: { scope: 'materi', key: 'table' } }
+      });
+      const masterMateriList = parseJson<any[]>(masterMateriRec?.value, []);
+      if (Array.isArray(masterMateriList) && masterMateriList.length > 0) {
+        const targetUpper = programCode.toUpperCase();
+        items = masterMateriList.filter(
+          (m) =>
+            isActive(m) &&
+            String(m?.code || '').trim().toUpperCase() === targetUpper
+        );
+      }
+    }
+
+    if (items.length === 0 && job) {
       items = [
         {
           id: `mat-${job.id}-1`,

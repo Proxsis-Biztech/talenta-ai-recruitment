@@ -100,8 +100,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'ASESMEN & SOAL',
     items: [
       { key: 'perusahaan', label: 'Perusahaan (PT)', icon: Building2 },
+      { key: 'organisasi', label: 'Organisasi & Kelas', icon: Network },
       { key: 'jobs', label: 'Program Asesmen', icon: BookOpen },
-      { key: 'materi', label: 'Master Materi & Bank Soal', icon: FileText },
+      { key: 'materi', label: 'Materi & Soal', icon: FileText },
     ],
   },
   {
@@ -113,8 +114,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'proctoring', label: 'Monitoring Proctoring', icon: ShieldAlert },
       { key: 'ranking', label: 'Hasil & Peringkat (LHA)', icon: BarChart3 },
       { key: 'lha-governance', label: 'Kalibrasi & Koreksi LHA', icon: Scale },
-      { key: 'organisasi', label: 'Organisasi & Kelas', icon: Network },
-      { key: 'helpdesk-internal', label: 'Helpdesk Internal', icon: MessageSquare, badge: 'Live' },
     ],
   },
   {
@@ -124,6 +123,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'users', label: 'Pengguna & Hak Akses', icon: UserCheck },
       { key: 'ai-config', label: 'Konfigurasi Sistem & AI', icon: Sliders, superadminOnly: true },
       { key: 'audit-logs', label: 'Log Audit & Keamanan', icon: Clock, superadminOnly: true },
+      { key: 'helpdesk-internal', label: 'Helpdesk Internal', icon: MessageSquare, badge: 'Live' },
       { key: 'help', label: 'Pusat Bantuan & Panduan', icon: HelpCircle },
     ],
   },
@@ -250,14 +250,14 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
         </div>
 
         {/* Navigation Items */}
-        <nav className={`flex-1 ${isCollapsed ? 'overflow-visible py-4 px-2 space-y-3' : 'overflow-y-auto py-4 px-3 space-y-4'}`}>
+        <nav className={`flex-1 ${isCollapsed ? 'overflow-visible py-4 px-2 space-y-2.5' : 'overflow-y-auto py-4 px-3 space-y-3'}`}>
           {NAV_GROUPS.filter((group) => !group.superadminOnly || userRole === 'superadmin').map(
             (group, groupIndex) => (
               <div
                 key={group.id}
                 className={`${
                   groupIndex > 0 && !isCollapsed
-                    ? 'pt-3 mt-3 border-t border-slate-100'
+                    ? 'pt-3 border-t border-slate-100'
                     : ''
                 }`}
               >

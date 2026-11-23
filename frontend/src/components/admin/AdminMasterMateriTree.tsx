@@ -32,6 +32,7 @@ import {
 import axios from 'axios';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import { getAllPrograms } from '../../services/assessmentCatalog';
+import { loadCompanyDirectory, companyMatchesName } from '../../services/companyDirectory';
 import { Button, Badge, Card, CardContent, Modal, Input, Select } from '../ui';
 import {
   Table,
@@ -434,8 +435,45 @@ export const INITIAL_MATERI_LIST: MasterMateriItem[] = [
   }
 ];
 
-export function AdminMasterMateriTree() {
+export interface AdminMasterMateriTreeProps {
+  initialProgramCode?: string;
+  initialCompanyName?: string;
+}
+
+export function AdminMasterMateriTree({
+  initialProgramCode,
+  initialCompanyName
+}: AdminMasterMateriTreeProps = {}) {
   const [materiList, setMateriList] = useState<MasterMateriItem[]>(INITIAL_MATERI_LIST);
+  const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>(MASTER_COMPANIES);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadCompanyDirectory().then((directory) => {
+      if (cancelled || directory.length === 0) return;
+      const merged: CompanyOption[] = [...MASTER_COMPANIES];
+      for (const pt of directory) {
+        const already = merged.some(
+          (m) => m.id === pt.id || companyMatchesName(m.name, pt.name)
+        );
+        if (!already) {
+          merged.push({
+            id: pt.id,
+            name: pt.name,
+            code: pt.id,
+            color: 'blue',
+            bgLight: 'bg-soft-blue',
+            textDark: 'text-primary-navy',
+            borderColor: 'border-accent-border'
+          });
+        }
+      }
+      setCompanyOptions(merged);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -543,11 +581,29 @@ export function AdminMasterMateriTree() {
     setTimeout(() => setSaveSuccess(false), 3000);
   };
 
+  const matchesCompanyOption = (compId: string, item: MasterMateriItem): boolean => {
+    if (item.companyId === compId) return true;
+    const comp = companyOptions.find((c) => c.id === compId);
+    return Boolean(comp && companyMatchesName(comp.name, item.companyName));
+  };
+
+  useEffect(() => {
+    if (!initialProgramCode && !initialCompanyName) return;
+    setViewMode('modules');
+    if (initialProgramCode) {
+      setSelectedProgramCode(initialProgramCode);
+    }
+    if (initialCompanyName) {
+      const matched = companyOptions.find((c) => companyMatchesName(c.name, initialCompanyName));
+      if (matched) setSelectedCompanyId(matched.id);
+    }
+  }, [initialProgramCode, initialCompanyName, companyOptions]);
+
   // Filtered Items
   const filteredList = useMemo(() => {
     return materiList.filter((item) => {
       const matchProgram = selectedProgramCode === 'ALL' || item.code === selectedProgramCode;
-      const matchCompany = selectedCompanyId === 'ALL' || item.companyId === selectedCompanyId;
+      const matchCompany = selectedCompanyId === 'ALL' || matchesCompanyOption(selectedCompanyId, item);
       const matchType = selectedTypeFilter === 'ALL' || item.assessmentType === selectedTypeFilter;
       const matchLevel = selectedLevelFilter === 'ALL' || item.assessmentLevel === selectedLevelFilter;
       const matchMatType = selectedMatTypeFilter === 'ALL' || item.type === selectedMatTypeFilter;
@@ -564,7 +620,7 @@ export function AdminMasterMateriTree() {
 
       return matchProgram && matchCompany && matchType && matchLevel && matchMatType && matchSearch;
     });
-  }, [materiList, selectedProgramCode, selectedCompanyId, selectedTypeFilter, selectedLevelFilter, selectedMatTypeFilter, searchFilter]);
+  }, [materiList, companyOptions, selectedProgramCode, selectedCompanyId, selectedTypeFilter, selectedLevelFilter, selectedMatTypeFilter, searchFilter]);
 
   // Statistics
   const stats = useMemo(() => {
@@ -579,7 +635,7 @@ export function AdminMasterMateriTree() {
   // Open Create Modal
   const handleOpenCreate = () => {
     setIsCreatingNew(true);
-    const comp = MASTER_COMPANIES.find((c) => c.id === selectedCompanyId) || MASTER_COMPANIES[0];
+    const comp = companyOptions.find((c) => c.id === selectedCompanyId) || companyOptions[0];
     const generatedCode = selectedProgramCode !== 'ALL' ? selectedProgramCode : programs[0]?.id || `${comp.code}-0001`;
     setFormCode(generatedCode);
     setFormTitle('');
@@ -634,7 +690,7 @@ export function AdminMasterMateriTree() {
       return;
     }
 
-    const compObj = MASTER_COMPANIES.find((c) => c.id === formCompanyId);
+    const compObj = companyOptions.find((c) => c.id === formCompanyId);
     const companyName = compObj?.name || 'PT Mitra';
 
     if (isCreatingNew) {
@@ -774,12 +830,12 @@ export function AdminMasterMateriTree() {
   // Company count badge helper
   const getCompanyCount = (companyId: string) => {
     if (companyId === 'ALL') return materiList.length;
-    return materiList.filter((m) => m.companyId === companyId).length;
+    return materiList.filter((m) => matchesCompanyOption(companyId, m)).length;
   };
 
   // Company styling helper
   const getCompanyBadge = (companyId: string) => {
-    const comp = MASTER_COMPANIES.find((c) => c.id === companyId);
+    const comp = companyOptions.find((c) => c.id === companyId);
     if (!comp) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
@@ -859,8 +915,8 @@ export function AdminMasterMateriTree() {
     );
   };
 
-  const companyRows = MASTER_COMPANIES.map((company) => {
-    const modules = materiList.filter((item) => item.companyId === company.id);
+  const companyRows = companyOptions.map((company) => {
+    const modules = materiList.filter((item) => matchesCompanyOption(company.id, item));
     return {
       ...company,
       total: modules.length,
@@ -1066,7 +1122,7 @@ export function AdminMasterMateriTree() {
               </span>
             </button>
 
-            {MASTER_COMPANIES.map((comp) => {
+            {companyOptions.map((comp) => {
               const isSelected = selectedCompanyId === comp.id;
               const count = getCompanyCount(comp.id);
               return (
@@ -1471,7 +1527,7 @@ export function AdminMasterMateriTree() {
                   onChange={(e) => setFormCompanyId(e.target.value)}
                   className="h-9 rounded-xl text-xs font-bold text-primary-navy"
                 >
-                  {MASTER_COMPANIES.map((c) => (
+                  {companyOptions.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>

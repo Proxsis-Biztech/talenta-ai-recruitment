@@ -20,6 +20,11 @@ import {
 } from 'lucide-react';
 import { Button, Badge, Input, Select, Card } from '../ui';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
+import {
+  INITIAL_COMPANIES,
+  loadCompanyDirectory,
+  type CompanyItem
+} from '../../services/companyDirectory';
 
 interface StageItem {
   id: string;
@@ -32,6 +37,7 @@ interface StageItem {
 }
 
 export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
+  const [companies, setCompanies] = useState<CompanyItem[]>(INITIAL_COMPANIES);
   const [programInfo, setProgramInfo] = useState({
     name: 'Asesmen Software Engineer Specialist Batch IV',
     code: 'TLN-SE-2026',
@@ -42,6 +48,16 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
     endDate: '2026-11-15',
     status: 'Draft'
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadCompanyDirectory().then((list) => {
+      if (!cancelled && list.length > 0) setCompanies(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [stages, setStages] = useState<StageItem[]>([
     {
@@ -296,10 +312,14 @@ export function AdminProgramBuilder({ onBack }: { onBack?: () => void }) {
                 onChange={(e) => setProgramInfo({ ...programInfo, pt: e.target.value })}
                 className="h-9 text-xs"
               >
-                <option value="PT Telkom Indonesia Tbk">PT Telkom Indonesia Tbk</option>
-                <option value="Astra International Tbk">Astra International Tbk</option>
-                <option value="Bank Mandiri Tbk">Bank Mandiri Tbk</option>
-                <option value="Pertamina Hulu Energi">Pertamina Hulu Energi</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+                {programInfo.pt && !companies.some((c) => c.name === programInfo.pt) && (
+                  <option value={programInfo.pt}>{programInfo.pt}</option>
+                )}
               </Select>
             </div>
 

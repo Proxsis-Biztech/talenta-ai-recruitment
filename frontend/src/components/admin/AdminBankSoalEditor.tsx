@@ -25,11 +25,26 @@ import {
   Paperclip,
   Brain,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  BookOpen,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import axios from 'axios';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import { getAllPrograms, buildDefaultBankSoal } from '../../services/assessmentCatalog';
+import {
+  INITIAL_COMPANIES,
+  loadCompanyDirectory,
+  companyMatchesName,
+  type CompanyItem
+} from '../../services/companyDirectory';
+import {
+  INITIAL_MATERI_LIST,
+  ASSESSMENT_TYPES,
+  ASSESSMENT_LEVELS,
+  type MasterMateriItem
+} from './AdminMasterMateriTree';
 import {
   Button,
   Badge,
@@ -274,7 +289,8 @@ function QuestionFormFields({
   onUploadAttachment,
   onRemoveAttachment,
   onDelete,
-  headerLabel
+  headerLabel,
+  competencySuggestions = []
 }: {
   question: BankQuestion;
   onChange: (patch: Partial<BankQuestion>) => void;
@@ -284,6 +300,7 @@ function QuestionFormFields({
   onRemoveAttachment?: () => void;
   onDelete?: () => void;
   headerLabel: string;
+  competencySuggestions?: string[];
 }) {
   return (
     <div className="space-y-4 text-xs">
@@ -334,6 +351,38 @@ function QuestionFormFields({
             <option value="Retired">Retired</option>
           </Select>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Input
+          label="Kompetensi / Topik (mengacu Master Materi)"
+          value={question.competency || ''}
+          onChange={(e) => onChange({ competency: e.target.value })}
+          placeholder="Contoh: System Architecture, Credit Risk Analytics, atau pilih dari Master Materi di bawah..."
+          className="h-10 rounded-xl"
+        />
+        {competencySuggestions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-slate-500 font-medium">Dari Master Materi:</span>
+            {competencySuggestions.slice(0, 6).map((comp) => {
+              const active = (question.competency || '').trim().toLowerCase() === comp.toLowerCase();
+              return (
+                <button
+                  key={comp}
+                  type="button"
+                  onClick={() => onChange({ competency: comp })}
+                  className={`px-2 py-0.5 rounded-full text-[11px] border transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-primary-navy text-white border-primary-navy font-semibold'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-primary-navy/50 hover:bg-soft-blue'
+                  }`}
+                >
+                  {comp}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div>
@@ -471,8 +520,43 @@ function QuestionFormFields({
   );
 }
 
-export function AdminBankSoalEditor() {
-  const [viewMode, setViewMode] = useState<'programs' | 'table' | 'editor' | 'stats' | 'factsheet'>('programs');
+export interface AdminBankSoalEditorProps {
+  initialProgramCode?: string;
+  initialCompanyName?: string;
+  initialFocus?: 'materi' | 'bank-soal';
+}
+
+export function AdminBankSoalEditor({
+  initialProgramCode,
+  initialCompanyName,
+  initialFocus
+}: AdminBankSoalEditorProps = {}) {
+  const [viewMode, setViewMode] = useState<'programs' | 'table' | 'editor' | 'stats' | 'factsheet'>(
+    initialProgramCode ? 'table' : 'programs'
+  );
+  const [companies, setCompanies] = useState<CompanyItem[]>(INITIAL_COMPANIES);
+  const [filterCompany, setFilterCompany] = useState<string>(initialCompanyName || 'ALL');
+  const [materiList, setMateriList] = useState<MasterMateriItem[]>(INITIAL_MATERI_LIST);
+  const [showMateriSection, setShowMateriSection] = useState<boolean>(initialFocus === 'materi');
+
+  // Inline Panduan Materi Modal states
+  const [isMateriModalOpen, setIsMateriModalOpen] = useState(false);
+  const [editingMateriId, setEditingMateriId] = useState<string | null>(null);
+  const [matTitle, setMatTitle] = useState('');
+  const [matCategory, setMatCategory] = useState('Panduan Asesmen');
+  const [matCompetency, setMatCompetency] = useState('');
+  const [matType, setMatType] = useState<MasterMateriItem['type']>('Studi Kasus');
+  const [matAssessmentType, setMatAssessmentType] = useState<MasterMateriItem['assessmentType']>(
+    'Technical & Hard Competency'
+  );
+  const [matAssessmentLevel, setMatAssessmentLevel] = useState<MasterMateriItem['assessmentLevel']>(
+    'Level 2: Mid-Level / Professional Specialist'
+  );
+  const [matContent, setMatContent] = useState('');
+  const [matRubric, setMatRubric] = useState('');
+  const [matIndicatorsText, setMatIndicatorsText] = useState('');
+  const [matStatus, setMatStatus] = useState<'Aktif' | 'Draft' | 'Reviu'>('Aktif');
+
   const [activeCategory, setActiveCategory] = useState<QuestionCategory>('psikotes');
   const [typeConfig, setTypeConfig] = useState<CategoryTypeConfig>({});
   const [filterType, setFilterType] = useState('all');
@@ -487,7 +571,39 @@ export function AdminBankSoalEditor() {
 
   // Questions state
   const [programs, setPrograms] = useState(() => getAllPrograms());
-  const [selectedProgramCode, setSelectedProgramCode] = useState(programs[0]?.id || 'SE-402');
+  const [selectedProgramCode, setSelectedProgramCode] = useState(
+    initialProgramCode || programs[0]?.id || 'SE-402'
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadCompanyDirectory().then((list) => {
+      if (!cancelled && list.length > 0) setCompanies(list);
+    });
+    void loadMasterScope<MasterMateriItem[]>('materi')
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.table) && data.table.length > 0) {
+          setMateriList(data.table);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (initialProgramCode) {
+      setSelectedProgramCode(initialProgramCode);
+      setViewMode('table');
+      if (initialFocus === 'materi') {
+        setShowMateriSection(true);
+      }
+    } else if (initialCompanyName) {
+      setFilterCompany(initialCompanyName);
+      setViewMode('programs');
+    }
+  }, [initialProgramCode, initialCompanyName, initialFocus]);
   const [caseFiles, setCaseFiles] = useState<Array<{ name: string; url: string; mime?: string }>>([]);
   const [caseUploading, setCaseUploading] = useState(false);
   const [caseMessage, setCaseMessage] = useState('');
@@ -615,13 +731,17 @@ export function AdminBankSoalEditor() {
     categoryOverride?: QuestionCategory
   ) => {
     const targetCategory = categoryOverride || activeCategory;
+    const defaultCompetency =
+      targetCategory === 'psikotes'
+        ? 'Penalaran Logis & Analitik'
+        : competencySuggestions[0] || 'System Architecture';
     const newQ: BankQuestion = {
       id: createQuestionId(targetCategory),
       category: targetCategory,
       type,
       programCode: selectedProgramCode,
       text: '',
-      competency: targetCategory === 'psikotes' ? 'Penalaran Logis & Analitik' : 'System Architecture',
+      competency: defaultCompetency,
       difficulty: 'Sedang',
       status: 'Published',
       pValue: 0.5,
@@ -843,21 +963,156 @@ export function AdminBankSoalEditor() {
     ).length
   }));
 
-  const programRows = programs.map((program) => {
-    const programQuestions = questions.filter(
-      (question) => (question.programCode || programs[0]?.id || 'SE-402') === program.id
+  const selectedProgramMateri = useMemo(() => {
+    const codeUpper = String(selectedProgramCode || '').toUpperCase();
+    return materiList.filter((m) => String(m.code || '').toUpperCase() === codeUpper);
+  }, [materiList, selectedProgramCode]);
+
+  const persistProgramMateri = (updated: MasterMateriItem[], msg: string) => {
+    setMateriList(updated);
+    void saveMasterRecord('materi', 'table', updated).catch(() => undefined);
+    showToast(msg);
+  };
+
+  const openCreateMateriModal = () => {
+    setEditingMateriId(null);
+    setMatTitle('');
+    setMatCategory('Panduan & Kisi-Kisi Asesmen');
+    setMatCompetency('');
+    setMatType('Studi Kasus');
+    setMatAssessmentType('Technical & Hard Competency');
+    setMatAssessmentLevel('Level 2: Mid-Level / Professional Specialist');
+    setMatContent('');
+    setMatRubric('Skala penilaian BARS 1-5 berdasarkan ketepatan analisis dan kesiapan solusi.');
+    setMatIndicatorsText(
+      'Memahami alur pengerjaan dan struktur soal asesmen\nMampu menjelaskan alasan dan mitigasi risiko secara terstruktur'
     );
-    const psikotesCount = programQuestions.filter((q) => getQuestionCategory(q) === 'psikotes').length;
-    const kompetensiCount = programQuestions.filter((q) => getQuestionCategory(q) === 'kompetensi').length;
-    return {
-      ...program,
-      total: programQuestions.length,
-      psikotesCount,
-      kompetensiCount,
-      published: programQuestions.filter((question) => question.status === 'Published').length,
-      typeCount: new Set(programQuestions.map((question) => question.type)).size
-    };
-  });
+    setMatStatus('Aktif');
+    setIsMateriModalOpen(true);
+  };
+
+  const openEditMateriModal = (item: MasterMateriItem) => {
+    setEditingMateriId(item.id);
+    setMatTitle(item.title);
+    setMatCategory(item.category);
+    setMatCompetency(item.competency || '');
+    setMatType(item.type);
+    setMatAssessmentType(item.assessmentType);
+    setMatAssessmentLevel(item.assessmentLevel);
+    setMatContent(item.content);
+    setMatRubric(item.rubric);
+    setMatIndicatorsText((item.behavioralIndicators || []).join('\n'));
+    setMatStatus(item.status || 'Aktif');
+    setIsMateriModalOpen(true);
+  };
+
+  const handleSaveMateriModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!matTitle.trim()) return;
+    const progObj = programs.find((p) => p.id === selectedProgramCode);
+    const matchedComp = companies.find((c) =>
+      companyMatchesName(c.name, progObj?.companyName || progObj?.title)
+    );
+    const companyName = matchedComp?.name || progObj?.companyName || 'PT Mitra';
+    const companyId = matchedComp?.id || 'PT-GENERAL';
+    const indicators = matIndicatorsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (editingMateriId) {
+      const updated = materiList.map((item) =>
+        item.id === editingMateriId
+          ? {
+              ...item,
+              title: matTitle.trim(),
+              category: matCategory.trim() || 'Panduan Asesmen',
+              competency: matCompetency.trim() || undefined,
+              type: matType,
+              assessmentType: matAssessmentType,
+              assessmentLevel: matAssessmentLevel,
+              content: matContent.trim() || 'Panduan persiapan pengerjaan asesmen.',
+              rubric: matRubric.trim() || 'Skala penilaian BARS 1-5.',
+              behavioralIndicators: indicators,
+              status: matStatus,
+              updatedAt: new Date().toISOString().split('T')[0]
+            }
+          : item
+      );
+      persistProgramMateri(updated, `Panduan materi "${matTitle.trim()}" berhasil diperbarui.`);
+    } else {
+      const newItem: MasterMateriItem = {
+        id: `mat-${Date.now()}`,
+        code: selectedProgramCode,
+        title: matTitle.trim(),
+        category: matCategory.trim() || 'Panduan Asesmen',
+        competency: matCompetency.trim() || undefined,
+        companyId,
+        companyName,
+        assessmentType: matAssessmentType,
+        assessmentLevel: matAssessmentLevel,
+        type: matType,
+        version: 'v1.0',
+        content: matContent.trim() || 'Panduan persiapan pengerjaan asesmen.',
+        rubric: matRubric.trim() || 'Skala penilaian BARS 1-5.',
+        behavioralIndicators:
+          indicators.length > 0 ? indicators : ['Memahami instruksi dan kisi-kisi pengerjaan asesmen'],
+        status: matStatus,
+        updatedAt: new Date().toISOString().split('T')[0]
+      };
+      persistProgramMateri([newItem, ...materiList], `Panduan materi "${newItem.title}" berhasil ditambahkan.`);
+    }
+    setIsMateriModalOpen(false);
+    setShowMateriSection(true);
+  };
+
+  const handleDeleteMateriItem = (item: MasterMateriItem) => {
+    if (!window.confirm(`Hapus panduan materi "${item.title}" dari program ${selectedProgramCode}?`)) return;
+    const updated = materiList.filter((m) => m.id !== item.id);
+    persistProgramMateri(updated, `Panduan materi "${item.title}" dihapus.`);
+  };
+
+  const competencySuggestions = useMemo(() => {
+    const selectedProg = programs.find((p) => p.id === selectedProgramCode);
+    const matchedMateri = materiList.filter(
+      (m) =>
+        m.code === selectedProgramCode ||
+        (selectedProg?.companyName && companyMatchesName(selectedProg.companyName, m.companyName))
+    );
+    const pool = matchedMateri.length > 0 ? matchedMateri : materiList;
+    const items = new Set<string>();
+    for (const m of pool) {
+      if (m.competency) items.add(m.competency);
+      if (m.title) items.add(m.title);
+      if (m.category) items.add(m.category);
+    }
+    return Array.from(items);
+  }, [materiList, programs, selectedProgramCode]);
+
+  const programRows = programs
+    .map((program) => {
+      const programQuestions = questions.filter(
+        (question) => (question.programCode || programs[0]?.id || 'SE-402') === program.id
+      );
+      const psikotesCount = programQuestions.filter((q) => getQuestionCategory(q) === 'psikotes').length;
+      const kompetensiCount = programQuestions.filter((q) => getQuestionCategory(q) === 'kompetensi').length;
+      const materiCount = materiList.filter(
+        (m) => String(m.code || '').toUpperCase() === program.id.toUpperCase()
+      ).length;
+      return {
+        ...program,
+        total: programQuestions.length,
+        psikotesCount,
+        kompetensiCount,
+        materiCount,
+        published: programQuestions.filter((question) => question.status === 'Published').length,
+        typeCount: new Set(programQuestions.map((question) => question.type)).size
+      };
+    })
+    .filter((row) => {
+      if (!filterCompany || filterCompany === 'ALL') return true;
+      return companyMatchesName(filterCompany, row.companyName) || companyMatchesName(filterCompany, row.title);
+    });
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -1050,16 +1305,16 @@ export function AdminBankSoalEditor() {
         <div>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded border border-accent-border">
-              BANK SOAL AI
+              MATERI &amp; BANK SOAL CAT
             </span>
             <Badge variant="navy">
               {viewMode === 'programs'
-                ? `${programRows.reduce((sum, p) => sum + p.total, 0)} Total Soal • ${programRows.length} Program`
-                : `${filtered.length} Butir Soal • ${selectedProgramCode}`}
+                ? `${programRows.reduce((sum, p) => sum + p.total, 0)} Soal • ${programRows.length} Program`
+                : `${filtered.length} Butir Soal • ${selectedProgramMateri.length} Panduan • ${selectedProgramCode}`}
             </Badge>
           </div>
           <h2 className="text-xl font-extrabold font-heading text-ink tracking-tight mt-1">
-            Repositori Bank Soal &amp; Item Analytics
+            Bank Soal &amp; Panduan Materi Asesmen
           </h2>
         </div>
 
@@ -1086,12 +1341,28 @@ export function AdminBankSoalEditor() {
       {/* ─── Program Overview ─── */}
       {viewMode === 'programs' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold text-ink">Bank Soal per Program Asesmen</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Pilih program untuk melihat dan mengelola butir soal CAT.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Filter berdasarkan Perusahaan (PT) atau pilih program untuk mengelola butir soal CAT.</p>
             </div>
-            <Badge variant="navy">{programRows.reduce((sum, program) => sum + program.total, 0)} Total Soal</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-60">
+                <Select
+                  value={filterCompany}
+                  onChange={(e) => setFilterCompany(e.target.value)}
+                  className="h-9 text-xs font-semibold"
+                >
+                  <option value="ALL">Semua Perusahaan (PT)</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <Badge variant="navy">{programRows.reduce((sum, program) => sum + program.total, 0)} Total Soal</Badge>
+            </div>
           </div>
           <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
             <Table>
@@ -1099,10 +1370,11 @@ export function AdminBankSoalEditor() {
                 <TableRow className="bg-slate-50">
                   <TableHead className="w-24">Kode</TableHead>
                   <TableHead>Program Asesmen</TableHead>
+                  <TableHead className="w-28 text-center">Panduan Materi</TableHead>
                   <TableHead className="w-28 text-center">Jumlah Soal</TableHead>
-                  <TableHead className="w-28 text-center">Tipe Soal</TableHead>
-                  <TableHead className="w-28 text-center">Published</TableHead>
-                  <TableHead className="w-32 text-right">Aksi</TableHead>
+                  <TableHead className="w-24 text-center">Tipe Soal</TableHead>
+                  <TableHead className="w-24 text-center">Published</TableHead>
+                  <TableHead className="w-36 text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1112,6 +1384,11 @@ export function AdminBankSoalEditor() {
                     <TableCell>
                       <p className="text-sm font-semibold text-slate-800">{program.title}</p>
                       <p className="text-[11px] text-slate-500">{program.companyName}</p>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={program.materiCount > 0 ? 'teal' : 'neutral'} format="soft">
+                        {program.materiCount} Panduan
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-center">
                       <span className="font-mono font-bold text-slate-700">{program.total}</span>
@@ -1133,7 +1410,7 @@ export function AdminBankSoalEditor() {
                         }}
                         className="text-xs"
                       >
-                        Kelola Soal
+                        Kelola Materi &amp; Soal
                         <ArrowRight className="w-3 h-3 ml-1" />
                       </Button>
                     </TableCell>
@@ -1198,6 +1475,102 @@ export function AdminBankSoalEditor() {
                 </Select>
               </div>
             </div>
+          </div>
+
+          {/* ─── Panduan Materi Asesmen (Panduan Peserta & Kisi-Kisi Program) ─── */}
+          <div id="panduan-materi-section" className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-primary-navy" />
+                  <span>Panduan Materi Asesmen [{selectedProgramCode}]</span>
+                  <Badge variant={selectedProgramMateri.length > 0 ? 'teal' : 'neutral'} format="soft">
+                    {selectedProgramMateri.length} Panduan
+                  </Badge>
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Panduan belajar, kisi-kisi kompetensi, dan rubrik penilaian untuk membantu peserta sebelum mengerjakan asesmen.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="xs"
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={openCreateMateriModal}
+                >
+                  Tambah Panduan Materi
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  rightIcon={showMateriSection ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  onClick={() => setShowMateriSection((prev) => !prev)}
+                >
+                  {showMateriSection ? 'Sembunyikan' : 'Lihat Panduan'}
+                </Button>
+              </div>
+            </div>
+
+            {showMateriSection && (
+              selectedProgramMateri.length === 0 ? (
+                <div className="p-6 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-500">
+                  Belum ada panduan materi untuk program <strong>{selectedProgramCode}</strong>. Klik{' '}
+                  <strong>+ Tambah Panduan Materi</strong> untuk menambahkan panduan pengerjaan bagi peserta.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                  {selectedProgramMateri.map((mat) => (
+                    <div
+                      key={mat.id}
+                      className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2 flex flex-col justify-between"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge variant="navy" format="soft">{mat.type}</Badge>
+                            <Badge variant={mat.status === 'Aktif' ? 'success' : 'neutral'} format="soft">
+                              {mat.status || 'Aktif'}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEditMateriModal(mat)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-primary-navy hover:bg-white cursor-pointer"
+                              title="Edit Panduan"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMateriItem(mat)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white cursor-pointer"
+                              title="Hapus Panduan"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="font-bold text-xs sm:text-sm text-slate-900 leading-snug">{mat.title}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {mat.category}
+                          {mat.competency ? ` • ${mat.competency}` : ''}
+                        </p>
+                        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{mat.content}</p>
+                      </div>
+                      {mat.rubric && (
+                        <div className="pt-2 border-t border-slate-200/80 text-[11px] text-slate-600 line-clamp-1">
+                          <span className="font-semibold text-slate-700">Rubrik:</span> {mat.rubric}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
@@ -1426,6 +1799,7 @@ export function AdminBankSoalEditor() {
                   }
                   onDelete={() => handleDeleteQuestion(q.id)}
                   headerLabel={`Detail Soal #${index + 1}`}
+                  competencySuggestions={competencySuggestions}
                 />
               </div>
             ))}
@@ -1474,6 +1848,7 @@ export function AdminBankSoalEditor() {
                 : undefined
             }
             headerLabel={isEditingExisting ? `Edit Soal: ${activeQuestion.id}` : 'Tambah Butir Soal Baru'}
+            competencySuggestions={competencySuggestions}
           />
         </div>
       )}
@@ -1723,6 +2098,124 @@ export function AdminBankSoalEditor() {
             </Button>
             <Button variant="primary" size="sm" type="submit">
               Simpan Fakta Kunci
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─── MODAL TAMBAH / EDIT PANDUAN MATERI ASESMEN ─── */}
+      <Modal
+        isOpen={isMateriModalOpen}
+        onClose={() => setIsMateriModalOpen(false)}
+        title={
+          editingMateriId
+            ? `Edit Panduan Materi [${selectedProgramCode}]`
+            : `Tambah Panduan Materi [${selectedProgramCode}]`
+        }
+        description="Panduan ini ditampilkan ke peserta sebagai bahan persiapan dan kisi-kisi sebelum mengerjakan asesmen."
+        size="lg"
+      >
+        <form onSubmit={handleSaveMateriModal} className="p-2 space-y-3.5 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Judul Panduan Materi *"
+              value={matTitle}
+              onChange={(e) => setMatTitle(e.target.value)}
+              placeholder="Contoh: Panduan Pengerjaan Uji Kasus Arsitektur Sistem"
+              required
+            />
+            <Input
+              label="Kompetensi Utama"
+              value={matCompetency}
+              onChange={(e) => setMatCompetency(e.target.value)}
+              placeholder="Contoh: System Architecture & Risk Mitigation"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input
+              label="Kategori"
+              value={matCategory}
+              onChange={(e) => setMatCategory(e.target.value)}
+              placeholder="Panduan & Kisi-Kisi Asesmen"
+            />
+            <Select
+              label="Format Panduan"
+              value={matType}
+              onChange={(e) => setMatType(e.target.value as MasterMateriItem['type'])}
+            >
+              <option value="Studi Kasus">Studi Kasus</option>
+              <option value="Teori">Teori</option>
+              <option value="Algoritma">Algoritma</option>
+              <option value="Praktikum">Praktikum</option>
+            </Select>
+            <Select
+              label="Status Publikasi"
+              value={matStatus}
+              onChange={(e) => setMatStatus(e.target.value as 'Aktif' | 'Draft' | 'Reviu')}
+            >
+              <option value="Aktif">Aktif (Tampil ke Peserta)</option>
+              <option value="Draft">Draft</option>
+              <option value="Reviu">Reviu</option>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select
+              label="Jenis Evaluasi"
+              value={matAssessmentType}
+              onChange={(e) => setMatAssessmentType(e.target.value as MasterMateriItem['assessmentType'])}
+            >
+              {ASSESSMENT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Level Asesmen"
+              value={matAssessmentLevel}
+              onChange={(e) => setMatAssessmentLevel(e.target.value as MasterMateriItem['assessmentLevel'])}
+            >
+              {ASSESSMENT_LEVELS.map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {lvl}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <Textarea
+            label="Isi Panduan / Kisi-Kisi Materi *"
+            rows={4}
+            value={matContent}
+            onChange={(e) => setMatContent(e.target.value)}
+            placeholder="Jelaskan ruang lingkup materi, hal yang perlu dipahami peserta, dan tips pengerjaan asesmen..."
+            required
+          />
+
+          <Textarea
+            label="Rubrik Penilaian (Standar Ekspektasi)"
+            rows={2}
+            value={matRubric}
+            onChange={(e) => setMatRubric(e.target.value)}
+            placeholder="Contoh: Skala BARS 1-5 berdasarkan ketepatan analisis dan kelengkapan mitigasi."
+          />
+
+          <Textarea
+            label="Indikator Perilaku / Poin Persiapan (1 baris per poin)"
+            rows={3}
+            value={matIndicatorsText}
+            onChange={(e) => setMatIndicatorsText(e.target.value)}
+            placeholder="Masukkan poin indikator per baris..."
+          />
+
+          <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+            <Button variant="outline" size="sm" type="button" onClick={() => setIsMateriModalOpen(false)}>
+              Batal
+            </Button>
+            <Button variant="primary" size="sm" type="submit" leftIcon={<Save className="w-3.5 h-3.5" />}>
+              Simpan Panduan Materi
             </Button>
           </div>
         </form>

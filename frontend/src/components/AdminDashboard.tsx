@@ -231,6 +231,8 @@ export default function AdminDashboard() {
   const [materiHubTab, setMateriHubTab] = useState<'materi' | 'bank-soal'>(() =>
     new URLSearchParams(window.location.search).get('menu') === 'bank-soal' ? 'bank-soal' : 'materi'
   );
+  const [materiHubProgramCode, setMateriHubProgramCode] = useState<string | undefined>(undefined);
+  const [materiHubCompanyName, setMateriHubCompanyName] = useState<string | undefined>(undefined);
   const [activeMenu, setActiveMenu] = useState<AdminMenuKey>(() => {
     const menu = new URLSearchParams(window.location.search).get('menu');
     if (menu === 'bank-soal') return 'materi';
@@ -241,6 +243,13 @@ export default function AdminDashboard() {
     ];
     return menu && allowed.includes(menu as AdminMenuKey) ? (menu as AdminMenuKey) : 'dashboard';
   });
+
+  useEffect(() => {
+    if (activeMenu !== 'materi' && activeMenu !== 'bank-soal') {
+      setMateriHubProgramCode(undefined);
+      setMateriHubCompanyName(undefined);
+    }
+  }, [activeMenu]);
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [editingApplicant, setEditingApplicant] = useState<Applicant | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -971,8 +980,8 @@ ${app.interviewResult ? `
       dotColor: 'bg-primary-navy'
     },
     materi: {
-      title: 'Master Materi & Bank Soal',
-      subtitle: 'Pengelolaan terpadu materi pembelajaran, silabus kompetensi, dan bank soal CAT',
+      title: 'Materi & Soal',
+      subtitle: 'Pengelolaan terpadu panduan persiapan asesmen (materi) dan bank soal CAT per program',
       short: 'Materi & Soal',
       dotColor: 'bg-primary-navy'
     },
@@ -1099,13 +1108,15 @@ ${app.interviewResult ? `
                     <Button
                       variant="outline"
                       onClick={() => {
+                        setMateriHubProgramCode(undefined);
+                        setMateriHubCompanyName(undefined);
                         setMateriHubTab('bank-soal');
                         setActiveMenu('materi');
                       }}
                       className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs font-bold px-4 py-2.5 rounded-xl backdrop-blur-xs cursor-pointer shadow-xs transition-transform hover:scale-[1.02] flex items-center gap-1.5"
                     >
                       <CheckSquare className="w-4 h-4 text-blue-300" />
-                      Materi &amp; Bank Soal
+                      Materi &amp; Soal
                     </Button>
                     <Button
                       variant="secondary"
@@ -1910,7 +1921,11 @@ ${app.interviewResult ? `
             </div>
           ) : activeMenu === 'materi' || activeMenu === 'bank-soal' ? (
             <div className="animate-fade-in">
-              <AdminMateriSoalHub initialTab={activeMenu === 'bank-soal' ? 'bank-soal' : materiHubTab} />
+              <AdminMateriSoalHub
+                initialTab={activeMenu === 'bank-soal' ? 'bank-soal' : materiHubTab}
+                initialProgramCode={materiHubProgramCode}
+                initialCompanyName={materiHubCompanyName}
+              />
             </div>
           ) : activeMenu === 'organisasi' ? (
             <div className="animate-fade-in">
@@ -1920,8 +1935,16 @@ ${app.interviewResult ? `
             <div className="animate-fade-in">
               <AdminCompanyMatrix
                 onNavigateToPrograms={() => setActiveMenu('jobs')}
-                onNavigateToBankSoal={() => {
+                onNavigateToBankSoal={(programCode, companyName) => {
+                  setMateriHubProgramCode(programCode);
+                  setMateriHubCompanyName(companyName);
                   setMateriHubTab('bank-soal');
+                  setActiveMenu('materi');
+                }}
+                onNavigateToMateri={(programCode, companyName) => {
+                  setMateriHubProgramCode(programCode);
+                  setMateriHubCompanyName(companyName);
+                  setMateriHubTab('materi');
                   setActiveMenu('materi');
                 }}
               />

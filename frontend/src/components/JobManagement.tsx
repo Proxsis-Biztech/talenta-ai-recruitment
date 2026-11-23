@@ -37,6 +37,12 @@ import {
   type MasterMateriItem 
 } from './admin/AdminMasterMateriTree';
 import { loadMasterScope, saveMasterRecord } from '../services/masterDataService';
+import {
+  INITIAL_COMPANIES,
+  loadCompanyDirectory,
+  companyMatchesName,
+  type CompanyItem
+} from '../services/companyDirectory';
 
 interface Job {
   id: string;
@@ -140,6 +146,7 @@ function questionTypeLabel(t: QuestionItem['type']): string {
 
 export default function JobManagement() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [companies, setCompanies] = useState<CompanyItem[]>(INITIAL_COMPANIES);
   const [bankSoalQuestions, setBankSoalQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -148,6 +155,7 @@ export default function JobManagement() {
 
   // Add Job Modal State
   const [showAddModal, setShowAddModal] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
   const [newCode, setNewCode] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -161,6 +169,7 @@ export default function JobManagement() {
 
   // Edit Job Modal State
   const [editingJob, setEditingJob] = useState<Job | null>(null);
+  const [editCompanyName, setEditCompanyName] = useState('');
   const [editCode, setEditCode] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -393,6 +402,24 @@ export default function JobManagement() {
     fetchJobs();
   }, [fetchJobs]);
 
+  const applyCompanyToTitle = (rawTitle: string, companyName: string): string => {
+    const trimmed = rawTitle.trim();
+    if (!companyName) return trimmed;
+    if (companyMatchesName(companyName, trimmed)) return trimmed;
+    const baseTitle = trimmed.replace(/\s*\([^)]+\)\s*$/, '').trim();
+    return `${baseTitle} (${companyName})`;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadCompanyDirectory().then((list) => {
+      if (!cancelled && list.length > 0) setCompanies(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleAddJob = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) {
@@ -403,13 +430,14 @@ export default function JobManagement() {
       setAddError('Deskripsi / job deskripsi wajib diisi.');
       return;
     }
+    const finalTitle = applyCompanyToTitle(newTitle, newCompanyName);
     setAddLoading(true);
     setAddError('');
     try {
       const token = localStorage.getItem('adminToken');
       await axios.post('/api/admin/jobs', {
         code: newCode.trim() ? newCode.trim().toUpperCase() : null,
-        title: newTitle.trim(),
+        title: finalTitle,
         description: newDescription.trim(),
         status: newStatus,
         interviewDuration: newDuration === '' ? null : Number(newDuration),
@@ -421,6 +449,7 @@ export default function JobManagement() {
       });
 
       setShowAddModal(false);
+      setNewCompanyName('');
       setNewCode('');
       setNewTitle('');
       setNewDescription('');
@@ -446,6 +475,8 @@ export default function JobManagement() {
 
   const openEditModal = (job: Job, initialTab: 'profil' | 'soal' | 'materi' = 'profil') => {
     setEditingJob(job);
+    const matchedComp = companies.find((c) => companyMatchesName(c.name, job.title));
+    setEditCompanyName(matchedComp ? matchedComp.name : '');
     setEditCode(job.code || '');
     setEditTitle(job.title);
     setEditDescription(job.description || '');
@@ -608,10 +639,11 @@ export default function JobManagement() {
     setEditLoading(true);
     setEditError('');
     try {
+      const finalEditTitle = applyCompanyToTitle(editTitle, editCompanyName);
       const token = localStorage.getItem('adminToken');
       await axios.put(`/api/admin/jobs/${editingJob.id}`, {
         code: editCode.trim() ? editCode.trim().toUpperCase() : null,
-        title: editTitle.trim(),
+        title: finalEditTitle,
         description: editDescription.trim(),
         status: editStatus,
         interviewDuration: editDuration === '' ? null : Number(editDuration),
@@ -1149,6 +1181,22 @@ export default function JobManagement() {
           )}
 
           <div>
+            <Select
+              label="Perusahaan (PT) Mitra"
+              value={newCompanyName}
+              onChange={(e) => setNewCompanyName(e.target.value)}
+            >
+              <option value="">-- Pilih Perusahaan (atau ketik manual di judul) --</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.name}>
+                  [{c.id}] {c.name}
+                </option>
+              ))}
+            </Select>
+            <p className="text-[11px] text-slate-500 mt-1">Program akan otomatis terhubung ke card Perusahaan (PT) yang dipilih.</p>
+          </div>
+
+          <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">
               Judul Posisi Pekerjaan
             </label>
@@ -1331,6 +1379,27 @@ export default function JobManagement() {
                     <span>{editError}</span>
                   </div>
                 )}
+
+                <div>
+                  <Select
+                    label="Perusahaan (PT) Mitra"
+                    value={editCompanyName}
+                    onChange={(e) => {
+                      const nextPt = e.target.value;
+                      setEditCompanyName(nextPt);
+                      if (nextPt) {
+                        setEditTitle((prev) => applyCompanyToTitle(prev.replace(/\s*\([^)]+\)\s*$/, ''), nextPt));
+                      }
+                    }}
+                  >
+                    <option value="">-- Tanpa PT Khusus / Lainnya --</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        [{c.id}] {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-800 mb-1.5">Judul Posisi Pekerjaan</label>
