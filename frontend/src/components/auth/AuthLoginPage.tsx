@@ -310,19 +310,59 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] w-full relative overflow-hidden bg-gradient-to-br from-[#F2F7FF] via-[#FFFFFF] to-[#EAF1FF] flex items-center justify-center p-4 sm:p-8 lg:p-10 font-sans antialiased">
-      {/* Subtle architectural dot-grid & soft ambient sky/cobalt glows */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-75"
-        style={{
-          backgroundImage: 'radial-gradient(rgba(19, 101, 196, 0.11) 1px, transparent 1px)',
-          backgroundSize: '24px 24px'
-        }}
-      />
-      <div className="pointer-events-none absolute -top-36 -left-24 w-[460px] h-[460px] rounded-full bg-[#93C5FD]/35 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-36 -right-24 w-[500px] h-[500px] rounded-full bg-[#60A5FA]/30 blur-3xl" />
-      <div className="pointer-events-none hidden md:block absolute top-12 right-14 w-28 h-28 rounded-[28px] border border-blue-200/70 bg-white/45 backdrop-blur-xs rotate-[22deg] shadow-xs" />
-      <div className="pointer-events-none hidden md:block absolute bottom-12 left-14 w-24 h-24 rounded-[24px] border border-sky-200/75 bg-white/45 backdrop-blur-xs -rotate-[18deg] shadow-xs" />
+    <div className="min-h-[100dvh] w-full relative overflow-hidden bg-[#F8FAFD] flex items-center justify-center p-4 sm:p-8 lg:p-10 font-sans antialiased">
+      {/* Subtle Topographic Contour Line Waves on Crisp Off-White Canvas */}
+      <svg
+        className="pointer-events-none absolute inset-0 w-full h-full"
+        viewBox="0 0 1440 900"
+        preserveAspectRatio="xMidYMid slice"
+        fill="none"
+        aria-hidden="true"
+      >
+        {/* Top-left topographic contour cluster */}
+        <g stroke="#CBD8EA" strokeWidth="1.25" opacity="0.85">
+          <path d="M-40 260 C 90 250, 175 180, 215 100 C 245 40, 285 -15, 360 -40" />
+          <path d="M-40 220 C 72 212, 145 152, 180 82 C 206 30, 240 -15, 305 -40" />
+          <path d="M-40 182 C 55 174, 118 124, 148 64 C 170 20, 198 -16, 252 -40" />
+          <path d="M-40 144 C 38 136, 90 96, 115 48 C 133 12, 156 -18, 200 -40" />
+          <path d="M-40 106 C 22 98, 64 68, 84 30 C 98 4, 115 -20, 150 -40" />
+          <path d="M-40 300 C 110 288, 208 210, 252 120 C 288 48, 336 -10, 420 -40" />
+          <path d="M-40 342 C 132 328, 242 242, 290 142 C 330 58, 388 -6, 482 -40" />
+        </g>
+
+        {/* Top-right topographic contour cluster */}
+        <g stroke="#CBD8EA" strokeWidth="1.25" opacity="0.85">
+          <path d="M1110 -40 C 1135 55, 1105 140, 1175 210 C 1238 272, 1345 278, 1480 315" />
+          <path d="M1155 -40 C 1175 45, 1150 120, 1212 182 C 1266 236, 1362 242, 1480 274" />
+          <path d="M1200 -40 C 1216 35, 1196 100, 1250 154 C 1296 200, 1378 206, 1480 232" />
+          <path d="M1246 -40 C 1258 25, 1242 80, 1288 126 C 1326 164, 1396 170, 1480 190" />
+          <path d="M1292 -40 C 1300 15, 1288 60, 1326 98 C 1356 128, 1412 134, 1480 148" />
+          <path d="M1065 -40 C 1094 68, 1062 162, 1138 238 C 1210 310, 1328 316, 1480 356" />
+          <path d="M1020 -40 C 1052 80, 1018 184, 1102 268 C 1180 346, 1310 354, 1480 398" />
+        </g>
+
+        {/* Bottom-left topographic contour cluster */}
+        <g stroke="#CBD8EA" strokeWidth="1.25" opacity="0.85">
+          <path d="M-40 520 C 75 555, 185 552, 232 628 C 278 702, 250 810, 325 940" />
+          <path d="M-40 562 C 62 592, 156 590, 198 656 C 238 720, 214 818, 278 940" />
+          <path d="M-40 604 C 48 630, 128 628, 164 685 C 198 738, 178 826, 232 940" />
+          <path d="M-40 646 C 35 668, 100 666, 130 714 C 158 758, 142 834, 186 940" />
+          <path d="M-40 688 C 22 706, 72 704, 96 742 C 118 776, 106 842, 140 940" />
+          <path d="M-40 478 C 88 518, 214 514, 266 600 C 318 686, 286 802, 372 940" />
+          <path d="M-40 436 C 102 480, 242 476, 300 572 C 358 668, 322 794, 420 940" />
+        </g>
+
+        {/* Bottom-right topographic contour cluster */}
+        <g stroke="#CBD8EA" strokeWidth="1.25" opacity="0.85">
+          <path d="M980 940 C 1025 835, 1095 790, 1185 758 C 1278 725, 1335 640, 1480 575" />
+          <path d="M1030 940 C 1070 848, 1132 808, 1212 780 C 1294 750, 1346 675, 1480 618" />
+          <path d="M1080 940 C 1115 860, 1170 826, 1240 802 C 1312 776, 1358 712, 1480 662" />
+          <path d="M1130 940 C 1160 874, 1208 844, 1268 824 C 1330 802, 1370 748, 1480 706" />
+          <path d="M1180 940 C 1205 888, 1246 862, 1296 846 C 1348 828, 1384 785, 1480 750" />
+          <path d="M930 940 C 980 822, 1058 770, 1158 734 C 1260 698, 1322 604, 1480 532" />
+          <path d="M880 940 C 935 808, 1020 750, 1130 710 C 1242 670, 1308 568, 1480 488" />
+        </g>
+      </svg>
 
       {/* Centered Two-Column Card */}
       <div className="relative z-10 w-full max-w-[1040px] bg-white rounded-[24px] border border-blue-100/90 shadow-[0_28px_72px_-16px_rgba(11,70,134,0.18)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 lg:min-h-[610px]">
