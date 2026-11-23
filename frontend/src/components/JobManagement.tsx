@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import { downloadCsvFile } from '../utils/csvExport';
 import { 
   Trash2, Briefcase, Plus, Edit2, AlertCircle, Clock, 
   Target, Search, RefreshCw, Building2,
   BookOpen, Layers, CheckCircle2, Eye, HelpCircle, Check, 
-  X, Filter, SlidersHorizontal, ListOrdered, Award, ShieldCheck, 
-  ChevronRight, FileText, Download, Database, Info, FileSpreadsheet
+  X, Filter, Award, ShieldCheck, 
+  ChevronRight, FileText, Info
 } from 'lucide-react';
 import {
   Card,
@@ -26,8 +25,6 @@ import {
 import { 
   DEFAULT_ASSESSMENT_PROGRAMS, 
   findProgramByTitle, 
-  upsertProgram,
-  getAllPrograms,
   buildDefaultBankSoal,
   type AssessmentProgram, 
   type QuestionItem 
@@ -36,7 +33,7 @@ import {
   INITIAL_MATERI_LIST, 
   type MasterMateriItem 
 } from './admin/AdminMasterMateriTree';
-import { loadMasterScope, saveMasterRecord } from '../services/masterDataService';
+import { loadMasterScope } from '../services/masterDataService';
 import {
   INITIAL_COMPANIES,
   loadCompanyDirectory,
@@ -181,25 +178,6 @@ export default function JobManagement() {
   const [editError, setEditError] = useState('');
   const [editLoading, setEditLoading] = useState(false);
 
-  // Edit Tab State: Konfigurasi + Bank Soal + Materi (use case edit lengkap)
-  const [editTab, setEditTab] = useState<'profil' | 'soal' | 'materi'>('profil');
-  const [editQuestions, setEditQuestions] = useState<QuestionItem[]>([]);
-  const [editMaterials, setEditMaterials] = useState<MasterMateriItem[]>([]);
-  const [originalQuestions, setOriginalQuestions] = useState<QuestionItem[]>([]);
-  const [originalMaterials, setOriginalMaterials] = useState<MasterMateriItem[]>([]);
-  const [editingQId, setEditingQId] = useState<number | null>(null);
-  const [editingMatId, setEditingMatId] = useState<string | null>(null);
-  const [editQSearch, setEditQSearch] = useState('');
-
-  // Import dari Bank Soal Panel State
-  const [showImportPanel, setShowImportPanel] = useState(false);
-  const [importSourceProgramId, setImportSourceProgramId] = useState('');
-  const [importTypeFilter, setImportTypeFilter] = useState('ALL');
-  const [importMode, setImportMode] = useState<'append' | 'replace'>('append');
-  const [importFeedback, setImportFeedback] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
-  const allProgramsList = useMemo(() => getAllPrograms(), []);
-
-
   // Details Modal State (Soal, Materi, Rubrik)
   const [selectedJobDetail, setSelectedJobDetail] = useState<{
     job: Job;
@@ -214,21 +192,37 @@ export default function JobManagement() {
   const [qDiffFilter, setQDiffFilter] = useState('ALL');
 
   const getBankQuestionCountForJob = useCallback((job: Job) => {
-    const programCode = job.code || findProgramByTitle(job.title, job.id).id;
-    const count = bankSoalQuestions.filter((question) => (question.programCode || 'SE-402') === programCode).length;
-    return count > 0 ? count : 40;
+    const program = findProgramByTitle(job.title, job.id);
+    const programCode = (job.code || program.id).toUpperCase();
+    const count = bankSoalQuestions.filter(
+      (question) => (question.programCode || 'SE-402').toUpperCase() === programCode
+    ).length;
+    if (count > 0) return count;
+    return program.questions?.length || 0;
   }, [bankSoalQuestions]);
 
-  const getMaterialsForJob = useCallback((job: Job): MasterMateriItem[] => {
-    // 1) Edit khusus per formasi (dari modal Ubah) selalu menang
+  const getMaterialsForJob = useCallback((job: Job, materiPool?: MasterMateriItem[]): MasterMateriItem[] => {
+    const program = findProgramByTitle(job.title, job.id);
+    const programCode = (job.code || program.id).toUpperCase();
+
+    // 1) Utamakan Panduan Materi dari menu Materi & Soal yang cocok dengan Kode Program Asesmen
+    const masterList = materiPool && materiPool.length > 0
+      ? materiPool
+      : (serverMateri.length > 0 ? serverMateri : getPersistedMasterMateri());
+
+    const byProgramCode = masterList.filter(
+      (m) => String(m.code || '').toUpperCase() === programCode
+    );
+    if (byProgramCode.length > 0) return byProgramCode;
+
+    // 2) Override khusus per formasi bila tersedia
     const overrides = { ...serverMateriOverrides, ...getJobMateriOverrides() };
     if (overrides[job.id]?.length) return overrides[job.id];
 
-    // 2) Master materi yang tersimpan — termasuk hasil edit di menu Master Materi,
-    //    supaya kedua menu selalu menampilkan data yang sama (use case tersambung).
-    const masterList = serverMateri.length > 0 ? serverMateri : getPersistedMasterMateri();
+    // 3) Fallback kecocokan nama PT
     const titleLower = job.title.toLowerCase();
-    const matched = masterList.filter(m => {
+    const matched = masterList.filter((m) => {
+      if (m.companyName && companyMatchesName(m.companyName, job.title)) return true;
       if (titleLower.includes('telkom') && m.companyId === 'PT-TELKOM') return true;
       if (titleLower.includes('mandiri') && m.companyId === 'PT-MANDIRI') return true;
       if (titleLower.includes('cimb') && m.companyId === 'PT-CIMB') return true;
@@ -239,13 +233,13 @@ export default function JobManagement() {
 
     if (matched.length > 0) return matched;
 
-    // Resilient fallback custom module for dynamic/custom jobs
+    // 4) Resilient fallback custom module for dynamic/custom jobs
     const company = job.title.includes('(') ? job.title.split('(')[1].replace(')', '').trim() : 'Enterprise Partner';
     return [
       {
         id: `mat-${job.id}-1`,
-        code: `MOD-${job.id.substring(0, 5).toUpperCase()}`,
-        title: `Silabus Teknis & Uji Studi Kasus: ${job.title}`,
+        code: job.code || `MOD-${job.id.substring(0, 5).toUpperCase()}`,
+        title: `Panduan & Kisi-Kisi Asesmen: ${job.title}`,
         category: 'Kompetensi Inti & Terapan',
         subcategory: 'Standar Operasional & Rekayasa Arsitektur Enterprise',
         competency: 'System Resilience, Problem Solving & Business Alignment',
@@ -255,7 +249,7 @@ export default function JobManagement() {
         assessmentLevel: 'Level 3: Senior / Lead Specialist',
         type: 'Studi Kasus',
         version: 'v2.5',
-        content: job.description + ' Pengujian mengukur ketepatan logika, optimasi resource komputasi, penanganan anomali data, dan kepatuhan prosedur operasional standar.',
+        content: job.description || 'Panduan persiapan pengerjaan asesmen sesuai kompetensi posisi.',
         rubric: `Standar penilaian skala BARS 1-5 dengan ambang kelulusan minimum ${job.interviewPassingScore || 75}%. Penilaian mengevaluasi pemahaman konsep, artikulasi trade-off teknis, dan kesiapan mitigasi risiko di lingkungan live.`,
         behavioralIndicators: [
           `Mampu merancang dan menganalisis solusi teknis untuk formasi ${job.title}`,
@@ -283,6 +277,22 @@ export default function JobManagement() {
       .catch(() => {
         setBankSoalQuestions(buildDefaultBankSoal());
       });
+
+    loadMasterScope<MasterMateriItem[]>('materi')
+      .then((data) => {
+        if (Array.isArray(data?.table) && data.table.length > 0) {
+          setServerMateri(data.table);
+        }
+      })
+      .catch(() => undefined);
+
+    loadMasterScope<MasterMateriItem[]>('job-materi')
+      .then((data) => {
+        if (data && typeof data === 'object') {
+          setServerMateriOverrides(data as Record<string, MasterMateriItem[]>);
+        }
+      })
+      .catch(() => undefined);
   }, []);
 
   const mapBankQuestion = (question: any, index: number): QuestionItem => {
@@ -314,23 +324,52 @@ export default function JobManagement() {
     } as unknown as QuestionItem;
   };
 
-  const handleOpenDetailModal = (job: Job) => {
+  const handleOpenDetailModal = async (job: Job, initialTab: 'soal' | 'materi' | 'rubrik' = 'soal') => {
     const program = findProgramByTitle(job.title, job.id);
-    let programQuestions = bankSoalQuestions
-      .filter((question) => (question.programCode || 'SE-402') === program.id)
+    const programCode = (job.code || program.id).toUpperCase();
+
+    let latestQuestions = bankSoalQuestions;
+    let latestMateri = serverMateri;
+    try {
+      const [bankData, materiData] = await Promise.all([
+        loadMasterScope<any>('bank-soal'),
+        loadMasterScope<MasterMateriItem[]>('materi')
+      ]);
+      if (Array.isArray(bankData?.questions) && bankData.questions.length > 0) {
+        const defaults = buildDefaultBankSoal();
+        const existingCodes = new Set(bankData.questions.map((q: any) => q.programCode));
+        const missing = defaults.filter((q) => !existingCodes.has(q.programCode));
+        latestQuestions = missing.length > 0 ? [...bankData.questions, ...missing] : bankData.questions;
+        setBankSoalQuestions(latestQuestions);
+      }
+      if (Array.isArray(materiData?.table) && materiData.table.length > 0) {
+        latestMateri = materiData.table;
+        setServerMateri(latestMateri);
+      }
+    } catch {
+      // fallback to currently loaded state
+    }
+
+    let programQuestions = latestQuestions
+      .filter((question) => (question.programCode || 'SE-402').toUpperCase() === programCode)
       .map(mapBankQuestion);
-    if (programQuestions.length === 0 && program.questions && program.questions.length > 0) {
+    if (programQuestions.length === 0 && !job.code && program.questions && program.questions.length > 0) {
       programQuestions = program.questions;
     }
     const questionsWithMeta = programQuestions.map((q, idx) => ({
       ...q,
-      questionCode: q.questionCode || `SOAL-${program.id}-${String(q.id || idx + 1).padStart(2, '0')}`,
-      sourceBank: q.sourceBank || `Master Bank Soal CAT [${program.id} • ${program.companyName || 'Formasi'}]`
+      questionCode: q.questionCode || `SOAL-${programCode}-${String(q.id || idx + 1).padStart(2, '0')}`,
+      sourceBank: q.sourceBank || `Bank Soal CAT [${programCode} • ${program.companyName || 'Program'}]`
     }));
-    const detailProgram = { ...program, questions: questionsWithMeta };
-    const materials = getMaterialsForJob(job);
+    const matchedPt = companies.find((c) => companyMatchesName(c.name, job.title));
+    const resolvedCompany =
+      matchedPt?.name ||
+      (job.title.includes('(') ? job.title.split('(').slice(-1)[0].replace(')', '').trim() : '') ||
+      program.companyName;
+    const detailProgram = { ...program, id: programCode, companyName: resolvedCompany, questions: questionsWithMeta };
+    const materials = getMaterialsForJob(job, latestMateri);
     setSelectedJobDetail({ job, program: detailProgram, materials });
-    setDetailTab('soal');
+    setDetailTab(initialTab);
     setQSearch('');
     setQTypeFilter('ALL');
     setQDiffFilter('ALL');
@@ -473,7 +512,7 @@ export default function JobManagement() {
     }
   };
 
-  const openEditModal = (job: Job, initialTab: 'profil' | 'soal' | 'materi' = 'profil') => {
+  const openEditModal = (job: Job) => {
     setEditingJob(job);
     const matchedComp = companies.find((c) => companyMatchesName(c.name, job.title));
     setEditCompanyName(matchedComp ? matchedComp.name : '');
@@ -486,147 +525,6 @@ export default function JobManagement() {
     setEditAssessmentDate(job.assessmentDate ? job.assessmentDate.slice(0, 10) : '');
     setEditAssessmentEndDate(job.assessmentEndDate ? job.assessmentEndDate.slice(0, 10) : '');
     setEditError('');
-
-    // Muat soal & materi untuk formasi ini sehingga aksi Ubah bisa melihat dan menyunting konten yang terintegrasi.
-    const program = findProgramByTitle(job.title, job.id);
-    const questionsWithMeta = (program.questions || []).map((q, idx) => ({
-      ...q,
-      questionCode: q.questionCode || `SOAL-${program.id}-${String(q.id || idx + 1).padStart(2, '0')}`,
-      sourceBank: q.sourceBank || `Master Bank Soal CAT [${program.id} • ${program.companyName || 'Formasi'}]`
-    }));
-    setEditQuestions(JSON.parse(JSON.stringify(questionsWithMeta)) as QuestionItem[]);
-    setOriginalQuestions(JSON.parse(JSON.stringify(questionsWithMeta)) as QuestionItem[]);
-    setEditMaterials(JSON.parse(JSON.stringify(getMaterialsForJob(job))) as MasterMateriItem[]);
-    setOriginalMaterials(JSON.parse(JSON.stringify(getMaterialsForJob(job))) as MasterMateriItem[]);
-    setEditTab(initialTab);
-    setEditingQId(null);
-    setEditingMatId(null);
-    setEditQSearch('');
-    setShowImportPanel(false);
-    setImportSourceProgramId(program.id);
-    setImportTypeFilter('ALL');
-    setImportMode('append');
-    setImportFeedback(null);
-  };
-
-  const availableBankQuestionsForImport = useMemo(() => {
-    if (!importSourceProgramId) return [];
-    const sourceQuestions = bankSoalQuestions
-      .filter((q) => (q.programCode || 'SE-402') === importSourceProgramId)
-      .map(mapBankQuestion);
-    if (sourceQuestions.length > 0) return sourceQuestions;
-    const fallbackProg = allProgramsList.find((p) => p.id === importSourceProgramId);
-    return fallbackProg?.questions || [];
-  }, [importSourceProgramId, bankSoalQuestions, allProgramsList]);
-
-  const countByImportType = useMemo(() => {
-    const counts: Record<string, number> = { single: 0, multi: 0, short: 0, essay: 0, matching: 0 };
-    availableBankQuestionsForImport.forEach((q) => {
-      if (counts[q.type] !== undefined) counts[q.type]++;
-    });
-    return counts;
-  }, [availableBankQuestionsForImport]);
-
-  const filteredImportQuestions = useMemo(() => {
-    if (importTypeFilter === 'ALL') return availableBankQuestionsForImport;
-    return availableBankQuestionsForImport.filter((q) => q.type === importTypeFilter);
-  }, [availableBankQuestionsForImport, importTypeFilter]);
-
-  const handleExecuteImport = async () => {
-    if (!editingJob || filteredImportQuestions.length === 0) return;
-    const program = findProgramByTitle(editTitle.trim() || editingJob.title, editingJob.id);
-
-    const sourceProg = allProgramsList.find((p) => p.id === importSourceProgramId);
-    const sourceLabel = sourceProg
-      ? `Bank Soal CAT [${sourceProg.id} • ${sourceProg.companyName}]`
-      : `Master Bank Soal CAT [${importSourceProgramId}]`;
-
-    let nextList: QuestionItem[] = [];
-    if (importMode === 'replace') {
-      nextList = filteredImportQuestions.map((q, idx) => ({
-        ...q,
-        id: idx + 1,
-        questionCode: q.questionCode || `SOAL-${importSourceProgramId}-${String(idx + 1).padStart(2, '0')}`,
-        sourceBank: sourceLabel
-      }));
-    } else {
-      const existingTexts = new Set(editQuestions.map((q) => q.text.trim().toLowerCase()));
-      const toAdd = filteredImportQuestions
-        .filter((q) => !existingTexts.has(q.text.trim().toLowerCase()))
-        .map((q, idx) => ({
-          ...q,
-          questionCode: q.questionCode || `SOAL-${importSourceProgramId}-${String(editQuestions.length + idx + 1).padStart(2, '0')}`,
-          sourceBank: sourceLabel
-        }));
-      if (toAdd.length === 0) {
-        setImportFeedback({
-          type: 'info',
-          message: `Semua butir soal bertipe "${importTypeFilter === 'ALL' ? 'Semua Tipe' : questionTypeLabel(importTypeFilter as any)}" dari program sumber sudah ada pada formasi ini.`
-        });
-        return;
-      }
-      nextList = [...editQuestions, ...toAdd].map((q, idx) => ({ ...q, id: idx + 1 }));
-    }
-
-    setEditQuestions(nextList);
-    try {
-      await syncQuestionsToServer(program.id, nextList);
-      setImportFeedback({
-        type: 'success',
-        message: `Berhasil mengimpor ${importMode === 'replace' ? nextList.length : (nextList.length - editQuestions.length)} butir soal (${importTypeFilter === 'ALL' ? 'Semua Tipe' : questionTypeLabel(importTypeFilter as any)}). Total ${nextList.length} soal aktif.`
-      });
-      setShowImportPanel(false);
-    } catch {
-      setImportFeedback({
-        type: 'error',
-        message: 'Soal berhasil dimuat ke editor, tetapi sinkronisasi ke server mengalami kendala.'
-      });
-    }
-  };
-
-  const handleDownloadQuestionTemplate = () => {
-    const headers = ['No', 'Tipe_Soal', 'Kompetensi', 'Tingkat_Kesulitan', 'Bobot', 'Teks_Pertanyaan', 'Opsi_A', 'Opsi_B', 'Opsi_C', 'Opsi_D', 'Kunci_Jawaban', 'Penjelasan_Rasional'];
-    const rows = [
-      ['1', 'single', 'System & Problem Solving', 'Sulit', '3.5', '[PT Astra International Tbk] Dalam skenario arsitektur Corporate Finance & M&A Strategic Analyst, manakah strategi optimal untuk menangani lonjakan transaksi?', 'Menerapkan asynchronous event-driven queue dengan backpressure handling dan distributed mutex.', 'Memproses seluruh query secara synchronous langsung ke database tanpa caching.', 'Menonaktifkan audit trail logging untuk menghemat memori.', 'Membatasi koneksi peramban secara statis tanpa retry otomatis.', 'A', 'Penerapan queue asinkron dengan backpressure dan distributed mutex lock mencegah thread starvation.'],
-      ['2', 'multi', 'Data Integrity & Optimization', 'Sulit', '4.0', 'Pilihlah DUA prinsip utama dalam menjamin konsistensi data transaksi finansial pada sistem berskala terdistribusi:', 'Penerapan Transactional Outbox Pattern dan Idempotent Consumer.', 'Penggunaan Read Committed Isolation Level dengan locking terukur.', 'Menonaktifkan database indexing selama jam transaksi puncak.', 'Menyimpan seluruh payload transaksi sensitif tanpa enkripsi.', 'A,B', 'Outbox pattern dan idempotency menjamin tidak ada duplikasi pemrosesan pada arsitektur terdistribusi.'],
-      ['3', 'short', 'Financial Architecture', 'Sedang', '3.0', 'Sebutkan protokol audit trail finansial terstandar yang menjamin immutability catatan transaksi pada sistem modern:', '', '', '', '', 'SHA-256 / Append-Only Ledger', 'Append-only ledger ber-hash kriptografis menjamin integritas catatan audit.']
-    ];
-
-    const escapeCsv = (val: string) => `"${(val || '').replace(/"/g, '""')}"`;
-    const csvContent = [
-      headers.map(escapeCsv).join(','),
-      ...rows.map((r) => r.map(escapeCsv).join(','))
-    ].join('\r\n');
-
-    downloadCsvFile(
-      csvContent,
-      `Template_Bank_Soal_CAT_${(editingJob?.code || 'Formasi').replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`
-    );
-  };
-
-  const syncQuestionsToServer = async (programCode: string, questions: QuestionItem[]) => {
-    const token = localStorage.getItem('adminToken');
-    const payload = questions.map((question) => {
-      const options = question.options || [];
-      let correctAnswer: unknown = null;
-      if (question.type === 'single') correctAnswer = options.find((option) => option.isCorrect)?.key ?? null;
-      else if (question.type === 'multi') correctAnswer = options.filter((option) => option.isCorrect).map((option) => option.key);
-      else if (question.type === 'short') correctAnswer = options[0]?.label ?? null;
-      else if (question.type === 'matching') correctAnswer = question.matchingPairs || [];
-      return {
-        type: question.type,
-        text: question.text,
-        competency: question.competency,
-        difficulty: question.difficulty,
-        options,
-        matchingPairs: question.matchingPairs || [],
-        correctAnswer,
-        points: 1
-      };
-    });
-    await axios.post(`/api/admin/programs/${programCode}/questions/sync`, { questions: payload }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
   };
 
   const handleUpdateJob = async (e: React.FormEvent) => {
@@ -654,27 +552,12 @@ export default function JobManagement() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Persist bank soal ke katalog asesmen (langsung dipakai lembar ujian CAT
-      // peserta & menu Lihat Soal & Materi) dan materi ke override per formasi.
-      try {
-        const program = findProgramByTitle(editTitle.trim(), editingJob.id);
-        const programCode = editingJob.code || program.id;
-        upsertProgram({ ...program, id: programCode, questions: editQuestions, totalQuestions: editQuestions.length });
-        await syncQuestionsToServer(programCode, editQuestions);
-        const overrides = getJobMateriOverrides();
-        overrides[editingJob.id] = editMaterials;
-        localStorage.setItem(MATERI_OVERRIDES_KEY, JSON.stringify(overrides));
-        void saveMasterRecord('job-materi', editingJob.id, editMaterials);
-      } catch (persistErr) {
-        console.warn('Gagal menyimpan edit soal/materi formasi:', persistErr);
-      }
-
       setEditingJob(null);
       Swal.fire({
         icon: 'success',
-        title: 'Formasi Diperbarui',
-        text: 'Konfigurasi, bank soal CAT, dan silabus materi diperbarui. Perubahan langsung berlaku di portal peserta.',
-        timer: 2200,
+        title: 'Program Asesmen Diperbarui',
+        text: 'Konfigurasi program asesmen berhasil disimpan.',
+        timer: 2000,
         showConfirmButton: false
       });
       fetchJobs();
@@ -685,86 +568,7 @@ export default function JobManagement() {
     }
   };
 
-  // ─── Handler edit bank soal & materi (tab di modal Ubah) ───
-  const updateEditQuestion = (qid: number, patch: Partial<QuestionItem>) => {
-    setEditQuestions((prev) => prev.map((q) => (q.id === qid ? { ...q, ...patch } : q)));
-  };
-
-  const updateEditOption = (qid: number, optKey: string, patch: { label?: string; isCorrect?: boolean }, exclusive = false) => {
-    setEditQuestions((prev) => prev.map((q) => {
-      if (q.id !== qid || !q.options) return q;
-      return {
-        ...q,
-        options: q.options.map((o) => {
-          if (o.key === optKey) return { ...o, ...patch };
-          if (exclusive && patch.isCorrect) return { ...o, isCorrect: false };
-          return o;
-        }),
-      };
-    }));
-  };
-
-  const handleAddQuestion = () => {
-    const nextId = editQuestions.reduce((max, q) => Math.max(max, q.id), 0) + 1;
-    const progCode = editingJob?.code || 'CAT';
-    setEditQuestions((prev) => [
-      ...prev,
-      {
-        id: nextId,
-        questionCode: `SOAL-${progCode}-${String(nextId).padStart(2, '0')}`,
-        sourceBank: `Master Bank Soal CAT [${progCode}]`,
-        type: 'single',
-        competency: 'Umum',
-        difficulty: 'Sedang',
-        text: '',
-        options: [
-          { key: 'A', label: '', isCorrect: true },
-          { key: 'B', label: '' },
-          { key: 'C', label: '' },
-          { key: 'D', label: '' },
-        ],
-      },
-    ]);
-    setEditingQId(nextId);
-  };
-
-  const handleDeleteQuestion = (qid: number) => {
-    setEditQuestions((prev) => prev.filter((q) => q.id !== qid));
-    if (editingQId === qid) setEditingQId(null);
-  };
-
-  const resetQuestionToOriginal = (qid: number) => {
-    const original = originalQuestions.find((oq) => oq.id === qid);
-    if (!original) return;
-    setEditQuestions((prev) => prev.map((q) => (q.id === qid ? (JSON.parse(JSON.stringify(original)) as QuestionItem) : q)));
-    setEditingQId(null);
-  };
-
-  const updateEditMaterial = (mid: string, patch: Partial<MasterMateriItem>) => {
-    setEditMaterials((prev) => prev.map((m) => (m.id === mid ? { ...m, ...patch } : m)));
-  };
-
-  const resetMaterialToOriginal = (mid: string) => {
-    const original = originalMaterials.find((om) => om.id === mid);
-    if (!original) return;
-    setEditMaterials((prev) => prev.map((m) => (m.id === mid ? (JSON.parse(JSON.stringify(original)) as MasterMateriItem) : m)));
-    setEditingMatId(null);
-  };
-
-  const editVisibleQuestions = useMemo(() => {
-    if (!editQSearch) return editQuestions;
-    const t = editQSearch.toLowerCase();
-    return editQuestions.filter(
-      (q) =>
-        q.text.toLowerCase().includes(t) ||
-        q.competency.toLowerCase().includes(t) ||
-        (q.explanation || '').toLowerCase().includes(t) ||
-        (q.questionCode || '').toLowerCase().includes(t) ||
-        (q.sourceBank || '').toLowerCase().includes(t)
-    );
-  }, [editQuestions, editQSearch]);
-
-  // Distribusi tipe soal dinamis (dipakai ribbon pada modal Lihat Soal & Materi)
+  // Distribusi tipe soal dinamis (dipakai ribbon pada modal Detail Program)
   const detailQuestionCounts = useMemo(() => {
     const qs = selectedJobDetail?.program.questions ?? [];
     return {
@@ -1016,21 +820,21 @@ export default function JobManagement() {
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <button
                           type="button"
-                          onClick={() => openEditModal(job, 'soal')}
+                          onClick={() => void handleOpenDetailModal(job, 'soal')}
                           className="inline-flex items-center gap-1 text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition-colors cursor-pointer"
-                          title="Buka Bank Soal pada Formasi ini"
+                          title="Lihat detail Soal CAT pada Program ini"
                         >
                           <BookOpen className="w-3 h-3 text-blue-600" />
                           {getBankQuestionCountForJob(job)} Soal CAT
                         </button>
                         <button
                           type="button"
-                          onClick={() => openEditModal(job, 'materi')}
+                          onClick={() => void handleOpenDetailModal(job, 'materi')}
                           className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 transition-colors cursor-pointer"
-                          title="Buka Silabus & Materi pada Formasi ini"
+                          title="Lihat detail Panduan Materi pada Program ini"
                         >
                           <Layers className="w-3 h-3 text-emerald-600" />
-                          Silabus & Rubrik BARS
+                          {getMaterialsForJob(job).length} Panduan Materi
                         </button>
                       </div>
                     </div>
@@ -1085,12 +889,20 @@ export default function JobManagement() {
                 <TableCell className="text-right">
                   <div className="inline-flex items-center gap-1.5">
                     <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => void handleOpenDetailModal(job)}
+                      leftIcon={<Eye className="w-3 h-3" />}
+                    >
+                      <span className="hidden sm:inline">Detail</span>
+                    </Button>
+                    <Button
                       variant="secondary"
                       size="xs"
                       onClick={() => openEditModal(job)}
                       leftIcon={<Edit2 className="w-3 h-3" />}
                     >
-                      <span className="hidden sm:inline">Ubah</span>
+                      <span className="hidden sm:inline">Edit</span>
                     </Button>
                     <Button
                       variant="danger"
@@ -1142,13 +954,22 @@ export default function JobManagement() {
             </div>
             <div className="flex items-center gap-2 pt-1">
               <Button
+                variant="outline"
+                size="xs"
+                onClick={() => void handleOpenDetailModal(job)}
+                leftIcon={<Eye className="w-3 h-3" />}
+                className="flex-1"
+              >
+                Detail
+              </Button>
+              <Button
                 variant="secondary"
                 size="xs"
                 onClick={() => openEditModal(job)}
                 leftIcon={<Edit2 className="w-3 h-3" />}
                 className="flex-1"
               >
-                Ubah
+                Edit
               </Button>
               <Button
                 variant="danger"
@@ -1326,53 +1147,17 @@ export default function JobManagement() {
         </form>
       </Modal>
 
-      {/* Ubah Formasi Modal — Konfigurasi + Bank Soal + Materi (tampil sama dengan Lihat Soal & Materi, tapi bisa disunting) */}
+      {/* Edit Program Asesmen Modal */}
       {editingJob && (
         <Modal
           isOpen={!!editingJob}
           onClose={() => setEditingJob(null)}
-          title="Ubah Konfigurasi, Bank Soal & Materi Formasi"
-          description={`Kelola parameter evaluasi, bank soal CAT, dan silabus materi untuk ${editingJob.title}.`}
-          size="5xl"
+          title="Edit Program Asesmen"
+          description={`Kelola konfigurasi, jadwal, dan parameter kelulusan untuk ${editingJob.title}.`}
+          size="lg"
         >
-          {/* Tab Selector */}
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setEditTab('profil')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
-                editTab === 'profil' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              <Edit2 className="w-4 h-4" />
-              <span>Konfigurasi Formasi</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditTab('soal')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
-                editTab === 'soal' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Bank Soal CAT ({editQuestions.length} Soal)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditTab('materi')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
-                editTab === 'materi' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              <span>Silabus & Materi ({editMaterials.length} Modul)</span>
-            </button>
-          </div>
-
           <div className="max-h-[68vh] overflow-y-auto pr-1 font-sans space-y-4">
-            {/* TAB PROFIL — form selalu terpasang (hidden/tab lain) agar tombol simpan global tetap terhubung */}
-            <div className={editTab === 'profil' ? 'block' : 'hidden'}>
-              <form id="job-edit-form" onSubmit={handleUpdateJob} className="space-y-4">
+            <form id="job-edit-form" onSubmit={handleUpdateJob} className="space-y-4">
                 {editError && (
                   <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -1494,701 +1279,14 @@ export default function JobManagement() {
                   </Select>
                 </div>
 
-                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900 flex items-start gap-2.5">
-                  <BookOpen className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <span>
-                    Tab <strong>Bank Soal CAT</strong> dan <strong>Silabus &amp; Materi</strong> dapat langsung ditinjau dan disunting, serta otomatis tersimpan untuk lembar ujian peserta.
-                  </span>
-                </div>
               </form>
-            </div>
-
-            {/* TAB SOAL — Bank soal editable */}
-            {editTab === 'soal' && (() => {
-              const editInputCls = 'w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy';
-              const labelCls = 'block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5';
-              return (
-                <div className="space-y-4">
-                  <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900 flex items-start gap-3">
-                    <BookOpen className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold text-blue-950 text-sm">Bank Soal CAT — {editQuestions.length} Butir Aktif</p>
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold bg-white text-primary-navy border border-blue-200 px-2.5 py-0.5 rounded-md shadow-2xs">
-                          <Database className="w-3 h-3 text-blue-600" />
-                          Sumber: Master Repositori Bank Soal CAT
-                        </span>
-                      </div>
-                      <p className="text-blue-700 text-xs mt-0.5 leading-relaxed">
-                        Daftar butir soal ini langsung dipakai pada lembar ujian CAT peserta pada formasi lowongan ini. Anda dapat menambah soal manual atau mengimpor dari Master Bank Soal CAT &amp; pustaka lintas formasi.
-                      </p>
-                    </div>
-                  </div>
-
-                  {importFeedback && (
-                    <div
-                      className={`p-3.5 rounded-xl border text-sm flex items-center justify-between gap-2 animate-in fade-in ${
-                        importFeedback.type === 'success'
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                          : importFeedback.type === 'error'
-                          ? 'bg-rose-50 border-rose-200 text-rose-800'
-                          : 'bg-blue-50 border-blue-200 text-blue-800'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {importFeedback.type === 'success' ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 shrink-0" />
-                        )}
-                        <span>{importFeedback.message}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setImportFeedback(null)}
-                        className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                    <Button
-                      type="button"
-                      variant={showImportPanel ? 'primary' : 'outline'}
-                      size="md"
-                      onClick={() => {
-                        setShowImportPanel(!showImportPanel);
-                        setImportFeedback(null);
-                      }}
-                      className="h-11 px-4 text-sm font-semibold rounded-xl"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      {showImportPanel ? 'Tutup Panel Import' : 'Import dari Bank Soal CAT'}
-                    </Button>
-                    <div className="relative flex-1">
-                      <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        value={editQSearch}
-                        onChange={(e) => setEditQSearch(e.target.value)}
-                        placeholder="Cari soal untuk diedit..."
-                        className="w-full h-11 pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy placeholder:text-slate-400"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="md"
-                      leftIcon={<Plus className="w-4 h-4" />}
-                      onClick={handleAddQuestion}
-                      className="h-11 px-4 text-sm font-semibold rounded-xl"
-                    >
-                      Tambah Soal
-                    </Button>
-                  </div>
-
-                  {/* Keterangan Sumber Impor Soal */}
-                  <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-blue-100 text-primary-navy flex items-center justify-center shrink-0">
-                        <Info className="w-3.5 h-3.5" />
-                      </div>
-                      <span>
-                        <strong>Keterangan Sumber Impor:</strong> Soal diimpor dari <strong>Master Bank Soal CAT</strong> (katalog terpusat di menu sidebar <em>Bank Soal CAT</em>) serta arsip paket formasi instansi lain ({allProgramsList.length} program terdaftar).
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowImportPanel(!showImportPanel);
-                        setImportFeedback(null);
-                      }}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary-navy hover:text-blue-700 underline shrink-0 cursor-pointer"
-                    >
-                      <Database className="w-3.5 h-3.5 text-blue-600" />
-                      <span>{showImportPanel ? 'Tutup Pilihan Sumber' : 'Buka Pilihan Sumber Soal →'}</span>
-                    </button>
-                  </div>
-
-                  {showImportPanel && (
-                    <div className="p-4.5 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-4 shadow-2xs animate-in fade-in duration-150">
-                      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-soft-blue text-primary-navy flex items-center justify-center font-bold">
-                            <Download className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-bold text-slate-900 font-heading">
-                              Panel Import dari Bank Soal CAT
-                            </h4>
-                            <p className="text-xs text-slate-600">
-                              Pilih program sumber dan tipe soal dari Bank Soal CAT untuk diimpor ke formasi ini.
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowImportPanel(false)}
-                          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Penjelasan Detail Asal Sumber Soal & Template CSV */}
-                      <div className="p-3.5 bg-white border border-blue-200/90 rounded-xl text-xs text-slate-700 space-y-2 shadow-2xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
-                          <span className="font-bold text-primary-navy flex items-center gap-1.5">
-                            <Info className="w-4 h-4 text-blue-600" />
-                            Keterangan Sumber &amp; Format Impor Soal CAT:
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleDownloadQuestionTemplate}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-primary-navy bg-soft-blue hover:bg-blue-100/80 border border-accent-border rounded-lg transition-colors cursor-pointer self-start sm:self-auto"
-                            title="Unduh contoh template format impor soal (CSV)"
-                          >
-                            <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Unduh Format Template CSV</span>
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] sm:text-xs text-slate-600">
-                          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
-                            <p className="font-bold text-slate-900 flex items-center gap-1">
-                              <Database className="w-3 h-3 text-blue-600" />
-                              1. Repositori Master Bank Soal CAT
-                            </p>
-                            <p className="leading-relaxed">
-                              Diambil langsung dari basis data terpusat (menu sidebar <strong>Bank Soal CAT</strong>) dan pustaka soal per formasi ({allProgramsList.length} instansi/program terintegrasi).
-                            </p>
-                          </div>
-                          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
-                            <p className="font-bold text-slate-900 flex items-center gap-1">
-                              <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
-                              2. Standar Format File CSV / Excel
-                            </p>
-                            <p className="leading-relaxed">
-                              Dapat disusun via spreadsheet dengan kolom: No, Tipe, Teks Pertanyaan, Opsi A-D, Kunci Jawaban, Bobot, dan Rasional BARS.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                        {/* 1. Sumber Program */}
-                        <div>
-                          <Select
-                            label="1. Program Sumber Bank Soal"
-                            value={importSourceProgramId}
-                            onChange={(e) => setImportSourceProgramId(e.target.value)}
-                            className="h-11 rounded-xl font-medium"
-                          >
-                            {allProgramsList.map((prog) => (
-                              <option key={prog.id} value={prog.id}>
-                                [{prog.id}] {prog.title.replace(/\s*\([^)]*\)\s*$/, '')} ({prog.companyName})
-                              </option>
-                            ))}
-                          </Select>
-                        </div>
-
-                        {/* 2. Dropdown Tipe Soal */}
-                        <div>
-                          <Select
-                            label="2. Dropdown Tipe Soal di Bank Soal CAT *"
-                            value={importTypeFilter}
-                            onChange={(e) => setImportTypeFilter(e.target.value)}
-                            className="h-11 rounded-xl font-bold text-primary-navy"
-                          >
-                            <option value="ALL">Semua Tipe Soal ({availableBankQuestionsForImport.length} Butir)</option>
-                            <option value="single">Pilihan Ganda ({countByImportType.single || 0} Butir)</option>
-                            <option value="multi">Multi-Select / Kompleks ({countByImportType.multi || 0} Butir)</option>
-                            <option value="short">Isian Singkat ({countByImportType.short || 0} Butir)</option>
-                            <option value="essay">Studi Kasus / Esai ({countByImportType.essay || 0} Butir)</option>
-                            <option value="matching">Matching / Menjodohkan ({countByImportType.matching || 0} Butir)</option>
-                          </Select>
-                        </div>
-
-                        {/* 3. Mode Aksi Impor */}
-                        <div>
-                          <Select
-                            label="3. Mode Aksi Impor"
-                            value={importMode}
-                            onChange={(e) => setImportMode(e.target.value as 'append' | 'replace')}
-                            className="h-11 rounded-xl font-medium"
-                          >
-                            <option value="append">Tambahkan ke Soal yang Ada (Append)</option>
-                            <option value="replace">Gantikan / Timpa Seluruh Soal (Replace)</option>
-                          </Select>
-                        </div>
-                      </div>
-
-                      {/* Footer Panel Import */}
-                      <div className="pt-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200">
-                        <div className="text-sm text-slate-700">
-                          Ditemukan <strong className="text-primary-navy font-bold">{filteredImportQuestions.length}</strong> butir soal siap diimpor
-                          {importTypeFilter !== 'ALL' && (
-                            <span className="ml-1 text-xs text-slate-500">
-                              (hanya bertipe {questionTypeLabel(importTypeFilter as any)})
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => setShowImportPanel(false)}
-                            className="h-10 px-4 text-sm font-medium rounded-lg"
-                          >
-                            Batal
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="primary"
-                            size="sm"
-                            disabled={filteredImportQuestions.length === 0}
-                            onClick={handleExecuteImport}
-                            leftIcon={<Download className="w-4 h-4" />}
-                            className="h-10 px-4 text-sm font-semibold rounded-lg"
-                          >
-                            Impor {filteredImportQuestions.length} Soal ke Formasi
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-3.5">
-                    {editVisibleQuestions.length === 0 ? (
-                      <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-sm">
-                        Tidak ada soal yang cocok dengan pencarian. Tambah soal baru atau ubah kata kunci.
-                      </div>
-                    ) : (
-                      editVisibleQuestions.map((q) => {
-                        const isEditing = editingQId === q.id;
-                        const materiInfo = resolveQuestionMateriAndSyllabus(q, editMaterials, editingJob?.title);
-                        return (
-                          <div
-                            key={q.id}
-                            className={`p-4.5 rounded-2xl border shadow-2xs space-y-3.5 transition-colors ${
-                              isEditing ? 'bg-blue-50/40 border-accent-border' : 'bg-white border-slate-200 hover:border-slate-300'
-                            }`}
-                          >
-                            {/* Header */}
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 font-mono font-bold text-sm flex items-center justify-center border border-indigo-200">
-                                  #{q.id.toString().padStart(2, '0')}
-                                </span>
-                                <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                                  {questionTypeLabel(q.type)}
-                                </span>
-                                <span
-                                  className={`px-2.5 py-1 rounded-md text-xs font-semibold ${
-                                    q.difficulty === 'Sulit'
-                                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                      : q.difficulty === 'Sedang'
-                                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  }`}
-                                >
-                                  {q.difficulty}
-                                </span>
-                                <span className="text-xs text-slate-500">{q.competency}</span>
-                              </div>
-
-                              <div className="flex items-center gap-1.5">
-                                {isEditing ? (
-                                  <>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => resetQuestionToOriginal(q.id)} className="text-xs">
-                                      Batal
-                                    </Button>
-                                    <Button type="button" variant="primary" size="sm" onClick={() => setEditingQId(null)} className="text-xs font-semibold">
-                                      Selesai Edit
-                                    </Button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Button type="button" variant="secondary" size="sm" leftIcon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => setEditingQId(q.id)} className="text-xs">
-                                      Edit Soal
-                                    </Button>
-                                    <Button type="button" variant="danger" size="sm" leftIcon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => handleDeleteQuestion(q.id)} className="text-xs">
-                                      Hapus
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-
-                            {isEditing ? (
-                              /* ── Form edit soal ── */
-                              <div className="space-y-3.5">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-white rounded-xl border border-blue-200">
-                                  <div>
-                                    <label className={labelCls}>ID Soal (Kode Identifikasi Unik)</label>
-                                    <input
-                                      type="text"
-                                      value={q.questionCode || `SOAL-${editingJob?.code || 'CAT'}-${q.id.toString().padStart(2, '0')}`}
-                                      onChange={(e) => updateEditQuestion(q.id, { questionCode: e.target.value })}
-                                      placeholder="Contoh: SOAL-SE-402-01"
-                                      className={`${editInputCls} font-mono font-bold text-primary-navy`}
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className={labelCls}>Sumber Bank Soal CAT</label>
-                                    <input
-                                      type="text"
-                                      value={q.sourceBank || `Master Bank Soal CAT [${editingJob?.code || 'CAT'}]`}
-                                      onChange={(e) => updateEditQuestion(q.id, { sourceBank: e.target.value })}
-                                      placeholder="Contoh: Master Bank Soal CAT [SE-402 • PT Telkom Indonesia Tbk]"
-                                      className={editInputCls}
-                                    />
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <label className={labelCls}>Teks Soal</label>
-                                  <textarea
-                                    rows={3}
-                                    value={q.text}
-                                    onChange={(e) => updateEditQuestion(q.id, { text: e.target.value })}
-                                    className={`${editInputCls} leading-relaxed text-sm`}
-                                  />
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                  <div>
-                                    <label className={labelCls}>Kompetensi Diterapkan</label>
-                                    <input
-                                      type="text"
-                                      value={q.competency}
-                                      onChange={(e) => updateEditQuestion(q.id, { competency: e.target.value })}
-                                      className={editInputCls}
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className={labelCls}>Tipe Soal</label>
-                                    <Select
-                                      value={q.type}
-                                      onChange={(e) => updateEditQuestion(q.id, { type: e.target.value as QuestionItem['type'] })}
-                                      className="h-11 rounded-xl font-medium"
-                                    >
-                                      <option value="single">Pilihan Ganda</option>
-                                      <option value="multi">Multi-Select</option>
-                                      <option value="short">Isian Singkat</option>
-                                      <option value="essay">Studi Kasus / Esai</option>
-                                      <option value="matching">Matching</option>
-                                    </Select>
-                                  </div>
-                                  <div>
-                                    <label className={labelCls}>Tingkat Kesulitan</label>
-                                    <Select
-                                      value={q.difficulty}
-                                      onChange={(e) => updateEditQuestion(q.id, { difficulty: e.target.value as QuestionItem['difficulty'] })}
-                                      className="h-11 rounded-xl font-medium"
-                                    >
-                                      <option value="Mudah">Mudah</option>
-                                      <option value="Sedang">Sedang</option>
-                                      <option value="Sulit">Sulit</option>
-                                    </Select>
-                                  </div>
-                                </div>
-
-                                {q.codeSnippet && (
-                                  <pre className="p-3 bg-slate-900 text-emerald-400 rounded-xl text-xs font-mono overflow-x-auto leading-normal">
-                                    <code>{q.codeSnippet}</code>
-                                  </pre>
-                                )}
-
-                                {/* Opsi jawaban (single/multi/matching) */}
-                                {q.options && q.options.length > 0 && (
-                                  <div className="space-y-2.5">
-                                    <span className="text-xs sm:text-sm font-semibold text-slate-700 block">
-                                      Opsi Jawaban — centang {q.type === 'multi' ? 'semua jawaban benar (boleh lebih dari satu)' : 'satu jawaban benar'}
-                                    </span>
-                                    {q.options.map((opt) => (
-                                      <div key={opt.key} className="flex items-center gap-2.5">
-                                        <label className="flex items-center gap-2 shrink-0 cursor-pointer">
-                                          <input
-                                            type={q.type === 'multi' ? 'checkbox' : 'radio'}
-                                            name={`q-${q.id}-correct`}
-                                            checked={!!opt.isCorrect}
-                                            onChange={(e) =>
-                                              updateEditOption(q.id, opt.key, { isCorrect: e.target.checked }, q.type !== 'multi')
-                                            }
-                                            className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                                          />
-                                          <span className="w-6 h-6 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center font-bold text-xs text-slate-700">
-                                            {opt.key}
-                                          </span>
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={opt.label}
-                                          onChange={(e) => updateEditOption(q.id, opt.key, { label: e.target.value })}
-                                          placeholder={`Teks jawaban ${opt.key}...`}
-                                          className="flex-1 h-10 px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* Matching pairs (read-only) */}
-                                {q.matchingPairs && q.matchingPairs.length > 0 && (
-                                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
-                                    <span className="text-xs sm:text-sm font-bold text-slate-800 block">Pasangan Pencocokan Baku:</span>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                      {q.matchingPairs.map((pair, idx) => (
-                                        <div key={idx} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs sm:text-sm flex items-center justify-between gap-2">
-                                          <span className="font-semibold text-slate-800">{pair.left}</span>
-                                          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                                          <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs">
-                                            {pair.correctRight || pair.rightOptions[0]}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Kunci jawaban isian singkat / esai */}
-                                {q.type === 'short' || q.type === 'essay' ? (
-                                  <div>
-                                    <label className={labelCls}>Kunci Jawaban Tepat</label>
-                                    <input
-                                      type="text"
-                                      value={q.correctAnswer || ''}
-                                      onChange={(e) => updateEditQuestion(q.id, { correctAnswer: e.target.value })}
-                                      className={editInputCls}
-                                    />
-                                  </div>
-                                ) : null}
-
-                                <div>
-                                  <label className={labelCls}>Rasional &amp; Pembahasan</label>
-                                  <textarea
-                                    rows={2}
-                                    value={q.explanation || ''}
-                                    onChange={(e) => updateEditQuestion(q.id, { explanation: e.target.value })}
-                                    className={`${editInputCls} leading-relaxed text-sm`}
-                                  />
-                                </div>
-                              </div>
-                            ) : (
-                              /* ── Tampilan ringkas (identik modal Lihat Soal & Materi) ── */
-                              <div className="space-y-3">
-                                {/* Keterangan Materi & Silabus Program */}
-                                <div className="flex items-center gap-2 flex-wrap text-xs bg-blue-50/60 px-3 py-1.5 rounded-lg border border-blue-200/70 text-slate-700">
-                                  <span className="font-semibold text-primary-navy flex items-center gap-1.5">
-                                    <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                    Materi:
-                                  </span>
-                                  <span className="font-semibold text-slate-900">{materiInfo.materiLabel}</span>
-                                  <span className="text-slate-300">•</span>
-                                  <span className="font-semibold text-primary-navy">Silabus:</span>
-                                  <span className="text-slate-800">{materiInfo.silabusLabel}</span>
-                                </div>
-
-                                <p className="text-sm sm:text-[15px] font-medium text-slate-900 leading-relaxed">{q.text}</p>
-
-                                {q.options && q.options.length > 0 && (
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                                    {q.options.map((opt) => (
-                                      <div
-                                        key={opt.key}
-                                        className={`p-3 sm:p-3.5 rounded-xl border text-sm flex items-start gap-3 transition-colors ${
-                                          opt.isCorrect
-                                            ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950 font-medium ring-1 ring-emerald-300/50'
-                                            : 'bg-slate-50/70 border-slate-200 text-slate-800 hover:bg-slate-50'
-                                        }`}
-                                      >
-                                        <span
-                                          className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 font-bold text-xs ${
-                                            opt.isCorrect ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-slate-200 text-slate-700'
-                                          }`}
-                                        >
-                                          {opt.key}
-                                        </span>
-                                        <span className="flex-1 leading-relaxed">{opt.label}</span>
-                                        {opt.isCorrect && (
-                                          <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md whitespace-nowrap flex items-center gap-1 shrink-0">
-                                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                            KUNCI
-                                          </span>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {q.correctAnswer && (
-                                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-900 flex items-center gap-2.5">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                    <span>
-                                      <strong>Kunci Jawaban:</strong> {q.correctAnswer}
-                                    </span>
-                                  </div>
-                                )}
-
-                                {q.explanation && (
-                                  <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-sm text-blue-900 flex items-start gap-2.5">
-                                    <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                                    <span>
-                                      <strong className="text-blue-800">Rasional:</strong> {q.explanation}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* TAB MATERI — Silabus & materi editable (sumber sama dengan menu Master Materi & Lihat Soal & Materi) */}
-            {editTab === 'materi' && (
-              <div className="space-y-4">
-                <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-900 flex items-start gap-3">
-                  <Layers className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-indigo-950 text-sm">Silabus &amp; Modul Pembelajaran Formasi Ini</p>
-                    <p className="text-indigo-700 text-xs mt-0.5">
-                      Kelola dan pratinjau modul materi, master silabus, dan rubrik kompetensi. Seluruh suntingan tersimpan bersama konfigurasi saat menekan
-                      <strong> Simpan Semua Perubahan</strong>.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {editMaterials.map((mat) => {
-                    const isEditing = editingMatId === mat.id;
-                    return (
-                      <Card key={mat.id} elevation="flat" className="p-5 border border-slate-200 rounded-2xl space-y-3.5">
-                        <div className="flex items-start justify-between gap-3 flex-wrap border-b border-slate-100 pb-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">
-                                {mat.code}
-                              </span>
-                              <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700">{mat.type}</span>
-                              <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                                {mat.assessmentLevel}
-                              </span>
-                              <span className="text-xs text-slate-400 font-mono">v{mat.version}</span>
-                            </div>
-                            <p className="text-xs sm:text-sm text-slate-500 mt-1.5">
-                              Kategori: <strong className="text-slate-700">{mat.category}</strong> • Subkategori: {mat.subcategory || '-'}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            {isEditing ? (
-                              <>
-                                <Button type="button" variant="outline" size="sm" onClick={() => resetMaterialToOriginal(mat.id)} className="text-xs">
-                                  Batal
-                                </Button>
-                                <Button type="button" variant="primary" size="sm" onClick={() => setEditingMatId(null)} className="text-xs font-semibold">
-                                  Selesai Edit
-                                </Button>
-                              </>
-                            ) : (
-                              <Button type="button" variant="secondary" size="sm" leftIcon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => setEditingMatId(mat.id)} className="text-xs">
-                                Edit Materi
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-
-                        {isEditing ? (
-                          <div className="space-y-3.5">
-                            <div>
-                              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Judul Modul</label>
-                              <input
-                                type="text"
-                                value={mat.title}
-                                onChange={(e) => updateEditMaterial(mat.id, { title: e.target.value })}
-                                className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Ringkasan Silabus &amp; Pokok Bahasan</label>
-                              <textarea
-                                rows={3}
-                                value={mat.content}
-                                onChange={(e) => updateEditMaterial(mat.id, { content: e.target.value })}
-                                className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Panduan Rubrik &amp; Standar Kelulusan Asesor</label>
-                              <textarea
-                                rows={2}
-                                value={mat.rubric}
-                                onChange={(e) => updateEditMaterial(mat.id, { rubric: e.target.value })}
-                                className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <Select
-                                  label="Status Modul"
-                                  value={mat.status || 'Aktif'}
-                                  onChange={(e) => updateEditMaterial(mat.id, { status: e.target.value as MasterMateriItem['status'] })}
-                                  className="h-11 rounded-xl font-medium"
-                                >
-                                  <option value="Aktif">Aktif</option>
-                                  <option value="Draft">Draft</option>
-                                  <option value="Reviu">Reviu</option>
-                                </Select>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            <h4 className="text-base font-bold text-slate-900">{mat.title}</h4>
-                            <div>
-                              <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Ringkasan Silabus &amp; Pokok Bahasan</h5>
-                              <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">{mat.content}</p>
-                            </div>
-                            <div>
-                              <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Panduan Rubrik &amp; Standar Kelulusan Asesor</h5>
-                              <p className="text-sm text-slate-700 leading-relaxed bg-blue-50/50 p-3.5 rounded-xl border border-blue-100 text-blue-900">{mat.rubric}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {mat.behavioralIndicators && mat.behavioralIndicators.length > 0 && (
-                          <div>
-                            <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Indikator Perilaku Baku (Behavioral Indicators)</h5>
-                            <div className="space-y-2">
-                              {mat.behavioralIndicators.map((ind, i) => (
-                                <div key={i} className="flex items-start gap-2.5 text-sm text-slate-700">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                                  <span className="leading-snug">{ind}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* Shared Footer — simpan seluruh tab sekaligus */}
+          {/* Footer Edit */}
           <div className="pt-3 border-t border-slate-100 mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <span className="text-[11px] text-slate-500 flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              Menyimpan konfigurasi, seluruh bank soal CAT, dan silabus materi sekaligus.
+              Menyimpan konfigurasi program asesmen.
             </span>
             <div className="flex items-center gap-2">
               <Button type="button" variant="secondary" onClick={() => setEditingJob(null)}>
@@ -2204,7 +1302,7 @@ export default function JobManagement() {
                   if (formEl) formEl.requestSubmit();
                 }}
               >
-                Simpan Semua Perubahan
+                Simpan Perubahan
               </Button>
             </div>
           </div>
@@ -2282,6 +1380,15 @@ export default function JobManagement() {
           }
         >
           <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1 font-sans">
+            {selectedJobDetail.job.description && (
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-700 leading-relaxed">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                  Deskripsi &amp; Kualifikasi Program Asesmen
+                </span>
+                {selectedJobDetail.job.description}
+              </div>
+            )}
+
             {/* Tab Navigation */}
             <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
               <button
@@ -2306,7 +1413,7 @@ export default function JobManagement() {
                 }`}
               >
                 <Layers className="w-4 h-4" />
-                <span>Silabus & Materi Uji ({selectedJobDetail.materials.length} Modul)</span>
+                <span>Panduan Materi ({selectedJobDetail.materials.length} Panduan)</span>
               </button>
               <button
                 type="button"
