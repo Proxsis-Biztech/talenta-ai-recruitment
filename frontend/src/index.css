@@ -683,8 +683,14 @@ html {
   transform: none !important;
 }
 
-#superadmin-root main .bg-white:hover {
+#superadmin-root main .bg-white:not(.pt-hover-card):hover {
   border-color: rgba(226, 232, 240, 0.78) !important;
+}
+
+#superadmin-root main .pt-hover-card:hover {
+  border-color: #1E3A8A !important;
+  background-color: rgba(238, 242, 255, 0.45) !important;
+  box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.18), 0 4px 12px rgba(15, 23, 42, 0.06) !important;
 }
 
 
@@ -716,7 +722,7 @@ html {
   background: #ffffff !important;
 }
 
-#superadmin-root main .bg-white {
+#superadmin-root main .bg-white:not(.pt-hover-card) {
   background-image: none !important;
   background-color: #ffffff !important;
 }

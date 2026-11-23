@@ -48,6 +48,12 @@ import { Button, Badge, Card } from '../ui';
 import { getActiveSessionUser, getAllPesertaUsers } from '../../services/userRegistryService';
 import { getProgramById, getAllPrograms } from '../../services/assessmentCatalog';
 import { getPortalToken } from '../../services/portalAuthService';
+import {
+  activeUserProgressScope,
+  clearLegacyProgressStorage,
+  isCatCompletedFor,
+  syncCatCompletionFromServer
+} from '../../services/progressService';
 import { INITIAL_MATERI_LIST, type MasterMateriItem } from '../admin/AdminMasterMateriTree';
 import PesertaLiveCodingJudge0 from './PesertaLiveCodingJudge0';
 
@@ -145,9 +151,10 @@ export default function PesertaAsesmenList() {
   }));
   const [activeModalModule, setActiveModalModule] = useState<MasterMateriItem | null>(null);
   const [showLiveCoding, setShowLiveCoding] = useState(false);
+  const liveCodingStorageKey = `talenta_live_coding_v2_${activeUserProgressScope()}`;
   const [liveCodingCompletedMap, setLiveCodingCompletedMap] = useState<Record<string, { score: number; completedAt: string }>>(() => {
     try {
-      const saved = localStorage.getItem('talenta_live_coding_completed_map_v1');
+      const saved = localStorage.getItem(liveCodingStorageKey);
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
@@ -179,6 +186,7 @@ export default function PesertaAsesmenList() {
   >({});
   const [serverInterview, setServerInterview] = useState<{ status?: string; score?: number | null } | null>(null);
   const [serverLha, setServerLha] = useState<{ signed?: boolean; recommendation?: string | null } | null>(null);
+  const [dashboardLoaded, setDashboardLoaded] = useState(false);
   const [serverPrograms, setServerPrograms] = useState<Array<{
     code: string;
     title: string;
@@ -190,6 +198,7 @@ export default function PesertaAsesmenList() {
 
   useEffect(() => {
     let cancelled = false;
+    clearLegacyProgressStorage();
     const token = getPortalToken();
     if (!token) return;
     const fetchDashboardStatus = () => {
@@ -197,10 +206,18 @@ export default function PesertaAsesmenList() {
         .get('/api/portal/dashboard', { headers: { Authorization: `Bearer ${token}` } })
         .then((response) => {
           if (cancelled) return;
-          setServerExam(response.data?.exam || null);
-          setServerExamsByProgram(response.data?.examsByProgram || {});
+          const nextExam = response.data?.exam || null;
+          const nextByProgram = response.data?.examsByProgram || {};
+          setServerExam(nextExam);
+          setServerExamsByProgram(nextByProgram);
           setServerInterview(response.data?.interview || null);
           setServerLha(response.data?.lha || null);
+          setDashboardLoaded(true);
+          syncCatCompletionFromServer(
+            nextByProgram,
+            nextExam,
+            selectedProgramId || activeProg.id
+          );
           if (Array.isArray(response.data?.programs)) {
             setServerPrograms(response.data.programs);
           }
@@ -330,19 +347,18 @@ export default function PesertaAsesmenList() {
       if (progExam && ['submitted', 'graded', 'completed'].includes(String(progExam.status || ''))) {
         return true;
       }
-      const localSubmitted =
-        Boolean(localStorage.getItem(`talenta_cat_submitted_${code}`)) ||
-        Boolean(localStorage.getItem(`talenta_cat_submitted_${upper}`));
-      if (localSubmitted) return true;
       if (upper === String(activeProg.id || '').trim().toUpperCase() && Object.keys(serverExamsByProgram).length === 0) {
-        return (
-          ['submitted', 'graded', 'completed'].includes(String(serverExam?.status || '')) ||
-          localStorage.getItem(`talenta_cat_completed_${upper}`) === 'true'
-        );
+        if (['submitted', 'graded', 'completed'].includes(String(serverExam?.status || ''))) {
+          return true;
+        }
       }
-      return false;
+      // When authenticated and server dashboard has responded, trust server state exclusively
+      if (getPortalToken() && dashboardLoaded) {
+        return false;
+      }
+      return isCatCompletedFor(code);
     },
-    [serverExamsByProgram, activeProg.id, serverExam?.status]
+    [serverExamsByProgram, activeProg.id, serverExam?.status, dashboardLoaded]
   );
 
   const isProgramInterviewCompleted = useCallback(
@@ -382,12 +398,12 @@ export default function PesertaAsesmenList() {
           [key]: { score, completedAt: new Date().toISOString() }
         };
         try {
-          localStorage.setItem('talenta_live_coding_completed_map_v1', JSON.stringify(next));
+          localStorage.setItem(liveCodingStorageKey, JSON.stringify(next));
         } catch {}
         return next;
       });
     },
-    [activeProgramCode]
+    [activeProgramCode, liveCodingStorageKey]
   );
 
   // Sync tab with URL & enforce sequential progression

@@ -282,12 +282,11 @@ export default function PesertaExamPlayer() {
             integrityScore: response.data.attempt?.integrityScore
           });
           if (!expiredLock) {
-            markCatCompleted(activeProgram.id);
-            localStorage.setItem(`talenta_cat_submitted_${activeProgram.id}`, JSON.stringify({
+            markCatCompleted(activeProgram.id, {
               score: response.data.attempt?.score,
               integrityScore: response.data.attempt?.integrityScore,
               submittedAt: response.data.attempt?.submittedAt
-            }));
+            });
           }
           setExamReady(true);
           return;
@@ -678,12 +677,11 @@ export default function PesertaExamPlayer() {
         manualReviewCount: response.data.manualReviewCount
       });
       setIsExpiredStatus(false);
-      markCatCompleted(activeProgram.id);
-      localStorage.setItem(`talenta_cat_submitted_${activeProgram.id}`, JSON.stringify({
+      markCatCompleted(activeProgram.id, {
         score: response.data.score,
         integrityScore: response.data.integrityScore,
         submittedAt: response.data.submittedAt
-      }));
+      });
       setIsExamLocked(true);
       setAutoSaveStatus('Jawaban tersimpan di server');
       setSummaryModalOpen(false);

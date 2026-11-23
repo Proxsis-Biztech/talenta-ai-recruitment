@@ -1,4 +1,4 @@
-import { isAnyCatCompleted } from '../../services/progressService';
+import { isAnyCatCompleted, syncCatCompletionFromServer } from '../../services/progressService';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -83,6 +83,11 @@ export default function PesertaWaitingRoom() {
             setScheduledAt(interview?.scheduledAt || null);
             setQueuePosition(interview?.queuePosition || null);
             setAssessorName(interview?.assessorName || 'Tim Asesor Right');
+            syncCatCompletionFromServer(
+              dashboardResponse.data?.examsByProgram || {},
+              dashboardResponse.data?.exam || null,
+              activeProgram.id
+            );
             if (!eligible) {
               const examOk = ['submitted', 'graded', 'completed'].includes(
                 String(dashboardResponse.data?.exam?.status || '')
@@ -97,7 +102,7 @@ export default function PesertaWaitingRoom() {
           if (!cancelled) setScheduledAt(null);
         }
         if (!cancelled) {
-          setCatEligible(eligible || isAnyCatCompleted());
+          setCatEligible(eligible);
         }
       } catch {
         if (!cancelled) setCatEligible(isAnyCatCompleted());

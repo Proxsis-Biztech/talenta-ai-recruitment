@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearLegacyProgressStorage } from './progressService';
 
 export interface PortalUser {
   id: string;
@@ -90,6 +91,7 @@ export const getAuthenticatedHomeRoute = (): string | null => {
 };
 
 export const savePortalSession = ({ token, refreshToken, user }: PortalSession): void => {
+  clearLegacyProgressStorage();
   localStorage.setItem(PORTAL_TOKEN_KEY, token);
   if (refreshToken) localStorage.setItem(PORTAL_REFRESH_KEY, refreshToken);
   localStorage.setItem(PORTAL_USER_KEY, JSON.stringify(user));
@@ -131,6 +133,7 @@ export const savePortalSession = ({ token, refreshToken, user }: PortalSession):
 };
 
 export const clearPortalSession = (): void => {
+  clearLegacyProgressStorage();
   for (const key of [
     PORTAL_TOKEN_KEY,
     PORTAL_REFRESH_KEY,

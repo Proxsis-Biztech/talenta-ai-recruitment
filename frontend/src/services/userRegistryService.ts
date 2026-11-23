@@ -556,6 +556,19 @@ export function getActiveSessionUser(): AuthSessionUser {
 }
 
 export function clearActiveSession(): void {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (
+        (k.startsWith('talenta_cat_completed_') && !k.startsWith('talenta_cat_completed_v2_')) ||
+        (k.startsWith('talenta_cat_submitted_') && !k.startsWith('talenta_cat_submitted_v2_')) ||
+        k === 'talenta_live_coding_completed_map_v1'
+      ) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch {
+    // ignore
+  }
   for (const key of [
     SESSION_STORAGE_KEY,
     'portalToken',

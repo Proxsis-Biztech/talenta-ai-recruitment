@@ -571,7 +571,7 @@ export function AdminCompanyMatrix({
           return (
             <div
               key={c.id}
-              className="group rounded-2xl border border-slate-200 bg-white p-5 transition-all flex flex-col justify-between gap-4 hover:bg-soft-blue/35 hover:border-primary-navy hover:ring-1 hover:ring-primary-navy/25 hover:shadow-sm"
+              className="pt-hover-card group rounded-2xl border border-slate-200 bg-white p-5 transition-all flex flex-col justify-between gap-4 hover:bg-soft-blue/35 hover:border-primary-navy hover:ring-1 hover:ring-primary-navy/25 hover:shadow-sm"
             >
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
