@@ -229,8 +229,8 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
             : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        {/* Brand & Sidebar Collapse / Expand */}
-        <div className={`h-20 flex items-center border-b border-slate-100 shrink-0 transition-all ${isCollapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
+        {/* Brand Logo */}
+        <div className={`h-20 flex items-center border-b border-slate-100 shrink-0 transition-all ${isCollapsed ? 'justify-center px-2' : 'justify-start px-5'}`}>
           {!isCollapsed ? (
             <div className="flex items-center gap-2.5 min-w-0">
               <img
@@ -247,14 +247,6 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
               <img src="/img/logo-symbol.png" alt="RIGHT" className="h-full w-full object-contain" />
             </div>
           )}
-          <button
-            onClick={toggleCollapse}
-            className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50 flex items-center justify-center cursor-pointer transition-colors shadow-2xs"
-            title={isCollapsed ? 'Perluas Sidebar' : 'Ciutkan Sidebar'}
-            aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            {isCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
-          </button>
         </div>
 
         {/* Navigation Items */}
