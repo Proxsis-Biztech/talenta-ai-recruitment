@@ -57,7 +57,7 @@ export const PesertaFaqChatbot: React.FC = () => {
     {
       id: 'welcome',
       sender: 'bot',
-      text: 'Halo! Saya Asisten FAQ Asesmen RIGHT. Saya menjawab pertanyaan umum berdasarkan Basis Pengetahuan FAQ resmi. Jika butuh bantuan langsung, Anda dapat terhubung ke Chat Helpdesk Internal.'
+      text: 'Halo! Saya Asisten AI Asesmen RIGHT (bertenaga Gemini AI). Tanyakan apa saja seputar ujian CAT, kamera/proctoring, wawancara, maupun panduan platform. Jika butuh bantuan langsung dari tim pengawas/admin, Anda dapat beralih ke Chat Helpdesk Internal.'
     }
   ]);
   const [input, setInput] = useState('');
@@ -146,11 +146,16 @@ export const PesertaFaqChatbot: React.FC = () => {
     setSending(true);
 
     try {
+      const history = messages
+        .filter((m) => m.id !== 'welcome')
+        .slice(-8)
+        .map((m) => ({ sender: m.sender, text: m.text }));
       const resp = await axios.post(
         '/api/peserta/faq-chat',
         {
           message: clean,
-          companyName: formCompany || portalUser?.companyName || ''
+          companyName: formCompany || portalUser?.companyName || '',
+          history
         },
         { headers: getHeaders() }
       );
@@ -173,7 +178,7 @@ export const PesertaFaqChatbot: React.FC = () => {
         {
           id: `b-${Date.now()}`,
           sender: 'bot',
-          text: 'Terjadi kendala saat menghubungi layanan FAQ. Silakan lanjutkan ke Chat Helpdesk Internal.',
+          text: 'Terjadi kendala saat menghubungi Asisten AI. Silakan coba lagi atau lanjutkan ke Chat Helpdesk Internal.',
           canEscalate: true,
           originalQuery: clean
         }
@@ -258,13 +263,13 @@ export const PesertaFaqChatbot: React.FC = () => {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label="Buka chat bantuan dan FAQ"
+        aria-label="Buka chat bantuan dan AI"
         style={{ animation: open ? 'none' : 'floatChatbot 3.6s ease-in-out infinite' }}
         className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40 group flex h-13 w-13 items-center justify-center rounded-full bg-[#1D4ED8] text-white shadow-[0_18px_40px_-10px_rgba(13,42,120,0.65)] ring-4 ring-white/25 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_-12px_rgba(13,42,120,0.75)] active:scale-95 transition-all duration-300 cursor-pointer"
         title={
           activeSession && activeSession.status !== 'resolved'
-            ? 'Balasan admin tersedia — Chat Admin & FAQ'
-            : 'Chat Admin, FAQ & Helpdesk Internal'
+            ? 'Balasan admin tersedia — Chat AI & Helpdesk'
+            : 'Chatbot AI & Helpdesk Internal'
         }
       >
         {open ? (
@@ -291,8 +296,8 @@ export const PesertaFaqChatbot: React.FC = () => {
             <div className="flex items-center gap-2">
               <Bot className="w-5 h-5 text-blue-300" />
               <div>
-                <p className="text-sm font-bold leading-tight">Bantuan &amp; Chatbot FAQ</p>
-                <p className="text-[10px] text-blue-200">Terhubung ke Helpdesk Internal</p>
+                <p className="text-sm font-bold leading-tight">Bantuan &amp; Chatbot AI</p>
+                <p className="text-[10px] text-blue-200">Asisten AI Gemini • Terhubung ke Helpdesk</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -327,7 +332,7 @@ export const PesertaFaqChatbot: React.FC = () => {
                   : 'text-slate-500'
               }`}
             >
-              Chatbot FAQ
+              Chatbot AI
             </button>
             <button
               type="button"
@@ -346,7 +351,7 @@ export const PesertaFaqChatbot: React.FC = () => {
           {mode === 'faq' ? (
             <>
               {faqItems.length > 0 && (
-                <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/70 flex gap-1.5 overflow-x-auto">
+                <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/70 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {faqItems.slice(0, 4).map((item) => (
                     <button
                       key={item.id}
@@ -378,9 +383,9 @@ export const PesertaFaqChatbot: React.FC = () => {
                           {m.matchedQuestion}
                         </p>
                       )}
-                      <p>{m.text}</p>
+                      <p className="whitespace-pre-wrap">{m.text}</p>
                       {m.sourceFile && (
-                        <p className="text-[10px] text-slate-400 mt-1">Sumber: {m.sourceFile}</p>
+                        <p className="text-[10px] text-slate-400 mt-1">Referensi: {m.sourceFile}</p>
                       )}
                     </div>
                     {m.canEscalate && m.originalQuery && (
@@ -399,7 +404,7 @@ export const PesertaFaqChatbot: React.FC = () => {
                 {sending && (
                   <div className="flex items-center gap-2 text-xs text-slate-400">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Mencari jawaban di Basis Pengetahuan FAQ...
+                    Asisten AI sedang menyusun jawaban...
                   </div>
                 )}
               </div>
@@ -415,7 +420,7 @@ export const PesertaFaqChatbot: React.FC = () => {
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Tulis pertanyaan umum Anda..."
+                  placeholder="Tanya apa saja ke Asisten AI..."
                   className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-accent/20"
                 />
                 <button

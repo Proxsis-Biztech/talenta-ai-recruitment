@@ -145,7 +145,8 @@ export default function AuthLoginPage() {
         session.user.nik &&
         session.user.education &&
         session.user.university &&
-        session.user.city
+        session.user.city &&
+        session.user.faceVerifiedAt
       );
       const nextUrl = session.requiresOnboarding || !isProfileComplete
         ? '/peserta/profile'
@@ -244,7 +245,8 @@ export default function AuthLoginPage() {
           session.user.nik &&
           session.user.education &&
           session.user.university &&
-          session.user.city
+          session.user.city &&
+          session.user.faceVerifiedAt
         );
         const nextUrl = session.requiresOnboarding || !isProfileComplete
           ? '/peserta/profile'

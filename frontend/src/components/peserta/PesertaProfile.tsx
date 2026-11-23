@@ -122,6 +122,7 @@ export default function PesertaProfile() {
   const [savedFacePhoto, setSavedFacePhoto] = useState<string | null>(localStorage.getItem('candidate_face_photo'));
   const faceVideoRef = useRef<HTMLVideoElement | null>(null);
   const faceCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const faceSectionRef = useRef<HTMLDivElement | null>(null);
   const [faceCameraActive, setFaceCameraActive] = useState(false);
   const [faceCapturing, setFaceCapturing] = useState(false);
   const [faceError, setFaceError] = useState('');
@@ -191,9 +192,6 @@ export default function PesertaProfile() {
         });
         if (response.data?.user) {
           savePortalSession({ token, user: response.data.user });
-          if (!response.data.user.profileCompleted) {
-            setTimeout(() => setActiveTab('biodata'), 500);
-          }
         }
       }
       stopFaceCamera();
@@ -205,6 +203,157 @@ export default function PesertaProfile() {
   };
 
   useEffect(() => () => stopFaceCamera(), []);
+
+  useEffect(() => {
+    stopFaceCamera();
+  }, [activeTab]);
+
+  const isFaceRegistered = Boolean(savedFacePhoto || getPortalUser()?.faceVerifiedAt);
+
+  const handleOpenLiveScanOnProfile = () => {
+    setActiveTab('biodata');
+    setTimeout(() => {
+      faceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (!faceCameraActive) {
+        void startFaceCamera();
+      }
+    }, 80);
+  };
+
+  const renderLiveScanIdentityPanel = () => (
+    <div
+      ref={faceSectionRef}
+      id="profile-live-scan"
+      className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-4 sm:p-6 space-y-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
+        <div>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900 font-heading flex items-center gap-2">
+            <Camera className="w-4 h-4 text-primary-navy" />
+            <span>Foto Identitas Resmi (Live Scan Kamera) *</span>
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Diambil langsung dari profil saat melengkapi biodata sebagai foto identitas resmi peserta &amp; verifikasi ujian.
+          </p>
+        </div>
+        <span
+          className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+            isFaceRegistered ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+          }`}
+        >
+          {isFaceRegistered ? '✓ Foto Identitas Terdaftar' : 'Wajib Diambil'}
+        </span>
+      </div>
+
+      <canvas ref={faceCanvasRef} className="hidden" />
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        {/* Live Camera / Captured Identity Photo */}
+        <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200/90 p-4 flex flex-col items-center justify-between text-center space-y-3">
+          <span className="text-xs font-bold text-slate-700">Foto Live Scan Anda</span>
+
+          <div className="w-44 h-52 rounded-2xl overflow-hidden border-2 border-primary-navy bg-slate-900 relative">
+            <video
+              ref={faceVideoRef}
+              autoPlay
+              muted
+              playsInline
+              className={faceCameraActive ? 'w-full h-full object-cover scale-x-[-1]' : 'hidden'}
+            />
+            {faceCameraActive && (
+              <div className="pointer-events-none absolute inset-x-2 bottom-2 rounded-lg bg-black/60 text-[10px] font-semibold text-white py-1 px-2">
+                Posisikan setengah badan &amp; wajah lurus
+              </div>
+            )}
+            {!faceCameraActive && (
+              savedFacePhoto ? (
+                <img
+                  src={savedFacePhoto}
+                  alt="Foto identitas terdaftar"
+                  className="w-full h-full object-cover object-top"
+                />
+              ) : (
+                <div className="w-full h-full bg-slate-100 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-4 text-slate-500">
+                  <Camera className="w-9 h-9 text-slate-400 mb-2" />
+                  <span className="text-[11px] font-semibold text-center leading-snug">
+                    Belum ada foto identitas terdaftar
+                  </span>
+                </div>
+              )
+            )}
+          </div>
+
+          {faceError && (
+            <p className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
+              {faceError}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {faceCameraActive ? (
+              <>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={captureFacePhoto}
+                  disabled={faceCapturing}
+                  className="text-xs cursor-pointer"
+                >
+                  {faceCapturing ? 'Menyimpan...' : 'Ambil Foto Identitas'}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={stopFaceCamera} className="text-xs cursor-pointer">
+                  Batal
+                </Button>
+              </>
+            ) : (
+              <Button type="button" variant="outline" size="sm" onClick={startFaceCamera} className="text-xs cursor-pointer">
+                <Camera className="w-3.5 h-3.5 mr-1.5" />
+                {savedFacePhoto ? 'Foto Ulang Live Scan' : 'Aktifkan Kamera Live Scan'}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Example Reference Photo (Half Body + Neat Formal Shirt) */}
+        <div className="lg:col-span-6 bg-white rounded-2xl border border-emerald-200/80 p-4 flex flex-col sm:flex-row items-center sm:items-start gap-4">
+          <div className="shrink-0 flex flex-col items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold">
+              <Check className="w-3 h-3 text-emerald-600" />
+              Contoh Foto yang Benar
+            </span>
+            <img
+              src="/img/contoh-foto-identitas-right.jpg"
+              alt="Contoh foto identitas setengah badan memakai kemeja rapi"
+              className="w-36 h-48 rounded-xl object-cover object-top border border-slate-200 shadow-2xs"
+            />
+          </div>
+
+          <div className="space-y-2 text-left">
+            <p className="text-xs font-bold text-slate-900">Ketentuan Pose &amp; Pakaian Resmi:</p>
+            <ul className="space-y-1.5 text-[11px] text-slate-600 leading-relaxed">
+              <li className="flex items-start gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Posisi setengah badan</strong> (kepala, bahu, hingga area dada terlihat penuh dan tegak).</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span>Memakai <strong>kemeja atau pakaian berkerah yang rapi</strong> dan sopan.</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span>Wajah menghadap lurus ke kamera dengan pencahayaan terang dan jelas.</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span>Latar belakang ruangan asli tanpa Virtual Background, masker, atau kacamata hitam.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   // Hydrate saved biodata from server on mount so saved values always persist
   useEffect(() => {
@@ -260,6 +409,9 @@ export default function PesertaProfile() {
     if (!education.trim()) validationErrors.push('Pendidikan terakhir belum diisi');
     if (!university.trim()) validationErrors.push('Universitas / Institusi belum diisi');
     if (!city.trim()) validationErrors.push('Kota Domisili belum diisi');
+    if (!savedFacePhoto && !getPortalUser()?.faceVerifiedAt) {
+      validationErrors.push('Foto Identitas Resmi (Live Scan Kamera) belum diambil');
+    }
 
     if (validationErrors.length > 0) {
       const errText = `Periksa kembali data Anda: ${validationErrors.join(' • ')}.`;
@@ -342,7 +494,7 @@ export default function PesertaProfile() {
         }
       });
 
-      if (updatedUser?.profileCompleted) {
+      if (updatedUser?.profileCompleted && (savedFacePhoto || updatedUser.faceVerifiedAt)) {
         if (!updatedUser.deviceCheckCompletedAt) {
           setTimeout(() => navigate('/peserta/device-check'), 500);
         }
@@ -422,10 +574,10 @@ export default function PesertaProfile() {
                     <img
                       src={savedFacePhoto}
                       alt={fullName}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover object-top"
                     />
                     <div className="absolute bottom-0 inset-x-0 bg-emerald-600/90 text-white text-[9px] font-bold text-center py-0.5">
-                      OpenCV AI
+                      Identitas
                     </div>
                   </div>
                 ) : (
@@ -434,9 +586,10 @@ export default function PesertaProfile() {
                   </div>
                 )}
                 <button
-                  onClick={() => navigate('/peserta/device-check')}
+                  type="button"
+                  onClick={handleOpenLiveScanOnProfile}
                   className="absolute -bottom-1 -right-1 p-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-primary-navy hover:shadow-xs transition-all cursor-pointer"
-                  title="Perbarui Foto / Cek Perangkat"
+                  title="Ambil / Perbarui Foto Identitas Live Scan"
                 >
                   <Camera className="w-3.5 h-3.5" />
                 </button>
@@ -605,21 +758,23 @@ export default function PesertaProfile() {
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-700">Kelengkapan profil</span>
+                <span className="font-semibold text-slate-700">Kelengkapan profil &amp; foto identitas</span>
                 <span className="font-mono font-bold text-primary-navy">
-                  {[fullName, phone, nik, education, university, city].filter(Boolean).length} / 6
+                  {[fullName, phone, nik, education, university, city, isFaceRegistered ? 'ok' : ''].filter(Boolean).length} / 7
                 </span>
               </div>
               <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
                 <div
                   className="h-full bg-primary-navy rounded-full"
-                  style={{ width: `${([fullName, phone, nik, education, university, city].filter(Boolean).length / 6) * 100}%` }}
+                  style={{ width: `${([fullName, phone, nik, education, university, city, isFaceRegistered ? 'ok' : ''].filter(Boolean).length / 7) * 100}%` }}
                 />
               </div>
               <p className="text-[11px] text-slate-500">
-                <span className="text-rose-600 font-bold">*</span> wajib diisi. Kolom bertanda (opsional) tidak menghalangi tahap berikutnya.
+                <span className="text-rose-600 font-bold">*</span> wajib diisi dan ambil foto identitas setengah badan melalui kamera live scan sebelum melanjutkan ke uji perangkat.
               </p>
             </div>
+
+            {renderLiveScanIdentityPanel()}
 
             {isAccessCodeUser && !getPortalUser()?.profileCompleted && (
               <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 text-xs text-amber-900 animate-fade-in shadow-2xs">
@@ -990,66 +1145,11 @@ export default function PesertaProfile() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Face Registration Card */}
-              <div className="md:col-span-1 p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col items-center text-center space-y-3">
-                <span className="text-xs font-bold text-slate-700">Foto Referensi Wajah Ujian</span>
-                <canvas ref={faceCanvasRef} className="hidden" />
-
-                <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-primary-navy bg-slate-900">
-                  <video
-                    ref={faceVideoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    className={faceCameraActive ? 'w-full h-full object-cover scale-x-[-1]' : 'hidden'}
-                  />
-                  {!faceCameraActive && (
-                    savedFacePhoto ? (
-                      <img src={savedFacePhoto} alt="Foto wajah terdaftar" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-slate-200 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-3 text-slate-500">
-                        <Camera className="w-8 h-8 text-slate-400 mb-1" />
-                        <span className="text-[11px] font-semibold text-center leading-tight">Belum ada foto terdaftar</span>
-                      </div>
-                    )
-                  )}
-                </div>
-
-                {faceError && (
-                  <p className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
-                    {faceError}
-                  </p>
-                )}
-
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  {faceCameraActive ? (
-                    <>
-                      <Button variant="primary" size="sm" onClick={captureFacePhoto} disabled={faceCapturing} className="text-xs">
-                        {faceCapturing ? 'Menyimpan...' : 'Ambil Foto'}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={stopFaceCamera} className="text-xs">Batal</Button>
-                    </>
-                  ) : (
-                    <Button variant="outline" size="sm" onClick={startFaceCamera} className="text-xs">
-                      <Camera className="w-3.5 h-3.5 mr-1.5" />
-                      {savedFacePhoto ? 'Foto Ulang' : 'Aktifkan Kamera'}
-                    </Button>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${savedFacePhoto || getPortalUser()?.faceVerifiedAt ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                    {savedFacePhoto || getPortalUser()?.faceVerifiedAt ? 'Wajah terdaftar' : 'Belum terverifikasi'}
-                  </span>
-                  <p className="text-[11px] text-slate-500">
-                    Foto disimpan sebagai referensi verifikasi integritas saat ujian.
-                  </p>
-                </div>
-              </div>
+            <div className="space-y-6">
+              {renderLiveScanIdentityPanel()}
 
               {/* Hardware Telemetry List */}
-              <div className="md:col-span-2 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">

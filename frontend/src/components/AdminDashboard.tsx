@@ -919,7 +919,7 @@ ${app.interviewResult ? `
         { key: 'ranking', label: 'Peringkat & Matriks', icon: BarChart3 },
         { key: 'proctoring', label: 'Audit Proctoring', icon: ShieldAlert, badge: 'Live' },
         { key: 'faq-helpdesk', label: 'Konten FAQ (RAG)', icon: BookOpen },
-        { key: 'chatbot-faq', label: 'Chatbot FAQ', icon: Bot },
+        { key: 'chatbot-faq', label: 'Chatbot AI', icon: Bot },
         { key: 'helpdesk-internal', label: 'Helpdesk Internal', icon: MessageSquare },
       ]
     },
@@ -1028,9 +1028,9 @@ ${app.interviewResult ? `
       dotColor: 'bg-blue-accent'
     },
     'chatbot-faq': {
-      title: 'Chatbot FAQ (RAG & Helpdesk)',
-      subtitle: 'Antarmuka chat FAQ resmi (Non-AI bebas) yang terhubung ke eskalasi Helpdesk Internal',
-      short: 'Chatbot FAQ',
+      title: 'Chatbot AI (Gemini & Helpdesk)',
+      subtitle: 'Asisten AI Gemini berbasis referensi pengetahuan resmi yang terhubung ke Helpdesk Internal',
+      short: 'Chatbot AI',
       dotColor: 'bg-blue-accent'
     },
     'helpdesk-internal': {

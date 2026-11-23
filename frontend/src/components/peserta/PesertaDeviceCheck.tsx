@@ -43,7 +43,6 @@ export default function PesertaDeviceCheck() {
 
   // Media refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -77,15 +76,9 @@ export default function PesertaDeviceCheck() {
   const [isValidating, setIsValidating] = useState(false);
   const [validationSuccess, setValidationSuccess] = useState(false);
 
-  // Face registration states
-  const [faceDetected, setFaceDetected] = useState(true);
-  const [faceCheckedInSession, setFaceCheckedInSession] = useState(false);
-  const [initialFaceRegistered, setInitialFaceRegistered] = useState(false);
+  // Camera & validation error states
+  const [faceDetected] = useState(true);
   const [faceError, setFaceError] = useState('');
-  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(() => {
-    return localStorage.getItem('candidate_face_photo') || null;
-  });
-  const [registeringFace, setRegisteringFace] = useState(false);
 
   // System & Browser Specs
   const screenResolution = typeof window !== 'undefined' ? `${window.screen.width} × ${window.screen.height}` : '1920 × 1080';
@@ -200,12 +193,6 @@ export default function PesertaDeviceCheck() {
   useEffect(() => {
     startRealMedia();
 
-    // Load previous photo preview if any, without auto-validating KYC point 6
-    const saved = localStorage.getItem('candidate_face_photo');
-    if (saved) {
-      setCapturedPhotoUrl(saved);
-    }
-
     // Cleanup tracks on unmount
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
@@ -227,74 +214,6 @@ export default function PesertaDeviceCheck() {
       return () => clearInterval(interval);
     }
   }, [micStatus]);
-
-  // ──────────────────────────────────────────────
-  // 2. Real Face Snapshot Capture
-  // ──────────────────────────────────────────────
-  const handleCaptureFace = () => {
-    setFaceError('');
-    setRegisteringFace(true);
-    setTimeout(() => {
-      try {
-        const canvas = canvasRef.current || document.createElement('canvas');
-        canvas.width = 640;
-        canvas.height = 480;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          setFaceError('Perangkat kamera tidak mendukung pengambilan snapshot.');
-          return;
-        }
-
-        if (cameraStatus === 'active' && videoRef.current && videoRef.current.videoWidth > 0) {
-          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        } else {
-          // Draw simulated biometric snapshot card if running in simulation
-          ctx.fillStyle = '#0f172a';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle = '#1e293b';
-          ctx.beginPath();
-          ctx.arc(320, 220, 110, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#38bdf8';
-          ctx.font = 'bold 42px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          const initials = (activeUser.name || getPortalUser()?.name || 'Peserta Seleksi')
-            .split(' ')
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((w: string) => w[0])
-            .join('')
-            .toUpperCase() || 'PS';
-          ctx.fillText(initials, 320, 220);
-          ctx.fillStyle = '#94a3b8';
-          ctx.font = '14px monospace';
-          ctx.fillText('VERIFIKASI IDENTITAS BIOMETRIK', 320, 380);
-        }
-
-        const photoUrl = canvas.toDataURL('image/jpeg', 0.88);
-        setCapturedPhotoUrl(photoUrl);
-        setInitialFaceRegistered(true);
-        setFaceCheckedInSession(true);
-        localStorage.setItem('candidate_face_photo', photoUrl);
-        const token = getPortalToken();
-        if (token) {
-          void axios.post('/api/portal/device-check', { faceCaptured: true }, {
-            headers: { Authorization: `Bearer ${token}` }
-          }).then((response) => {
-            if (response.data?.user) {
-              savePortalSession({ token, user: response.data.user });
-            }
-          }).catch(() => undefined);
-        }
-      } catch (err) {
-        console.warn('Face capture error:', err);
-        setFaceError('Gagal mengambil foto wajah. Silakan coba lagi.');
-      } finally {
-        setRegisteringFace(false);
-      }
-    }, 300);
-  };
 
   // ──────────────────────────────────────────────
   // 3. Audio / Speaker Sound Output Test
@@ -422,15 +341,13 @@ export default function PesertaDeviceCheck() {
     () => isMultiMonitorScreen(),
     [browserVerified, screenResolution]
   );
-  const isFaceOk = faceCheckedInSession || initialFaceRegistered;
 
   const kycPoints = [
     { key: 'camera', label: 'Kamera Web (Webcam)', ok: isCameraOk },
     { key: 'mic', label: 'Mikrofon Sistem', ok: isMicOk },
     { key: 'speaker', label: 'Speaker / Audio Output', ok: isSpeakerOk },
     { key: 'connection', label: 'Koneksi Internet', ok: isConnectionOk },
-    { key: 'browser', label: 'Resolusi & Browser', ok: isBrowserOk },
-    { key: 'face', label: 'Registrasi Foto Wajah (KYC)', ok: isFaceOk }
+    { key: 'browser', label: 'Resolusi & Browser', ok: isBrowserOk }
   ];
   const verifiedPointsCount = kycPoints.filter((p) => p.ok).length;
   const allPointsVerified = verifiedPointsCount === kycPoints.length;
@@ -446,12 +363,8 @@ export default function PesertaDeviceCheck() {
       setFaceError('Sebagian komponen perangkat belum selesai diuji. Klik "Uji Ulang Sistem" untuk memeriksa kembali.');
       return;
     }
-    if (!isFaceOk) {
-      setFaceError('Ambil foto wajah KYC terlebih dahulu (klik tombol "Ambil Foto Wajah").');
-      return;
-    }
     if (!consentGiven) {
-      setFaceError('Centang persetujuan verifikasi biometrik & integritas ujian terlebih dahulu.');
+      setFaceError('Centang persetujuan pemantauan proctoring & kesiapan perangkat terlebih dahulu.');
       return;
     }
 
@@ -490,18 +403,13 @@ export default function PesertaDeviceCheck() {
       return;
     }
     if (!allPointsVerified || (!validationSuccess && !getPortalUser()?.deviceCheckCompletedAt)) {
-      setFaceError('Lengkapi seluruh 6 poin validasi KYC perangkat dan klik "Konfirmasi & Validasi Kesiapan Perangkat" terlebih dahulu.');
+      setFaceError('Lengkapi seluruh 5 poin uji kesiapan perangkat dan klik "Konfirmasi & Lanjut ke Asesmen" terlebih dahulu.');
       const btn = document.getElementById('btn-confirm-device');
       btn?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     if (!consentGiven) {
-      setFaceError('Silakan centang persetujuan biometrik & perlindungan data sebelum melanjutkan.');
-      return;
-    }
-    const isFaceReady = initialFaceRegistered || Boolean(getPortalUser()?.faceVerifiedAt);
-    if (!isFaceReady) {
-      setFaceError('Registrasi wajah wajib diselesaikan sebelum melanjutkan ke menu Asesmen Saya.');
+      setFaceError('Silakan centang persetujuan kesiapan perangkat & proctoring sebelum melanjutkan.');
       return;
     }
     setFaceError('');
@@ -529,7 +437,7 @@ export default function PesertaDeviceCheck() {
 
           <div className="h-5 w-px bg-slate-200 hidden sm:block" />
           <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full bg-blue-50 text-primary-navy border border-blue-200/70 text-[11px] font-bold">
-            Mode Fokus • Verifikasi KYC Perangkat
+            Mode Fokus • Uji Kesiapan Perangkat
           </span>
         </div>
 
@@ -573,8 +481,6 @@ export default function PesertaDeviceCheck() {
       </header>
 
       <main className="flex-1 min-h-0 max-w-7xl w-full mx-auto px-4 sm:px-6 py-3.5 flex flex-col gap-3">
-        {/* Hidden canvas for snapshot capture */}
-        <canvas ref={canvasRef} className="hidden" />
 
         {/* ─── Compact Header Row ─── */}
         <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
@@ -650,24 +556,14 @@ export default function PesertaDeviceCheck() {
               </div>
             </div>
 
-            {/* Simulated Silhouette Frame if camera not active */}
+            {/* Camera status placeholder if camera not active */}
             {cameraStatus !== 'active' && (
               <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center z-0 pointer-events-none">
-                {capturedPhotoUrl ? (
-                  <img
-                    src={capturedPhotoUrl}
-                    alt="Snapshot Wajah"
-                    className="w-28 h-28 rounded-full object-cover border-4 border-emerald-400/50 shadow-lg mb-2"
-                  />
-                ) : (
-                  <div className="w-24 h-24 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center bg-slate-800/40 mb-2">
-                    <Camera className="w-8 h-8 text-slate-500" />
-                  </div>
-                )}
+                <div className="w-20 h-20 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center bg-slate-800/40 mb-2">
+                  <Camera className="w-8 h-8 text-slate-400" />
+                </div>
                 <p className="text-xs text-slate-300 font-medium">
-                  {capturedPhotoUrl
-                    ? 'Snapshot Wajah Tersimpan'
-                    : 'Kamera belum aktif — gunakan tombol "Ambil Foto" pada poin 6 di bawah'}
+                  Pratinjau kamera aktif otomatis saat izin webcam diberikan (khusus uji fungsi kamera).
                 </p>
               </div>
             )}
@@ -676,23 +572,10 @@ export default function PesertaDeviceCheck() {
             <div className="flex items-center justify-between gap-2 relative z-10">
               <div className="flex items-center gap-1.5 text-xs bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-emerald-300">
                 <Eye className="w-3.5 h-3.5" />
-                <span>{faceDetected ? '1 Wajah Terdeteksi • Pencahayaan Cukup' : 'Posisikan Wajah di Tengah'}</span>
+                <span>{faceDetected ? 'Kamera Siap • Pencahayaan Cukup' : 'Arahkan Kamera ke Wajah Anda'}</span>
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCaptureFace}
-                  disabled={registeringFace}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all cursor-pointer ${
-                    isFaceOk
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                      : 'bg-white text-primary-navy hover:bg-blue-50'
-                  }`}
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>{registeringFace ? 'Menyimpan...' : isFaceOk ? 'Foto Ulang' : 'Ambil Foto Wajah'}</span>
-                </button>
                 <button
                   type="button"
                   onClick={startRealMedia}
@@ -725,10 +608,10 @@ export default function PesertaDeviceCheck() {
           </div>
         </div>
 
-        {/* ─── ROW 2: Single-Row 6-Point KYC Checklist + Bottom Confirm Bar ─── */}
+        {/* ─── ROW 2: Single-Row 5-Point Device Checklist + Bottom Confirm Bar ─── */}
         <div className="shrink-0 bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-xs space-y-3">
-          {/* 6 Points in ONE horizontal row on desktop */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {/* 5 Points in ONE horizontal row on desktop */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             {/* 1. Kamera Web */}
             <div
               className={`p-2.5 rounded-xl border flex flex-col justify-between gap-2 ${
@@ -1007,48 +890,6 @@ export default function PesertaDeviceCheck() {
                 )}
               </div>
             </div>
-
-            {/* 6. Foto Wajah (KYC) */}
-            <div
-              className={`p-2.5 rounded-xl border flex flex-col justify-between gap-2 ${
-                isFaceOk ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-1.5">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span
-                    className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                      isFaceOk ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
-                    }`}
-                  >
-                    {isFaceOk ? <Check className="w-3 h-3" /> : '6'}
-                  </span>
-                  <p className="text-xs font-bold text-ink truncate">Foto KYC</p>
-                </div>
-                <span
-                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                    isFaceOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                  }`}
-                >
-                  {isFaceOk ? 'Valid' : 'Belum'}
-                </span>
-              </div>
-              <p className="text-[10px] text-muted-slate truncate">
-                {isFaceOk ? 'Wajah tersimpan' : 'Wajib foto wajah'}
-              </p>
-              <button
-                type="button"
-                onClick={handleCaptureFace}
-                disabled={registeringFace}
-                className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                  isFaceOk
-                    ? 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                    : 'bg-primary-navy hover:bg-slate-800 text-white'
-                }`}
-              >
-                {registeringFace ? 'Menyimpan...' : isFaceOk ? 'Foto Ulang ✓' : 'Ambil Foto'}
-              </button>
-            </div>
           </div>
 
           {/* Bottom Bar: Progress + Consent + Error/Success + Confirm CTA */}
@@ -1111,7 +952,7 @@ export default function PesertaDeviceCheck() {
                 ) : (
                   <>
                     <ShieldCheck className="w-4 h-4 text-emerald-100 shrink-0" />
-                    <span>Konfirmasi &amp; Lanjut ke Asesmen ({verifiedPointsCount}/6)</span>
+                    <span>Konfirmasi &amp; Lanjut ke Asesmen ({verifiedPointsCount}/{kycPoints.length})</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

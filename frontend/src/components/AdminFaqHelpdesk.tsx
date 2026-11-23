@@ -165,7 +165,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
     {
       id: 'welcome-admin',
       sender: 'bot',
-      text: 'Halo Admin! Ini adalah Chatbot FAQ resmi berbasis RAG (Non-AI bebas). Ketik pertanyaan kandidat di bawah untuk melihat jawaban langsung atau menguji eskalasi ke Helpdesk Internal.'
+      text: 'Halo Admin! Ini adalah Chatbot AI Asesmen RIGHT (bertenaga Gemini AI) yang juga terhubung ke Basis Pengetahuan FAQ resmi. Ketik pertanyaan apa saja di bawah untuk menguji respon AI atau eskalasi ke Helpdesk Internal.'
     }
   ]);
   const [chatInput, setChatInput] = useState('');
@@ -490,11 +490,16 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
     setChatInput('');
     setChatSending(true);
     try {
+      const history = chatMessages
+        .filter((m) => m.id !== 'welcome-admin')
+        .slice(-8)
+        .map((m) => ({ sender: m.sender, text: m.text }));
       const resp = await axios.post(
         '/api/peserta/faq-chat',
         {
           message: clean,
-          companyName: selectedCompanyKey === 'DEFAULT' ? '' : selectedCompanyKey
+          companyName: selectedCompanyKey === 'DEFAULT' ? '' : selectedCompanyKey,
+          history
         },
         { headers: getAuthHeaders() }
       );
@@ -518,7 +523,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
         {
           id: `b-${Date.now()}`,
           sender: 'bot',
-          text: 'Gagal memproses pertanyaan Chatbot FAQ.',
+          text: 'Gagal memproses pertanyaan Chatbot AI.',
           canEscalate: true,
           originalQuery: clean
         }
@@ -615,7 +620,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
             }`}
           >
             <Bot className="w-4 h-4" />
-            Chatbot FAQ
+            Chatbot AI
           </button>
           <button
             type="button"
@@ -826,7 +831,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
                       rows={3}
                       value={newAnswer}
                       onChange={(e) => setNewAnswer(e.target.value)}
-                      placeholder="Tuliskan jawaban resmi yang akan diberikan oleh Chatbot FAQ..."
+                      placeholder="Tuliskan jawaban resmi yang dijadikan referensi oleh Chatbot AI..."
                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-accent/20"
                       required
                     />
@@ -843,7 +848,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
               <CardContent className="p-5 space-y-3">
                 <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-blue-accent" />
-                  Uji Retrieval Chatbot FAQ (Non-AI Bebas)
+                  Uji Pencarian Referensi FAQ
                 </h3>
                 <form onSubmit={handleTestRag} className="flex gap-2">
                   <input
@@ -887,7 +892,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
                       Basis Pengetahuan FAQ Terindeks ({chunks.length})
                     </h3>
                     <p className="text-xs text-slate-500">
-                      Hanya konten di bawah ini yang digunakan Chatbot FAQ untuk menjawab kandidat.
+                      Konten di bawah ini digunakan sebagai referensi utama Asisten AI (Gemini) saat menjawab kandidat.
                     </p>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => loadKnowledge(selectedCompanyKey)}>
@@ -1009,9 +1014,9 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
                   <Bot className="w-5 h-5 text-blue-300" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm">Chatbot FAQ RIGHT (Terhubung ke Helpdesk Internal)</h3>
+                  <h3 className="font-bold text-sm">Chatbot AI RIGHT (Gemini AI + Helpdesk Internal)</h3>
                   <p className="text-xs text-blue-200">
-                    Menjawab berdasarkan Basis Pengetahuan FAQ terverifikasi (Non-AI bebas)
+                    Menjawab bebas menggunakan Gemini AI dengan referensi Basis Pengetahuan resmi
                   </p>
                 </div>
               </div>
@@ -1060,10 +1065,10 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
                     {m.matchedQuestion && (
                       <p className="font-bold text-primary-navy mb-1">{m.matchedQuestion}</p>
                     )}
-                    <p>{m.text}</p>
+                    <p className="whitespace-pre-wrap">{m.text}</p>
                     {m.sourceFile && (
                       <p className="text-[10px] text-slate-500 mt-1.5">
-                        Sumber: {m.sourceFile} {m.confidence !== undefined ? `• Skor RAG: ${m.confidence}` : ''}
+                        Referensi: {m.sourceFile} {m.confidence !== undefined ? `• Skor Konteks: ${m.confidence}` : ''}
                       </p>
                     )}
                   </div>
@@ -1084,7 +1089,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
               {chatSending && (
                 <div className="flex items-center gap-2 text-xs text-slate-400">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Mencari jawaban di Basis Pengetahuan FAQ...
+                  Asisten AI sedang menyusun jawaban...
                 </div>
               )}
             </div>
@@ -1100,7 +1105,7 @@ export const AdminFaqHelpdesk: React.FC<AdminFaqHelpdeskProps> = ({ initialTab =
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ketik pertanyaan kandidat untuk menguji Chatbot FAQ..."
+                placeholder="Ketik pertanyaan apa saja untuk menguji Chatbot AI (Gemini)..."
                 className="flex-1 px-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-accent/20"
               />
               <Button type="submit" disabled={chatSending || !chatInput.trim()}>

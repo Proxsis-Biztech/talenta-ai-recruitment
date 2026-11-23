@@ -248,11 +248,11 @@ router.post('/admin/helpdesk/tickets/:id/reply', authenticateToken, replyAdminHe
 router.patch('/admin/helpdesk/tickets/:id/status', authenticateToken, updateHelpdeskTicketStatus);
 router.patch('/admin/helpdesk/tickets/:id/read', authenticateToken, markAdminHelpdeskRead);
 
-router.get('/peserta/faq-knowledge', authenticatePortal, listPesertaFaqItems);
-router.post('/peserta/faq-chat', authenticatePortal, askPesertaFaqChatbot);
+router.get('/peserta/faq-knowledge', authenticateAny, listPesertaFaqItems);
+router.post('/peserta/faq-chat', authenticateAny, askPesertaFaqChatbot);
 router.get('/peserta/helpdesk/stream', authenticatePortal, streamPortalHelpdesk);
 router.get('/peserta/helpdesk/tickets', authenticatePortal, listPesertaHelpdeskTickets);
-router.post('/peserta/helpdesk/tickets', authenticatePortal, createHelpdeskTicket);
+router.post('/peserta/helpdesk/tickets', authenticateAny, createHelpdeskTicket);
 router.post('/peserta/helpdesk/tickets/:id/reply', authenticatePortal, replyPesertaHelpdeskTicket);
 router.post('/admin/programs/:programCode/questions/sync', authenticateToken, syncProgramQuestions);
 router.get('/admin/programs/:programCode/questions/template', authenticateToken, downloadQuestionTemplate);

@@ -22,7 +22,8 @@ export function RequireProfileComplete({ children }: { children: React.ReactNode
     user?.nik &&
     user?.education &&
     user?.university &&
-    user?.city
+    user?.city &&
+    user?.faceVerifiedAt
   );
   if (user && !complete) {
     return <Navigate to="/peserta/profile" replace />;

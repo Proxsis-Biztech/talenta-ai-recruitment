@@ -7,6 +7,7 @@ import mammoth from 'mammoth';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from 'docx';
 import { type AuthRequest } from '../middleware/auth';
 import { openSseStream, publish, publishToUser } from '../services/realtimeService';
+import { getAiConfig } from '../services/aiConfigService';
 
 const prisma = new PrismaClient();
 const FAQ_UPLOAD_DIR = path.join(__dirname, '../../uploads/faq-knowledge');
@@ -799,7 +800,7 @@ export const testFaqRagSearch = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ─── CANDIDATE CHATBOT FAQ (NON-FREE-AI GROUNDED RAG) ───────────────────────
+// ─── CANDIDATE CHATBOT AI (GEMINI AI + FAQ KNOWLEDGE GROUNDING) ─────────────
 
 export const listPesertaFaqItems = async (req: AuthRequest, res: Response) => {
   try {
@@ -831,17 +832,142 @@ export const askPesertaFaqChatbot = async (req: AuthRequest, res: Response) => {
     const hints: Array<string | null | undefined> = [];
     if (req.body.companyName) hints.push(String(req.body.companyName));
     const requesterTenantId = req.portalUser?.tenantId || req.user?.tenantId;
+    let companyLabel = String(req.body.companyName || '').trim();
     if (requesterTenantId) {
       const tenant = await prisma.tenant.findUnique({ where: { id: requesterTenantId } });
-      if (tenant) hints.push(tenant.name, tenant.id);
+      if (tenant) {
+        hints.push(tenant.name, tenant.id);
+        if (!companyLabel) companyLabel = tenant.name;
+      }
     }
     hints.push('DEFAULT');
 
     const rag = await retrieveGroundedFaq(message, hints);
 
+    // Gather up to 15 knowledge base entries as grounded context for Gemini
+    const defStore = await getStoreForKey('DEFAULT');
+    const tenantStore = companyLabel ? await getStoreForKey(normalizeKey(companyLabel)) : null;
+    const combinedChunks = [...(tenantStore?.chunks || []), ...defStore.chunks];
+    const uniqueChunks: FaqChunkItem[] = [];
+    const seenIds = new Set<string>();
+    for (const c of [rag.bestChunk, ...rag.relatedChunks, ...combinedChunks]) {
+      if (c && !seenIds.has(c.id)) {
+        seenIds.add(c.id);
+        uniqueChunks.push(c);
+      }
+      if (uniqueChunks.length >= 18) break;
+    }
+
+    const knowledgeContext = uniqueChunks
+      .map((c, idx) => `${idx + 1}. [${c.category}] Q: ${c.question}\n   A: ${c.answer}`)
+      .join('\n');
+
+    const rawHistory = Array.isArray(req.body.history) ? req.body.history : [];
+    const historyTurns = rawHistory
+      .slice(-8)
+      .map((h: { sender?: string; role?: string; text?: string }) => {
+        const text = String(h?.text || '').trim();
+        if (!text) return null;
+        const isUser = h?.sender === 'user' || h?.role === 'user';
+        return {
+          role: isUser ? ('user' as const) : ('model' as const),
+          parts: [{ text }]
+        };
+      })
+      .filter((t: { role: 'user' | 'model'; parts: Array<{ text: string }> } | null): t is { role: 'user' | 'model'; parts: Array<{ text: string }> } => Boolean(t));
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey) {
+      try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey });
+        const aiConfig = await getAiConfig();
+        const candidateModels = Array.from(
+          new Set(
+            [
+              process.env.GEMINI_CHAT_MODEL,
+              aiConfig.cvScreeningModel,
+              'gemini-2.5-flash',
+              'gemini-flash-lite-latest',
+              'gemini-3.5-flash-lite'
+            ].filter((m): m is string => Boolean(m && m.trim()))
+          )
+        );
+
+        const userDisplayName = req.portalUser?.name || req.user?.username || 'Pengguna';
+        const userRole = req.portalUser?.role || req.user?.role || 'peserta';
+        const systemInstruction = `Anda adalah Asisten AI resmi untuk platform asesmen dan seleksi bakat "RIGHT Assessment Platform".
+Jawablah pertanyaan pengguna dalam Bahasa Indonesia yang ramah, ringkas, jelas, dan membantu.
+
+Konteks Pengguna:
+- Nama: ${userDisplayName}
+- Peran: ${userRole}${companyLabel ? `\n- Perusahaan / Program: ${companyLabel}` : ''}
+
+Referensi Pengetahuan Resmi Platform RIGHT (gunakan sebagai acuan utama bila relevan):
+${knowledgeContext || 'Belum ada entri pengetahuan tambahan.'}
+
+Pedoman Jawaban:
+1. Berikan jawaban langsung, terstruktur (boleh memakai poin singkat seperlunya), dan mudah dipahami tanpa simbol markdown berlebihan seperti ** atau ###.
+2. Untuk pertanyaan terkait perangkat/kamera, larangan virtual background, aturan proctoring AI, ujian CAT, Live Coding Judge0, ruang tunggu/antrean wawancara, atau Laporan Hasil Asesmen (LHA), prioritaskan fakta dari Referensi Pengetahuan Resmi di atas.
+3. Anda juga dapat menjawab pertanyaan umum seputar persiapan asesmen, tips teknis, alur penggunaan portal, maupun pertanyaan bebas lainnya secara natural.
+4. Jangan pernah mengarang data pribadi akun tertentu (seperti nilai ujian spesifik, status kelulusan akun, atau reset token/password). Jika pengguna mengalami kendala teknis akun spesifik atau butuh tindakan admin/pengawas, arahkan mereka untuk mengklik tombol "Hubungkan ke Chat Helpdesk".`;
+
+        const contents = [
+          ...historyTurns,
+          { role: 'user' as const, parts: [{ text: message }] }
+        ];
+
+        let aiText = '';
+        let usedModel = '';
+        for (const modelName of candidateModels) {
+          try {
+            const response = await ai.models.generateContent({
+              model: modelName,
+              contents,
+              config: {
+                systemInstruction,
+                temperature: 0.4,
+                maxOutputTokens: 700
+              }
+            });
+            const text = String(response.text || '').trim();
+            if (text) {
+              aiText = text;
+              usedModel = modelName;
+              break;
+            }
+          } catch (modelErr: unknown) {
+            console.warn(
+              `Gemini chatbot model ${modelName} failed:`,
+              modelErr instanceof Error ? modelErr.message : modelErr
+            );
+          }
+        }
+
+        if (aiText) {
+          return res.json({
+            matched: true,
+            aiPowered: true,
+            model: usedModel,
+            confidence: rag.confidence,
+            reply: aiText,
+            matchedQuestion: null,
+            category: rag.bestChunk?.category || 'Asisten AI Gemini',
+            sourceFile: rag.matched && rag.bestChunk ? rag.bestChunk.sourceFile : null,
+            relatedQuestions: rag.relatedChunks.map((c) => c.question),
+            canEscalate: true
+          });
+        }
+      } catch (aiErr) {
+        console.warn('Gemini chatbot AI call failed, falling back to FAQ retrieval:', aiErr);
+      }
+    }
+
+    // Fallback when GEMINI_API_KEY is absent or Gemini API temporarily fails
     if (rag.matched && rag.bestChunk) {
       return res.json({
         matched: true,
+        aiPowered: false,
         confidence: rag.confidence,
         reply: rag.bestChunk.answer,
         matchedQuestion: rag.bestChunk.question,
@@ -854,9 +980,11 @@ export const askPesertaFaqChatbot = async (req: AuthRequest, res: Response) => {
 
     return res.json({
       matched: false,
+      aiPowered: false,
       confidence: rag.confidence,
-      reply:
-        'Maaf, pertanyaan Anda belum tercakup di Basis Pengetahuan FAQ resmi kami. Chatbot ini hanya menjawab berdasarkan dokumen FAQ terverifikasi. Silakan klik tombol "Hubungkan ke Helpdesk Internal" agar tim Pengawas/Admin dapat membantu Anda langsung.',
+      reply: !apiKey
+        ? 'GEMINI_API_KEY belum terkonfigurasi di server, sehingga Asisten AI belum dapat menjawab pertanyaan bebas. Silakan klik tombol "Hubungkan ke Chat Helpdesk" agar tim Pengawas/Admin dapat membantu Anda langsung.'
+        : 'Maaf, Asisten AI sedang mengalami kendala koneksi sementara. Silakan coba lagi atau klik tombol "Hubungkan ke Chat Helpdesk" untuk bantuan langsung dari tim Pengawas/Admin.',
       matchedQuestion: null,
       category: null,
       sourceFile: null,
@@ -865,7 +993,7 @@ export const askPesertaFaqChatbot = async (req: AuthRequest, res: Response) => {
     });
   } catch (err) {
     console.error('askPesertaFaqChatbot error:', err);
-    return res.status(500).json({ error: 'Gagal memproses pertanyaan Chatbot FAQ.' });
+    return res.status(500).json({ error: 'Gagal memproses pertanyaan Chatbot AI.' });
   }
 };
 
