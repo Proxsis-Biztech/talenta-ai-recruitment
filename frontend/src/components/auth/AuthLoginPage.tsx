@@ -310,13 +310,9 @@ export default function AuthLoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] w-full relative overflow-x-hidden bg-gradient-to-br from-[#1A78D8] via-[#0F5EBA] to-[#084491] flex items-center justify-center p-4 sm:p-8 lg:p-10 font-sans antialiased">
-      {/* Subtle ambient background highlights matching royal blue canvas */}
-      <div className="pointer-events-none absolute -top-28 -left-28 w-[420px] h-[420px] rounded-full bg-white/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 -right-24 w-[460px] h-[460px] rounded-full bg-[#042352]/40 blur-3xl" />
-
+    <div className="min-h-[100dvh] w-full relative overflow-x-hidden bg-white flex items-center justify-center p-4 sm:p-8 lg:p-10 font-sans antialiased">
       {/* Centered Two-Column Card */}
-      <div className="relative z-10 w-full max-w-[1040px] bg-white rounded-[24px] shadow-[0_32px_80px_-15px_rgba(4,24,66,0.55)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 lg:min-h-[610px]">
+      <div className="relative z-10 w-full max-w-[1040px] bg-white rounded-[24px] border border-slate-200/80 shadow-[0_24px_64px_-16px_rgba(15,39,92,0.16)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 lg:min-h-[610px]">
         {/* Left Column: Layered 3D Blue Spheres & Welcome Copy (Desktop) */}
         <div className="hidden lg:block lg:col-span-6 relative bg-white overflow-hidden select-none">
           {/* Main sweeping top-left blue sphere */}
