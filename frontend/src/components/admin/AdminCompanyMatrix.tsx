@@ -561,78 +561,111 @@ export function AdminCompanyMatrix({
         </div>
       )}
 
-      {/* ─── PT Table with Quota Progress Bar ─── */}
-      <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-slate-50">
-              <TableHead>PERUSAHAAN</TableHead>
-              <TableHead>INDUSTRI</TableHead>
-              <TableHead>PIC RESMI</TableHead>
-              <TableHead className="w-64">PENGGUNAAN KUOTA ASESMEN</TableHead>
-              <TableHead>KONTRAK</TableHead>
-              <TableHead className="text-right">DETAIL</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {companies.map((c) => {
-              const pct = Math.round((c.quotaUsed / c.quotaMax) * 100);
-              const isSelected = selectedPtId === c.id;
-              const matchedPrograms = getProgramsForCompany(c);
-              return (
-                <TableRow
-                  key={c.id}
-                  isSelected={isSelected}
-                  onClick={() => setSelectedPtId(c.id)}
-                  className="cursor-pointer hover:bg-slate-50/80"
-                >
-                  <TableCell>
-                    <p className="font-bold text-ink text-xs sm:text-sm">{c.name}</p>
-                    <p className="font-mono text-[11px] text-muted-slate">
-                      {c.id} • {matchedPrograms.length || c.activeProgramsCount} Program Asesmen
-                    </p>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-600">{c.industry}</TableCell>
-                  <TableCell className="text-xs text-slate-600">{c.pic}</TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-mono font-bold text-primary-navy">{c.quotaUsed}</span>
-                        <span className="text-slate-400">
-                          / {c.quotaMax} ({pct}%)
+      {/* ─── PT Grid: Card per PT ─── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {companies.map((c) => {
+          const pct = Math.min(100, Math.round((c.quotaUsed / (c.quotaMax || 1)) * 100));
+          const isSelected = selectedPtId === c.id;
+          const matchedPrograms = getProgramsForCompany(c);
+          const programCount = matchedPrograms.length || c.activeProgramsCount;
+
+          return (
+            <div
+              key={c.id}
+              onClick={() => setSelectedPtId(c.id)}
+              className={`rounded-2xl border p-5 transition-all cursor-pointer flex flex-col justify-between gap-4 ${
+                isSelected
+                  ? 'bg-soft-blue/40 border-primary-navy ring-1 ring-primary-navy/25 shadow-sm'
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
+              }`}
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                        isSelected ? 'bg-primary-navy text-white' : 'bg-soft-blue text-primary-navy'
+                      }`}
+                    >
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[10px] font-bold text-primary-navy bg-soft-blue px-2 py-0.5 rounded border border-accent-border">
+                          {c.id}
                         </span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
-                        <div
-                          className={`h-full rounded-full ${
-                            pct > 80 ? 'bg-warning-amber' : 'bg-primary-navy'
-                          }`}
-                          style={{ width: `${pct}%` }}
-                        />
+                        <Badge variant="teal" format="soft">
+                          {programCount} Program
+                        </Badge>
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-slate-500">{c.contractPeriod}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant={isSelected ? 'primary' : 'outline'}
-                      size="xs"
-                      className="cursor-pointer"
-                      leftIcon={<Eye className="w-3.5 h-3.5" />}
-                      onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        setSelectedPtId(c.id);
-                        setDetailPt(c);
-                      }}
-                    >
-                      Detail
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                  </div>
+                  {isSelected && (
+                    <span className="text-[10px] font-bold text-primary-navy bg-white px-2 py-0.5 rounded-full border border-accent-border shrink-0">
+                      Aktif Dipilih
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="font-heading font-extrabold text-sm sm:text-base text-ink leading-snug">
+                    {c.name}
+                  </h3>
+                  <p className="text-xs text-muted-slate mt-0.5">{c.industry}</p>
+                </div>
+
+                <div className="space-y-1.5 text-xs text-slate-600 pt-1 border-t border-slate-100">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-400">PIC Resmi</span>
+                    <span className="font-semibold text-slate-800 text-right truncate">{c.pic}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-400">Kontrak</span>
+                    <span className="font-mono text-[11px] font-semibold text-slate-700">{c.contractPeriod}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-medium">Kuota Asesmen</span>
+                    <span>
+                      <strong className="font-mono text-primary-navy">{c.quotaUsed}</strong>
+                      <span className="text-slate-400">
+                        {' '}/ {c.quotaMax} ({pct}%)
+                      </span>
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                    <div
+                      className={`h-full rounded-full ${pct > 80 ? 'bg-warning-amber' : 'bg-primary-navy'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+                <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <BookOpen className="w-3.5 h-3.5 text-primary-navy" />
+                  <span>{programCount} program asesmen</span>
+                </span>
+                <Button
+                  variant={isSelected ? 'primary' : 'outline'}
+                  size="xs"
+                  className="cursor-pointer"
+                  leftIcon={<Eye className="w-3.5 h-3.5" />}
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    setSelectedPtId(c.id);
+                    setDetailPt(c);
+                  }}
+                >
+                  Detail
+                </Button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* ─── Detail PT: Matriks Peserta x Program x Tahap x Status ─── */}
