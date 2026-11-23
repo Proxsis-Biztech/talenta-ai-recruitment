@@ -22,8 +22,7 @@ import AnalyticsView from './AnalyticsView';
 import { AdminProgramBuilder } from './admin/AdminProgramBuilder';
 import { AdminCSVImportWizard } from './admin/AdminCSVImportWizard';
 import { AdminVerticalTimeline } from './admin/AdminVerticalTimeline';
-import { AdminMasterMateriTree } from './admin/AdminMasterMateriTree';
-import { AdminBankSoalEditor } from './admin/AdminBankSoalEditor';
+import { AdminMateriSoalHub } from './admin/AdminMateriSoalHub';
 import { AdminCompanyMatrix } from './admin/AdminCompanyMatrix';
 import AdminOrgStructure from './admin/AdminOrgStructure';
 import AdminSecurityCard from './admin/AdminSecurityCard';
@@ -229,11 +228,15 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [materiHubTab, setMateriHubTab] = useState<'materi' | 'bank-soal'>(() =>
+    new URLSearchParams(window.location.search).get('menu') === 'bank-soal' ? 'bank-soal' : 'materi'
+  );
   const [activeMenu, setActiveMenu] = useState<AdminMenuKey>(() => {
     const menu = new URLSearchParams(window.location.search).get('menu');
+    if (menu === 'bank-soal') return 'materi';
     const allowed: AdminMenuKey[] = [
       'dashboard', 'peserta', 'pipeline', 'jobs', 'ranking', 'lha-governance', 'proctoring', 'users',
-      'ai-config', 'audit-logs', 'analytics', 'materi', 'bank-soal', 'perusahaan',
+      'ai-config', 'audit-logs', 'analytics', 'materi', 'perusahaan',
       'billing', 'faq-helpdesk', 'chatbot-faq', 'helpdesk-internal', 'help'
     ];
     return menu && allowed.includes(menu as AdminMenuKey) ? (menu as AdminMenuKey) : 'dashboard';
@@ -968,21 +971,15 @@ ${app.interviewResult ? `
       dotColor: 'bg-primary-navy'
     },
     materi: {
-      title: 'Master Materi & Kurikulum',
-      subtitle: 'Repositori materi evaluasi, silabus kompetensi, dan panduan asesmen',
-      short: 'Materi',
+      title: 'Master Materi & Bank Soal',
+      subtitle: 'Pengelolaan terpadu materi pembelajaran, silabus kompetensi, dan bank soal CAT',
+      short: 'Materi & Soal',
       dotColor: 'bg-primary-navy'
     },
-    'bank-soal': {
-      title: 'Bank Soal & Bank Studi Kasus',
-      subtitle: 'Penyusunan pertanyaan wawancara adaptif dan instrumen tes teknis',
-      short: 'Bank Soal',
-      dotColor: 'bg-warning-amber'
-    },
     perusahaan: {
-      title: 'PT & Perusahaan Rekanan',
-      subtitle: 'Manajemen entitas perusahaan klien dan unit bisnis penyelenggara asesmen',
-      short: 'Perusahaan',
+      title: 'Perusahaan (PT) & Program Asesmen',
+      subtitle: 'Kelola entitas perusahaan mitra dan klik Detail untuk melihat program asesmen pada PT terkait',
+      short: 'Perusahaan (PT)',
       dotColor: 'bg-primary-navy'
     },
     billing: {
@@ -1107,11 +1104,14 @@ ${app.interviewResult ? `
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => setActiveMenu('bank-soal')}
+                      onClick={() => {
+                        setMateriHubTab('bank-soal');
+                        setActiveMenu('materi');
+                      }}
                       className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs font-bold px-4 py-2.5 rounded-xl backdrop-blur-xs cursor-pointer shadow-xs transition-transform hover:scale-[1.02] flex items-center gap-1.5"
                     >
                       <CheckSquare className="w-4 h-4 text-blue-300" />
-                      Bank Soal CAT
+                      Materi &amp; Bank Soal
                     </Button>
                     <Button
                       variant="secondary"
@@ -1908,13 +1908,9 @@ ${app.interviewResult ? `
                 applicants={allApplicants.length > 0 ? allApplicants : applicants}
               />
             </div>
-          ) : activeMenu === 'materi' ? (
+          ) : activeMenu === 'materi' || activeMenu === 'bank-soal' ? (
             <div className="animate-fade-in">
-              <AdminMasterMateriTree />
-            </div>
-          ) : activeMenu === 'bank-soal' ? (
-            <div className="animate-fade-in">
-              <AdminBankSoalEditor />
+              <AdminMateriSoalHub initialTab={activeMenu === 'bank-soal' ? 'bank-soal' : materiHubTab} />
             </div>
           ) : activeMenu === 'organisasi' ? (
             <div className="animate-fade-in">
@@ -1922,7 +1918,13 @@ ${app.interviewResult ? `
             </div>
           ) : activeMenu === 'perusahaan' ? (
             <div className="animate-fade-in">
-              <AdminCompanyMatrix />
+              <AdminCompanyMatrix
+                onNavigateToPrograms={() => setActiveMenu('jobs')}
+                onNavigateToBankSoal={() => {
+                  setMateriHubTab('bank-soal');
+                  setActiveMenu('materi');
+                }}
+              />
             </div>
           ) : activeMenu === 'billing' ? (
             <div className="animate-fade-in">

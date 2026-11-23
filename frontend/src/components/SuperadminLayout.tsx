@@ -101,8 +101,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'ASESMEN & SOAL',
     items: [
       { key: 'jobs', label: 'Program Asesmen', icon: BookOpen },
-      { key: 'materi', label: 'Master Materi & Silabus', icon: FileText },
-      { key: 'bank-soal', label: 'Bank Soal CAT', icon: CheckSquare },
+      { key: 'materi', label: 'Master Materi & Bank Soal', icon: FileText },
+      { key: 'perusahaan', label: 'Perusahaan (PT)', icon: Building2 },
     ],
   },
   {
@@ -122,7 +122,6 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'enterprise',
     label: 'ENTERPRISE & KUOTA',
     items: [
-      { key: 'perusahaan', label: 'PT & Klien Enterprise', icon: Building2 },
       { key: 'billing', label: 'Billing & Kuota Kredit', icon: CreditCard },
     ],
   },

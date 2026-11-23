@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { downloadCsvFile } from '../../utils/csvExport';
 import {
@@ -18,9 +18,14 @@ import {
   Check,
   FileText,
   Upload,
-  Trash2
+  Trash2,
+  Eye,
+  BookOpen,
+  Clock,
+  Award
 } from 'lucide-react';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
+import { getAllPrograms, type AssessmentProgram } from '../../services/assessmentCatalog';
 import {
   Button,
   Badge,
@@ -99,8 +104,49 @@ const INITIAL_COMPANIES: CompanyItem[] = [
   }
 ];
 
-export function AdminCompanyMatrix() {
+interface AdminCompanyMatrixProps {
+  onNavigateToPrograms?: () => void;
+  onNavigateToBankSoal?: () => void;
+}
+
+interface PtProgramRow {
+  code: string;
+  title: string;
+  category: string;
+  gradeLevel: string;
+  durationMinutes: number;
+  passingScore: number;
+  totalQuestions: number;
+  applicantCount: number;
+  status: string;
+  source: 'server' | 'catalog';
+}
+
+const normalizeCompanyName = (raw?: string | null): string =>
+  String(raw || '')
+    .toLowerCase()
+    .replace(/\b(pt|tbk|persero|indonesia)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const companyMatchesName = (companyName: string, targetName: string): boolean => {
+  const a = normalizeCompanyName(companyName);
+  const b = normalizeCompanyName(targetName);
+  if (!a || !b) return false;
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  const aTokens = a.split(' ').filter((w) => w.length >= 3);
+  const bTokens = b.split(' ').filter((w) => w.length >= 3);
+  return aTokens.some((token) => bTokens.includes(token));
+};
+
+export function AdminCompanyMatrix({
+  onNavigateToPrograms,
+  onNavigateToBankSoal
+}: AdminCompanyMatrixProps = {}) {
   const [companies, setCompanies] = useState<CompanyItem[]>(INITIAL_COMPANIES);
+  const [allJobs, setAllJobs] = useState<any[]>([]);
+  const [allApplicants, setAllApplicants] = useState<any[]>([]);
+  const [detailPt, setDetailPt] = useState<CompanyItem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,51 +332,140 @@ export function AdminCompanyMatrix() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadMatrix = async () => {
+    const loadServerCatalog = async () => {
       const token = localStorage.getItem('adminToken');
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       try {
         const [jobsResponse, applicantsResponse] = await Promise.all([
-          axios.get('/api/admin/jobs', { params: { limit: 100 }, headers }),
-          axios.get('/api/admin/applicants', { params: { limit: 100 }, headers })
+          axios.get('/api/admin/jobs', { params: { limit: 200 }, headers }),
+          axios.get('/api/admin/applicants', { params: { limit: 200 }, headers })
         ]);
         if (cancelled) return;
-        const jobs = jobsResponse.data.data || [];
-        const applicants = applicantsResponse.data.data || [];
-        const rows = jobs
-          .filter((job: any) => job.status === 'active')
-          .slice(0, 10)
-          .map((job: any) => {
-            const related = applicants.filter(
-              (applicant: any) =>
-                applicant.job?.title === job.title || applicant.appliedPosition === job.title
-            );
-            const interviewed = related.filter((applicant: any) =>
-              ['completed', 'scored'].includes(applicant.interviewStatus)
-            ).length;
-            const passed = related.filter(
-              (applicant: any) =>
-                Number(applicant.interviewScore || 0) >= Number(job.interviewPassingScore || 70)
-            ).length;
-            return {
-              program: job.title,
-              quota: related.length,
-              tahapBerkas: related.length,
-              tahapInterview: interviewed,
-              statusLulus: passed,
-              statusGagal: Math.max(0, related.length - passed)
-            };
-          });
-        setMatrixData(rows);
+        setAllJobs(Array.isArray(jobsResponse.data?.data) ? jobsResponse.data.data : []);
+        setAllApplicants(Array.isArray(applicantsResponse.data?.data) ? applicantsResponse.data.data : []);
       } catch {
-        if (!cancelled) setMatrixData([]);
+        if (!cancelled) {
+          setAllJobs([]);
+          setAllApplicants([]);
+        }
       }
     };
-    void loadMatrix();
+    void loadServerCatalog();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const catalogPrograms = useMemo<AssessmentProgram[]>(() => getAllPrograms(), []);
+
+  const getProgramsForCompany = (company: CompanyItem): PtProgramRow[] => {
+    const byKey = new Map<string, PtProgramRow>();
+
+    for (const job of allJobs) {
+      const parentheticalPt = String(job.title || '').match(/\(([^)]+)\)\s*$/)?.[1] || '';
+      const jobCompany = job.companyName || job.tenant?.name || parentheticalPt || '';
+      if (!companyMatchesName(company.name, jobCompany) && !companyMatchesName(company.name, job.title || '')) {
+        continue;
+      }
+      const code = String(job.code || job.id || '').toUpperCase();
+      const relatedApplicants = allApplicants.filter(
+        (applicant: any) => applicant.job?.title === job.title || applicant.appliedPosition === job.title
+      );
+      const cat = catalogPrograms.find(
+        (p) => p.id.toUpperCase() === code || p.title.toLowerCase() === String(job.title || '').toLowerCase()
+      );
+      byKey.set(code || String(job.title).toLowerCase(), {
+        code: job.code || cat?.id || '-',
+        title: job.title,
+        category: cat?.category || 'Asesmen Korporasi',
+        gradeLevel: cat?.gradeLevel || 'Grade B (Specialist / Mid)',
+        durationMinutes: Number(job.interviewDuration || cat?.durationMinutes || 60),
+        passingScore: Number(job.interviewPassingScore || cat?.passingScore || 75),
+        totalQuestions: cat?.totalQuestions || 40,
+        applicantCount: relatedApplicants.length,
+        status: job.status === 'active' ? 'Aktif' : 'Nonaktif',
+        source: 'server'
+      });
+    }
+
+    for (const prog of catalogPrograms) {
+      if (!companyMatchesName(company.name, prog.companyName)) continue;
+      const key = prog.id.toUpperCase();
+      if (byKey.has(key)) continue;
+      byKey.set(key, {
+        code: prog.id,
+        title: prog.title,
+        category: prog.category,
+        gradeLevel: prog.gradeLevel,
+        durationMinutes: prog.durationMinutes,
+        passingScore: prog.passingScore,
+        totalQuestions: prog.totalQuestions,
+        applicantCount: 0,
+        status: 'Katalog Program',
+        source: 'catalog'
+      });
+    }
+
+    return Array.from(byKey.values());
+  };
+
+  useEffect(() => {
+    if (!selectedPt) {
+      setMatrixData([]);
+      return;
+    }
+    const matched = getProgramsForCompany(selectedPt);
+    if (matched.length > 0) {
+      const rows = matched.map((prog) => {
+        const related = allApplicants.filter(
+          (applicant: any) =>
+            applicant.job?.title === prog.title ||
+            applicant.appliedPosition === prog.title ||
+            (applicant.job?.code && applicant.job.code === prog.code)
+        );
+        const interviewed = related.filter((applicant: any) =>
+          ['completed', 'scored'].includes(applicant.interviewStatus)
+        ).length;
+        const passed = related.filter(
+          (applicant: any) => Number(applicant.interviewScore || 0) >= prog.passingScore
+        ).length;
+        return {
+          program: `${prog.code !== '-' ? `[${prog.code}] ` : ''}${prog.title}`,
+          quota: related.length,
+          tahapBerkas: related.length,
+          tahapInterview: interviewed,
+          statusLulus: passed,
+          statusGagal: Math.max(0, related.length - passed)
+        };
+      });
+      setMatrixData(rows);
+      return;
+    }
+
+    const fallbackRows = allJobs
+      .filter((job: any) => job.status === 'active')
+      .slice(0, 8)
+      .map((job: any) => {
+        const related = allApplicants.filter(
+          (applicant: any) => applicant.job?.title === job.title || applicant.appliedPosition === job.title
+        );
+        const interviewed = related.filter((applicant: any) =>
+          ['completed', 'scored'].includes(applicant.interviewStatus)
+        ).length;
+        const passed = related.filter(
+          (applicant: any) => Number(applicant.interviewScore || 0) >= Number(job.interviewPassingScore || 70)
+        ).length;
+        return {
+          program: job.title,
+          quota: related.length,
+          tahapBerkas: related.length,
+          tahapInterview: interviewed,
+          statusLulus: passed,
+          statusGagal: Math.max(0, related.length - passed)
+        };
+      });
+    setMatrixData(fallbackRows);
+  }, [selectedPtId, companies, allJobs, allApplicants, catalogPrograms]);
 
   const handleAddCompany = (e: React.FormEvent) => {
     e.preventDefault();
@@ -443,6 +578,7 @@ export function AdminCompanyMatrix() {
             {companies.map((c) => {
               const pct = Math.round((c.quotaUsed / c.quotaMax) * 100);
               const isSelected = selectedPtId === c.id;
+              const matchedPrograms = getProgramsForCompany(c);
               return (
                 <TableRow
                   key={c.id}
@@ -453,7 +589,7 @@ export function AdminCompanyMatrix() {
                   <TableCell>
                     <p className="font-bold text-ink text-xs sm:text-sm">{c.name}</p>
                     <p className="font-mono text-[11px] text-muted-slate">
-                      {c.id} • {c.activeProgramsCount} Program Aktif
+                      {c.id} • {matchedPrograms.length || c.activeProgramsCount} Program Asesmen
                     </p>
                   </TableCell>
                   <TableCell className="text-xs text-slate-600">{c.industry}</TableCell>
@@ -478,8 +614,18 @@ export function AdminCompanyMatrix() {
                   </TableCell>
                   <TableCell className="font-mono text-xs text-slate-500">{c.contractPeriod}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant={isSelected ? 'primary' : 'outline'} size="xs" className="cursor-pointer">
-                      Matriks
+                    <Button
+                      variant={isSelected ? 'primary' : 'outline'}
+                      size="xs"
+                      className="cursor-pointer"
+                      leftIcon={<Eye className="w-3.5 h-3.5" />}
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        setSelectedPtId(c.id);
+                        setDetailPt(c);
+                      }}
+                    >
+                      Detail
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -815,6 +961,133 @@ export function AdminCompanyMatrix() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal: Detail Perusahaan (PT) & Program Asesmen */}
+      <Modal
+        isOpen={Boolean(detailPt)}
+        onClose={() => setDetailPt(null)}
+        title={detailPt ? `Detail Perusahaan — ${detailPt.name}` : 'Detail Perusahaan (PT)'}
+        description={detailPt ? `${detailPt.industry} • PIC: ${detailPt.pic}` : undefined}
+        size="2xl"
+      >
+        {detailPt && (() => {
+          const programs = getProgramsForCompany(detailPt);
+          const pct = Math.round((detailPt.quotaUsed / detailPt.quotaMax) * 100);
+          return (
+            <div className="p-2 space-y-5 text-xs max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[11px] text-slate-500 block">Kode &amp; Kontrak</span>
+                  <span className="font-mono font-bold text-slate-900 block mt-0.5">
+                    {detailPt.id} • {detailPt.contractPeriod}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[11px] text-slate-500 block">Kuota Terpakai</span>
+                  <span className="font-mono font-bold text-primary-navy block mt-0.5">
+                    {detailPt.quotaUsed} / {detailPt.quotaMax} ({pct}%)
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-soft-blue border border-accent-border">
+                  <span className="text-[11px] text-primary-navy block font-semibold">Total Program Asesmen</span>
+                  <span className="font-mono font-extrabold text-primary-navy text-sm block mt-0.5">
+                    {programs.length} Program Terdaftar
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-heading font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-primary-navy" />
+                    <span>Daftar Program Asesmen pada {detailPt.name}</span>
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    {onNavigateToBankSoal && (
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => {
+                          setDetailPt(null);
+                          onNavigateToBankSoal();
+                        }}
+                      >
+                        Buka Bank Soal
+                      </Button>
+                    )}
+                    {onNavigateToPrograms && (
+                      <Button
+                        variant="primary"
+                        size="xs"
+                        onClick={() => {
+                          setDetailPt(null);
+                          onNavigateToPrograms();
+                        }}
+                      >
+                        Kelola Program Asesmen
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {programs.length === 0 ? (
+                  <div className="p-8 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-500">
+                    Belum ada program asesmen yang terhubung ke {detailPt.name}. Tambahkan program baru pada menu Program Asesmen dengan menyertakan nama perusahaan ini.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {programs.map((prog) => (
+                      <div
+                        key={`${prog.code}-${prog.title}`}
+                        className="p-4 rounded-xl border border-slate-200 bg-white hover:border-primary-navy/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2 py-0.5 rounded border border-accent-border">
+                              {prog.code}
+                            </span>
+                            <Badge variant={prog.status === 'Aktif' ? 'success' : 'teal'} format="soft">
+                              {prog.status}
+                            </Badge>
+                            <span className="text-[11px] text-slate-500 font-medium">{prog.gradeLevel}</span>
+                          </div>
+                          <p className="font-bold text-sm text-slate-900">{prog.title}</p>
+                          <p className="text-[11px] text-slate-500">{prog.category}</p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-4 text-[11px] shrink-0 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-100">
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <Clock className="w-3.5 h-3.5 text-primary-navy" />
+                            <span className="font-mono font-bold">{prog.durationMinutes} mnt</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <Award className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>
+                              Pass <strong className="font-mono">{prog.passingScore}</strong>
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <Users className="w-3.5 h-3.5 text-blue-600" />
+                            <span>
+                              <strong className="font-mono">{prog.applicantCount}</strong> Peserta
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-100">
+                <Button variant="outline" size="sm" onClick={() => setDetailPt(null)}>
+                  Tutup Detail
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
     </div>
   );
