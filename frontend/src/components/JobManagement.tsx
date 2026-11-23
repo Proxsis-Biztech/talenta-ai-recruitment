@@ -71,9 +71,7 @@ function getJobScheduleStatus(job: Job): {
     : { key: 'inactive', label: 'Nonaktif', variant: 'neutral' };
 }
 
-/** Override materi khusus per formasi (hasil edit di modal Ubah Formasi) */
-const MATERI_OVERRIDES_KEY = 'talenta_job_materi_overrides_v1';
-
+/** Ambil daftar master materi fallback lokal sebelum scope server termuat */
 function resolveQuestionMateriAndSyllabus(
   q: QuestionItem,
   materials: MasterMateriItem[],
@@ -116,17 +114,6 @@ function getPersistedMasterMateri(): MasterMateriItem[] {
     /* parse error → jatuh ke konstanta bawaan */
   }
   return INITIAL_MATERI_LIST;
-}
-
-function getJobMateriOverrides(): Record<string, MasterMateriItem[]> {
-  try {
-    const saved = localStorage.getItem(MATERI_OVERRIDES_KEY);
-    const parsed = saved ? JSON.parse(saved) : null;
-    if (parsed && typeof parsed === 'object') return parsed as Record<string, MasterMateriItem[]>;
-  } catch {
-    /* parse error → tanpa override */
-  }
-  return {};
 }
 
 function questionTypeLabel(t: QuestionItem['type']): string {
@@ -185,8 +172,7 @@ export default function JobManagement() {
     materials: MasterMateriItem[];
   } | null>(null);
   const [detailTab, setDetailTab] = useState<'soal' | 'materi' | 'rubrik'>('soal');
-  const [serverMateri, setServerMateri] = useState<MasterMateriItem[]>([]);
-  const [serverMateriOverrides, setServerMateriOverrides] = useState<Record<string, MasterMateriItem[]>>({});
+  const [serverMateri, setServerMateri] = useState<MasterMateriItem[] | null>(null);
   const [qSearch, setQSearch] = useState('');
   const [qTypeFilter, setQTypeFilter] = useState('ALL');
   const [qDiffFilter, setQDiffFilter] = useState('ALL');
@@ -197,70 +183,24 @@ export default function JobManagement() {
     const count = bankSoalQuestions.filter(
       (question) => (question.programCode || 'SE-402').toUpperCase() === programCode
     ).length;
-    if (count > 0) return count;
+    if (count > 0 || job.code) return count;
     return program.questions?.length || 0;
   }, [bankSoalQuestions]);
 
-  const getMaterialsForJob = useCallback((job: Job, materiPool?: MasterMateriItem[]): MasterMateriItem[] => {
+  const getMaterialsForJob = useCallback((job: Job, materiPool?: MasterMateriItem[] | null): MasterMateriItem[] => {
     const program = findProgramByTitle(job.title, job.id);
     const programCode = (job.code || program.id).toUpperCase();
 
-    // 1) Utamakan Panduan Materi dari menu Materi & Soal yang cocok dengan Kode Program Asesmen
-    const masterList = materiPool && materiPool.length > 0
-      ? materiPool
-      : (serverMateri.length > 0 ? serverMateri : getPersistedMasterMateri());
+    // Ambil langsung dari data menu Materi & Soal (scope 'materi' -> 'table') tanpa dummy data
+    const masterList =
+      materiPool !== undefined && materiPool !== null
+        ? materiPool
+        : (serverMateri !== null ? serverMateri : getPersistedMasterMateri());
 
-    const byProgramCode = masterList.filter(
+    return masterList.filter(
       (m) => String(m.code || '').toUpperCase() === programCode
     );
-    if (byProgramCode.length > 0) return byProgramCode;
-
-    // 2) Override khusus per formasi bila tersedia
-    const overrides = { ...serverMateriOverrides, ...getJobMateriOverrides() };
-    if (overrides[job.id]?.length) return overrides[job.id];
-
-    // 3) Fallback kecocokan nama PT
-    const titleLower = job.title.toLowerCase();
-    const matched = masterList.filter((m) => {
-      if (m.companyName && companyMatchesName(m.companyName, job.title)) return true;
-      if (titleLower.includes('telkom') && m.companyId === 'PT-TELKOM') return true;
-      if (titleLower.includes('mandiri') && m.companyId === 'PT-MANDIRI') return true;
-      if (titleLower.includes('cimb') && m.companyId === 'PT-CIMB') return true;
-      if (titleLower.includes('astra') && m.companyId === 'PT-ASTRA') return true;
-      if (titleLower.includes('pertamina') && m.companyId === 'PT-PERTAMINA') return true;
-      return false;
-    });
-
-    if (matched.length > 0) return matched;
-
-    // 4) Resilient fallback custom module for dynamic/custom jobs
-    const company = job.title.includes('(') ? job.title.split('(')[1].replace(')', '').trim() : 'Enterprise Partner';
-    return [
-      {
-        id: `mat-${job.id}-1`,
-        code: job.code || `MOD-${job.id.substring(0, 5).toUpperCase()}`,
-        title: `Panduan & Kisi-Kisi Asesmen: ${job.title}`,
-        category: 'Kompetensi Inti & Terapan',
-        subcategory: 'Standar Operasional & Rekayasa Arsitektur Enterprise',
-        competency: 'System Resilience, Problem Solving & Business Alignment',
-        companyId: 'PT-DYNAMIC',
-        companyName: company,
-        assessmentType: 'Technical & Hard Competency',
-        assessmentLevel: 'Level 3: Senior / Lead Specialist',
-        type: 'Studi Kasus',
-        version: 'v2.5',
-        content: job.description || 'Panduan persiapan pengerjaan asesmen sesuai kompetensi posisi.',
-        rubric: `Standar penilaian skala BARS 1-5 dengan ambang kelulusan minimum ${job.interviewPassingScore || 75}%. Penilaian mengevaluasi pemahaman konsep, artikulasi trade-off teknis, dan kesiapan mitigasi risiko di lingkungan live.`,
-        behavioralIndicators: [
-          `Mampu merancang dan menganalisis solusi teknis untuk formasi ${job.title}`,
-          'Menjelaskan trade-off antara kecepatan implementasi, biaya operasional, dan keandalan sistem',
-          'Mematuhi tata kelola privasi data, audit trail integritas, dan regulasi kepatuhan industri'
-        ],
-        status: 'Aktif',
-        updatedAt: '2026-11-02'
-      }
-    ];
-  }, [serverMateri, serverMateriOverrides]);
+  }, [serverMateri]);
 
   useEffect(() => {
     loadMasterScope<any>('bank-soal')
@@ -280,16 +220,8 @@ export default function JobManagement() {
 
     loadMasterScope<MasterMateriItem[]>('materi')
       .then((data) => {
-        if (Array.isArray(data?.table) && data.table.length > 0) {
+        if (Array.isArray(data?.table)) {
           setServerMateri(data.table);
-        }
-      })
-      .catch(() => undefined);
-
-    loadMasterScope<MasterMateriItem[]>('job-materi')
-      .then((data) => {
-        if (data && typeof data === 'object') {
-          setServerMateriOverrides(data as Record<string, MasterMateriItem[]>);
         }
       })
       .catch(() => undefined);
@@ -342,7 +274,7 @@ export default function JobManagement() {
         latestQuestions = missing.length > 0 ? [...bankData.questions, ...missing] : bankData.questions;
         setBankSoalQuestions(latestQuestions);
       }
-      if (Array.isArray(materiData?.table) && materiData.table.length > 0) {
+      if (Array.isArray(materiData?.table)) {
         latestMateri = materiData.table;
         setServerMateri(latestMateri);
       }
@@ -1547,8 +1479,8 @@ export default function JobManagement() {
                           </span>
                         </div>
 
-                        {/* Keterangan Materi & Silabus Program */}
-                        {(() => {
+                        {/* Keterangan Materi & Silabus Program (hanya tampil bila materi sudah tersedia di Materi & Soal) */}
+                        {selectedJobDetail.materials.length > 0 && (() => {
                           const detailMateriInfo = resolveQuestionMateriAndSyllabus(
                             q,
                             selectedJobDetail.materials,
@@ -1674,8 +1606,19 @@ export default function JobManagement() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  {selectedJobDetail.materials.map((mat) => (
+                {selectedJobDetail.materials.length === 0 ? (
+                  <div className="p-8 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-xs sm:text-sm space-y-1">
+                    <Layers className="w-7 h-7 text-slate-300 mx-auto mb-1" />
+                    <p className="font-semibold text-slate-700">
+                      Belum ada panduan materi untuk program {selectedJobDetail.program.id}.
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Tambahkan panduan materi melalui menu <strong>Materi &amp; Soal</strong> di sidebar agar muncul di sini.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedJobDetail.materials.map((mat) => (
                     <Card key={mat.id} elevation="flat" className="p-4.5 border border-slate-200 space-y-3">
                       <div className="flex items-start justify-between gap-3 flex-wrap border-b border-slate-100 pb-3">
                         <div>
@@ -1737,8 +1680,9 @@ export default function JobManagement() {
                         </div>
                       )}
                     </Card>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
