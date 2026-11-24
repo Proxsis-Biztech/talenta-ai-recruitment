@@ -5,7 +5,7 @@ import {
   Trash2, Briefcase, Plus, Edit2, AlertCircle, Clock, 
   Target, Search, RefreshCw, Building2,
   BookOpen, Layers, CheckCircle2, Eye, HelpCircle, Check, 
-  X, Filter, Award, ShieldCheck, 
+  X, Filter, Award, ShieldCheck, Brain,
   ChevronRight, FileText, Info
 } from 'lucide-react';
 import {
@@ -166,12 +166,14 @@ export default function JobManagement() {
   const [editLoading, setEditLoading] = useState(false);
 
   // Details Modal State (Soal, Materi, Rubrik)
+  type DetailedQuestion = QuestionItem & { category?: 'psikotes' | 'kompetensi' };
   const [selectedJobDetail, setSelectedJobDetail] = useState<{
     job: Job;
-    program: AssessmentProgram;
+    program: Omit<AssessmentProgram, 'questions'> & { questions: DetailedQuestion[] };
     materials: MasterMateriItem[];
   } | null>(null);
   const [detailTab, setDetailTab] = useState<'soal' | 'materi' | 'rubrik'>('soal');
+  const [detailQuestionCategory, setDetailQuestionCategory] = useState<'psikotes' | 'kompetensi'>('psikotes');
   const [serverMateri, setServerMateri] = useState<MasterMateriItem[] | null>(null);
   const [qSearch, setQSearch] = useState('');
   const [qTypeFilter, setQTypeFilter] = useState('ALL');
@@ -227,7 +229,7 @@ export default function JobManagement() {
       .catch(() => undefined);
   }, []);
 
-  const mapBankQuestion = (question: any, index: number): QuestionItem => {
+  const mapBankQuestion = (question: any, index: number): QuestionItem & { category: 'psikotes' | 'kompetensi' } => {
     const typeMap: Record<string, QuestionItem['type']> = {
       'Pilihan Ganda': 'single',
       'Multi-Select': 'multi',
@@ -236,10 +238,18 @@ export default function JobManagement() {
       'Matching': 'matching'
     };
     const pCode = question.programCode || 'CAT';
+    const matchingPairs = Array.isArray(question.matchingPairs)
+      ? question.matchingPairs.map((pair: any) => ({
+          left: pair.left || '',
+          rightOptions: Array.isArray(pair.rightOptions) ? pair.rightOptions : [pair.correctRight || pair.right || ''],
+          correctRight: pair.correctRight || pair.right || ''
+        }))
+      : [];
     return {
       id: index + 1,
       questionCode: question.id || `SOAL-${pCode}-${String(index + 1).padStart(2, '0')}`,
-      sourceBank: `Master Bank Soal CAT [${pCode}]`,
+      sourceBank: `Bank Soal CAT [${pCode}]`,
+      category: question.category === 'psikotes' ? 'psikotes' : 'kompetensi',
       type: typeMap[question.type] || 'single',
       text: question.text || '',
       competency: question.competency || 'General',
@@ -249,11 +259,12 @@ export default function JobManagement() {
         label: option.text || option.label || '',
         isCorrect: Boolean(option.isCorrect)
       })),
-      matchingPairs: [],
+      matchingPairs,
       codeSnippet: null,
+      correctAnswer: question.correctAnswer,
       explanation: question.explanation || '',
       weight: 1
-    } as unknown as QuestionItem;
+    } as unknown as QuestionItem & { category: 'psikotes' | 'kompetensi' };
   };
 
   const handleOpenDetailModal = async (job: Job, initialTab: 'soal' | 'materi' | 'rubrik' = 'soal') => {
@@ -286,10 +297,11 @@ export default function JobManagement() {
       .filter((question) => (question.programCode || 'SE-402').toUpperCase() === programCode)
       .map(mapBankQuestion);
     if (programQuestions.length === 0 && !job.code && program.questions && program.questions.length > 0) {
-      programQuestions = program.questions;
+      programQuestions = program.questions.map((q) => ({ ...q, category: 'kompetensi' as const }));
     }
     const questionsWithMeta = programQuestions.map((q, idx) => ({
       ...q,
+      category: q.category === 'psikotes' ? ('psikotes' as const) : ('kompetensi' as const),
       questionCode: q.questionCode || `SOAL-${programCode}-${String(q.id || idx + 1).padStart(2, '0')}`,
       sourceBank: q.sourceBank || `Bank Soal CAT [${programCode} • ${program.companyName || 'Program'}]`
     }));
@@ -300,16 +312,33 @@ export default function JobManagement() {
       program.companyName;
     const detailProgram = { ...program, id: programCode, companyName: resolvedCompany, questions: questionsWithMeta };
     const materials = getMaterialsForJob(job, latestMateri);
+    const hasPsikotes = questionsWithMeta.some((q) => q.category === 'psikotes');
+    const hasKompetensi = questionsWithMeta.some((q) => q.category !== 'psikotes');
     setSelectedJobDetail({ job, program: detailProgram, materials });
     setDetailTab(initialTab);
+    setDetailQuestionCategory(hasPsikotes ? 'psikotes' : hasKompetensi ? 'kompetensi' : 'psikotes');
     setQSearch('');
     setQTypeFilter('ALL');
     setQDiffFilter('ALL');
   };
 
+  const detailCategoryCounts = useMemo(() => {
+    const qs = selectedJobDetail?.program.questions ?? [];
+    return {
+      psikotes: qs.filter((q) => q.category === 'psikotes').length,
+      kompetensi: qs.filter((q) => q.category !== 'psikotes').length
+    };
+  }, [selectedJobDetail]);
+
+  const categoryQuestionsInDetail = useMemo(() => {
+    const qs = selectedJobDetail?.program.questions ?? [];
+    return qs.filter((q) =>
+      detailQuestionCategory === 'psikotes' ? q.category === 'psikotes' : q.category !== 'psikotes'
+    );
+  }, [selectedJobDetail, detailQuestionCategory]);
+
   const filteredQuestions = useMemo(() => {
-    if (!selectedJobDetail) return [];
-    return selectedJobDetail.program.questions.filter((q) => {
+    return categoryQuestionsInDetail.filter((q) => {
       const matchSearch = 
         !qSearch ||
         q.text.toLowerCase().includes(qSearch.toLowerCase()) ||
@@ -321,7 +350,7 @@ export default function JobManagement() {
       const matchDiff = qDiffFilter === 'ALL' || q.difficulty === qDiffFilter;
       return matchSearch && matchType && matchDiff;
     });
-  }, [selectedJobDetail, qSearch, qTypeFilter, qDiffFilter]);
+  }, [categoryQuestionsInDetail, qSearch, qTypeFilter, qDiffFilter]);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -500,9 +529,9 @@ export default function JobManagement() {
     }
   };
 
-  // Distribusi tipe soal dinamis (dipakai ribbon pada modal Detail Program)
+  // Distribusi tipe soal dinamis sesuai kategori aktif (Psikotes / Uji Kompetensi)
   const detailQuestionCounts = useMemo(() => {
-    const qs = selectedJobDetail?.program.questions ?? [];
+    const qs = categoryQuestionsInDetail;
     return {
       total: qs.length,
       single: qs.filter((q) => q.type === 'single').length,
@@ -511,7 +540,7 @@ export default function JobManagement() {
       short: qs.filter((q) => q.type === 'short').length,
       essay: qs.filter((q) => q.type === 'essay').length,
     };
-  }, [selectedJobDetail]);
+  }, [categoryQuestionsInDetail]);
 
   const handleDeleteJob = async (id: string, title: string) => {
     const result = await Swal.fire({
@@ -1361,9 +1390,92 @@ export default function JobManagement() {
               </button>
             </div>
 
-            {/* TAB 1: SOAL-SOAL CAT */}
+            {/* TAB 1: SOAL-SOAL CAT (Dipisah Soal Psikotes vs Uji Kompetensi dari Menu Materi & Soal) */}
             {detailTab === 'soal' && (
               <div className="space-y-4">
+                {/* Kategori Switcher: Soal Psikotes vs Uji Kompetensi */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDetailQuestionCategory('psikotes');
+                      setQTypeFilter('ALL');
+                    }}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${
+                      detailQuestionCategory === 'psikotes'
+                        ? 'border-indigo-500 bg-indigo-50/80 shadow-xs'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                          detailQuestionCategory === 'psikotes'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-100 border border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        <Brain className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900">Soal Psikotes</p>
+                        <p className="text-[11px] text-slate-500 truncate">
+                          Penalaran logis, numerik, verbal &amp; kepribadian
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ${
+                        detailQuestionCategory === 'psikotes'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 border border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {detailCategoryCounts.psikotes} Soal
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDetailQuestionCategory('kompetensi');
+                      setQTypeFilter('ALL');
+                    }}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${
+                      detailQuestionCategory === 'kompetensi'
+                        ? 'border-primary-navy bg-soft-blue shadow-xs'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                          detailQuestionCategory === 'kompetensi'
+                            ? 'bg-primary-navy text-white'
+                            : 'bg-slate-100 border border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        <BookOpen className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900">Uji Kompetensi</p>
+                        <p className="text-[11px] text-slate-500 truncate">
+                          Teknis, studi kasus, arsitektur &amp; materi program
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ${
+                        detailQuestionCategory === 'kompetensi'
+                          ? 'bg-primary-navy text-white'
+                          : 'bg-slate-100 border border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {detailCategoryCounts.kompetensi} Soal
+                    </span>
+                  </button>
+                </div>
+
                 {/* Question Distribution Ribbon */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div className="bg-white p-2 rounded-lg border border-slate-100 text-center">
@@ -1449,7 +1561,9 @@ export default function JobManagement() {
                 <div className="space-y-3.5">
                   {filteredQuestions.length === 0 ? (
                     <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-sm">
-                      {detailQuestionCounts.total === 0 ? 'Belum ada soal di Bank Soal CAT untuk program ini.' : 'Tidak ada soal yang sesuai dengan kata kunci atau filter yang dipilih.'}
+                      {detailQuestionCounts.total === 0
+                        ? `Belum ada soal ${detailQuestionCategory === 'psikotes' ? 'Psikotes' : 'Uji Kompetensi'} untuk program ini pada menu Materi & Soal.`
+                        : 'Tidak ada soal yang sesuai dengan kata kunci atau filter yang dipilih.'}
                     </div>
                   ) : (
                     filteredQuestions.map((q) => (
