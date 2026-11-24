@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -373,8 +373,10 @@ export default function PesertaDashboard() {
     ]
   );
 
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const filteredTasks = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = deferredSearchQuery.trim().toLowerCase();
     return tasks.filter((item) => {
       const matchTab =
         taskTab === 'all'
@@ -389,7 +391,7 @@ export default function PesertaDashboard() {
         item.category.toLowerCase().includes(query);
       return matchTab && matchSearch;
     });
-  }, [searchQuery, taskTab, tasks]);
+  }, [deferredSearchQuery, taskTab, tasks]);
 
   const completedCount = tasks.filter((t) => t.status === 'completed').length;
   const remainingCatAndInterview = (isCatCompleted ? 0 : 1) + (isInterviewCompleted ? 0 : 1);

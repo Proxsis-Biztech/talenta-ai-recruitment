@@ -42,10 +42,11 @@ import { getProgramById } from '../../services/assessmentCatalog';
 export default function PesertaProfile() {
   const navigate = useNavigate();
   const sessionUser = useMemo(() => getActiveSessionUser(), []);
+  const portalUser = useMemo(() => getPortalUser(), []);
 
   // Fetch full peserta record if available
   const initialData = useMemo(() => {
-    const portal = getPortalUser();
+    const portal = portalUser;
     return {
       id: sessionUser.id || '',
       name: sessionUser.name || '',
@@ -92,15 +93,15 @@ export default function PesertaProfile() {
     initialData.username?.endsWith('@talenta.local') ||
     initialData.id?.startsWith('token-')
   );
-  const [nik, setNik] = useState(getPortalUser()?.nik || '');
+  const [nik, setNik] = useState(() => portalUser?.nik || '');
   const [showNik, setShowNik] = useState(false);
-  const [education, setEducation] = useState(getPortalUser()?.education || '');
-  const [university, setUniversity] = useState(getPortalUser()?.university || '');
-  const [city, setCity] = useState(getPortalUser()?.city || '');
-  const [employeeNumber, setEmployeeNumber] = useState(getPortalUser()?.employeeNumber || '');
-  const [department, setDepartment] = useState(getPortalUser()?.department || '');
-  const [portfolioUrl, setPortfolioUrl] = useState(getPortalUser()?.portfolioUrl || '');
-  const [bio, setBio] = useState(getPortalUser()?.bio || '');
+  const [education, setEducation] = useState(() => portalUser?.education || '');
+  const [university, setUniversity] = useState(() => portalUser?.university || '');
+  const [city, setCity] = useState(() => portalUser?.city || '');
+  const [employeeNumber, setEmployeeNumber] = useState(() => portalUser?.employeeNumber || '');
+  const [department, setDepartment] = useState(() => portalUser?.department || '');
+  const [portfolioUrl, setPortfolioUrl] = useState(() => portalUser?.portfolioUrl || '');
+  const [bio, setBio] = useState(() => portalUser?.bio || '');
 
   // Password change states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -139,7 +140,7 @@ export default function PesertaProfile() {
     return isAnyCatCompleted();
   }, []);
 
-  const isFaceRegistered = Boolean(savedFacePhoto || getPortalUser()?.faceVerifiedAt);
+  const isFaceRegistered = Boolean(savedFacePhoto || portalUser?.faceVerifiedAt);
 
   const isNameValid = fullName.trim().length >= 2 && !isPlaceholderName(fullName);
   const cleanPhoneDigits = phone.replace(/[\s-]/g, '');
@@ -545,10 +546,10 @@ export default function PesertaProfile() {
                   </h1>
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    {getPortalUser()?.faceVerifiedAt ? 'Terverifikasi' : 'Belum Verifikasi'}
+                    {portalUser?.faceVerifiedAt ? 'Terverifikasi' : 'Belum Verifikasi'}
                   </span>
                   <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 text-xs font-mono font-semibold">
-                    {getPortalUser()?.candidateCode || initialData.id.slice(0, 8)}
+                    {portalUser?.candidateCode || initialData.id.slice(0, 8)}
                   </span>
                 </div>
 
@@ -710,7 +711,7 @@ export default function PesertaProfile() {
 
             {renderLiveScanIdentityPanel()}
 
-            {isAccessCodeUser && !getPortalUser()?.profileCompleted && (
+            {isAccessCodeUser && !portalUser?.profileCompleted && (
               <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 text-xs text-amber-900 animate-fade-in shadow-2xs">
                 <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
@@ -740,7 +741,7 @@ export default function PesertaProfile() {
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Masukkan nama lengkap resmi sesuai KTP Anda"
                       required
-                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all placeholder:text-slate-400 ${fieldValidationBorderClass(isNameValid)}`}
+                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-colors placeholder:text-slate-400 ${fieldValidationBorderClass(isNameValid)}`}
                     />
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
                       {isNameValid ? (
@@ -791,7 +792,7 @@ export default function PesertaProfile() {
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="Contoh: 081234567890"
                       required
-                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all font-mono ${fieldValidationBorderClass(isPhoneValid)}`}
+                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-colors font-mono ${fieldValidationBorderClass(isPhoneValid)}`}
                     />
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
                       {isPhoneValid ? (
@@ -824,7 +825,7 @@ export default function PesertaProfile() {
                       placeholder="16 digit angka NIK sesuai KTP"
                       maxLength={20}
                       required
-                      className={`w-full pl-3.5 pr-16 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all font-mono tracking-wider ${fieldValidationBorderClass(isNikValid)}`}
+                      className={`w-full pl-3.5 pr-16 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-colors font-mono tracking-wider ${fieldValidationBorderClass(isNikValid)}`}
                     />
                     <span className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2">
                       {isNikValid ? (
@@ -863,7 +864,7 @@ export default function PesertaProfile() {
                       onChange={(e) => setEducation(e.target.value)}
                       placeholder="Contoh: S1 Teknik Informatika"
                       required
-                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all ${fieldValidationBorderClass(isEducationValid)}`}
+                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-colors ${fieldValidationBorderClass(isEducationValid)}`}
                     />
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
                       {isEducationValid ? (
@@ -891,7 +892,7 @@ export default function PesertaProfile() {
                       onChange={(e) => setUniversity(e.target.value)}
                       placeholder="Contoh: Institut Teknologi Bandung"
                       required
-                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all ${fieldValidationBorderClass(isUniversityValid)}`}
+                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-colors ${fieldValidationBorderClass(isUniversityValid)}`}
                     />
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
                       {isUniversityValid ? (
@@ -919,7 +920,7 @@ export default function PesertaProfile() {
                       onChange={(e) => setCity(e.target.value)}
                       placeholder="Contoh: Jakarta Selatan"
                       required
-                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-all ${fieldValidationBorderClass(isCityValid)}`}
+                      className={`w-full pl-3.5 pr-10 py-2.5 rounded-xl border text-xs sm:text-sm font-medium outline-none transition-colors ${fieldValidationBorderClass(isCityValid)}`}
                     />
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
                       {isCityValid ? (
@@ -940,7 +941,7 @@ export default function PesertaProfile() {
                     type="text"
                     value={employeeNumber}
                     onChange={(e) => setEmployeeNumber(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-colors font-mono"
                   />
                 </div>
 
@@ -953,7 +954,7 @@ export default function PesertaProfile() {
                     type="text"
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-colors"
                   />
                 </div>
 
@@ -966,7 +967,7 @@ export default function PesertaProfile() {
                     type="url"
                     value={portfolioUrl}
                     onChange={(e) => setPortfolioUrl(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-colors font-mono"
                   />
                 </div>
               </div>
@@ -980,7 +981,7 @@ export default function PesertaProfile() {
                   rows={3}
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-all leading-relaxed"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10 text-xs sm:text-sm font-medium outline-none bg-white transition-colors leading-relaxed"
                 />
               </div>
 

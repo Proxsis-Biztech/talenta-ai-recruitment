@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useDeferredValue } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { 
@@ -337,20 +337,23 @@ export default function JobManagement() {
     );
   }, [selectedJobDetail, detailQuestionCategory]);
 
+  const deferredQSearch = useDeferredValue(qSearch);
+
   const filteredQuestions = useMemo(() => {
+    const qLower = deferredQSearch.toLowerCase();
     return categoryQuestionsInDetail.filter((q) => {
-      const matchSearch = 
-        !qSearch ||
-        q.text.toLowerCase().includes(qSearch.toLowerCase()) ||
-        q.competency.toLowerCase().includes(qSearch.toLowerCase()) ||
-        (q.explanation && q.explanation.toLowerCase().includes(qSearch.toLowerCase())) ||
-        (q.questionCode && q.questionCode.toLowerCase().includes(qSearch.toLowerCase())) ||
-        (q.sourceBank && q.sourceBank.toLowerCase().includes(qSearch.toLowerCase()));
+      const matchSearch =
+        !qLower ||
+        q.text.toLowerCase().includes(qLower) ||
+        q.competency.toLowerCase().includes(qLower) ||
+        (q.explanation && q.explanation.toLowerCase().includes(qLower)) ||
+        (q.questionCode && q.questionCode.toLowerCase().includes(qLower)) ||
+        (q.sourceBank && q.sourceBank.toLowerCase().includes(qLower));
       const matchType = qTypeFilter === 'ALL' || q.type === qTypeFilter;
       const matchDiff = qDiffFilter === 'ALL' || q.difficulty === qDiffFilter;
       return matchSearch && matchType && matchDiff;
     });
-  }, [categoryQuestionsInDetail, qSearch, qTypeFilter, qDiffFilter]);
+  }, [categoryQuestionsInDetail, deferredQSearch, qTypeFilter, qDiffFilter]);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -590,15 +593,19 @@ export default function JobManagement() {
     return Math.round(sum / scored.length);
   }, [jobs]);
 
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const filteredJobs = useMemo(() => {
+    const q = deferredSearchQuery.toLowerCase();
     return jobs.filter(job => {
-      const matchesSearch = 
-        job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        job.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch =
+        !q ||
+        job.title.toLowerCase().includes(q) ||
+        job.description.toLowerCase().includes(q);
       const matchesStatus = statusFilter === 'ALL' || job.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [jobs, searchQuery, statusFilter]);
+  }, [jobs, deferredSearchQuery, statusFilter]);
 
   return (
     <div className="space-y-6 font-sans">

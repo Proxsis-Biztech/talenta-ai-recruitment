@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CheckSquare,
   Plus,
@@ -280,27 +280,43 @@ const createQuestionId = (category: QuestionCategory): string =>
   `${category === 'psikotes' ? 'PSI' : 'SOAL'}-${Math.floor(400 + Math.random() * 500)}`;
 
 
-function QuestionFormFields({
+const QuestionFormFields = memo(function QuestionFormFields({
   question,
   onChange,
+  onPatch,
   onSave,
   onCancel,
   onUploadAttachment,
+  onUploadAttachmentForQuestion,
   onRemoveAttachment,
+  onRemoveAttachmentById,
   onDelete,
+  onDeleteById,
   headerLabel,
   competencySuggestions = []
 }: {
   question: BankQuestion;
-  onChange: (patch: Partial<BankQuestion>) => void;
+  onChange?: (patch: Partial<BankQuestion>) => void;
+  onPatch?: (id: string, patch: Partial<BankQuestion>) => void;
   onSave: () => void;
   onCancel?: () => void;
   onUploadAttachment?: (file: File) => void;
+  onUploadAttachmentForQuestion?: (question: BankQuestion, file: File) => void;
   onRemoveAttachment?: () => void;
+  onRemoveAttachmentById?: (id: string) => void;
   onDelete?: () => void;
+  onDeleteById?: (id: string) => void;
   headerLabel: string;
   competencySuggestions?: string[];
 }) {
+  const applyPatch = (patch: Partial<BankQuestion>) => {
+    if (onPatch) {
+      onPatch(question.id, patch);
+    } else {
+      onChange?.(patch);
+    }
+  };
+
   return (
     <div className="space-y-4 text-xs">
       <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -315,7 +331,7 @@ function QuestionFormFields({
           <Select
             label="Tipe Soal"
             value={question.type}
-            onChange={(e) => onChange({ type: e.target.value as BankQuestion['type'] })}
+            onChange={(e) => applyPatch({ type: e.target.value as BankQuestion['type'] })}
             className="h-11 rounded-xl font-semibold"
           >
             <option value="Pilihan Ganda">Pilihan Ganda</option>
@@ -329,7 +345,7 @@ function QuestionFormFields({
           <Select
             label="Tingkat Kesulitan"
             value={question.difficulty}
-            onChange={(e) => onChange({ difficulty: e.target.value as BankQuestion['difficulty'] })}
+            onChange={(e) => applyPatch({ difficulty: e.target.value as BankQuestion['difficulty'] })}
             className="h-11 rounded-xl font-semibold"
           >
             <option value="Mudah">Mudah</option>
@@ -341,7 +357,7 @@ function QuestionFormFields({
           <Select
             label="Status Butir"
             value={question.status}
-            onChange={(e) => onChange({ status: e.target.value as BankQuestion['status'] })}
+            onChange={(e) => applyPatch({ status: e.target.value as BankQuestion['status'] })}
             className="h-11 rounded-xl font-semibold"
           >
             <option value="Published">Published</option>
@@ -356,7 +372,7 @@ function QuestionFormFields({
         <Input
           label="Kompetensi / Topik (mengacu Master Materi)"
           value={question.competency || ''}
-          onChange={(e) => onChange({ competency: e.target.value })}
+          onChange={(e) => applyPatch({ competency: e.target.value })}
           placeholder="Contoh: System Architecture, Credit Risk Analytics, atau pilih dari Master Materi di bawah..."
           className="h-10 rounded-xl"
         />
@@ -369,7 +385,7 @@ function QuestionFormFields({
                 <button
                   key={comp}
                   type="button"
-                  onClick={() => onChange({ competency: comp })}
+                  onClick={() => applyPatch({ competency: comp })}
                   className={`px-2 py-0.5 rounded-full text-[11px] border transition-colors cursor-pointer ${
                     active
                       ? 'bg-primary-navy text-white border-primary-navy font-semibold'
@@ -389,7 +405,7 @@ function QuestionFormFields({
           label="Teks Pertanyaan (Studi Kasus / Soal):"
           rows={4}
           value={question.text}
-          onChange={(e) => onChange({ text: e.target.value })}
+          onChange={(e) => applyPatch({ text: e.target.value })}
           placeholder="Tuliskan butir soal secara lengkap..."
           className="rounded-xl text-xs leading-relaxed"
         />
@@ -410,7 +426,10 @@ function QuestionFormFields({
               accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
               onChange={(event) => {
                 const file = event.target.files?.[0];
-                if (file && onUploadAttachment) onUploadAttachment(file);
+                if (file) {
+                  if (onUploadAttachmentForQuestion) onUploadAttachmentForQuestion(question, file);
+                  else if (onUploadAttachment) onUploadAttachment(file);
+                }
                 event.target.value = '';
               }}
             />
@@ -423,7 +442,7 @@ function QuestionFormFields({
             </a>
             <button
               type="button"
-              onClick={() => onRemoveAttachment?.()}
+              onClick={() => (onRemoveAttachmentById ? onRemoveAttachmentById(question.id) : onRemoveAttachment?.())}
               className="text-rose-600 hover:text-rose-700 cursor-pointer"
             >
               <Trash2 className="w-3 h-3" />
@@ -452,7 +471,7 @@ function QuestionFormFields({
                       : question.options.map((o, i) =>
                           i === oIdx ? { ...o, isCorrect: !o.isCorrect } : o
                         );
-                  onChange({ options: newOpts });
+                  applyPatch({ options: newOpts });
                 }}
                 className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 cursor-pointer ${
                   opt.isCorrect ? 'bg-success-green text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
@@ -468,7 +487,7 @@ function QuestionFormFields({
                   const newOpts = question.options.map((o, i) =>
                     i === oIdx ? { ...o, text: e.target.value } : o
                   );
-                  onChange({ options: newOpts });
+                  applyPatch({ options: newOpts });
                 }}
                 className="flex-1 px-3 py-2 rounded-lg border border-border-slate text-xs outline-none"
               />
@@ -482,18 +501,18 @@ function QuestionFormFields({
         <textarea
           rows={2}
           value={question.explanation}
-          onChange={(e) => onChange({ explanation: e.target.value })}
+          onChange={(e) => applyPatch({ explanation: e.target.value })}
           placeholder="Penjelasan teknis kenapa opsi tersebut benar..."
           className="w-full p-2.5 rounded-lg border border-border-slate focus:border-primary-navy text-xs outline-none leading-relaxed"
         />
       </div>
 
       <div className="pt-2 flex flex-wrap justify-end gap-2 border-t border-slate-100">
-        {onDelete && (
+        {(onDeleteById || onDelete) && (
           <Button
             variant="danger"
             size="sm"
-            onClick={onDelete}
+            onClick={() => (onDeleteById ? onDeleteById(question.id) : onDelete?.())}
             className="flex items-center gap-1.5 cursor-pointer mr-auto"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -517,7 +536,7 @@ function QuestionFormFields({
       </div>
     </div>
   );
-}
+});
 
 export interface AdminBankSoalEditorProps {
   initialProgramCode?: string;
@@ -766,30 +785,53 @@ export function AdminBankSoalEditor({
     setViewMode('stats');
   };
 
-  const handleDeleteQuestion = (id: string) => {
+  const handleDeleteQuestion = useCallback((id: string) => {
     if (window.confirm(`Yakin ingin menghapus butir soal ${id} dari repositori?`)) {
-      const next = questions.filter((q) => q.id !== id);
-      setQuestions(next);
-      void saveMasterRecord('bank-soal', 'questions', next);
-      void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
+      setQuestions((prev) => {
+        const next = prev.filter((q) => q.id !== id);
+        void saveMasterRecord('bank-soal', 'questions', next);
+        void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
+        return next;
+      });
       showToast(`Butir soal ${id} berhasil dihapus dan disinkronkan ke bank ujian.`);
     }
-  };
+  }, [selectedProgramCode]);
 
-  const handleInlineFieldChange = (id: string, patch: Partial<BankQuestion>) => {
+  const handleInlineFieldChange = useCallback((id: string, patch: Partial<BankQuestion>) => {
     setQuestions((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
-  };
+  }, []);
 
-  const commitQuestions = (next: BankQuestion[]) => {
+  const commitQuestions = useCallback((next: BankQuestion[]) => {
     setQuestions(next);
     void saveMasterRecord('bank-soal', 'questions', next);
     void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
     showToast('Perubahan soal tersimpan dan disinkronkan.');
-  };
+  }, [selectedProgramCode]);
 
-  const handleInlineCommit = () => commitQuestions(questions);
+  const handleInlineCommit = useCallback(() => {
+    setQuestions((prev) => {
+      void saveMasterRecord('bank-soal', 'questions', prev);
+      void syncProgramQuestions(selectedProgramCode, prev).catch(() => undefined);
+      return prev;
+    });
+    showToast('Perubahan soal tersimpan dan disinkronkan.');
+  }, [selectedProgramCode]);
 
-  const handleInlineAttachmentUpload = async (question: BankQuestion, file: File) => {
+  const handleInlineRemoveAttachment = useCallback((id: string) => {
+    setQuestions((prev) => {
+      const next = prev.map((item) =>
+        item.id === id
+          ? { ...item, attachmentUrl: null, attachmentName: null, attachmentMime: null }
+          : item
+      );
+      void saveMasterRecord('bank-soal', 'questions', next);
+      void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
+      return next;
+    });
+    showToast('Perubahan soal tersimpan dan disinkronkan.');
+  }, [selectedProgramCode]);
+
+  const handleInlineAttachmentUpload = useCallback(async (question: BankQuestion, file: File) => {
     const token = localStorage.getItem('adminToken');
     if (!token) return;
     const programQuestions = questions.filter(
@@ -826,7 +868,7 @@ export function AdminBankSoalEditor({
           : 'Gagal mengunggah lampiran soal.'
       );
     }
-  };
+  }, [questions, programs, selectedProgramCode, commitQuestions]);
 
   const handleSaveQuestion = () => {
     if (!activeQuestion.text.trim()) {
@@ -890,14 +932,21 @@ export function AdminBankSoalEditor({
     }
   };
 
-  const programQuestionsForSelected = questions.filter(
-    (q) => (q.programCode || programs[0]?.id || 'SE-402') === selectedProgramCode
+  const programQuestionsForSelected = useMemo(
+    () =>
+      questions.filter(
+        (q) => (q.programCode || programs[0]?.id || 'SE-402') === selectedProgramCode
+      ),
+    [questions, programs, selectedProgramCode]
   );
 
-  const categoryCounts = {
-    psikotes: programQuestionsForSelected.filter((q) => getQuestionCategory(q) === 'psikotes').length,
-    kompetensi: programQuestionsForSelected.filter((q) => getQuestionCategory(q) === 'kompetensi').length
-  };
+  const categoryCounts = useMemo(
+    () => ({
+      psikotes: programQuestionsForSelected.filter((q) => getQuestionCategory(q) === 'psikotes').length,
+      kompetensi: programQuestionsForSelected.filter((q) => getQuestionCategory(q) === 'kompetensi').length
+    }),
+    [programQuestionsForSelected]
+  );
 
   const enabledTypesForActiveCategory: BankQuestion['type'][] =
     typeConfig[selectedProgramCode]?.[activeCategory] || DEFAULT_CATEGORY_TYPES[activeCategory];
@@ -939,15 +988,22 @@ export function AdminBankSoalEditor({
     [programs, selectedProgramCode]
   );
 
-  const filtered = programQuestionsForSelected.filter((q) => getQuestionCategory(q) === activeCategory);
+  const filtered = useMemo(
+    () => programQuestionsForSelected.filter((q) => getQuestionCategory(q) === activeCategory),
+    [programQuestionsForSelected, activeCategory]
+  );
 
-  const typeCounts = ALL_QUESTION_TYPES.map((type) => ({
-    type,
-    enabled: enabledTypesForActiveCategory.includes(type),
-    count: programQuestionsForSelected.filter(
-      (question) => getQuestionCategory(question) === activeCategory && question.type === type
-    ).length
-  }));
+  const typeCounts = useMemo(
+    () =>
+      ALL_QUESTION_TYPES.map((type) => ({
+        type,
+        enabled: enabledTypesForActiveCategory.includes(type),
+        count: programQuestionsForSelected.filter(
+          (question) => getQuestionCategory(question) === activeCategory && question.type === type
+        ).length
+      })),
+    [programQuestionsForSelected, activeCategory, enabledTypesForActiveCategory]
+  );
 
   const selectedProgramMateri = useMemo(() => {
     const codeUpper = String(selectedProgramCode || '').toUpperCase();
@@ -1075,30 +1131,34 @@ export function AdminBankSoalEditor({
     return Array.from(items);
   }, [materiList, programs, selectedProgramCode]);
 
-  const programRows = programs
-    .map((program) => {
-      const programQuestions = questions.filter(
-        (question) => (question.programCode || programs[0]?.id || 'SE-402') === program.id
-      );
-      const psikotesCount = programQuestions.filter((q) => getQuestionCategory(q) === 'psikotes').length;
-      const kompetensiCount = programQuestions.filter((q) => getQuestionCategory(q) === 'kompetensi').length;
-      const materiCount = materiList.filter(
-        (m) => String(m.code || '').toUpperCase() === program.id.toUpperCase()
-      ).length;
-      return {
-        ...program,
-        total: programQuestions.length,
-        psikotesCount,
-        kompetensiCount,
-        materiCount,
-        published: programQuestions.filter((question) => question.status === 'Published').length,
-        typeCount: new Set(programQuestions.map((question) => question.type)).size
-      };
-    })
-    .filter((row) => {
-      if (!filterCompany || filterCompany === 'ALL') return true;
-      return companyMatchesName(filterCompany, row.companyName) || companyMatchesName(filterCompany, row.title);
-    });
+  const programRows = useMemo(
+    () =>
+      programs
+        .map((program) => {
+          const programQuestions = questions.filter(
+            (question) => (question.programCode || programs[0]?.id || 'SE-402') === program.id
+          );
+          const psikotesCount = programQuestions.filter((q) => getQuestionCategory(q) === 'psikotes').length;
+          const kompetensiCount = programQuestions.filter((q) => getQuestionCategory(q) === 'kompetensi').length;
+          const materiCount = materiList.filter(
+            (m) => String(m.code || '').toUpperCase() === program.id.toUpperCase()
+          ).length;
+          return {
+            ...program,
+            total: programQuestions.length,
+            psikotesCount,
+            kompetensiCount,
+            materiCount,
+            published: programQuestions.filter((question) => question.status === 'Published').length,
+            typeCount: new Set(programQuestions.map((question) => question.type)).size
+          };
+        })
+        .filter((row) => {
+          if (!filterCompany || filterCompany === 'ALL') return true;
+          return companyMatchesName(filterCompany, row.companyName) || companyMatchesName(filterCompany, row.title);
+        }),
+    [programs, questions, materiList, filterCompany]
+  );
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -1730,19 +1790,11 @@ export function AdminBankSoalEditor({
                 </div>
                 <QuestionFormFields
                   question={q}
-                  onChange={(patch) => handleInlineFieldChange(q.id, patch)}
+                  onPatch={handleInlineFieldChange}
                   onSave={handleInlineCommit}
-                  onUploadAttachment={(file) => void handleInlineAttachmentUpload(q, file)}
-                  onRemoveAttachment={() =>
-                    commitQuestions(
-                      questions.map((item) =>
-                        item.id === q.id
-                          ? { ...item, attachmentUrl: null, attachmentName: null, attachmentMime: null }
-                          : item
-                      )
-                    )
-                  }
-                  onDelete={() => handleDeleteQuestion(q.id)}
+                  onUploadAttachmentForQuestion={handleInlineAttachmentUpload}
+                  onRemoveAttachmentById={handleInlineRemoveAttachment}
+                  onDeleteById={handleDeleteQuestion}
                   headerLabel={`Detail Soal #${index + 1}`}
                   competencySuggestions={competencySuggestions}
                 />

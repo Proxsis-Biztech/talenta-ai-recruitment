@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -220,6 +220,9 @@ export default function AdminDashboard() {
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const applicantsAbortRef = useRef<AbortController | null>(null);
+  const hasLoadedApplicantsRef = useRef(false);
   const [educationFilter, setEducationFilter] = useState('');
   const [interviewStatusFilter, setInterviewStatusFilter] = useState('');
   const [ptFilter, setPtFilter] = useState('');
@@ -284,8 +287,18 @@ export default function AdminDashboard() {
     () => new URLSearchParams(window.location.search).get('builder') === '1'
   );
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
   const fetchApplicants = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    applicantsAbortRef.current?.abort();
+    const controller = new AbortController();
+    applicantsAbortRef.current = controller;
+    if (!silent && !hasLoadedApplicantsRef.current) setLoading(true);
     try {
       const token = localStorage.getItem('adminToken');
       if (!token) {
@@ -294,20 +307,23 @@ export default function AdminDashboard() {
       }
       const response = await axios.get('/api/admin/applicants', {
         headers: { Authorization: `Bearer ${token}` },
-        params: { page, limit: 10, search, education: educationFilter, interviewStatus: interviewStatusFilter }
+        params: { page, limit: 10, search: debouncedSearch, education: educationFilter, interviewStatus: interviewStatusFilter },
+        signal: controller.signal
       });
       setApplicants(response.data.data);
       setTotal(response.data.meta.total);
       setLastPage(response.data.meta.lastPage);
+      hasLoadedApplicantsRef.current = true;
     } catch (error) {
+      if (axios.isCancel(error)) return;
       if (axios.isAxiosError(error) && (error.response?.status === 401 || error.response?.status === 403)) {
         localStorage.removeItem('adminToken');
         navigate('/admin/login');
       }
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent && !controller.signal.aborted) setLoading(false);
     }
-  }, [page, search, educationFilter, interviewStatusFilter, navigate]);
+  }, [page, debouncedSearch, educationFilter, interviewStatusFilter, navigate]);
 
   const fetchAllApplicants = useCallback(async () => {
     try {
@@ -324,11 +340,13 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    window.setTimeout(() => {
-      fetchApplicants();
-      fetchAllApplicants();
-    }, 0);
-  }, [fetchApplicants, fetchAllApplicants]);
+    void fetchApplicants();
+    return () => applicantsAbortRef.current?.abort();
+  }, [fetchApplicants]);
+
+  useEffect(() => {
+    void fetchAllApplicants();
+  }, [fetchAllApplicants]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -1100,6 +1118,23 @@ ${app.interviewResult ? `
     }
   };
 
+  const filteredTableApplicants = useMemo(() => {
+    const ptQ = ptFilter.toLowerCase();
+    const progQ = programFilter.toLowerCase();
+    const statusQ = statusFilter.toLowerCase();
+    return applicants.filter((app) => {
+      if (ptQ && !getCompanyForApplicant(app).toLowerCase().includes(ptQ)) return false;
+      if (progQ && !getProgramForApplicant(app).toLowerCase().includes(progQ)) return false;
+      if (statusQ) {
+        const s = getStatusForApplicant(app);
+        if (statusQ === 'proses' && s.label !== 'Proses') return false;
+        if (statusQ === 'lulus' && s.label !== 'Lulus') return false;
+        if (statusQ === 'gagal' && s.label !== 'Gagal') return false;
+      }
+      return true;
+    });
+  }, [applicants, ptFilter, programFilter, statusFilter]);
+
   return (
     <SuperadminLayout
       activeMenu={activeMenu}
@@ -1587,22 +1622,10 @@ ${app.interviewResult ? `
                   <p className="font-semibold text-slate-600 text-sm">Belum ada data peserta</p>
                 </div>
               ) : (
-                applicants
-                  .filter((app) => {
-                    if (ptFilter && !getCompanyForApplicant(app).toLowerCase().includes(ptFilter.toLowerCase())) return false;
-                    if (programFilter && !getProgramForApplicant(app).toLowerCase().includes(programFilter.toLowerCase())) return false;
-                    if (statusFilter) {
-                      const s = getStatusForApplicant(app);
-                      if (statusFilter.toLowerCase() === 'proses' && s.label !== 'Proses') return false;
-                      if (statusFilter.toLowerCase() === 'lulus' && s.label !== 'Lulus') return false;
-                      if (statusFilter.toLowerCase() === 'gagal' && s.label !== 'Gagal') return false;
-                    }
-                    return true;
-                  })
-                  .map((app) => {
-                    const statusObj = getStatusForApplicant(app);
-                    return (
-                      <div key={`m-${app.id}`} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                filteredTableApplicants.map((app) => {
+                  const statusObj = getStatusForApplicant(app);
+                  return (
+                    <div key={`m-${app.id}`} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-ink truncate">{app.fullName}</p>
@@ -1689,21 +1712,9 @@ ${app.interviewResult ? `
                     </TableCell>
                   </TableRow>
                 ) : (
-                  applicants
-                    .filter((app) => {
-                      if (ptFilter && !getCompanyForApplicant(app).toLowerCase().includes(ptFilter.toLowerCase())) return false;
-                      if (programFilter && !getProgramForApplicant(app).toLowerCase().includes(programFilter.toLowerCase())) return false;
-                      if (statusFilter) {
-                        const s = getStatusForApplicant(app);
-                        if (statusFilter.toLowerCase() === 'proses' && s.label !== 'Proses') return false;
-                        if (statusFilter.toLowerCase() === 'lulus' && s.label !== 'Lulus') return false;
-                        if (statusFilter.toLowerCase() === 'gagal' && s.label !== 'Gagal') return false;
-                      }
-                      return true;
-                    })
-                    .map((app, appIdx) => {
-                      const statusObj = getStatusForApplicant(app);
-                      const isChecked = selectedIds.includes(app.id);
+                  filteredTableApplicants.map((app, appIdx) => {
+                    const statusObj = getStatusForApplicant(app);
+                    const isChecked = selectedIds.includes(app.id);
                       const initials = app.fullName
                         .split(' ')
                         .map((n) => n[0])
@@ -2082,7 +2093,7 @@ ${app.interviewResult ? `
 
       {/* Detail Modal - Applicant Detail */}
       {selectedApplicant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 animate-fade-in">
           <div className="bg-white rounded-lg border border-slate-200 shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex-shrink-0">
@@ -2528,7 +2539,7 @@ ${app.interviewResult ? `
 
       {/* Edit Modal */}
       {editingApplicant && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 animate-fade-in">
           <div className="bg-white rounded-lg border border-slate-200 shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
               <div>
@@ -2686,7 +2697,7 @@ ${app.interviewResult ? `
 
       {/* ─── AI Decision Letter Generator Modal ─── */}
       {decisionModalOpen && decisionCandidate && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 animate-fade-in">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col border border-slate-200 overflow-hidden">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between flex-shrink-0">

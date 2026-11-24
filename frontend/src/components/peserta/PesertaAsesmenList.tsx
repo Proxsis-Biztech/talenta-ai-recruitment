@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useDeferredValue, useEffect, useState, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -585,13 +585,16 @@ export default function PesertaAsesmenList() {
     navigate('/peserta/asesmen', { state: null });
   };
 
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const deferredMateriSearch = useDeferredValue(materiSearch);
+
   const filteredPrograms = useMemo(() => {
+    const q = deferredSearchQuery.toLowerCase().trim();
     return programs.filter((p) => {
       if (filter === 'belum' && p.status !== 'belum') return false;
       if (filter === 'berjalan' && p.status !== 'berjalan') return false;
       if (filter === 'selesai' && p.status !== 'selesai') return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
+      if (q) {
         const match =
           p.title.toLowerCase().includes(q) ||
           p.id.toLowerCase().includes(q) ||
@@ -602,10 +605,10 @@ export default function PesertaAsesmenList() {
       }
       return true;
     });
-  }, [programs, filter, searchQuery]);
+  }, [programs, filter, deferredSearchQuery]);
 
   const filteredMaterials = useMemo(() => {
-    const q = materiSearch.trim().toLowerCase();
+    const q = deferredMateriSearch.trim().toLowerCase();
     if (!q) return materials;
     return materials.filter(
       (m) =>

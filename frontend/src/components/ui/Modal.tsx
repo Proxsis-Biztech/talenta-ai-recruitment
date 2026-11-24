@@ -16,6 +16,7 @@ export interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   className?: string;
+  closeOnOutsideClick?: boolean;
 }
 
 const maxWidthClasses: Record<string, string> = {
@@ -43,14 +44,21 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   footer,
   className,
+  closeOnOutsideClick = true,
 }) => {
   const resolvedSize = size || maxWidth || '2xl';
 
   return (
     <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-slate-900/40 backdrop-blur-xs" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-slate-900/45" />
         <DialogPrimitive.Content
+          onPointerDownOutside={(event) => {
+            if (!closeOnOutsideClick) event.preventDefault();
+          }}
+          onInteractOutside={(event) => {
+            if (!closeOnOutsideClick) event.preventDefault();
+          }}
           className={cn(
             'fixed left-1/2 top-1/2 z-[70] w-[calc(100vw-2rem)] min-w-0 -translate-x-1/2 -translate-y-1/2',
             'bg-white rounded-xl border border-slate-200/90',

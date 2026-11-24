@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { downloadCsvFile } from '../../utils/csvExport';
 import {
   FileText,
@@ -599,8 +599,11 @@ export function AdminMasterMateriTree({
     }
   }, [initialProgramCode, initialCompanyName, companyOptions]);
 
+  const deferredSearchFilter = useDeferredValue(searchFilter);
+
   // Filtered Items
   const filteredList = useMemo(() => {
+    const q = deferredSearchFilter.toLowerCase().trim();
     return materiList.filter((item) => {
       const matchProgram = selectedProgramCode === 'ALL' || item.code === selectedProgramCode;
       const matchCompany = selectedCompanyId === 'ALL' || matchesCompanyOption(selectedCompanyId, item);
@@ -608,7 +611,6 @@ export function AdminMasterMateriTree({
       const matchLevel = selectedLevelFilter === 'ALL' || item.assessmentLevel === selectedLevelFilter;
       const matchMatType = selectedMatTypeFilter === 'ALL' || item.type === selectedMatTypeFilter;
 
-      const q = searchFilter.toLowerCase().trim();
       const matchSearch =
         !q ||
         item.title.toLowerCase().includes(q) ||
@@ -620,7 +622,7 @@ export function AdminMasterMateriTree({
 
       return matchProgram && matchCompany && matchType && matchLevel && matchMatType && matchSearch;
     });
-  }, [materiList, companyOptions, selectedProgramCode, selectedCompanyId, selectedTypeFilter, selectedLevelFilter, selectedMatTypeFilter, searchFilter]);
+  }, [materiList, companyOptions, selectedProgramCode, selectedCompanyId, selectedTypeFilter, selectedLevelFilter, selectedMatTypeFilter, deferredSearchFilter]);
 
   // Statistics
   const stats = useMemo(() => {

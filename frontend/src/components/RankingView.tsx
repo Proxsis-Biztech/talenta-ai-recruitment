@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useDeferredValue, useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import {
   Trophy, Brain, Star, ShieldAlert, X, BarChart3, Briefcase, Loader2, Scale,
@@ -160,17 +160,19 @@ export default function RankingView() {
     setShowCompare(true);
   };
 
+  const deferredSearch = useDeferredValue(search);
+
   // Filtered applicants based on search
   const filteredApplicants = useMemo(() => {
-    if (!search.trim()) return applicants;
-    const q = search.toLowerCase();
+    if (!deferredSearch.trim()) return applicants;
+    const q = deferredSearch.toLowerCase();
     return applicants.filter(a =>
       a.fullName.toLowerCase().includes(q) ||
       a.email.toLowerCase().includes(q) ||
       (a.university && a.university.toLowerCase().includes(q)) ||
       a.jobTitle.toLowerCase().includes(q)
     );
-  }, [applicants, search]);
+  }, [applicants, deferredSearch]);
 
   const handleExportCSV = () => {
     if (applicants.length === 0) return;

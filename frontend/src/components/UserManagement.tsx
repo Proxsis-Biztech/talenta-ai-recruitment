@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useDeferredValue } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { loadMasterScope } from '../services/masterDataService';
@@ -814,39 +814,311 @@ export default function UserManagement() {
   // ──────────────────────────────────────────────
   // Filtered Lists
   // ──────────────────────────────────────────────
+  const deferredPesertaSearch = useDeferredValue(pesertaSearch);
+  const deferredAsesorSearch = useDeferredValue(asesorSearch);
+  const deferredAdminSearch = useDeferredValue(searchQuery);
+
   const filteredPeserta = useMemo(() => {
+    const q = deferredPesertaSearch.toLowerCase();
     return pesertaList.filter((p) => {
       const matchSearch =
-        p.name.toLowerCase().includes(pesertaSearch.toLowerCase()) ||
-        p.username.toLowerCase().includes(pesertaSearch.toLowerCase()) ||
-        p.id.toLowerCase().includes(pesertaSearch.toLowerCase()) ||
-        p.assessmentTitle.toLowerCase().includes(pesertaSearch.toLowerCase());
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.username.toLowerCase().includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        p.assessmentTitle.toLowerCase().includes(q);
       const matchCompany = pesertaCompanyFilter === 'ALL' || p.companyId === pesertaCompanyFilter;
       const matchGrade = pesertaGradeFilter === 'ALL' || p.gradeLevel.includes(pesertaGradeFilter);
       return matchSearch && matchCompany && matchGrade;
     });
-  }, [pesertaList, pesertaSearch, pesertaCompanyFilter, pesertaGradeFilter]);
+  }, [pesertaList, deferredPesertaSearch, pesertaCompanyFilter, pesertaGradeFilter]);
 
   const filteredAsesor = useMemo(() => {
+    const q = deferredAsesorSearch.toLowerCase();
     return asesorList.filter((a) => {
       const matchSearch =
-        a.name.toLowerCase().includes(asesorSearch.toLowerCase()) ||
-        a.username.toLowerCase().includes(asesorSearch.toLowerCase()) ||
-        a.specialization.toLowerCase().includes(asesorSearch.toLowerCase());
+        !q ||
+        a.name.toLowerCase().includes(q) ||
+        a.username.toLowerCase().includes(q) ||
+        a.specialization.toLowerCase().includes(q);
       const matchCompany = asesorCompanyFilter === 'ALL' || a.assignedCompanyId === asesorCompanyFilter;
       return matchSearch && matchCompany;
     });
-  }, [asesorList, asesorSearch, asesorCompanyFilter]);
+  }, [asesorList, deferredAsesorSearch, asesorCompanyFilter]);
 
   const filteredAdmins = useMemo(() => {
+    const q = deferredAdminSearch.toLowerCase();
     return admins.filter((a) => {
       const matchesSearch =
-        a.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.id.toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        a.username.toLowerCase().includes(q) ||
+        a.id.toLowerCase().includes(q);
       const matchesRole = roleFilter === 'ALL' || a.role === roleFilter;
       return matchesSearch && matchesRole;
     });
-  }, [admins, searchQuery, roleFilter]);
+  }, [admins, deferredAdminSearch, roleFilter]);
+
+  const pesertaDesktopRows = useMemo(
+    () =>
+      filteredPeserta.map((p) => {
+        const isGradeA = p.gradeLevel.includes('Grade A');
+        const isGradeC = p.gradeLevel.includes('Grade C');
+        const gradeBadgeVariant = isGradeA ? 'rose' : isGradeC ? 'teal' : 'navy';
+        const rawDate = p.scheduleDate || p.createdAt;
+        const parsedDate = rawDate ? new Date(rawDate) : new Date();
+        const formattedScheduleDate = isNaN(parsedDate.getTime())
+          ? new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+          : parsedDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        return (
+          <TableRow key={p.id}>
+            <TableCell>
+              <div className="flex items-center gap-2.5 min-w-[200px]">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-xs text-primary-navy shrink-0">
+                  {p.name.charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-xs text-ink truncate">{p.name}</div>
+                  <div className="text-[11px] text-muted-slate truncate">{p.username}</div>
+                </div>
+              </div>
+            </TableCell>
+
+            <TableCell className="hidden lg:table-cell">
+              <div className="space-y-1 whitespace-nowrap">
+                <Badge variant="neutral" format="outline" className="font-medium text-[11px] whitespace-nowrap">
+                  <Building2 className="w-3 h-3 mr-1 text-slate-500 shrink-0" />
+                  {p.companyName || '-'}
+                </Badge>
+                {p.companyId && (
+                  <div className="text-[10px] text-slate-400 font-mono pl-1">
+                    {p.companyId}
+                  </div>
+                )}
+              </div>
+            </TableCell>
+
+            <TableCell>
+              <div className="space-y-1">
+                <span className="font-semibold text-xs text-ink block leading-snug" title={p.assessmentTitle}>
+                  {p.assessmentTitle || '-'}
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {(p.assignedProgramIds && p.assignedProgramIds.length > 0
+                    ? p.assignedProgramIds
+                    : p.assessmentId
+                    ? [p.assessmentId]
+                    : []
+                  ).map((code) => (
+                    <span
+                      key={code}
+                      className="text-[10px] text-slate-600 font-mono bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded whitespace-nowrap"
+                    >
+                      {code}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </TableCell>
+
+            <TableCell className="hidden xl:table-cell">
+              <div className="space-y-1 whitespace-nowrap">
+                <Badge variant={gradeBadgeVariant as any} format="soft" hasDot className="whitespace-nowrap">
+                  {p.gradeLevel}
+                </Badge>
+                <div className="text-[10px] text-slate-500">
+                  40 Soal CAT
+                </div>
+              </div>
+            </TableCell>
+
+            <TableCell className="hidden lg:table-cell">
+              <div className="space-y-1 whitespace-nowrap">
+                <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span className="font-semibold text-slate-900 font-mono">{formattedScheduleDate}</span>
+                </div>
+                <div className="flex items-center gap-1.5 pl-5">
+                  <span className="text-[10px] text-slate-500 font-mono">09:00-11:30</span>
+                  <Badge
+                    variant={p.status === 'Selesai' ? 'neutral' : 'teal'}
+                    format="soft"
+                    className="text-[10px] font-semibold"
+                  >
+                    {p.status}
+                  </Badge>
+                </div>
+              </div>
+            </TableCell>
+
+            <TableCell className="text-right">
+              <div className="inline-flex items-center gap-1.5">
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={() => handleSendActivationLink(p)}
+                  leftIcon={<Mail className="w-3 h-3" />}
+                  title="Kirim Tautan Aktivasi ke Email"
+                >
+                  Aktivasi
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={() => handleEditPeserta(p)}
+                  leftIcon={<Edit2 className="w-3 h-3" />}
+                  title="Edit Data Peserta"
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="danger"
+                  size="xs"
+                  onClick={() => handleDeletePeserta(p.id, p.name)}
+                  leftIcon={<Trash2 className="w-3 h-3" />}
+                  title="Hapus Akun"
+                >
+                  Hapus
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        );
+      }),
+    [filteredPeserta]
+  );
+
+  const asesorDesktopRows = useMemo(
+    () =>
+      filteredAsesor.map((a) => (
+        <TableRow key={a.id}>
+          <TableCell>
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center font-bold text-xs text-primary-navy">
+                {a.name.charAt(0)}
+              </div>
+              <div>
+                <div className="font-semibold text-xs text-ink">{a.name}</div>
+                <div className="text-[11px] text-muted-slate flex items-center gap-1.5 mt-0.5">
+                  <span className="font-mono text-slate-500">{a.id}</span>
+                  <span>•</span>
+                  <span>{a.username}</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  Sandi: <span className="font-mono text-slate-600 bg-slate-100 px-1 rounded">{a.password}</span>
+                </div>
+              </div>
+            </div>
+          </TableCell>
+
+          <TableCell>
+            <span className="text-xs text-slate-700 font-medium">
+              {a.specialization}
+            </span>
+          </TableCell>
+
+          <TableCell>
+            <Badge variant="navy" format="soft">
+              <Building2 className="w-3 h-3 mr-1" />
+              {a.assignedCompanyName}
+            </Badge>
+          </TableCell>
+
+          <TableCell>
+            <div className="flex flex-wrap gap-1">
+              {a.assignedProgramIds.map((pId) => (
+                <span
+                  key={pId}
+                  className="text-[10px] bg-slate-100 text-slate-700 font-mono px-1.5 py-0.5 rounded border border-slate-200"
+                >
+                  {pId}
+                </span>
+              ))}
+            </div>
+          </TableCell>
+
+          <TableCell>
+            <Badge variant="teal" format="soft" hasDot>
+              {a.status}
+            </Badge>
+          </TableCell>
+
+          <TableCell className="text-right">
+            <Button
+              variant="danger"
+              size="xs"
+              onClick={() => handleDeleteAsesor(a.id, a.name)}
+              leftIcon={<Trash2 className="w-3 h-3" />}
+            >
+              Cabut
+            </Button>
+          </TableCell>
+        </TableRow>
+      )),
+    [filteredAsesor]
+  );
+
+  const adminDesktopRows = useMemo(
+    () =>
+      filteredAdmins.map((admin) => (
+        <TableRow key={admin.id}>
+          <TableCell>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-xs text-primary-navy">
+                {admin.username.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div className="font-semibold text-xs text-ink">{admin.username}</div>
+                <div className="text-[11px] text-muted-slate font-mono">{admin.id}</div>
+              </div>
+            </div>
+          </TableCell>
+          <TableCell>
+            <span className="text-xs font-medium text-slate-700">
+              {admin.tenant?.name ||
+                (admin.role === 'superadmin' ? 'Semua PT (Global)' : 'Belum Diatur')}
+            </span>
+          </TableCell>
+          <TableCell>
+            <Badge
+              variant={admin.role === 'superadmin' ? 'navy' : 'neutral'}
+              format="soft"
+              hasDot={admin.role === 'superadmin'}
+            >
+              {admin.role.toUpperCase()}
+            </Badge>
+          </TableCell>
+          <TableCell className="text-slate-500 whitespace-nowrap text-xs">
+            {new Date(admin.createdAt).toLocaleDateString('id-ID', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
+            })}
+          </TableCell>
+          <TableCell className="text-right">
+            <div className="inline-flex items-center gap-1.5">
+              <Button
+                variant="secondary"
+                size="xs"
+                onClick={() => openEditModal(admin)}
+                leftIcon={<Edit2 className="w-3 h-3" />}
+              >
+                Ubah
+              </Button>
+              <Button
+                variant="danger"
+                size="xs"
+                onClick={() => handleDeleteAdmin(admin.id, admin.username)}
+                leftIcon={<Trash2 className="w-3 h-3" />}
+              >
+                Cabut
+              </Button>
+            </div>
+          </TableCell>
+        </TableRow>
+      )),
+    [filteredAdmins]
+  );
 
   return (
     <div className="space-y-6 font-sans">
@@ -1104,134 +1376,7 @@ export default function UserManagement() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredPeserta.map((p) => {
-                  const isGradeA = p.gradeLevel.includes('Grade A');
-                  const isGradeC = p.gradeLevel.includes('Grade C');
-                  const gradeBadgeVariant = isGradeA ? 'rose' : isGradeC ? 'teal' : 'navy';
-
-                  return (
-                    <TableRow key={p.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2.5 min-w-[200px]">
-                          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-xs text-primary-navy shrink-0">
-                            {p.name.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-semibold text-xs text-ink truncate">{p.name}</div>
-                            <div className="text-[11px] text-muted-slate truncate">{p.username}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="hidden lg:table-cell">
-                        <div className="space-y-1 whitespace-nowrap">
-                          <Badge variant="neutral" format="outline" className="font-medium text-[11px] whitespace-nowrap">
-                            <Building2 className="w-3 h-3 mr-1 text-slate-500 shrink-0" />
-                            {p.companyName || '-'}
-                          </Badge>
-                          {p.companyId && (
-                            <div className="text-[10px] text-slate-400 font-mono pl-1">
-                              {p.companyId}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="space-y-1">
-                          <span className="font-semibold text-xs text-ink block leading-snug" title={p.assessmentTitle}>
-                            {p.assessmentTitle || '-'}
-                          </span>
-                          <div className="flex flex-wrap gap-1">
-                            {(p.assignedProgramIds && p.assignedProgramIds.length > 0
-                              ? p.assignedProgramIds
-                              : p.assessmentId
-                              ? [p.assessmentId]
-                              : []
-                            ).map((code) => (
-                              <span
-                                key={code}
-                                className="text-[10px] text-slate-600 font-mono bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded whitespace-nowrap"
-                              >
-                                {code}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="hidden xl:table-cell">
-                        <div className="space-y-1 whitespace-nowrap">
-                          <Badge variant={gradeBadgeVariant as any} format="soft" hasDot className="whitespace-nowrap">
-                            {p.gradeLevel}
-                          </Badge>
-                          <div className="text-[10px] text-slate-500">
-                            40 Soal CAT
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="hidden lg:table-cell">
-                        <div className="space-y-1 whitespace-nowrap">
-                          <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                            <span className="font-semibold text-slate-900 font-mono">
-                              {(() => {
-                                const raw = p.scheduleDate || p.createdAt;
-                                const d = raw ? new Date(raw) : new Date();
-                                return isNaN(d.getTime())
-                                  ? new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
-                                  : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-                              })()}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 pl-5">
-                            <span className="text-[10px] text-slate-500 font-mono">09:00-11:30</span>
-                            <Badge
-                              variant={p.status === 'Selesai' ? 'neutral' : 'teal'}
-                              format="soft"
-                              className="text-[10px] font-semibold"
-                            >
-                              {p.status}
-                            </Badge>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <div className="inline-flex items-center gap-1.5">
-                          <Button
-                            variant="secondary"
-                            size="xs"
-                            onClick={() => handleSendActivationLink(p)}
-                            leftIcon={<Mail className="w-3 h-3" />}
-                            title="Kirim Tautan Aktivasi ke Email"
-                          >
-                            Aktivasi
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="xs"
-                            onClick={() => handleEditPeserta(p)}
-                            leftIcon={<Edit2 className="w-3 h-3" />}
-                            title="Edit Data Peserta"
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="xs"
-                            onClick={() => handleDeletePeserta(p.id, p.name)}
-                            leftIcon={<Trash2 className="w-3 h-3" />}
-                            title="Hapus Akun"
-                          >
-                            Hapus
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+                pesertaDesktopRows
               )}
             </TableBody>
           </Table>
@@ -1653,71 +1798,7 @@ export default function UserManagement() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredAsesor.map((a) => (
-                  <TableRow key={a.id}>
-                    <TableCell>
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center font-bold text-xs text-primary-navy">
-                          {a.name.charAt(0)}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-xs text-ink">{a.name}</div>
-                          <div className="text-[11px] text-muted-slate flex items-center gap-1.5 mt-0.5">
-                            <span className="font-mono text-slate-500">{a.id}</span>
-                            <span>•</span>
-                            <span>{a.username}</span>
-                          </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            Sandi: <span className="font-mono text-slate-600 bg-slate-100 px-1 rounded">{a.password}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <span className="text-xs text-slate-700 font-medium">
-                        {a.specialization}
-                      </span>
-                    </TableCell>
-
-                    <TableCell>
-                      <Badge variant="navy" format="soft">
-                        <Building2 className="w-3 h-3 mr-1" />
-                        {a.assignedCompanyName}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {a.assignedProgramIds.map((pId) => (
-                          <span
-                            key={pId}
-                            className="text-[10px] bg-slate-100 text-slate-700 font-mono px-1.5 py-0.5 rounded border border-slate-200"
-                          >
-                            {pId}
-                          </span>
-                        ))}
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <Badge variant="teal" format="soft" hasDot>
-                        {a.status}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="text-right">
-                      <Button
-                        variant="danger"
-                        size="xs"
-                        onClick={() => handleDeleteAsesor(a.id, a.name)}
-                        leftIcon={<Trash2 className="w-3 h-3" />}
-                      >
-                        Cabut
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                asesorDesktopRows
               )}
             </TableBody>
           </Table>
@@ -2016,63 +2097,7 @@ export default function UserManagement() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredAdmins.map((admin) => (
-                      <TableRow key={admin.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-xs text-primary-navy">
-                              {admin.username.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <div className="font-semibold text-xs text-ink">{admin.username}</div>
-                              <div className="text-[11px] text-muted-slate font-mono">{admin.id}</div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-xs font-medium text-slate-700">
-                            {admin.tenant?.name ||
-                              (admin.role === 'superadmin' ? 'Semua PT (Global)' : 'Belum Diatur')}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={admin.role === 'superadmin' ? 'navy' : 'neutral'}
-                            format="soft"
-                            hasDot={admin.role === 'superadmin'}
-                          >
-                            {admin.role.toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-slate-500 whitespace-nowrap text-xs">
-                          {new Date(admin.createdAt).toLocaleDateString('id-ID', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="inline-flex items-center gap-1.5">
-                            <Button
-                              variant="secondary"
-                              size="xs"
-                              onClick={() => openEditModal(admin)}
-                              leftIcon={<Edit2 className="w-3 h-3" />}
-                            >
-                              Ubah
-                            </Button>
-                            <Button
-                              variant="danger"
-                              size="xs"
-                              onClick={() => handleDeleteAdmin(admin.id, admin.username)}
-                              leftIcon={<Trash2 className="w-3 h-3" />}
-                            >
-                              Cabut
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    adminDesktopRows
                   )}
                 </TableBody>
               </Table>

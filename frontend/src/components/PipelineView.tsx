@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useDeferredValue } from 'react';
 import { 
   Search, Filter, Sparkles, Brain, Award, ShieldAlert,
   ArrowRight, FileText, ChevronRight, User, CheckCircle2,
@@ -56,6 +56,7 @@ export default function PipelineView({
   scoringLoading = false
 }: PipelineViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [selectedRole, setSelectedRole] = useState('ALL');
 
   // Filter positions
@@ -69,16 +70,18 @@ export default function PipelineView({
   }, [applicants]);
 
   const filtered = useMemo(() => {
+    const q = deferredSearchQuery.toLowerCase();
     return applicants.filter(a => {
-      const matchesSearch = 
-        a.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (a.job?.title || a.appliedPosition).toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch =
+        !q ||
+        a.fullName.toLowerCase().includes(q) ||
+        a.email.toLowerCase().includes(q) ||
+        (a.job?.title || a.appliedPosition).toLowerCase().includes(q);
       const pos = a.job?.title || a.appliedPosition;
       const matchesRole = selectedRole === 'ALL' || pos === selectedRole;
       return matchesSearch && matchesRole;
     });
-  }, [applicants, searchQuery, selectedRole]);
+  }, [applicants, deferredSearchQuery, selectedRole]);
 
   // Stage 1: Interview In Progress / Scheduled
   const stageInterview = useMemo(() => {

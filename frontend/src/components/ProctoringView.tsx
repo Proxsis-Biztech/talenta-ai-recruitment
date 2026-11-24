@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useDeferredValue } from 'react';
 import { 
   ShieldAlert, ShieldCheck, AlertTriangle, Eye, Download, 
   Search, Filter, ExternalLink, Clock, CheckCircle2, X
@@ -37,6 +37,7 @@ interface ProctorViolationEvent {
 
 export default function ProctoringView({ applicants, onViewApplicant }: ProctoringViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [filterRisk, setFilterRisk] = useState<'ALL' | 'CLEAN' | 'WARNING' | 'HIGH_RISK' | 'UNINTERVIEWED'>('ALL');
   const [inspectingApplicant, setInspectingApplicant] = useState<Applicant | null>(null);
 
@@ -92,12 +93,14 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
   }, [interviewSessions]);
 
   const filteredSessions = useMemo(() => {
+    const q = deferredSearchQuery.toLowerCase();
     return interviewSessions.filter(a => {
       const isDone = isInterviewDone(a);
       const flags = parseFlags(a.proctorFlags);
-      const matchesSearch = 
-        a.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (a.job?.title || a.appliedPosition).toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch =
+        !q ||
+        a.fullName.toLowerCase().includes(q) ||
+        (a.job?.title || a.appliedPosition).toLowerCase().includes(q);
       
       let matchesRisk = true;
       if (filterRisk === 'CLEAN') matchesRisk = isDone && flags.length === 0;
@@ -107,7 +110,7 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
 
       return matchesSearch && matchesRisk;
     });
-  }, [interviewSessions, searchQuery, filterRisk]);
+  }, [interviewSessions, deferredSearchQuery, filterRisk]);
 
   const getRiskBadge = (count: number, isDone: boolean = true) => {
     if (!isDone) {

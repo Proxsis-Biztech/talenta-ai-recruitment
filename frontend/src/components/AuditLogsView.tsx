@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { 
   FileText, Search, Filter, Download, RefreshCw, 
@@ -28,28 +28,48 @@ export default function AuditLogsView() {
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
+  const hasLoadedRef = useRef(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   const fetchLogs = useCallback(async () => {
-    setLoading(true);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    if (!hasLoadedRef.current) setLoading(true);
     try {
       const token = localStorage.getItem('adminToken');
       const res = await axios.get('/api/admin/audit-logs', {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           category: categoryFilter,
-          search: searchQuery
-        }
+          search: debouncedSearch
+        },
+        signal: controller.signal
       });
       setLogs(res.data.data);
+      hasLoadedRef.current = true;
     } catch (err) {
-      console.error('Failed fetching audit logs:', err);
+      if (!axios.isCancel(err)) {
+        console.error('Failed fetching audit logs:', err);
+      }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
-  }, [categoryFilter, searchQuery]);
+  }, [categoryFilter, debouncedSearch]);
 
   useEffect(() => {
     fetchLogs();
+    return () => abortRef.current?.abort();
   }, [fetchLogs]);
 
   const handleExportCSV = () => {

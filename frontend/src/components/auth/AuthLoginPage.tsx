@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -32,7 +32,7 @@ const SHOW_DEMO_ACCESS = false;
 
 export default function AuthLoginPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -68,25 +68,69 @@ export default function AuthLoginPage() {
   };
   const resetCardTilt = () => setTilt({ x: 0, y: 0 });
 
+  const closeTimerRef = useRef<number | null>(null);
+
+  const clearRecoveryParams = () => {
+    if (!searchParams.has('activate') && !searchParams.has('reset')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('activate');
+    next.delete('reset');
+    setSearchParams(next, { replace: true });
+  };
+
+  const closeResetModal = () => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setResetOpen(false);
+    setActivationMode(false);
+    clearRecoveryParams();
+  };
+
   useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const hasRecoveryParam = Boolean(searchParams.get('activate') || searchParams.get('reset'));
+    if (hasRecoveryParam || resetOpen) return;
     const homeRoute = getAuthenticatedHomeRoute();
     if (homeRoute) {
       navigate(homeRoute, { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, searchParams, resetOpen]);
 
   useEffect(() => {
     const activateFromUrl = searchParams.get('activate');
     const resetFromUrl = searchParams.get('reset');
     if (activateFromUrl) {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
       setActivationMode(true);
       setResetToken(activateFromUrl);
+      setResetPassword('');
+      setResetError('');
+      setResetNotice('');
       setResetOpen(true);
       return;
     }
     if (resetFromUrl) {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
       setActivationMode(false);
       setResetToken(resetFromUrl);
+      setResetPassword('');
+      setResetError('');
+      setResetNotice('');
       setResetOpen(true);
     }
   }, [searchParams]);
@@ -114,10 +158,16 @@ export default function AuthLoginPage() {
     setResetLoading(true);
     try {
       const result = await resetPasswordWithToken(resetToken.trim(), resetPassword);
+      clearPortalSession();
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminRole');
+      localStorage.removeItem('adminUsername');
       setResetNotice(result.message);
       setResetPassword('');
       setResetToken('');
-      setTimeout(() => setResetOpen(false), 1200);
+      closeTimerRef.current = window.setTimeout(() => {
+        closeResetModal();
+      }, 1200);
     } catch (err) {
       setResetError(axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal mengatur ulang kata sandi.' : 'Gagal mengatur ulang kata sandi.');
     } finally {
@@ -623,10 +673,8 @@ export default function AuthLoginPage() {
 
       <Modal
         isOpen={resetOpen}
-        onClose={() => {
-          setResetOpen(false);
-          setActivationMode(false);
-        }}
+        onClose={closeResetModal}
+        closeOnOutsideClick={false}
         title={activationMode ? 'Aktivasi Akun & Buat Kata Sandi' : 'Pemulihan Akun'}
         description={
           activationMode
