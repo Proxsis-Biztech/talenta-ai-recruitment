@@ -161,10 +161,8 @@ export default function PesertaProfile() {
     isFaceRegistered
   ].filter(Boolean).length;
 
-  const fieldValidationBorderClass = (valid: boolean) =>
-    valid
-      ? 'border-emerald-400 bg-emerald-50/15 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/10'
-      : 'border-slate-200 bg-white focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10';
+  const fieldValidationBorderClass = (_valid: boolean) =>
+    'border-slate-200 bg-white focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10';
 
   const renderValidationStatus = (valid: boolean, missingText = 'Wajib diisi', validText = 'Lengkap') =>
     valid ? (
@@ -186,11 +184,7 @@ export default function PesertaProfile() {
   const renderLiveScanIdentityPanel = () => (
     <div
       id="profile-live-scan"
-      className={`rounded-2xl border p-4 sm:p-6 space-y-4 transition-colors ${
-        isFaceRegistered
-          ? 'border-emerald-300/90 bg-emerald-50/25'
-          : 'border-slate-200 bg-slate-50/40'
-      }`}
+      className="rounded-2xl border border-slate-200 bg-slate-50/40 p-4 sm:p-6 space-y-4 transition-colors"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
         <div>
@@ -249,7 +243,7 @@ export default function PesertaProfile() {
 
           <Button
             type="button"
-            variant={isFaceRegistered ? 'outline' : 'primary'}
+            variant="primary"
             size="sm"
             onClick={handleOpenLiveScanOnProfile}
             className="text-xs font-bold cursor-pointer flex items-center gap-1.5"
@@ -260,7 +254,7 @@ export default function PesertaProfile() {
         </div>
 
         {/* Example Reference Photo (Half Body + Neat Formal Shirt) */}
-        <div className="lg:col-span-6 bg-white rounded-2xl border border-emerald-200/80 p-4 flex flex-col sm:flex-row items-center sm:items-start gap-4">
+        <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200/90 p-4 flex flex-col sm:flex-row items-center sm:items-start gap-4">
           <div className="shrink-0 flex flex-col items-center gap-1.5">
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold">
               <Check className="w-3 h-3 text-emerald-600" />
@@ -513,7 +507,7 @@ export default function PesertaProfile() {
               {/* Profile Avatar / Real Face Snapshot */}
               <div className="relative group">
                 {savedFacePhoto ? (
-                  <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-sm relative">
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden border border-slate-200 shadow-sm relative">
                     <img
                       src={savedFacePhoto}
                       alt={fullName}
@@ -678,13 +672,7 @@ export default function PesertaProfile() {
               </div>
             )}
 
-            <div
-              className={`rounded-xl border p-3.5 space-y-2 ${
-                completedItemsCount === 7
-                  ? 'border-emerald-200 bg-emerald-50/40'
-                  : 'border-slate-200 bg-slate-50/60'
-              }`}
-            >
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-slate-700">Kelengkapan identitas &amp; foto resmi</span>
                 <span

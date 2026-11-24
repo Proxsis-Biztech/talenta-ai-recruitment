@@ -859,15 +859,24 @@ export default function PesertaAsesmenList() {
                               className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors cursor-pointer"
                             >
                               <div className="flex items-start gap-3.5 min-w-0">
-                                {isDone ? (
-                                  <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5">
-                                    <Check className="w-3.5 h-3.5" />
-                                  </span>
-                                ) : (
-                                  <span className="w-6 h-6 rounded-full border-2 border-amber-400 text-amber-500 flex items-center justify-center shrink-0 mt-0.5">
-                                    <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
-                                  </span>
-                                )}
+                                <button
+                                  type="button"
+                                  role="checkbox"
+                                  aria-checked={isDone}
+                                  aria-label={isDone ? `Tandai ${item.title} belum selesai` : `Tandai ${item.title} selesai`}
+                                  title={isDone ? 'Selesai — klik untuk menandai belum selesai' : 'Centang to-do jika sudah dipelajari'}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleModuleCompletion(item.id);
+                                  }}
+                                  className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors cursor-pointer ${
+                                    isDone
+                                      ? 'bg-emerald-500 border-emerald-500 text-white hover:bg-emerald-600 hover:border-emerald-600'
+                                      : 'bg-white border-slate-300 text-transparent hover:border-[#0F275C]'
+                                  }`}
+                                >
+                                  <Check className="w-3.5 h-3.5 stroke-[2.75]" />
+                                </button>
 
                                 <div className="min-w-0 space-y-1">
                                   <div className="flex flex-wrap items-center gap-2">
@@ -875,12 +884,12 @@ export default function PesertaAsesmenList() {
                                       {item.type || 'MODUL'}
                                     </span>
                                     {isDone && (
-                                      <span className="text-[11px] font-semibold text-slate-500">
+                                      <span className="text-[11px] font-semibold text-emerald-700">
                                         Selesai
                                       </span>
                                     )}
                                   </div>
-                                  <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                                  <h3 className={`text-sm font-bold leading-snug ${isDone ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
                                     {item.title}
                                   </h3>
                                   <p className="text-xs text-slate-500 line-clamp-1">
@@ -897,30 +906,18 @@ export default function PesertaAsesmenList() {
                               </div>
 
                               <div className="shrink-0 flex justify-end">
-                                {isDone ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedModule(item);
-                                      setActiveModalModule(item);
-                                    }}
-                                    className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer"
-                                  >
-                                    Review
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleModuleCompletion(item.id);
-                                    }}
-                                    className="px-4 py-1.5 rounded-lg bg-[#0F275C] hover:bg-[#16367d] text-white text-xs font-bold cursor-pointer shadow-2xs"
-                                  >
-                                    Tandai Selesai
-                                  </button>
-                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedModule(item);
+                                    setActiveModalModule(item);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#0F275C] hover:bg-[#16367d] text-white text-xs font-bold cursor-pointer shadow-2xs transition-colors"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Lihat</span>
+                                </button>
                               </div>
                             </div>
                           );
@@ -1212,7 +1209,7 @@ export default function PesertaAsesmenList() {
 
                 {/* Bottom Helper Caption */}
                 <p className="text-center text-xs text-slate-400 pt-1">
-                  Klik baris untuk detail modul • tombol aksi mengubah status
+                  Klik Lihat atau baris untuk detail modul • centang to-do di kiri untuk menandai selesai
                 </p>
 
                 {/* Module Detail Reader Modal */}

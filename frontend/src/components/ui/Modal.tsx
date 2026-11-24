@@ -54,10 +54,16 @@ export const Modal: React.FC<ModalProps> = ({
         <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-slate-900/45" />
         <DialogPrimitive.Content
           onPointerDownOutside={(event) => {
-            if (!closeOnOutsideClick) event.preventDefault();
+            const target = event.target as HTMLElement | null;
+            if (!closeOnOutsideClick || target?.closest?.('[data-slot="select-content"], [data-radix-popper-content-wrapper]')) {
+              event.preventDefault();
+            }
           }}
           onInteractOutside={(event) => {
-            if (!closeOnOutsideClick) event.preventDefault();
+            const target = event.target as HTMLElement | null;
+            if (!closeOnOutsideClick || target?.closest?.('[data-slot="select-content"], [data-radix-popper-content-wrapper]')) {
+              event.preventDefault();
+            }
           }}
           className={cn(
             'fixed left-1/2 top-1/2 z-[70] w-[calc(100vw-2rem)] min-w-0 -translate-x-1/2 -translate-y-1/2',
