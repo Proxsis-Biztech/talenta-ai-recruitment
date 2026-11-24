@@ -42,6 +42,8 @@ app.use((_req, res, next) => {
 
 // Trust proxy so req.protocol/host and X-Forwarded-For are correct behind Coolify/Traefik/Caddy.
 app.set('trust proxy', true);
+// Disable weak ETag generation so dynamic API responses are never served as cached 304 responses
+app.set('etag', false);
 
 // Serve static frontend files BEFORE CORS. Vite emits module scripts with `crossorigin`,
 // so same-origin asset requests carry an Origin header; they must never hit the API CORS gate.
@@ -67,7 +69,7 @@ app.use('/assets', (_req: express.Request, res: express.Response) => {
 // 2. Root static files (favicon, logos, manifest, etc.)
 app.use(
   express.static(frontendDist, {
-    maxAge: '1h',
+    maxAge: 0,
     setHeaders: (res, filePath) => {
       // index.html must NEVER be cached by browser or reverse proxy
       if (filePath.endsWith('index.html')) {
@@ -126,8 +128,19 @@ const apiLimiter = rateLimit({
   }
 });
 
-// API Routes with rate limiter applied ONLY to /api
-app.use('/api', apiLimiter, apiRoutes);
+// API Routes with strict no-cache headers and rate limiter applied ONLY to /api
+app.use(
+  '/api',
+  (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+    next();
+  },
+  apiLimiter,
+  apiRoutes
+);
 
 // SPA fallback - serve index.html for non-API routes (WITHOUT rate limiting)
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -8,8 +8,9 @@ import {
   X, Menu, Brain, Radio, Sun, Mail, Phone,
   GraduationCap, MapPin, BookOpen, Award, Building,
   Star, Eye, Printer, ShieldAlert, BarChart3, AlertTriangle, Target, Activity,
-  Copy, Check, Send, Layers, Loader2, FileCheck, ArrowUpRight, CheckSquare, Video, Sliders, Plus, MessageSquare, Bot, Scale
+  Copy, Check, Send, Layers, Loader2, FileCheck, ArrowUpRight, CheckSquare, Video, Sliders, Plus, MessageSquare, Bot, Scale, MoreHorizontal
 } from 'lucide-react';
+import { AdminStatCard, AdminEmptyState } from './admin/AdminStatCard';
 import UserManagement from './UserManagement';
 import JobManagement from './JobManagement';
 import RankingView from './RankingView';
@@ -229,6 +230,7 @@ export default function AdminDashboard() {
   const [programFilter, setProgramFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [materiHubTab, setMateriHubTab] = useState<'materi' | 'bank-soal'>(() =>
     new URLSearchParams(window.location.search).get('menu') === 'bank-soal' ? 'bank-soal' : 'materi'
@@ -1015,19 +1017,19 @@ ${app.interviewResult ? `
 
   const menuMeta: Partial<Record<AdminMenuKey, { title: string; subtitle: string; short: string; dotColor: string }>> = {
     dashboard: {
-      title: 'Dashboard Admin',
-      subtitle: 'Kelola seluruh aktivitas asesmen dalam satu tampilan',
+      title: 'Ringkasan Eksekutif',
+      subtitle: 'Pantau seluruh aktivitas asesmen dan progres kandidat secara ringkas',
       short: 'Ringkasan',
       dotColor: 'bg-primary-navy'
     },
     peserta: {
-      title: 'Daftar Peserta Asesmen',
+      title: 'Peserta & Kandidat',
       subtitle: 'Manajemen dossier kandidat, tahapan seleksi, dan rekam jejak penilaian AI',
       short: 'Peserta',
       dotColor: 'bg-blue-accent'
     },
     pipeline: {
-      title: 'Live Interview & Pipeline',
+      title: 'Live Interview Asesor',
       subtitle: 'Jadwal wawancara langsung, transkrip real-time, dan monitor ruang ujian',
       short: 'Interview',
       dotColor: 'bg-blue-accent'
@@ -1039,73 +1041,73 @@ ${app.interviewResult ? `
       dotColor: 'bg-primary-navy'
     },
     materi: {
-      title: 'Materi & Soal',
+      title: materiHubProgramCode && materiHubTab === 'bank-soal' ? `Materi & Soal / ${materiHubProgramCode}` : 'Materi & Soal',
       subtitle: 'Pengelolaan terpadu panduan persiapan asesmen (materi) dan bank soal CAT per program',
       short: 'Materi & Soal',
       dotColor: 'bg-primary-navy'
     },
     perusahaan: {
-      title: 'Perusahaan (PT) & Program Asesmen',
+      title: 'Perusahaan (PT)',
       subtitle: 'Kelola entitas perusahaan mitra dan klik Detail untuk melihat program asesmen pada PT terkait',
       short: 'Perusahaan (PT)',
       dotColor: 'bg-primary-navy'
     },
     ranking: {
-      title: 'Hasil Asesmen & Peringkat',
+      title: 'Hasil & Peringkat (LHA)',
       subtitle: 'Matriks komparasi skor komposit AI, peringkat talenta, dan rekomendasi hiring',
       short: 'Hasil',
       dotColor: 'bg-success-green'
     },
     'lha-governance': {
-      title: 'Kalibrasi Asesor & Koreksi Resmi LHA',
+      title: 'Kalibrasi & Koreksi LHA',
       subtitle: 'Tinjau perbandingan penilaian ganda (Penilai 1 vs Penilai 2) dan setujui permintaan koreksi LHA berversi',
       short: 'Kalibrasi & LHA',
       dotColor: 'bg-primary-navy'
     },
     proctoring: {
-      title: 'Proctoring & Integritas Ujian',
+      title: 'Monitoring Proctoring',
       subtitle: 'Telemetri anti-cheat, pendeteksi tab switch, dan audit kepatuhan kamera',
       short: 'Proctoring',
       dotColor: 'bg-error-red'
     },
     users: {
-      title: 'Pengguna & Role',
+      title: 'Pengguna & Hak Akses',
       subtitle: 'Manajemen hak akses asesor, HR admin, dan otorisasi superadmin',
       short: 'Pengguna',
       dotColor: 'bg-primary-navy'
     },
     'ai-config': {
-      title: 'Pengaturan & Konfigurasi AI',
+      title: 'Konfigurasi Sistem & AI',
       subtitle: 'Atur model Gemini, suara virtual Ava, threshold kelulusan, dan integritas',
       short: 'Pengaturan',
       dotColor: 'bg-primary-navy'
     },
     'audit-logs': {
-      title: 'Audit Log & Keamanan',
+      title: 'Log Audit & Keamanan',
       subtitle: 'Rekam jejak mutasi data, histori login, dan kepatuhan sistem audit',
       short: 'Audit Log',
       dotColor: 'bg-slate-700'
     },
     analytics: {
-      title: 'Analitika Eksekutif',
+      title: 'Analitika & Metrik',
       subtitle: 'Metrik konversi funnel talent acquisition dan performa asesmen',
       short: 'Analitika',
       dotColor: 'bg-primary-navy'
     },
     'faq-helpdesk': {
-      title: 'Knowledge Base FAQ (RAG & Word)',
+      title: 'Konten FAQ',
       subtitle: 'Upload konten FAQ Word (.docx), kelola item FAQ, dan sinkronisasi Proksis MCP Knowledge',
       short: 'Konten FAQ',
       dotColor: 'bg-blue-accent'
     },
     'chatbot-faq': {
-      title: 'Chatbot AI (Gemini & Helpdesk)',
+      title: 'Chatbot AI',
       subtitle: 'Asisten AI Gemini berbasis referensi pengetahuan resmi yang terhubung ke Helpdesk Internal',
       short: 'Chatbot AI',
       dotColor: 'bg-blue-accent'
     },
     'helpdesk-internal': {
-      title: 'Helpdesk Internal (Live Chat Kandidat)',
+      title: 'Helpdesk Internal',
       subtitle: 'Kelola percakapan Helpdesk Internal dari kandidat (nama, perusahaan, dan program asesmen)',
       short: 'Helpdesk Internal',
       dotColor: 'bg-emerald-600'
@@ -1150,373 +1152,285 @@ ${app.interviewResult ? `
         <div className="animate-fade-in space-y-6">
           {activeMenu === 'dashboard' && (
             <>
-              {/* Executive Command Center Hero Banner */}
-              <div
-                style={{ background: 'linear-gradient(135deg, #0A1128 0%, #101F42 50%, #1A365D 100%)', color: '#FFFFFF' }}
-                className="admin-hero-banner relative overflow-hidden rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-slate-800"
-              >
-                <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute right-36 -top-12 w-48 h-48 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="space-y-2.5 max-w-2xl">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-blue-200 text-xs font-bold backdrop-blur-xs">
-                      <Sparkles className="w-3.5 h-3.5 text-blue-300" />
-                      <span>Pusat Kendali Asesmen Enterprise</span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-1" />
-                      <span className="text-[10px] text-emerald-300 font-mono font-bold tracking-wider">SYSTEM LIVE</span>
-                    </div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight font-heading text-white">
-                      Dashboard Administrator &amp; Monitoring Seleksi
-                    </h1>
-                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                      Kelola siklus asesmen terpadu: Program Seleksi, Bank Soal CAT, Pengawasan AI Multi-Faktor, Live Interview Asesor, hingga Sertifikasi LHA Ber-hash SHA-256.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                    <Button
-                      variant="primary"
-                      onClick={() => setActiveMenu('jobs')}
-                      className="bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer transition-transform hover:scale-[1.02] flex items-center gap-1.5"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Tambah Program
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setMateriHubProgramCode(undefined);
-                        setMateriHubCompanyName(undefined);
-                        setMateriHubTab('bank-soal');
-                        setActiveMenu('materi');
-                      }}
-                      className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs font-bold px-4 py-2.5 rounded-xl backdrop-blur-xs cursor-pointer shadow-xs transition-transform hover:scale-[1.02] flex items-center gap-1.5"
-                    >
-                      <CheckSquare className="w-4 h-4 text-blue-300" />
-                      Materi &amp; Soal
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={handleExportCSV}
-                      className="bg-slate-800/80 hover:bg-slate-700 text-white border border-slate-700 text-xs font-bold px-3.5 py-2.5 rounded-xl cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Download className="w-3.5 h-3.5 text-slate-300" />
-                      Export CSV
-                    </Button>
-                  </div>
+              {/* Clean 72px Executive Page Header */}
+              <div className="min-h-[72px] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-bold text-[#0F172A] tracking-tight font-heading">
+                    Ringkasan Eksekutif
+                  </h1>
+                  <p className="text-sm text-[#64748B] mt-0.5">
+                    Pantau peserta aktif, program asesmen, evaluasi AI, dan audit proctoring terpadu.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <Button
+                    variant="outline"
+                    onClick={handleExportCSV}
+                    leftIcon={<Download className="w-4 h-4" />}
+                    className="h-10 px-4 rounded-lg text-sm font-medium text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                  >
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => setActiveMenu('jobs')}
+                    leftIcon={<Plus className="w-4 h-4" />}
+                    className="h-10 px-4 rounded-lg text-sm font-semibold bg-[#1E3A8A] hover:bg-[#172554] text-white"
+                  >
+                    Tambah Program
+                  </Button>
                 </div>
               </div>
 
-              {/* 4 High-Impact KPI Metric Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  {
-                    label: 'Peserta aktif',
-                    value: total,
-                    hint: 'Total kandidat terdaftar',
-                    icon: Users,
-                    cardAccent: 'admin-card-accent-blue',
-                    iconClass: 'admin-icon-blue',
-                    badge: 'Real-time',
-                    badgeColor: 'bg-blue-50 text-blue-700 border-blue-200'
-                  },
-                  {
-                    label: 'Program asesmen',
-                    value: activeProgramCount,
-                    hint: 'Program aktif di katalog',
-                    icon: BookOpen,
-                    cardAccent: 'admin-card-accent-emerald',
-                    iconClass: 'admin-icon-emerald',
-                    badge: '100% Published',
-                    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  },
-                  {
-                    label: 'Wawancara selesai',
-                    value: completedInterviewCount,
-                    hint: 'Sesi telah dinilai asesor',
-                    icon: Brain,
-                    cardAccent: 'admin-card-accent-purple',
-                    iconClass: 'admin-icon-purple',
-                    badge: 'BARS Scored',
-                    badgeColor: 'bg-purple-50 text-purple-700 border-purple-200'
-                  },
-                  {
-                    label: 'Menunggu review',
-                    value: pendingReviewCount,
-                    hint: 'Perlu verifikasi admin',
-                    icon: Clock,
-                    cardAccent: 'admin-card-accent-amber',
-                    iconClass: 'admin-icon-amber',
-                    badge: 'Prioritas',
-                    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200'
-                  },
-                ].map((metric) => {
-                  const Icon = metric.icon;
-                  return (
-                    <Card
-                      key={metric.label}
-                      elevation="flat"
-                      className={`p-5 rounded-2xl border border-slate-200/90 bg-white shadow-xs hover:shadow-md transition-all duration-200 relative overflow-hidden group ${metric.cardAccent}`}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{metric.label}</p>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap font-mono ${metric.badgeColor}`}>
-                              {metric.badge}
-                            </span>
-                          </div>
-                          <p className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 tabular-nums font-heading">
-                            {metric.value.toLocaleString('id-ID')}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-400 font-medium">{metric.hint}</p>
-                        </div>
-                        <div
-                          className={`w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md shadow-slate-900/10 transition-transform group-hover:scale-105 ${metric.iconClass}`}
-                        >
-                          <Icon className="w-5 h-5 text-white" />
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
+              {/* 4 Standardized KPI Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <AdminStatCard
+                  label="Peserta aktif"
+                  value={total}
+                  subtext="Total kandidat terdaftar"
+                  badge="Real-time"
+                  badgeVariant="info"
+                  icon={Users}
+                  loading={loading && applicants.length === 0}
+                />
+                <AdminStatCard
+                  label="Program asesmen"
+                  value={activeProgramCount}
+                  subtext="Program aktif di katalog"
+                  badge="Published"
+                  badgeVariant="success"
+                  icon={BookOpen}
+                  loading={loading && applicants.length === 0}
+                />
+                <AdminStatCard
+                  label="Wawancara selesai"
+                  value={completedInterviewCount}
+                  subtext="Sesi telah dinilai asesor"
+                  badge="BARS Scored"
+                  badgeVariant="neutral"
+                  icon={Brain}
+                  loading={loading && applicants.length === 0}
+                />
+                <AdminStatCard
+                  label="Menunggu review"
+                  value={pendingReviewCount}
+                  subtext="Perlu verifikasi admin"
+                  badge="Prioritas"
+                  badgeVariant="warning"
+                  icon={Clock}
+                  loading={loading && applicants.length === 0}
+                />
               </div>
 
               {/* Split Section: Spline Area Chart (8) + Priority Actions (4) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
                 {/* Span 8: Tren Peserta Asesmen Area Wave Chart */}
-                <Card elevation="flat" className="lg:col-span-8 p-6 rounded-3xl border border-slate-200/90 bg-white shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
+                <div className="lg:col-span-8 p-6 rounded-xl border border-[#E2E8F0] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] flex flex-col justify-between">
+                  <div className="flex items-center justify-between pb-4 border-b border-[#E2E8F0]">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-extrabold text-slate-900 font-heading">
-                          Tren Peserta Asesmen
-                        </h3>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono">
-                          Live Analytics
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Statistik volume pendaftaran &amp; pengerjaan ujian CAT 6 bulan terakhir
+                      <h3 className="text-base font-semibold text-[#0F172A] font-heading">
+                        Tren Peserta Asesmen
+                      </h3>
+                      <p className="text-xs text-[#64748B] mt-0.5">
+                        Volume pendaftaran &amp; penyelesaian asesmen 6 bulan terakhir
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs font-mono">
-                        <span className="text-slate-500 font-sans text-[11px]">Sesi:</span>
-                        <span className="font-bold text-blue-700">{total}</span>
-                      </div>
-                      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-mono">
-                        <span className="text-slate-500 font-sans text-[11px]">Passing:</span>
-                        <span className="font-bold text-emerald-700">83%</span>
-                      </div>
-                      <span className="text-xs font-bold text-slate-600 font-mono bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-lg">
-                        6 Bulan
-                      </span>
-                    </div>
+                    <span className="h-8 inline-flex items-center px-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-medium text-[#475569] shrink-0">
+                      6 bulan
+                    </span>
                   </div>
 
                   {/* SVG Spline Area Wave Chart */}
-                  <div className="relative h-56 w-full mt-4 flex">
-                    {/* Y-Axis scale */}
-                    <div className="flex flex-col justify-between h-44 text-[11px] font-mono text-slate-400 pr-3 select-none">
-                      <span>{trendMax}</span>
-                      <span>{Math.round(trendMax * 0.66)}</span>
-                      <span>{Math.round(trendMax * 0.33)}</span>
-                      <span>0</span>
-                    </div>
+                  {loading && applicants.length === 0 ? (
+                    <div className="h-48 mt-4 rounded-lg bg-[#E2E8F0]/70 animate-pulse" />
+                  ) : (
+                    <>
+                      <div className="relative h-52 w-full mt-4 flex">
+                        <div className="flex flex-col justify-between h-44 text-xs font-mono text-[#64748B] pr-3 select-none tabular-nums">
+                          <span>{trendMax}</span>
+                          <span>{Math.round(trendMax * 0.66)}</span>
+                          <span>{Math.round(trendMax * 0.33)}</span>
+                          <span>0</span>
+                        </div>
 
-                    {/* SVG Graphic */}
-                    <div className="flex-1 h-44 relative">
-                      {/* Grid Lines */}
-                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                        <div className="border-b border-dashed border-slate-200 w-full" />
-                        <div className="border-b border-dashed border-slate-200 w-full" />
-                        <div className="border-b border-dashed border-slate-200 w-full" />
-                        <div className="border-b border-slate-200 w-full" />
+                        <div className="flex-1 h-44 relative">
+                          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                            <div className="border-b border-dashed border-[#E2E8F0] w-full" />
+                            <div className="border-b border-dashed border-[#E2E8F0] w-full" />
+                            <div className="border-b border-dashed border-[#E2E8F0] w-full" />
+                            <div className="border-b border-[#E2E8F0] w-full" />
+                          </div>
+
+                          <svg
+                            viewBox="0 0 800 170"
+                            preserveAspectRatio="none"
+                            className="w-full h-full overflow-visible"
+                          >
+                            <defs>
+                              <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#2563EB" stopOpacity="0.12" />
+                                <stop offset="100%" stopColor="#2563EB" stopOpacity="0.0" />
+                              </linearGradient>
+                            </defs>
+
+                            <path
+                              className="chart-area"
+                              d={trendAreaPath}
+                              fill="url(#trendGradient)"
+                            />
+
+                            <path
+                              className="chart-line"
+                              d={trendLinePath}
+                              fill="none"
+                              stroke="#2563EB"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                            />
+
+                            {trendPoints.map((point) => (
+                              <circle
+                                key={point.key}
+                                className="chart-dot"
+                                cx={point.x}
+                                cy={point.y}
+                                r="4"
+                                fill="#FFFFFF"
+                                stroke="#2563EB"
+                                strokeWidth="2.5"
+                              />
+                            ))}
+                          </svg>
+                        </div>
                       </div>
-
-                      <svg
-                        viewBox="0 0 800 170"
-                        preserveAspectRatio="none"
-                        className="w-full h-full overflow-visible"
-                      >
-                        <defs>
-                          <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#2563EB" stopOpacity="0.25" />
-                            <stop offset="100%" stopColor="#2563EB" stopOpacity="0.0" />
-                          </linearGradient>
-                        </defs>
-
-                        {/* Spline Area Fill */}
-                        <path
-                          className="chart-area"
-                          d={trendAreaPath}
-                          fill="url(#trendGradient)"
-                        />
-
-                        {/* Spline Stroke Line */}
-                        <path
-                          className="chart-line"
-                          d={trendLinePath}
-                          fill="none"
-                          stroke="#2563EB"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                        />
-
-                        {/* Interactive Data Dots */}
-                        {trendPoints.map((point, index) => (
-                          <circle
-                            key={point.key}
-                            className="chart-dot"
-                            cx={point.x}
-                            cy={point.y}
-                            r="4.5"
-                            fill="#FFFFFF"
-                            stroke="#1D4ED8"
-                            strokeWidth="3"
-                            style={{ animationDelay: `${index * 100}ms` }}
-                          />
+                      <div className="flex justify-between pl-8 pr-1 pt-2 text-xs font-mono text-[#64748B]">
+                        {trendMonths.map((month) => (
+                          <span key={month.key}>{month.label}</span>
                         ))}
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="flex justify-between pl-10 pr-1 pt-2 text-[11px] font-mono text-slate-500 font-medium">
-                    {trendMonths.map((month) => (
-                      <span key={month.key}>{month.label}</span>
-                    ))}
-                  </div>
-                </Card>
+                      </div>
+                    </>
+                  )}
 
-                {/* Span 4: Perlu Tindakan Priority Items */}
-                <Card elevation="flat" className="lg:col-span-4 p-6 rounded-3xl border border-slate-200/90 bg-white shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+                  <div className="pt-4 mt-3 border-t border-[#E2E8F0] flex flex-wrap items-center gap-5 text-xs text-[#64748B]">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB]" />
+                      <span>Sesi terdaftar: <strong className="font-mono text-[#0F172A] tabular-nums">{total}</strong></span>
+                    </span>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#16A34A]" />
+                      <span>Tingkat kelulusan: <strong className="font-mono text-[#0F172A] tabular-nums">83%</strong></span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Span 4: Perlu Tindakan Compact List */}
+                <div className="lg:col-span-4 min-w-[320px] p-6 rounded-xl border border-[#E2E8F0] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
+                    <div className="flex items-center justify-between pb-4 border-b border-[#E2E8F0]">
                       <div>
-                        <h3 className="text-base font-extrabold text-slate-900 font-heading">
+                        <h3 className="text-base font-semibold text-[#0F172A] font-heading">
                           Perlu Tindakan
                         </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Tugas prioritas yang butuh perhatian admin
+                        <p className="text-xs text-[#64748B] mt-0.5">
+                          Antrean prioritas yang butuh verifikasi
                         </p>
                       </div>
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-300/40 flex items-center justify-center text-amber-700">
-                        <AlertTriangle className="w-4.5 h-4.5" />
-                      </div>
+                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
+                        3 item
+                      </span>
                     </div>
 
-                    <div className="mt-4 space-y-3">
-                      {/* Priority Item 1: Approval bank soal */}
+                    <div className="divide-y divide-[#E2E8F0] mt-1">
                       <button
+                        type="button"
                         onClick={() => setActiveMenu('jobs')}
-                        className="w-full p-3.5 rounded-2xl border border-amber-200/80 hover:border-amber-400 bg-amber-50/50 hover:bg-amber-100/60 transition-all flex items-center justify-between text-left group cursor-pointer shadow-xs"
+                        className="w-full h-16 px-2 flex items-center justify-between gap-3 text-left hover:bg-[#F8FAFC] transition-colors cursor-pointer rounded-lg"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl admin-icon-amber text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/25">
-                            <CheckSquare className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-bold text-slate-900 group-hover:text-amber-800 transition-colors">
-                                Approval Bank Soal
-                              </p>
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 font-mono">
-                                P1 Review
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              12 butir soal baru menunggu review kurikulum
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626] shrink-0" title="Prioritas P1" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[#0F172A] truncate">
+                              Approval Bank Soal
+                            </p>
+                            <p className="text-xs text-[#64748B] truncate">
+                              P1 • 12 butir soal menunggu review
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-4.5 h-4.5 text-slate-400 group-hover:text-amber-700 transition-colors shrink-0" />
+                        <ChevronRight className="w-4 h-4 text-[#64748B] shrink-0" />
                       </button>
 
-                      {/* Priority Item 2: Flag integritas */}
                       <button
+                        type="button"
                         onClick={() => setActiveMenu('proctoring')}
-                        className="w-full p-3.5 rounded-2xl border border-rose-200/80 hover:border-rose-400 bg-rose-50/50 hover:bg-rose-100/60 transition-all flex items-center justify-between text-left group cursor-pointer shadow-xs"
+                        className="w-full h-16 px-2 flex items-center justify-between gap-3 text-left hover:bg-[#F8FAFC] transition-colors cursor-pointer rounded-lg"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl admin-icon-rose text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-500/25">
-                            <ShieldAlert className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-bold text-slate-900 group-hover:text-rose-800 transition-colors">
-                                Flag Integritas Proctoring
-                              </p>
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300 font-mono">
-                                P2 Alert
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              6 event anomali wajah / tab terdeteksi AI
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#D97706] shrink-0" title="Prioritas P2" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[#0F172A] truncate">
+                              Flag Integritas Proctoring
+                            </p>
+                            <p className="text-xs text-[#64748B] truncate">
+                              P2 • Anomali wajah &amp; pindah tab terdeteksi
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-4.5 h-4.5 text-slate-400 group-hover:text-rose-700 transition-colors shrink-0" />
+                        <ChevronRight className="w-4 h-4 text-[#64748B] shrink-0" />
                       </button>
 
-                      {/* Priority Item 3: Interview belum dinilai */}
                       <button
+                        type="button"
                         onClick={() => setActiveMenu('pipeline')}
-                        className="w-full p-3.5 rounded-2xl border border-blue-200/80 hover:border-blue-400 bg-blue-50/50 hover:bg-blue-100/60 transition-all flex items-center justify-between text-left group cursor-pointer shadow-xs"
+                        className="w-full h-16 px-2 flex items-center justify-between gap-3 text-left hover:bg-[#F8FAFC] transition-colors cursor-pointer rounded-lg"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/25">
-                            <Video className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-bold text-slate-900 group-hover:text-blue-800 transition-colors">
-                                Wawancara Belum Dinilai
-                              </p>
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-300 font-mono">
-                                P3 Asesor
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              14 sesi interview selesai &amp; perlu input BARS
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#64748B] shrink-0" title="Prioritas P3" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[#0F172A] truncate">
+                              Wawancara Belum Dinilai
+                            </p>
+                            <p className="text-xs text-[#64748B] truncate">
+                              P3 • Sesi selesai menunggu input BARS
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-4.5 h-4.5 text-slate-400 group-hover:text-blue-700 transition-colors shrink-0" />
+                        <ChevronRight className="w-4 h-4 text-[#64748B] shrink-0" />
                       </button>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-muted-slate">
+                  <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-between text-xs text-[#64748B]">
                     <span>Prioritas otomatis oleh AI</span>
-                    <span className="font-semibold text-primary-navy">3 tertunda</span>
+                    <span className="font-semibold text-[#1E3A8A]">3 tertunda</span>
                   </div>
-                </Card>
+                </div>
               </div>
             </>
           )}
 
           {/* ─── CANDIDATE DOSSIER TABLE & FILTER CARD ─── */}
-          <Card elevation="flat" className="p-5 space-y-4">
-            {/* Filter controls row */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
-                {/* Search */}
-                <div className="w-full sm:w-60">
+          <Card elevation="flat" className="p-6 space-y-4 rounded-xl border border-[#E2E8F0] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+            {/* Single Toolbar */}
+            <div className="min-h-[64px] flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
+                <div className="w-full sm:w-[260px]">
                   <Input
-                    placeholder="Cari nama, email..."
+                    placeholder="Cari nama atau email peserta..."
                     value={search}
                     onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                    leftIcon={<Search className="w-3.5 h-3.5 text-slate-400" />}
+                    leftIcon={<Search className="w-4 h-4 text-[#94A3B8]" />}
+                    className="h-10 rounded-lg"
                   />
                 </div>
 
-                {/* PT Filter */}
-                <div className="w-full sm:w-52">
+                <div className="w-full sm:w-[180px]">
                   <Select
                     value={ptFilter}
                     onChange={(e) => { setPtFilter(e.target.value); setPage(1); }}
-                    className="h-11 rounded-xl font-semibold"
+                    className="h-10 rounded-lg text-sm font-medium"
                   >
-                    <option value="">Semua Perusahaan (PT)</option>
+                    <option value="">Semua PT</option>
                     <option value="Telkom">PT Telkom Indonesia Tbk</option>
                     <option value="Mandiri">Bank Mandiri Tbk</option>
                     <option value="CIMB">Bank CIMB Niaga Tbk</option>
@@ -1525,28 +1439,26 @@ ${app.interviewResult ? `
                   </Select>
                 </div>
 
-                {/* Program Filter */}
-                <div className="w-full sm:w-64">
+                <div className="w-full sm:w-[180px]">
                   <Select
                     value={programFilter}
                     onChange={(e) => { setProgramFilter(e.target.value); setPage(1); }}
-                    className="h-11 rounded-xl font-semibold"
+                    className="h-10 rounded-lg text-sm font-medium"
                   >
-                    <option value="">Semua Program Asesmen</option>
+                    <option value="">Semua Program</option>
                     {DEFAULT_ASSESSMENT_PROGRAMS.map((prog) => (
                       <option key={prog.id} value={prog.title}>
-                        {prog.title} ({prog.companyName})
+                        {prog.title}
                       </option>
                     ))}
                   </Select>
                 </div>
 
-                {/* Status Filter */}
-                <div className="w-full sm:w-40">
+                <div className="w-full sm:w-[150px]">
                   <Select
                     value={statusFilter}
                     onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                    className="h-11 rounded-xl font-semibold"
+                    className="h-10 rounded-lg text-sm font-medium"
                   >
                     <option value="">Semua Status</option>
                     <option value="proses">Proses</option>
@@ -1556,42 +1468,38 @@ ${app.interviewResult ? `
                 </div>
               </div>
 
-              {/* Action buttons */}
-              <div className="flex items-center gap-2">
+              {/* Right Utilities + Actions */}
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <div className="hidden xl:flex items-center gap-1.5 text-xs text-[#64748B] mr-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Diperbarui tiap 15 dtk</span>
+                </div>
                 <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setImportWizardOpen(true)}
-                  leftIcon={<Sparkles className="w-3.5 h-3.5" />}
-                >
-                  Import CSV
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
+                  variant="outline"
                   onClick={handleExportCSV}
-                  leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
+                  leftIcon={<Download className="w-4 h-4" />}
+                  className="h-10 px-4 rounded-lg text-sm font-medium text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]"
                 >
                   Export
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => setImportWizardOpen(true)}
+                  leftIcon={<Plus className="w-4 h-4" />}
+                  className="h-10 px-4 rounded-lg text-sm font-semibold bg-[#1E3A8A] hover:bg-[#172554] text-white"
+                >
+                  Import CSV
                 </Button>
               </div>
             </div>
 
-            {/* Bulk Action & Live Info Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
-              {userRole === 'superadmin' && selectedIds.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl text-xs">
-                  <span className="font-bold text-rose-900">
-                    {selectedIds.length} peserta dipilih
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setSelectedIds([])}
-                    className="bg-white"
-                  >
-                    Batal Pilih
-                  </Button>
+            {/* Bulk Action Bar (when >=1 selected) */}
+            {userRole === 'superadmin' && selectedIds.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-[#EEF2FF] border border-[#C7D2FE] px-4 py-2.5 rounded-lg text-xs">
+                <span className="font-semibold text-[#1E3A8A]">
+                  {selectedIds.length} dipilih
+                </span>
+                <div className="flex items-center gap-2">
                   <Button
                     variant="danger"
                     size="xs"
@@ -1600,15 +1508,17 @@ ${app.interviewResult ? `
                   >
                     Hapus Terpilih
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setSelectedIds([])}
+                    className="bg-white border-[#E2E8F0] text-[#475569]"
+                  >
+                    Batalkan
+                  </Button>
                 </div>
-              ) : (
-                <span />
-              )}
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Live • hasil ujian diperbarui otomatis setiap 15 detik</span>
               </div>
-            </div>
+            )}
             {/* Mobile Responsive Cards (< md) */}
             <div className="md:hidden space-y-3">
               {loading ? (
@@ -1669,11 +1579,11 @@ ${app.interviewResult ? `
               )}
             </div>
 
-            {/* Desktop & Tablet Responsive Table (Tanpa Scroll Horizontal) */}
-            <div className="hidden md:block">
-            <Table className="table-fixed w-full">
-              <TableHeader>
-                <TableRow>
+            {/* Desktop & Tablet Responsive Table */}
+            <div className="hidden md:block overflow-x-auto">
+            <Table className="w-full min-w-[960px]">
+              <TableHeader className="sticky top-0 z-10 bg-white">
+                <TableRow className="border-b border-[#E2E8F0]">
                   <TableHead className="w-10 text-center">
                     <input
                       type="checkbox"
@@ -1682,197 +1592,211 @@ ${app.interviewResult ? `
                         if (e.target.checked) setSelectedIds(applicants.map(a => a.id));
                         else setSelectedIds([]);
                       }}
-                      className="rounded border-slate-300 text-primary-navy focus:ring-primary-navy cursor-pointer"
+                      className="rounded border-slate-300 text-[#1E3A8A] focus:ring-[#1E3A8A] cursor-pointer"
                     />
                   </TableHead>
-                  <TableHead className="w-[24%] xl:w-[21%]">Peserta</TableHead>
-                  <TableHead className="hidden xl:table-cell w-[15%]">Perusahaan</TableHead>
-                  <TableHead className="w-[34%] xl:w-[28%]">Program Asesmen</TableHead>
-                  <TableHead className="w-[10%] xl:w-[9%] whitespace-nowrap">Skor CAT</TableHead>
-                  <TableHead className="hidden lg:table-cell w-[9%] whitespace-nowrap">Tahap</TableHead>
-                  <TableHead className="w-[11%] xl:w-[9%] whitespace-nowrap">Status</TableHead>
-                  <TableHead className="hidden xl:table-cell w-[10%] whitespace-nowrap">Tanggal Daftar</TableHead>
-                  <TableHead className="w-[104px] text-right whitespace-nowrap">Aksi</TableHead>
+                  <TableHead className="w-[220px] text-xs font-semibold uppercase tracking-wider text-[#64748B] whitespace-nowrap">Peserta</TableHead>
+                  <TableHead className="w-[160px] text-xs font-semibold uppercase tracking-wider text-[#64748B] whitespace-nowrap">Perusahaan</TableHead>
+                  <TableHead className="w-[240px] text-xs font-semibold uppercase tracking-wider text-[#64748B] whitespace-nowrap">Program Asesmen</TableHead>
+                  <TableHead className="w-[110px] text-xs font-semibold uppercase tracking-wider text-[#64748B] whitespace-nowrap">Skor CAT</TableHead>
+                  <TableHead className="w-[110px] text-xs font-semibold uppercase tracking-wider text-[#64748B] whitespace-nowrap">Status</TableHead>
+                  <TableHead className="w-[120px] text-xs font-semibold uppercase tracking-wider text-[#64748B] whitespace-nowrap">Tanggal Daftar</TableHead>
+                  <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-[#64748B] whitespace-nowrap">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
+                  Array.from({ length: 5 }).map((_, skIdx) => (
+                    <TableRow key={`sk-${skIdx}`} className="h-16">
+                      <TableCell colSpan={8}>
+                        <div className="h-5 w-full rounded bg-[#E2E8F0] animate-pulse" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredTableApplicants.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-12 text-center text-slate-400">
-                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary-navy" />
-                      <span>Memuat data peserta...</span>
-                    </TableCell>
-                  </TableRow>
-                ) : applicants.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="py-12 text-center text-slate-400">
-                      <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                      <p className="font-semibold text-slate-600">Belum ada data peserta</p>
-                      <p className="text-xs text-slate-400 mt-1">Data pendaftaran asesmen akan muncul di sini.</p>
+                    <TableCell colSpan={8}>
+                      <AdminEmptyState
+                        icon={Users}
+                        title="Belum ada data peserta"
+                        description="Data pendaftaran asesmen atau hasil filter Anda akan muncul di sini."
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredTableApplicants.map((app, appIdx) => {
                     const statusObj = getStatusForApplicant(app);
                     const isChecked = selectedIds.includes(app.id);
-                      const initials = app.fullName
-                        .split(' ')
-                        .map((n) => n[0])
-                        .slice(0, 2)
-                        .join('')
-                        .toUpperCase();
-                      const regDate = app.createdAt
-                        ? new Date(app.createdAt).toLocaleDateString('id-ID', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric'
-                          })
-                        : '-';
+                    const initials = app.fullName
+                      .split(' ')
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase();
+                    const regDate = app.createdAt
+                      ? new Date(app.createdAt).toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })
+                      : '-';
+                    const companyName = getCompanyForApplicant(app);
+                    const programName = getProgramForApplicant(app).replace(/\s*\([^)]*\)\s*$/, '');
 
-                      return (
-                        <TableRow
-                          key={app.id}
-                          isSelected={isChecked}
-                        >
-                          {/* Checkbox */}
-                          <TableCell className="text-center">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                if (e.target.checked) setSelectedIds([...selectedIds, app.id]);
-                                else setSelectedIds(selectedIds.filter((id) => id !== app.id));
-                              }}
-                              className="rounded border-slate-300 text-primary-navy focus:ring-primary-navy cursor-pointer"
-                            />
-                          </TableCell>
+                    return (
+                      <TableRow
+                        key={app.id}
+                        isSelected={isChecked}
+                        className="h-16 hover:bg-[#F8FAFC] transition-colors"
+                      >
+                        <TableCell className="text-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedIds([...selectedIds, app.id]);
+                              else setSelectedIds(selectedIds.filter((id) => id !== app.id));
+                            }}
+                            className="rounded border-slate-300 text-[#1E3A8A] focus:ring-[#1E3A8A] cursor-pointer"
+                          />
+                        </TableCell>
 
-                          {/* Peserta (Avatar + Name + Email) */}
-                          <TableCell>
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div
-                                className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 font-heading shadow-2xs ${
-                                  AVATAR_PALETTES[appIdx % AVATAR_PALETTES.length]
-                                }`}
-                              >
-                                {initials}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-bold text-ink truncate leading-tight">
-                                  {app.fullName}
-                                </p>
-                                <p className="text-xs text-muted-slate truncate mt-0.5">
-                                  {app.email}
-                                </p>
-                              </div>
-                            </div>
-                          </TableCell>
-
-                          {/* PT / Perusahaan */}
-                          <TableCell className="hidden xl:table-cell text-sm text-slate-700">
-                            <span className="block truncate" title={getCompanyForApplicant(app)}>
-                              {getCompanyForApplicant(app)}
-                            </span>
-                          </TableCell>
-
-                          {/* Program Asesmen */}
-                          <TableCell className="text-sm text-slate-600">
-                            <div className="space-y-1 min-w-0">
-                              <span className="block line-clamp-2 font-medium text-slate-800 leading-snug" title={getProgramForApplicant(app)}>
-                                {getProgramForApplicant(app).replace(/\s*\([^)]*\)\s*$/, '')}
-                              </span>
-                              <span className="block xl:hidden text-[11px] text-slate-500 truncate">
-                                {getCompanyForApplicant(app)}
-                              </span>
-                              {getAssessmentCodesForApplicant(app).length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                  {getAssessmentCodesForApplicant(app).map((code) => (
-                                    <span
-                                      key={code}
-                                      className="text-[10px] font-mono bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded"
-                                    >
-                                      {code}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-
-                          {/* Skor CAT */}
-                          <TableCell>
-                            {app.examAttempt?.score != null ? (
-                              <div className="flex flex-col">
-                                <span className="font-mono text-sm font-bold text-emerald-700">
-                                  {app.examAttempt.score}
-                                  <span className="text-[10px] font-normal text-slate-400">/100</span>
-                                </span>
-                                <span className="text-[10px] text-slate-500">
-                                  {app.examAttempt.status === 'submitted' ? 'Terkumpul' : app.examAttempt.status || 'CAT'}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-400">Belum</span>
-                            )}
-                          </TableCell>
-
-                          {/* Tahap */}
-                          <TableCell className="hidden lg:table-cell text-sm text-slate-700 truncate">
-                            {getStageForApplicant(app)}
-                          </TableCell>
-
-                          {/* Status Pill Badge */}
-                          <TableCell>
-                            <Badge
-                              variant={
-                                statusObj.label === 'Lulus' ? 'success' :
-                                statusObj.label === 'Gagal' ? 'danger' : 'info'
-                              }
-                              format="soft"
-                              hasDot
+                        <TableCell className="w-[220px] max-w-[220px]">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                                AVATAR_PALETTES[appIdx % AVATAR_PALETTES.length]
+                              }`}
                             >
-                              {statusObj.label}
-                            </Badge>
-                          </TableCell>
-
-                          {/* Tgl Daftar */}
-                          <TableCell className="hidden xl:table-cell text-sm text-slate-500 whitespace-nowrap">
-                            {regDate}
-                          </TableCell>
-
-                          {/* Aksi */}
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                onClick={() => setSelectedApplicant(app)}
-                                className="p-1.5 text-slate-400 hover:text-primary-navy hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                                title="Lihat Detail Peserta"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              {userRole === 'superadmin' && (
-                                <>
-                                  <button
-                                    onClick={() => setEditingApplicant(app)}
-                                    className="p-1.5 text-slate-400 hover:text-primary-navy hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                                    title="Edit Pelamar"
-                                  >
-                                    <Edit className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(app.id)}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                    title="Hapus Pelamar"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </>
-                              )}
+                              {initials}
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-[#0F172A] truncate" title={app.fullName}>
+                                {app.fullName}
+                              </p>
+                              <p className="text-xs text-[#64748B] truncate" title={app.email}>
+                                {app.email}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="w-[160px] max-w-[160px] text-sm text-[#475569]">
+                          <span className="block truncate" title={companyName}>
+                            {companyName}
+                          </span>
+                        </TableCell>
+
+                        <TableCell className="w-[240px] max-w-[240px] text-sm text-[#475569]">
+                          <div className="space-y-1 min-w-0">
+                            <span className="block line-clamp-2 font-medium text-[#0F172A] leading-snug" title={programName}>
+                              {programName}
+                            </span>
+                            {getAssessmentCodesForApplicant(app).length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {getAssessmentCodesForApplicant(app).slice(0, 2).map((code) => (
+                                  <span
+                                    key={code}
+                                    className="text-[11px] font-mono bg-[#F1F5F9] text-[#475569] px-1.5 py-0.5 rounded"
+                                  >
+                                    {code}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="w-[110px]">
+                          {app.examAttempt?.score != null ? (
+                            <div className="flex flex-col tabular-nums">
+                              <span className="font-mono text-sm font-semibold text-[#0F172A]">
+                                {app.examAttempt.score}
+                                <span className="text-xs font-normal text-[#64748B]">/100</span>
+                              </span>
+                              <span className="text-xs text-[#64748B]">
+                                {app.examAttempt.status === 'submitted' ? 'Terkumpul' : app.examAttempt.status || 'CAT'}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-[#64748B]">Belum</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="w-[110px]">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${
+                              statusObj.label === 'Lulus'
+                                ? 'bg-[#DCFCE7] text-[#166534]'
+                                : statusObj.label === 'Gagal'
+                                  ? 'bg-[#FEE2E2] text-[#991B1B]'
+                                  : 'bg-[#E0F2FE] text-[#075985]'
+                            }`}
+                          >
+                            {statusObj.label}
+                          </span>
+                        </TableCell>
+
+                        <TableCell className="w-[120px] text-xs font-mono text-[#475569] whitespace-nowrap tabular-nums">
+                          {regDate}
+                        </TableCell>
+
+                        <TableCell className="w-[80px] text-right">
+                          <div className="relative inline-block text-left">
+                            <button
+                              type="button"
+                              onClick={() => setOpenActionId((prev) => (prev === app.id ? null : app.id))}
+                              className="p-2 text-[#475569] hover:text-[#0F172A] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                              aria-label="Menu Aksi"
+                            >
+                              <MoreHorizontal className="w-4 h-4" />
+                            </button>
+                            {openActionId === app.id && (
+                              <div className="absolute right-0 mt-1 w-36 bg-white border border-[#E2E8F0] rounded-lg shadow-lg py-1 z-30 text-left">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionId(null);
+                                    setSelectedApplicant(app);
+                                  }}
+                                  className="w-full px-3 py-2 text-xs font-medium text-[#0F172A] hover:bg-[#F8FAFC] flex items-center gap-2 cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-[#64748B]" />
+                                  <span>Lihat Detail</span>
+                                </button>
+                                {userRole === 'superadmin' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenActionId(null);
+                                        setEditingApplicant(app);
+                                      }}
+                                      className="w-full px-3 py-2 text-xs font-medium text-[#0F172A] hover:bg-[#F8FAFC] flex items-center gap-2 cursor-pointer"
+                                    >
+                                      <Edit className="w-3.5 h-3.5 text-[#64748B]" />
+                                      <span>Edit Data</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenActionId(null);
+                                        void handleDelete(app.id);
+                                      }}
+                                      className="w-full px-3 py-2 text-xs font-medium text-[#991B1B] hover:bg-[#FEE2E2]/40 flex items-center gap-2 cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span>Hapus</span>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -2037,57 +1961,66 @@ ${app.interviewResult ? `
               />
             </div>
           ) : activeMenu === 'help' ? (
-            <div className="animate-fade-in bg-white rounded-xl border border-border-slate p-6 shadow-xs space-y-6">
-              <div className="pb-4 border-b border-slate-100">
-                <h2 className="text-lg font-bold text-ink font-heading">Pusat Bantuan & Panduan Right</h2>
-                <p className="text-xs text-muted-slate mt-0.5">Panduan operasional platform asesmen, integrasi API, dan dukungan tim teknis.</p>
+            <div className="animate-fade-in space-y-6">
+              <div>
+                <h1 className="text-2xl font-bold text-[#0F172A] font-heading">Pusat Bantuan &amp; Panduan Right</h1>
+                <p className="text-sm text-[#64748B] mt-0.5">Panduan operasional platform asesmen, integrasi API, dan dukungan tim teknis.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="p-5 rounded-xl border border-accent-border bg-soft-blue flex flex-col justify-between">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6 rounded-xl border border-[#E2E8F0] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] flex flex-col justify-between">
                   <div>
-                    <h3 className="text-base font-bold text-primary-navy flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-blue-accent" />
+                    <h3 className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-[#1E3A8A]" />
                       Bantuan Langsung Tim Support
                     </h3>
-                    <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                    <p className="text-sm text-[#475569] mt-2 leading-relaxed">
                       Tim support siap membantu kendala operasional, pengaturan bobot ujian, maupun kendala proctoring kandidat.
                     </p>
-                    <div className="mt-4 space-y-1 text-xs text-slate-700">
-                      <p>Email: <strong className="text-primary-navy">support@talenta.id</strong></p>
-                      <p>Hotline: <strong className="text-primary-navy">+62 21 555-8290</strong> (08:00 – 18:00 WIB)</p>
+                    <div className="mt-4 space-y-1.5 text-sm text-[#475569]">
+                      <p>Email: <strong className="text-[#0F172A]">support@talenta.id</strong></p>
+                      <p>Hotline: <strong className="text-[#0F172A] tabular-nums">+62 21 555-8290</strong> (08:00 – 18:00 WIB)</p>
                     </div>
                   </div>
-                  <Button variant="primary" size="sm" className="mt-5 w-fit" leftIcon={<Mail className="w-3.5 h-3.5" />}>
+                  <Button
+                    variant="primary"
+                    onClick={() => setActiveMenu('helpdesk-internal')}
+                    className="mt-5 w-fit h-10 px-4 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white"
+                    leftIcon={<Mail className="w-4 h-4" />}
+                  >
                     Hubungi Support
                   </Button>
                 </div>
 
-                <div className="p-5 rounded-xl border border-border-slate bg-slate-50 flex flex-col justify-between">
+                <div className="p-6 rounded-xl border border-[#E2E8F0] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] flex flex-col justify-between">
                   <div>
-                    <h3 className="text-base font-bold text-ink">Dokumentasi Operasional</h3>
-                    <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                      <li className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary-navy" />
-                        <span>Panduan Pelaksanaan Live Interview dengan Ava AI</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary-navy" />
-                        <span>Aturan Kepatuhan & Kalibrasi AI Proctoring Anti-Cheat</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary-navy" />
-                        <span>Format Standar Parsing CV dan Rubrik Penilaian Gemini</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary-navy" />
-                        <span>Panduan Ekspor dan Cetak Surat Keputusan Kandidat</span>
-                      </li>
+                    <h3 className="text-base font-semibold text-[#0F172A]">Dokumentasi Operasional</h3>
+                    <ul className="mt-3 divide-y divide-[#E2E8F0]">
+                      {[
+                        'Panduan Pelaksanaan Live Interview dengan Ava AI',
+                        'Aturan Kepatuhan & Kalibrasi AI Proctoring Anti-Cheat',
+                        'Format Standar Parsing CV dan Rubrik Penilaian Gemini',
+                        'Panduan Ekspor dan Cetak Surat Keputusan Kandidat',
+                      ].map((docTitle) => (
+                        <li key={docTitle}>
+                          <button
+                            type="button"
+                            onClick={() => setActiveMenu('faq-helpdesk')}
+                            className="w-full h-9 flex items-center gap-2.5 text-left text-sm text-[#2563EB] hover:underline cursor-pointer"
+                          >
+                            <FileText className="w-4 h-4 shrink-0" />
+                            <span className="truncate">{docTitle}</span>
+                          </button>
+                        </li>
+                      ))}
                     </ul>
                   </div>
-                  <span className="text-[11px] text-slate-400 mt-5">Versi Sistem: Right Assessment Platform v2.4.0</span>
                 </div>
               </div>
+
+              <p className="text-center text-xs text-[#94A3B8] pt-2">
+                Versi Sistem: Right Assessment Platform v2.4.0
+              </p>
             </div>
           ) : null}
 
@@ -2937,25 +2870,18 @@ ${app.interviewResult ? `
         candidate={timelineCandidate}
       />
 
+      {/* Compact 56px Helpdesk FAB (Collapsed = icon only, no floating text overlap) */}
       <button
         type="button"
         onClick={() => {
           setActiveMenu('helpdesk-internal');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-        className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40 group flex items-center gap-2.5 rounded-full bg-gradient-to-r from-[#0F275C] via-[#1D4ED8] to-[#0EA5E9] pl-1.5 pr-4 sm:pr-5 py-1.5 text-white shadow-[0_18px_40px_-10px_rgba(13,42,120,0.65)] ring-4 ring-blue-400/15 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-[#1E3A8A] hover:bg-[#172554] text-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 cursor-pointer"
         title="Buka Helpdesk Internal"
+        aria-label="Buka Helpdesk Internal"
       >
-        <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
-          <span className="absolute inset-0 rounded-full bg-white/25 opacity-40 animate-ping" />
-          <MessageSquare className="w-5 h-5 relative" />
-        </span>
-        <span className="flex flex-col items-start leading-tight text-left">
-          <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/90">
-            Chat Masuk
-          </span>
-          <span className="text-[11px] sm:text-xs font-bold">Helpdesk Peserta &amp; Asesor</span>
-        </span>
+        <MessageSquare className="w-6 h-6" />
       </button>
     </SuperadminLayout>
   );

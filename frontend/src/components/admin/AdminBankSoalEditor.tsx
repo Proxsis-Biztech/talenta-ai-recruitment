@@ -619,9 +619,6 @@ export function AdminBankSoalEditor({
       setViewMode('programs');
     }
   }, [initialProgramCode, initialCompanyName, initialFocus]);
-  const [caseFiles, setCaseFiles] = useState<Array<{ name: string; url: string; mime?: string }>>([]);
-  const [caseUploading, setCaseUploading] = useState(false);
-  const [caseMessage, setCaseMessage] = useState('');
   const [questionImporting, setQuestionImporting] = useState(false);
   const [questionImportMessage, setQuestionImportMessage] = useState('');
 
@@ -862,7 +859,7 @@ export function AdminBankSoalEditor({
         )
       );
     } catch (error) {
-      setCaseMessage(
+      showToast(
         axios.isAxiosError(error)
           ? error.response?.data?.error || 'Gagal mengunggah lampiran soal.'
           : 'Gagal mengunggah lampiran soal.'
@@ -1160,32 +1157,6 @@ export function AdminBankSoalEditor({
     [programs, questions, materiList, filterCompany]
   );
 
-  useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (!token || !selectedProgramCode) return;
-    let cancelled = false;
-    axios
-      .get('/api/admin/jobs', { headers: { Authorization: `Bearer ${token}` } })
-      .then((response) => {
-        if (cancelled) return;
-        const jobs = response.data?.data || [];
-        const job = jobs.find((item: any) => item.code === selectedProgramCode);
-        try {
-          const parsed = job?.caseFiles ? JSON.parse(job.caseFiles) : [];
-          setCaseFiles(Array.isArray(parsed) ? parsed : []);
-        } catch {
-          setCaseFiles([]);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setCaseFiles([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedProgramCode]);
-
-
   const handleDownloadQuestionTemplate = async () => {
     const token = localStorage.getItem('adminToken');
     if (!token) return;
@@ -1263,32 +1234,6 @@ export function AdminBankSoalEditor({
     }
   };
 
-  const handleCaseFileUpload = async (file: File) => {
-    const token = localStorage.getItem('adminToken');
-    if (!token) return;
-    setCaseUploading(true);
-    setCaseMessage('');
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await axios.post(
-        `/api/admin/programs/${selectedProgramCode}/case-files`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
-      );
-      setCaseFiles(response.data?.caseFiles || []);
-      setCaseMessage('Dokumen studi kasus berhasil diunggah.');
-    } catch (error) {
-      setCaseMessage(
-        axios.isAxiosError(error)
-          ? error.response?.data?.error || 'Gagal mengunggah dokumen.'
-          : 'Gagal mengunggah dokumen.'
-      );
-    } finally {
-      setCaseUploading(false);
-    }
-  };
-
   const handleQuestionAttachmentUpload = async (file: File) => {
     const token = localStorage.getItem('adminToken');
     if (!token) return;
@@ -1298,7 +1243,7 @@ export function AdminBankSoalEditor({
     );
     const orderNo = programQuestions.findIndex((question) => question.id === activeQuestion.id) + 1;
     if (orderNo <= 0) {
-      setCaseMessage('Simpan butir soal terlebih dahulu sebelum mengunggah lampiran.');
+      showToast('Simpan butir soal terlebih dahulu sebelum mengunggah lampiran.');
       return;
     }
     const formData = new FormData();
@@ -1318,9 +1263,9 @@ export function AdminBankSoalEditor({
           attachmentMime: stored.mime
         }));
       }
-      setCaseMessage('Lampiran soal terunggah.');
+      showToast('Lampiran soal terunggah.');
     } catch (error) {
-      setCaseMessage(
+      showToast(
         axios.isAxiosError(error)
           ? error.response?.data?.error || 'Gagal mengunggah lampiran soal.'
           : 'Gagal mengunggah lampiran soal.'
@@ -1328,50 +1273,27 @@ export function AdminBankSoalEditor({
     }
   };
 
-  const handleCaseFileDelete = async (url: string) => {
-    const token = localStorage.getItem('adminToken');
-    if (!token) return;
-    const fileName = url.split('/').pop() || '';
-    try {
-      const response = await axios.delete(
-        `/api/admin/programs/${selectedProgramCode}/case-files/${encodeURIComponent(fileName)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setCaseFiles(response.data?.caseFiles || []);
-      setCaseMessage('Dokumen dihapus.');
-    } catch {
-      setCaseMessage('Gagal menghapus dokumen.');
-    }
-  };
-
   return (
     <div className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs space-y-6">
       {/* View Switcher Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E2E8F0]">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded border border-accent-border">
-              MATERI &amp; BANK SOAL CAT
-            </span>
-            {viewMode !== 'programs' && (
-              <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                {selectedProgramCode}
-              </span>
-            )}
-            <Badge variant="navy">
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
               {viewMode === 'programs'
                 ? `${programRows.reduce((sum, p) => sum + p.total, 0)} Soal • ${programRows.length} Program`
                 : `${filtered.length} Butir Soal • ${selectedProgramMateri.length} Panduan`}
-            </Badge>
+            </span>
           </div>
-          <h2 className="text-xl font-extrabold font-heading text-ink tracking-tight mt-1">
+          <h1 className="text-2xl font-bold font-heading text-[#0F172A] tracking-tight mt-1.5">
             {viewMode === 'programs'
-              ? 'Bank Soal & Panduan Materi Asesmen'
-              : selectedProgramObj?.title || `Program Asesmen ${selectedProgramCode}`}
-          </h2>
-          {viewMode !== 'programs' && selectedProgramObj?.companyName && (
-            <p className="text-xs text-slate-500 mt-0.5">
-              {selectedProgramObj.companyName} • Bank Soal &amp; Panduan Materi Asesmen
+              ? 'Materi & Bank Soal Asesmen'
+              : `Bank Soal - ${selectedProgramCode}`}
+          </h1>
+          {viewMode !== 'programs' && (
+            <p className="text-sm text-[#64748B] mt-0.5 truncate" title={selectedProgramObj?.title}>
+              {selectedProgramObj?.title || `Program Asesmen ${selectedProgramCode}`}
+              {selectedProgramObj?.companyName ? ` • ${selectedProgramObj.companyName}` : ''}
             </p>
           )}
         </div>
@@ -1380,20 +1302,19 @@ export function AdminBankSoalEditor({
           <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="outline"
-              size="sm"
               onClick={() => setViewMode('programs')}
-              className="text-xs flex items-center gap-1.5 cursor-pointer"
+              className="h-10 px-4 rounded-lg border-[#E2E8F0] text-[#475569]"
+              leftIcon={<ChevronLeft className="w-4 h-4" />}
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span>Semua Program</span>
+              Semua Program
             </Button>
           </div>
         )}
       </div>
 
       {toastMessage && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center gap-2 animate-fadeIn">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+        <div className="p-3 bg-[#DCFCE7] border border-[#BBF7D0] rounded-lg text-xs text-[#166534] flex items-center gap-2 animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0" />
           <span className="font-semibold">{toastMessage}</span>
         </div>
       )}
@@ -1403,62 +1324,67 @@ export function AdminBankSoalEditor({
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-bold text-ink">Bank Soal per Program Asesmen</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Filter berdasarkan Perusahaan (PT) atau pilih program untuk mengelola butir soal CAT.</p>
+              <h3 className="text-base font-semibold text-[#0F172A]">Daftar Program Asesmen</h3>
+              <p className="text-xs text-[#64748B] mt-0.5">Filter berdasarkan Perusahaan (PT) atau pilih program untuk mengelola panduan &amp; soal CAT.</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-60">
-                <Select
-                  value={filterCompany}
-                  onChange={(e) => setFilterCompany(e.target.value)}
-                  className="h-9 text-xs font-semibold"
-                >
-                  <option value="ALL">Semua Perusahaan (PT)</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <Badge variant="navy">{programRows.reduce((sum, program) => sum + program.total, 0)} Total Soal</Badge>
+            <div className="w-full sm:w-[240px]">
+              <Select
+                value={filterCompany}
+                onChange={(e) => setFilterCompany(e.target.value)}
+                className="h-10 text-xs font-medium rounded-lg"
+              >
+                <option value="ALL">Semua Perusahaan (PT)</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
             </div>
           </div>
-          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50">
-                  <TableHead className="w-24">Kode</TableHead>
-                  <TableHead>Program Asesmen</TableHead>
-                  <TableHead className="w-28 text-center">Panduan Materi</TableHead>
-                  <TableHead className="w-28 text-center">Jumlah Soal</TableHead>
-                  <TableHead className="w-24 text-center">Tipe Soal</TableHead>
-                  <TableHead className="w-24 text-center">Published</TableHead>
-                  <TableHead className="w-36 text-right">Aksi</TableHead>
+          <div className="border border-[#E2E8F0] rounded-xl overflow-x-auto bg-white">
+            <Table className="w-full min-w-[840px]">
+              <TableHeader className="sticky top-0 z-10 bg-white">
+                <TableRow className="border-b border-[#E2E8F0]">
+                  <TableHead className="w-24 text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Kode</TableHead>
+                  <TableHead className="w-[260px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Program Asesmen</TableHead>
+                  <TableHead className="w-32 text-center text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Materi</TableHead>
+                  <TableHead className="w-44 text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Soal</TableHead>
+                  <TableHead className="w-28 text-center text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Published</TableHead>
+                  <TableHead className="w-40 text-right text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {programRows.map((program) => (
-                  <TableRow key={program.id}>
-                    <TableCell className="font-mono text-xs font-bold text-primary-navy">{program.id}</TableCell>
-                    <TableCell>
-                      <p className="text-sm font-semibold text-slate-800">{program.title}</p>
-                      <p className="text-[11px] text-slate-500">{program.companyName}</p>
+                  <TableRow key={program.id} className="h-16 hover:bg-[#F8FAFC] transition-colors">
+                    <TableCell className="font-mono text-xs font-semibold text-[#1E3A8A] whitespace-nowrap">{program.id}</TableCell>
+                    <TableCell className="w-[260px] max-w-[260px]">
+                      <p className="text-sm font-semibold text-[#0F172A] line-clamp-2 leading-snug" title={program.title}>
+                        {program.title}
+                      </p>
+                      <p className="text-xs text-[#64748B] truncate mt-0.5">{program.companyName}</p>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant={program.materiCount > 0 ? 'teal' : 'neutral'} format="soft">
+                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
                         {program.materiCount} Panduan
-                      </Badge>
+                      </span>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <span className="font-mono font-bold text-slate-700">{program.total}</span>
-                      <div className="text-[10px] text-slate-500 mt-0.5">
-                        Psikotes: <strong className="text-indigo-700">{program.psikotesCount}</strong> • Kompetensi:{' '}
-                        <strong className="text-primary-navy">{program.kompetensiCount}</strong>
+                    <TableCell>
+                      <div className="tabular-nums">
+                        <span className="text-sm font-semibold text-[#0F172A]">{program.total} Soal</span>
+                        <p className="text-xs text-[#64748B] mt-0.5">
+                          Psikotes {program.psikotesCount} • Kompetensi {program.kompetensiCount}
+                        </p>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center text-sm text-slate-600">{program.typeCount}</TableCell>
-                    <TableCell className="text-center text-sm text-emerald-700 font-semibold">{program.published}</TableCell>
+                    <TableCell className="text-center">
+                      <span
+                        className="text-sm font-semibold font-mono text-[#166534] tabular-nums"
+                        title={`${program.published} dari ${program.total} soal terpublikasi`}
+                      >
+                        {program.published}/{program.total}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="outline"
@@ -1467,10 +1393,10 @@ export function AdminBankSoalEditor({
                           setSelectedProgramCode(program.id);
                           setViewMode('table');
                         }}
-                        className="text-xs"
+                        className="h-8 px-3 rounded-lg border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC]"
                       >
-                        Kelola Materi &amp; Soal
-                        <ArrowRight className="w-3 h-3 ml-1" />
+                        Kelola
+                        <ArrowRight className="w-3.5 h-3.5 ml-1" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -1484,69 +1410,73 @@ export function AdminBankSoalEditor({
       {/* ─── TAB 1: Tabel Soal ─── */}
       {(viewMode === 'table' || viewMode === 'editor') && (
         <div className="space-y-4">
-          {/* ─── Panduan Materi Asesmen (Panduan Peserta & Kisi-Kisi Program) ─── */}
-          <div id="panduan-materi-section" className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-ink flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-primary-navy" />
-                  <span>Panduan Materi Asesmen [{selectedProgramCode}]</span>
-                  <Badge variant={selectedProgramMateri.length > 0 ? 'teal' : 'neutral'} format="soft">
+          {/* ─── Panduan Materi Asesmen ─── */}
+          <div id="panduan-materi-section" className="rounded-xl border border-[#E2E8F0] bg-white p-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-[#1E3A8A] shrink-0" />
+                  <h3 className="text-base font-semibold text-[#0F172A]">Panduan Materi</h3>
+                  <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
                     {selectedProgramMateri.length} Panduan
-                  </Badge>
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Panduan belajar, kisi-kisi kompetensi, dan rubrik penilaian untuk membantu peserta sebelum mengerjakan asesmen.
+                  </span>
+                </div>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Panduan belajar, kisi-kisi kompetensi, dan rubrik penilaian untuk peserta sebelum ujian.
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="xs"
-                  leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={openCreateMateriModal}
-                >
-                  Tambah Panduan Materi
-                </Button>
+              <div className="flex items-center gap-2 shrink-0">
                 <Button
                   type="button"
                   variant="outline"
-                  size="xs"
-                  rightIcon={showMateriSection ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  onClick={() => setShowMateriSection((prev) => !prev)}
+                  size="sm"
+                  leftIcon={<Plus className="w-4 h-4" />}
+                  onClick={openCreateMateriModal}
+                  className="h-9 px-3 rounded-lg border-[#E2E8F0] text-[#475569]"
                 >
-                  {showMateriSection ? 'Sembunyikan' : 'Lihat Panduan'}
+                  Tambah Panduan
                 </Button>
+                <button
+                  type="button"
+                  onClick={() => setShowMateriSection((prev) => !prev)}
+                  title={showMateriSection ? 'Sembunyikan Panduan Materi' : 'Tampilkan Panduan Materi'}
+                  aria-label="Toggle Panduan Materi"
+                  className="w-8 h-8 rounded-lg border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] flex items-center justify-center cursor-pointer"
+                >
+                  {showMateriSection ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
             {showMateriSection && (
               selectedProgramMateri.length === 0 ? (
-                <div className="p-6 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-500">
-                  Belum ada panduan materi untuk program <strong>{selectedProgramCode}</strong>. Klik{' '}
-                  <strong>+ Tambah Panduan Materi</strong> untuk menambahkan panduan pengerjaan bagi peserta.
+                <div className="p-6 text-center rounded-xl border border-dashed border-[#E2E8F0] bg-[#F8FAFC] text-xs text-[#64748B]">
+                  Belum ada panduan materi untuk program ini. Klik <strong>Tambah Panduan</strong> untuk menambahkan.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                   {selectedProgramMateri.map((mat) => (
                     <div
                       key={mat.id}
-                      className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2 flex flex-col justify-between"
+                      className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-2 flex flex-col justify-between"
                     >
                       <div className="space-y-1.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <Badge variant="navy" format="soft">{mat.type}</Badge>
-                            <Badge variant={mat.status === 'Aktif' ? 'success' : 'neutral'} format="soft">
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
+                              {mat.type}
+                            </span>
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                              (mat.status || 'Aktif') === 'Aktif' ? 'bg-[#DCFCE7] text-[#166534]' : 'bg-[#F1F5F9] text-[#475569]'
+                            }`}>
                               {mat.status || 'Aktif'}
-                            </Badge>
+                            </span>
                           </div>
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
                               onClick={() => openEditMateriModal(mat)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-primary-navy hover:bg-white cursor-pointer"
+                              className="p-1.5 rounded-lg text-[#64748B] hover:text-[#1E3A8A] hover:bg-white cursor-pointer"
                               title="Edit Panduan"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -1554,23 +1484,23 @@ export function AdminBankSoalEditor({
                             <button
                               type="button"
                               onClick={() => handleDeleteMateriItem(mat)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white cursor-pointer"
+                              className="p-1.5 rounded-lg text-[#64748B] hover:text-[#DC2626] hover:bg-white cursor-pointer"
                               title="Hapus Panduan"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
-                        <p className="font-bold text-xs sm:text-sm text-slate-900 leading-snug">{mat.title}</p>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="font-semibold text-sm text-[#0F172A] leading-snug">{mat.title}</p>
+                        <p className="text-xs text-[#64748B]">
                           {mat.category}
                           {mat.competency ? ` • ${mat.competency}` : ''}
                         </p>
-                        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{mat.content}</p>
+                        <p className="text-xs text-[#475569] line-clamp-2 leading-relaxed">{mat.content}</p>
                       </div>
                       {mat.rubric && (
-                        <div className="pt-2 border-t border-slate-200/80 text-[11px] text-slate-600 line-clamp-1">
-                          <span className="font-semibold text-slate-700">Rubrik:</span> {mat.rubric}
+                        <div className="pt-2 border-t border-[#E2E8F0] text-xs text-[#64748B] line-clamp-1">
+                          <span className="font-semibold text-[#475569]">Rubrik:</span> {mat.rubric}
                         </div>
                       )}
                     </div>
@@ -1580,96 +1510,38 @@ export function AdminBankSoalEditor({
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-ink flex items-center gap-2">
-                  <Paperclip className="w-4 h-4 text-primary-navy" />
-                  Dokumen Studi Kasus Program [{selectedProgramCode}]
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Unggah PDF/DOCX pendukung (BR-EX-08, BR-IB-03). Dokumen tampil pada panel split-view peserta saat ujian.
-                </p>
-              </div>
-              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-50">
-                <Upload className="w-3.5 h-3.5" />
-                {caseUploading ? 'Mengunggah...' : 'Unggah Dokumen'}
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
-                  disabled={caseUploading}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void handleCaseFileUpload(file);
-                    event.target.value = '';
-                  }}
-                />
-              </label>
-            </div>
-            {caseMessage && <p className="text-[11px] text-slate-600">{caseMessage}</p>}
-            {caseFiles.length === 0 ? (
-              <p className="text-[11px] text-slate-500">Belum ada dokumen studi kasus untuk program ini.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {caseFiles.map((file) => (
-                  <span key={file.url} className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-medium text-slate-700">
-                    <FileText className="w-3 h-3 text-primary-navy" />
-                    <a href={file.url} target="_blank" rel="noreferrer" className="hover:underline">
-                      {file.name}
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => void handleCaseFileDelete(file.url)}
-                      className="text-rose-600 hover:text-rose-700 cursor-pointer"
-                      title="Hapus dokumen"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
           {/* Kategori Soal Switcher: Soal Psikotes vs Uji Kompetensi */}
-          <div className="rounded-xl border border-slate-200 bg-white p-3">
+          <div className="rounded-xl border border-[#E2E8F0] bg-white p-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => {
                   setActiveCategory('psikotes');
                 }}
-                className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${
+                className={`flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors cursor-pointer ${
                   activeCategory === 'psikotes'
-                    ? 'border-indigo-500 bg-indigo-50/80 shadow-xs'
-                    : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/70'
+                    ? 'border-2 border-[#1E3A8A] bg-[#EEF2FF]'
+                    : 'border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div
                     className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
                       activeCategory === 'psikotes'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-white border border-slate-200 text-slate-600'
+                        ? 'bg-[#1E3A8A] text-white'
+                        : 'bg-[#EEF2FF] text-[#1E3A8A]'
                     }`}
                   >
                     <Brain className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-900">Soal Psikotes</p>
-                    <p className="text-[11px] text-slate-500 truncate">
+                    <p className="text-sm font-semibold text-[#0F172A]">Soal Psikotes</p>
+                    <p className="text-xs text-[#64748B] truncate">
                       Penalaran logis, numerik, verbal &amp; kepribadian
                     </p>
                   </div>
                 </div>
-                <span
-                  className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ${
-                    activeCategory === 'psikotes'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white border border-slate-200 text-slate-700'
-                  }`}
-                >
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-[#F1F5F9] text-[#475569] shrink-0">
                   {categoryCounts.psikotes} Soal
                 </span>
               </button>
@@ -1679,60 +1551,59 @@ export function AdminBankSoalEditor({
                 onClick={() => {
                   setActiveCategory('kompetensi');
                 }}
-                className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${
+                className={`flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors cursor-pointer ${
                   activeCategory === 'kompetensi'
-                    ? 'border-primary-navy bg-soft-blue shadow-xs'
-                    : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/70'
+                    ? 'border-2 border-[#1E3A8A] bg-[#EEF2FF]'
+                    : 'border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div
                     className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
                       activeCategory === 'kompetensi'
-                        ? 'bg-primary-navy text-white'
-                        : 'bg-white border border-slate-200 text-slate-600'
+                        ? 'bg-[#1E3A8A] text-white'
+                        : 'bg-[#EEF2FF] text-[#1E3A8A]'
                     }`}
                   >
                     <CheckSquare className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-900">Uji Kompetensi</p>
-                    <p className="text-[11px] text-slate-500 truncate">
+                    <p className="text-sm font-semibold text-[#0F172A]">Uji Kompetensi</p>
+                    <p className="text-xs text-[#64748B] truncate">
                       Teknis, studi kasus, arsitektur &amp; materi program
                     </p>
                   </div>
                 </div>
-                <span
-                  className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ${
-                    activeCategory === 'kompetensi'
-                      ? 'bg-primary-navy text-white'
-                      : 'bg-white border border-slate-200 text-slate-700'
-                  }`}
-                >
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-[#F1F5F9] text-[#475569] shrink-0">
                   {categoryCounts.kompetensi} Soal
                 </span>
               </button>
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="rounded-xl border border-[#E2E8F0] bg-white p-5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-bold text-ink flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                  Import Soal dari Excel [{selectedProgramCode}]
+                <h3 className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-[#1E3A8A]" />
+                  Import Soal dari Excel
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Unduh template, isi soal berbagai tipe (PG, multi-select, isian, esai, matching), lalu unggah kembali. Soal masuk ke kategori aktif: <strong>{activeCategory === 'psikotes' ? 'Soal Psikotes' : 'Uji Kompetensi'}</strong>.
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Unduh template, isi soal berbagai tipe (PG, multi-select, isian, esai, matching), lalu unggah untuk kategori{' '}
+                  <strong>{activeCategory === 'psikotes' ? 'Soal Psikotes' : 'Uji Kompetensi'}</strong>.
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => void handleDownloadQuestionTemplate()}>
-                  <Download className="w-3.5 h-3.5 mr-1.5" />
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() => void handleDownloadQuestionTemplate()}
+                  className="h-10 px-3.5 rounded-lg border-[#E2E8F0] text-[#475569] whitespace-nowrap"
+                >
+                  <Download className="w-4 h-4 mr-1.5" />
                   Unduh Template
                 </Button>
-                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-50">
-                  <Upload className="w-3.5 h-3.5" />
+                <label className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-sm font-semibold text-white cursor-pointer whitespace-nowrap">
+                  <Upload className="w-4 h-4" />
                   {questionImporting ? 'Mengimpor...' : 'Import Excel'}
                   <input
                     type="file"
@@ -1749,7 +1620,7 @@ export function AdminBankSoalEditor({
               </div>
             </div>
             {questionImportMessage && (
-              <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <p className="text-xs text-[#475569] bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 py-2">
                 {questionImportMessage}
               </p>
             )}

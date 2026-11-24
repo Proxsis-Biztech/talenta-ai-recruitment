@@ -6,9 +6,9 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
-import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
+import { AdminStatCard } from './admin/AdminStatCard';
 
 interface Applicant {
   id: string;
@@ -134,84 +134,51 @@ export default function PipelineView({
   return (
     <div className="space-y-6">
       {/* Telemetry Summary Ribbon */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card elevation="flat" className="admin-card-accent-blue p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center shadow-md shadow-blue-500/20">
-              <User className="w-5 h-5" />
-            </div>
-            <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200/60">
-              Pipeline Total
-            </span>
-          </div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
-            Total di Pipeline
-          </p>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
-              {filtered.length} <span className="text-xs font-bold text-slate-400 font-sans">Kandidat</span>
-            </span>
-            <span className="text-[11px] text-slate-400 font-mono">Pelamar Aktif</span>
-          </div>
-        </Card>
-
-        <Card elevation="flat" className="admin-card-accent-emerald p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl admin-icon-emerald text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
-              <Brain className="w-5 h-5" />
-            </div>
-            <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold border border-emerald-200/60">
-              Live Gateway
-            </span>
-          </div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
-            Wawancara Berjalan / Siap
-          </p>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-2xl font-black font-mono text-emerald-700 tracking-tight">
-              {stageInterview.length + stageNeedsScoring.length} <span className="text-xs font-bold text-slate-400 font-sans">Sesi</span>
-            </span>
-            <span className="text-[11px] text-emerald-600 font-semibold font-mono">Fase Wawancara</span>
-          </div>
-        </Card>
-
-        <Card elevation="flat" className="admin-card-accent-purple p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl admin-icon-purple text-white flex items-center justify-center shadow-md shadow-purple-500/20">
-              <Award className="w-5 h-5" />
-            </div>
-            <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full font-semibold border border-purple-200/60">
-              BARS Evaluated
-            </span>
-          </div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
-            Keputusan Siap Rilis
-          </p>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
-              {stageDecisionReady.length} <span className="text-xs font-bold text-slate-400 font-sans">Berkas</span>
-            </span>
-            <span className="text-[11px] text-purple-700 font-semibold font-mono">Evaluasi Final</span>
-          </div>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+        <AdminStatCard
+          label="Total di Pipeline"
+          value={filtered.length}
+          subtext="Kandidat aktif"
+          badge="Pipeline"
+          badgeVariant="neutral"
+          icon={User}
+        />
+        <AdminStatCard
+          label="Wawancara Berjalan / Siap"
+          value={stageInterview.length + stageNeedsScoring.length}
+          subtext="Fase wawancara & skoring"
+          badge="Live Gateway"
+          badgeVariant="info"
+          icon={Brain}
+        />
+        <AdminStatCard
+          label="Keputusan Siap Rilis"
+          value={stageDecisionReady.length}
+          subtext="Evaluasi final siap terbit"
+          badge="BARS Evaluated"
+          badgeVariant="success"
+          icon={Award}
+        />
       </div>
 
       {/* Top Filter Bar */}
-      <Card elevation="flat" className="p-4 border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-3">
-          <div className="flex-1 max-w-none sm:max-w-md">
+      <Card elevation="flat" className="px-4 py-3 border-[#E2E8F0] rounded-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap flex-1 items-center gap-3 min-w-0">
+          <div className="w-full sm:w-[280px]">
             <Input
               type="text"
-              placeholder="Cari pelamar atau posisi di pipeline..."
+              placeholder="Cari pelamar atau posisi..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+              leftIcon={<Search className="w-4 h-4 text-[#94A3B8]" />}
+              className="h-10 rounded-lg"
             />
           </div>
-          <div className="w-full sm:w-56">
+          <div className="w-full sm:w-[200px]">
             <Select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
+              className="h-10 rounded-lg"
             >
               <option value="ALL">Semua Lowongan</option>
               {availablePositions.map(pos => (
@@ -221,231 +188,211 @@ export default function PipelineView({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onRefresh}
-            leftIcon={<RefreshCw className="w-3.5 h-3.5 text-slate-500" />}
-          >
-            Refresh Pipeline
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onRefresh}
+          title="Muat Ulang Pipeline"
+          aria-label="Muat Ulang Pipeline"
+          className="h-10 w-10 rounded-lg border-[#E2E8F0] text-[#475569] shrink-0"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </Button>
       </Card>
 
       {/* Kanban Board Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-        {/* Column 2: Interview In Progress / Scheduled */}
-        <div className="bg-slate-50/80 border border-slate-200 border-t-2 border-t-blue-500 rounded-xl flex flex-col max-h-[calc(100vh-240px)] shadow-xs">
-          <div className="p-3.5 border-b border-slate-200 bg-white rounded-t-xl flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-              <h3 className="text-xs font-bold tracking-wider text-slate-800 uppercase font-sans">
-                2. Sesi Wawancara AI
+      <div className="flex gap-4 overflow-x-auto pb-2 items-start">
+        {/* Column 1: Interview In Progress / Scheduled */}
+        <div className="min-w-[300px] flex-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex flex-col max-h-[calc(100vh-240px)]">
+          <div className="px-4 py-3 border-b border-[#E2E8F0] bg-white rounded-t-xl flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB] shrink-0" />
+              <h3 className="text-[13px] font-semibold text-[#0F172A] truncate">
+                Sesi Wawancara AI
               </h3>
             </div>
-            <Badge variant="info" format="soft" isMonospace>
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569] tabular-nums">
               {stageInterview.length}
-            </Badge>
+            </span>
           </div>
 
           <div className="p-3 overflow-y-auto space-y-3 flex-1">
             {stageInterview.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400">
+              <div className="py-8 text-center text-xs text-[#64748B]">
                 Tidak ada kandidat di tahap ini
               </div>
             ) : (
               stageInterview.map(applicant => (
-                <div 
+                <div
                   key={applicant.id}
-                  className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs hover:border-primary-navy transition-all space-y-2 group"
+                  className="bg-white border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2563EB]/60 transition-colors space-y-2.5"
                 >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-900 leading-snug group-hover:text-primary-navy transition-colors">
-                        {applicant.fullName}
-                      </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {applicant.job?.title || applicant.appliedPosition}
-                      </p>
-                    </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-[#0F172A] truncate" title={applicant.fullName}>
+                      {applicant.fullName}
+                    </h4>
+                    <p className="text-xs text-[#64748B] line-clamp-2 mt-0.5" title={applicant.job?.title || applicant.appliedPosition}>
+                      {applicant.job?.title || applicant.appliedPosition}
+                    </p>
                   </div>
 
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                    <span className="inline-flex items-center gap-1 text-blue-700 font-medium">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#E0F2FE] text-[#075985]">
                       <Clock className="w-3 h-3" />
-                      {applicant.interviewStatus === 'in_progress' ? 'Sedang Berlangsung' : 'Terjadwal / Belum Mulai'}
+                      {applicant.interviewStatus === 'in_progress' ? 'Sedang Berlangsung' : 'Terjadwal'}
                     </span>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => onViewApplicant(applicant)}
-                    >
-                      Buka Profil
-                    </Button>
-                    <span className="text-[11px] text-slate-400">
-                      Live Gateway
-                    </span>
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onViewApplicant(applicant)}
+                    className="w-full h-9 rounded-lg border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC]"
+                  >
+                    Buka Profil
+                  </Button>
                 </div>
               ))
             )}
           </div>
         </div>
 
-        {/* Column 3: Interview Completed (Needs Scoring) */}
-        <div className="bg-slate-50/80 border border-slate-200 border-t-2 border-t-blue-accent rounded-xl flex flex-col max-h-[calc(100vh-240px)] shadow-xs">
-          <div className="p-3.5 border-b border-slate-200 bg-white rounded-t-xl flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-accent" />
-              <h3 className="text-xs font-bold tracking-wider text-slate-800 uppercase font-sans">
-                3. Perlu Skoring AI
+        {/* Column 2: Interview Completed (Needs Scoring) */}
+        <div className="min-w-[300px] flex-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex flex-col max-h-[calc(100vh-240px)]">
+          <div className="px-4 py-3 border-b border-[#E2E8F0] bg-white rounded-t-xl flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#D97706] shrink-0" />
+              <h3 className="text-[13px] font-semibold text-[#0F172A] truncate">
+                Perlu Skoring AI
               </h3>
             </div>
-            <Badge variant="navy" format="soft" isMonospace>
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569] tabular-nums">
               {stageNeedsScoring.length}
-            </Badge>
+            </span>
           </div>
 
           <div className="p-3 overflow-y-auto space-y-3 flex-1">
             {stageNeedsScoring.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400">
+              <div className="py-8 text-center text-xs text-[#64748B]">
                 Semua wawancara sudah dinilai
               </div>
             ) : (
               stageNeedsScoring.map(applicant => (
-                <div 
+                <div
                   key={applicant.id}
-                  className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs hover:border-primary-navy transition-all space-y-2 group"
+                  className="bg-white border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2563EB]/60 transition-colors space-y-2.5"
                 >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-900 leading-snug group-hover:text-primary-navy transition-colors">
-                        {applicant.fullName}
-                      </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {applicant.job?.title || applicant.appliedPosition}
-                      </p>
-                    </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-[#0F172A] truncate" title={applicant.fullName}>
+                      {applicant.fullName}
+                    </h4>
+                    <p className="text-xs text-[#64748B] line-clamp-2 mt-0.5" title={applicant.job?.title || applicant.appliedPosition}>
+                      {applicant.job?.title || applicant.appliedPosition}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {applicant.screeningScore && (
-                      <Badge variant="neutral" format="soft" isMonospace>
-                        CV {applicant.screeningScore}
-                      </Badge>
+                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569] font-mono tabular-nums">
+                        Skor CV {applicant.screeningScore}
+                      </span>
                     )}
-                  </div>
-
-                  <div className="text-[11px] text-slate-500 flex items-center justify-between">
-                    <span>Transkrip Wawancara Siap</span>
                     {getProctorViolations(applicant.proctorFlags) > 0 && (
-                      <Badge variant="danger" format="soft" isMonospace hasDot>
-                        <ShieldAlert className="w-3 h-3" />
-                        {getProctorViolations(applicant.proctorFlags)}x flag
-                      </Badge>
+                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#FEE2E2] text-[#991B1B] font-mono tabular-nums">
+                        {getProctorViolations(applicant.proctorFlags)}x Flag
+                      </span>
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => onViewApplicant(applicant)}
-                    >
-                      Transkrip
-                    </Button>
-                    <Button
-                      variant="primary"
-                      size="xs"
-                      onClick={() => onScoreInterview(applicant.id)}
-                      disabled={scoringLoading}
-                      leftIcon={<Brain className="w-3 h-3" />}
-                    >
-                      Hitung Nilai AI
-                    </Button>
-                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => onScoreInterview(applicant.id)}
+                    disabled={scoringLoading}
+                    leftIcon={<Brain className="w-3.5 h-3.5" />}
+                    className="w-full h-9 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white"
+                  >
+                    Hitung Nilai AI
+                  </Button>
                 </div>
               ))
             )}
           </div>
         </div>
 
-        {/* Column 4: Scored / Decision Ready */}
-        <div className="bg-slate-50/80 border border-slate-200 border-t-2 border-t-primary-navy rounded-xl flex flex-col max-h-[calc(100vh-240px)] shadow-xs">
-          <div className="p-3.5 border-b border-slate-200 bg-white rounded-t-xl flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary-navy" />
-              <h3 className="text-xs font-bold tracking-wider text-slate-800 uppercase font-sans">
-                4. Keputusan Rekrutmen
+        {/* Column 3: Scored / Decision Ready */}
+        <div className="min-w-[300px] flex-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex flex-col max-h-[calc(100vh-240px)]">
+          <div className="px-4 py-3 border-b border-[#E2E8F0] bg-white rounded-t-xl flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#16A34A] shrink-0" />
+              <h3 className="text-[13px] font-semibold text-[#0F172A] truncate">
+                Keputusan Rekrutmen
               </h3>
             </div>
-            <Badge variant="navy" format="soft" isMonospace>
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569] tabular-nums">
               {stageDecisionReady.length}
-            </Badge>
+            </span>
           </div>
 
           <div className="p-3 overflow-y-auto space-y-3 flex-1">
             {stageDecisionReady.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400">
+              <div className="py-8 text-center text-xs text-[#64748B]">
                 Belum ada kandidat di tahap final
               </div>
             ) : (
               stageDecisionReady.map(applicant => {
                 const rec = applicant.compositeEvaluation?.recommendation;
                 const compScore = applicant.compositeEvaluation?.compositeScore;
+                const recPillClass =
+                  rec === 'STRONG HIRE' || rec === 'RECOMMENDED HIRE'
+                    ? 'bg-[#DCFCE7] text-[#166534]'
+                    : rec === 'CONSIDER'
+                      ? 'bg-[#FEF3C7] text-[#92400E]'
+                      : 'bg-[#FEE2E2] text-[#991B1B]';
+
                 return (
-                  <div 
+                  <div
                     key={applicant.id}
-                    className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs hover:border-primary-navy transition-all space-y-2.5 group"
+                    className="bg-white border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2563EB]/60 transition-colors space-y-2.5"
                   >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-900 leading-snug group-hover:text-primary-navy transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-semibold text-[#0F172A] truncate" title={applicant.fullName}>
                           {applicant.fullName}
                         </h4>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="text-xs text-[#64748B] line-clamp-2 mt-0.5" title={applicant.job?.title || applicant.appliedPosition}>
                           {applicant.job?.title || applicant.appliedPosition}
                         </p>
                       </div>
                       {compScore !== undefined && (
-                        <div className="text-right">
-                          <span className="text-base font-bold font-mono text-blue-accent">
-                            {compScore}
-                          </span>
-                          <span className="text-[10px] text-slate-400 block font-mono">/100</span>
-                        </div>
+                        <span className="text-sm font-semibold font-mono text-[#0F172A] tabular-nums shrink-0">
+                          {compScore}/100
+                        </span>
                       )}
                     </div>
 
-                    {rec && (
-                      <div className="flex items-center justify-between">
-                        <Badge variant={getRecommendationVariant(rec)} format="soft">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {rec && (
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${recPillClass}`}>
                           {rec}
-                        </Badge>
-                        <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                          <span>WCR:{applicant.interviewScore || '-'}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        onClick={() => onViewApplicant(applicant)}
-                      >
-                        Dossier
-                      </Button>
-                      <Button
-                        variant="accentSubtle"
-                        size="xs"
-                        onClick={() => onOpenDecision(applicant)}
-                        leftIcon={<FileText className="w-3 h-3" />}
-                      >
-                        Surat Keputusan
-                      </Button>
+                        </span>
+                      )}
+                      {applicant.interviewScore != null && (
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569] tabular-nums">
+                          Skor WCR {applicant.interviewScore}
+                        </span>
+                      )}
                     </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onOpenDecision(applicant)}
+                      leftIcon={<FileText className="w-3.5 h-3.5" />}
+                      className="w-full h-9 rounded-lg border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC]"
+                    >
+                      Surat Keputusan
+                    </Button>
                   </div>
                 );
               })

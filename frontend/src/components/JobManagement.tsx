@@ -40,6 +40,7 @@ import {
   companyMatchesName,
   type CompanyItem
 } from '../services/companyDirectory';
+import { AdminStatCard, AdminEmptyState } from './admin/AdminStatCard';
 
 interface Job {
   id: string;
@@ -610,95 +611,88 @@ export default function JobManagement() {
   return (
     <div className="space-y-6 font-sans">
       {/* Telemetry Summary Ribbon */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card elevation="flat" className="p-4.5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Total Formasi Lowongan
-          </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-ink">
-              {jobs.length}
-            </span>
-            <span className="text-xs text-muted-slate">Posisi Dibuka</span>
-          </div>
-        </Card>
-
-        <Card elevation="flat" className="p-4.5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Lowongan Aktif
-          </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-success-green">
-              {activeCount}
-            </span>
-            <span className="text-xs text-success-green font-medium">Menerima Pelamar</span>
-          </div>
-        </Card>
-
-        <Card elevation="flat" className="p-4.5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Rata-rata Passing Score
-          </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-primary-navy">
-              {avgPassingScore}%
-            </span>
-            <span className="text-xs text-muted-slate">Ambang Kelulusan</span>
-          </div>
-        </Card>
-
-        <Card elevation="flat" className="p-4.5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Formasi Arsip / Nonaktif
-          </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-slate-700">
-              {inactiveCount}
-            </span>
-            <span className="text-xs text-muted-slate">Ditutup</span>
-          </div>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <AdminStatCard
+          label="Total Formasi Lowongan"
+          value={jobs.length}
+          subtext="Posisi dibuka"
+          badge="Katalog"
+          badgeVariant="neutral"
+          icon={Briefcase}
+          loading={loading && jobs.length === 0}
+        />
+        <AdminStatCard
+          label="Lowongan Aktif"
+          value={activeCount}
+          subtext="Menerima pelamar"
+          badge="Aktif"
+          badgeVariant="success"
+          icon={CheckCircle2}
+          loading={loading && jobs.length === 0}
+        />
+        <AdminStatCard
+          label="Rata-rata Passing Score"
+          value={`${avgPassingScore}%`}
+          subtext="Ambang kelulusan"
+          badge="Kompetensi"
+          badgeVariant="info"
+          icon={Target}
+          loading={loading && jobs.length === 0}
+        />
+        <AdminStatCard
+          label="Formasi Arsip"
+          value={inactiveCount}
+          subtext="Program nonaktif / ditutup"
+          badge="Arsip"
+          badgeVariant="neutral"
+          icon={Clock}
+          loading={loading && jobs.length === 0}
+        />
       </div>
 
       {/* Control & Filter Ledger Bar */}
-      <Card elevation="flat" className="p-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-3">
-          <div className="relative flex-1 max-w-none sm:max-w-md">
+      <Card elevation="flat" className="p-4 border-[#E2E8F0] rounded-xl flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+        <div className="flex flex-wrap flex-1 items-center gap-3 min-w-0">
+          <div className="w-full sm:w-[240px]">
             <Input
-              placeholder="Cari judul lowongan atau keahlian..."
+              placeholder="Cari judul lowongan..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              leftIcon={<Search className="w-3.5 h-3.5 text-slate-400" />}
+              leftIcon={<Search className="w-4 h-4 text-[#94A3B8]" />}
+              className="h-10 rounded-lg"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-sans">
+          <div className="inline-flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-lg text-xs font-sans">
             <button
+              type="button"
               onClick={() => setStatusFilter('ALL')}
-              className={`px-3 py-1.5 rounded-md transition-colors font-medium cursor-pointer ${
-                statusFilter === 'ALL' 
-                  ? 'bg-white text-slate-900 font-bold shadow-xs' 
-                  : 'text-slate-600 hover:text-slate-900'
+              className={`h-8 px-3 rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                statusFilter === 'ALL'
+                  ? 'bg-[#1E3A8A] text-white font-semibold'
+                  : 'text-[#475569] hover:text-[#0F172A] font-medium'
               }`}
             >
               Semua ({jobs.length})
             </button>
             <button
+              type="button"
               onClick={() => setStatusFilter('active')}
-              className={`px-3 py-1.5 rounded-md transition-colors font-medium cursor-pointer ${
-                statusFilter === 'active' 
-                  ? 'bg-white text-emerald-800 font-bold shadow-xs' 
-                  : 'text-slate-600 hover:text-slate-900'
+              className={`h-8 px-3 rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                statusFilter === 'active'
+                  ? 'bg-[#1E3A8A] text-white font-semibold'
+                  : 'text-[#475569] hover:text-[#0F172A] font-medium'
               }`}
             >
               Aktif ({activeCount})
             </button>
             <button
+              type="button"
               onClick={() => setStatusFilter('inactive')}
-              className={`px-3 py-1.5 rounded-md transition-colors font-medium cursor-pointer ${
-                statusFilter === 'inactive' 
-                  ? 'bg-white text-slate-800 font-bold shadow-xs' 
-                  : 'text-slate-600 hover:text-slate-900'
+              className={`h-8 px-3 rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                statusFilter === 'inactive'
+                  ? 'bg-[#1E3A8A] text-white font-semibold'
+                  : 'text-[#475569] hover:text-[#0F172A] font-medium'
               }`}
             >
               Nonaktif ({inactiveCount})
@@ -706,22 +700,22 @@ export default function JobManagement() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={fetchJobs}
-            title="Refresh Data"
-            leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />}
+            title="Segarkan Data Program"
+            aria-label="Segarkan Data Program"
+            className="h-10 w-10 rounded-lg border-[#E2E8F0] text-[#475569]"
           >
-            Segarkan
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
-          <span className="hidden xl:inline text-[11px] text-slate-500">11 program default tersimpan otomatis di database</span>
           <Button
             variant="primary"
-            size="sm"
             onClick={() => setShowAddModal(true)}
-            leftIcon={<Plus className="w-3.5 h-3.5" />}
+            leftIcon={<Plus className="w-4 h-4" />}
+            className="h-10 px-4 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white min-w-fit whitespace-nowrap"
           >
             Buat Lowongan Baru
           </Button>
@@ -730,124 +724,98 @@ export default function JobManagement() {
 
       {/* Error Banner */}
       {error && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center gap-2">
+        <div className="p-3 bg-[#FEE2E2] border border-[#FECACA] rounded-lg text-xs text-[#991B1B] flex items-center gap-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {/* Jobs Table (desktop) */}
-      <div className="hidden md:block">
-      <Table className="w-full">
-        <TableHeader>
-          <TableRow>
-            <TableHead className="hidden sm:table-cell w-[48px] text-center">#</TableHead>
-            <TableHead className="lg:w-[40%]">Formasi Lowongan</TableHead>
-            <TableHead className="hidden md:table-cell lg:w-[16%]">Konfigurasi Interview AI</TableHead>
-            <TableHead className="lg:w-[10%]">Status Perekrutan</TableHead>
-            <TableHead className="hidden lg:table-cell lg:w-[14%]">Periode Asesmen</TableHead>
-            <TableHead className="hidden xl:table-cell xl:w-[8%]">Tanggal Rilis</TableHead>
-            <TableHead className="lg:w-[12%] text-right">Opsi</TableHead>
+      <div className="hidden md:block bg-white rounded-xl border border-[#E2E8F0] shadow-[0_1px_3px_rgba(15,23,42,0.08)] overflow-x-auto">
+      <Table className="w-full min-w-[920px]">
+        <TableHeader className="sticky top-0 z-10 bg-white">
+          <TableRow className="border-b border-[#E2E8F0]">
+            <TableHead className="w-[48px] text-center text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">#</TableHead>
+            <TableHead className="min-w-[260px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Formasi</TableHead>
+            <TableHead className="w-[260px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Interview AI</TableHead>
+            <TableHead className="w-[100px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Status</TableHead>
+            <TableHead className="w-[150px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Periode</TableHead>
+            <TableHead className="w-[110px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Rilis</TableHead>
+            <TableHead className="w-[160px] text-right text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Aksi</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading ? (
-            <TableRow>
-              <TableCell colSpan={7} className="py-12 text-center text-slate-400 font-sans text-sm">
-                Memuat daftar formasi lowongan...
-              </TableCell>
-            </TableRow>
+            Array.from({ length: 5 }).map((_, i) => (
+              <TableRow key={`sk-${i}`} className="h-16">
+                <TableCell colSpan={7}><div className="h-5 w-full rounded bg-[#E2E8F0] animate-pulse" /></TableCell>
+              </TableRow>
+            ))
           ) : filteredJobs.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="py-14 text-center">
-                <div className="flex flex-col items-center gap-2.5">
-                  <div className="w-11 h-11 rounded-full bg-slate-100 text-muted-slate flex items-center justify-center">
-                    <Briefcase className="w-5 h-5 text-slate-400" />
-                  </div>
-                  <p className="text-sm font-semibold text-ink">Belum ada lowongan</p>
-                  <p className="text-xs text-muted-slate">Tidak ada lowongan yang sesuai kriteria filter. Ubah filter atau tambah formasi baru.</p>
-                </div>
+              <TableCell colSpan={7}>
+                <AdminEmptyState
+                  icon={Briefcase}
+                  title="Belum ada lowongan"
+                  description="Tidak ada lowongan yang sesuai kriteria filter. Ubah filter atau tambah formasi baru."
+                />
               </TableCell>
             </TableRow>
           ) : (
             filteredJobs.map((job, idx) => (
-              <TableRow key={job.id}>
-                <TableCell className="hidden sm:table-cell text-center font-mono text-muted-slate">
+              <TableRow key={job.id} className="h-16 hover:bg-[#F8FAFC] transition-colors">
+                <TableCell className="text-center font-mono text-xs text-[#64748B] tabular-nums">
                   {(idx + 1).toString().padStart(2, '0')}
                 </TableCell>
-                <TableCell className="align-top">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-soft-blue border border-accent-border flex items-center justify-center text-primary-navy shrink-0">
-                      <Briefcase className="w-4 h-4" />
+                <TableCell>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm text-[#0F172A] leading-snug line-clamp-1" title={job.title}>
+                      {job.title}
                     </div>
-                    <div>
-                      <div className="font-semibold text-slate-900 leading-snug line-clamp-2">{job.title}</div>
-                      <p className="text-xs text-slate-500 line-clamp-1 mt-0.5 font-sans">
-                        {job.description}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => void handleOpenDetailModal(job, 'soal')}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition-colors cursor-pointer"
-                          title="Lihat detail Soal CAT pada Program ini"
-                        >
-                          <BookOpen className="w-3 h-3 text-blue-600" />
-                          {getBankQuestionCountForJob(job)} Soal CAT
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleOpenDetailModal(job, 'materi')}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 transition-colors cursor-pointer"
-                          title="Lihat detail Panduan Materi pada Program ini"
-                        >
-                          <Layers className="w-3 h-3 text-emerald-600" />
-                          {getMaterialsForJob(job).length} Panduan Materi
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded font-mono text-xs">
-                      <Clock className="w-3 h-3 text-slate-400" />
-                      {job.interviewDuration ? `${job.interviewDuration}m` : '15m'}
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-primary-navy bg-soft-blue border border-accent-border px-2 py-0.5 rounded font-bold font-mono text-xs">
-                      <Target className="w-3 h-3 text-primary-navy" />
-                      Pass: {job.interviewPassingScore !== null ? `${job.interviewPassingScore}%` : '70%'}
-                    </span>
+                    <p className="text-xs text-[#64748B] line-clamp-1 mt-0.5" title={job.description}>
+                      {job.description}
+                    </p>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge
-                    variant={getJobScheduleStatus(job).variant}
-                    format="soft"
-                    hasDot={getJobScheduleStatus(job).key === 'active'}
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenDetailModal(job, 'soal')}
+                    className="text-left text-[13px] text-[#475569] hover:text-[#1E3A8A] whitespace-nowrap tabular-nums cursor-pointer"
+                    title="Klik untuk melihat detail Soal CAT & Materi"
+                  >
+                    {getBankQuestionCountForJob(job)} Soal CAT • {getMaterialsForJob(job).length} Panduan • {job.interviewDuration || 15} mnt • Lulus {job.interviewPassingScore !== null ? `${job.interviewPassingScore}%` : '70%'}
+                  </button>
+                </TableCell>
+                <TableCell>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${
+                      getJobScheduleStatus(job).key === 'active'
+                        ? 'bg-[#DCFCE7] text-[#166534]'
+                        : getJobScheduleStatus(job).key === 'scheduled'
+                          ? 'bg-[#E0F2FE] text-[#075985]'
+                          : 'bg-[#F1F5F9] text-[#475569]'
+                    }`}
                   >
                     {getJobScheduleStatus(job).label.toUpperCase()}
-                  </Badge>
+                  </span>
                 </TableCell>
-                <TableCell className="hidden lg:table-cell text-slate-600 text-xs font-mono">
+                <TableCell className="text-[#475569] text-xs font-mono whitespace-nowrap tabular-nums">
                   {job.assessmentDate || job.assessmentEndDate ? (
-                    <div className="space-y-0.5">
-                      <div className="whitespace-nowrap">
-                        {job.assessmentDate
-                          ? new Date(job.assessmentDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' })
-                          : '—'}
-                        {' – '}
-                        {job.assessmentEndDate
-                          ? new Date(job.assessmentEndDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' })
-                          : '—'}
-                      </div>
-                      <div className="text-[10px] text-slate-400">Rentang pelaksanaan</div>
-                    </div>
+                    <span>
+                      {job.assessmentDate
+                        ? new Date(job.assessmentDate).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })
+                        : '—'}
+                      {' – '}
+                      {job.assessmentEndDate
+                        ? new Date(job.assessmentEndDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' })
+                        : '—'}
+                    </span>
                   ) : (
                     '—'
                   )}
                 </TableCell>
-                <TableCell className="hidden xl:table-cell text-slate-500 whitespace-nowrap text-xs">
+                <TableCell className="text-[#64748B] whitespace-nowrap text-xs font-mono tabular-nums">
                   {new Date(job.createdAt).toLocaleDateString('id-ID', {
                     year: 'numeric',
                     month: 'short',

@@ -42,6 +42,7 @@ const DEFAULT_CONFIG: AIConfiguration = {
 
 export default function AIConfigView() {
   const [config, setConfig] = useState<AIConfiguration>(DEFAULT_CONFIG);
+  const [savedConfig, setSavedConfig] = useState<AIConfiguration>(DEFAULT_CONFIG);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +50,9 @@ export default function AIConfigView() {
       .then((data) => {
         if (cancelled) return;
         if (data.default) {
-          setConfig({ ...DEFAULT_CONFIG, ...data.default });
+          const merged = { ...DEFAULT_CONFIG, ...data.default };
+          setConfig(merged);
+          setSavedConfig(merged);
         } else {
           void saveMasterRecord('ai-config', 'default', DEFAULT_CONFIG);
         }
@@ -61,6 +64,8 @@ export default function AIConfigView() {
       cancelled = true;
     };
   }, []);
+
+  const hasUnsavedChanges = JSON.stringify(config) !== JSON.stringify(savedConfig);
 
   const [saving, setSaving] = useState(false);
   const [pingLoading, setPingLoading] = useState(false);
@@ -161,6 +166,7 @@ export default function AIConfigView() {
           { headers: token ? { Authorization: `Bearer ${token}` } : {} }
         )
       ]);
+      setSavedConfig(config);
       Swal.fire({
         icon: 'success',
         title: 'Konfigurasi Tersimpan',
@@ -181,6 +187,7 @@ export default function AIConfigView() {
 
   const handleReset = async () => {
     setConfig(DEFAULT_CONFIG);
+    setSavedConfig(DEFAULT_CONFIG);
     await deleteMasterRecord('ai-config', 'default').catch(() => undefined);
     Swal.fire({
       icon: 'info',
@@ -202,40 +209,40 @@ export default function AIConfigView() {
   return (
     <div className="space-y-6">
       {/* Header Diagnostics Card */}
-      <Card elevation="flat" className="p-5 border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Cpu className="w-5 h-5 text-primary-navy" />
-            <h2 className="text-base font-bold text-slate-900 font-heading">
-              Arsitektur Intelijen AI Rekrutmen
-            </h2>
-            <Badge variant="navy" format="soft" className="uppercase text-[10px]">
-              Superadmin Control
-            </Badge>
+      <Card elevation="flat" className="p-6 border-[#E2E8F0] rounded-xl flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Cpu className="w-5 h-5 text-[#1E3A8A] shrink-0" />
+            <h1 className="text-xl sm:text-2xl font-bold text-[#0F172A] font-heading">
+              Konfigurasi Sistem &amp; AI
+            </h1>
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#E0F2FE] text-[#075985]">
+              Khusus Superadmin
+            </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl font-sans">
+          <p className="text-sm text-[#64748B] mt-1 max-w-2xl font-sans">
             Atur parameter model fondasi Gemini, profil suara pewawancara multimodal, serta formula pembobotan komposit kelulusan kandidat.
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <Button
-            variant="secondary"
-            size="sm"
+            variant="outline"
             onClick={handlePingTest}
             disabled={pingLoading}
-            leftIcon={<Activity className={`w-3.5 h-3.5 ${pingLoading ? 'animate-spin text-primary-navy' : 'text-slate-500'}`} />}
+            className="h-10 px-4 rounded-lg border-[#E2E8F0] text-[#475569] min-w-fit whitespace-nowrap"
+            leftIcon={<Activity className={`w-4 h-4 ${pingLoading ? 'animate-spin text-[#1E3A8A]' : 'text-[#64748B]'}`} />}
           >
             {pingLoading ? 'Mengukur...' : 'Uji Latensi'}
           </Button>
           <Button
             variant="primary"
-            size="sm"
             onClick={handleSave}
             disabled={saving}
-            leftIcon={<Save className="w-3.5 h-3.5" />}
+            className="h-10 px-4 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white min-w-fit whitespace-nowrap"
+            leftIcon={<Save className="w-4 h-4" />}
           >
-            Simpan Konfigurasi
+            {saving ? 'Menyimpan...' : 'Simpan Konfigurasi'}
           </Button>
         </div>
       </Card>
@@ -270,15 +277,14 @@ export default function AIConfigView() {
           </div>
 
           <div className="space-y-4 text-sm font-sans">
-            <div>
+            <div className="max-w-[400px]">
               <Select
                 label="Model Wawancara Suara Multimodal (Live Audio)"
                 value={config.liveAudioModel}
                 onChange={(e) => setConfig({ ...config, liveAudioModel: e.target.value })}
-                hint="Mengontrol streaming audio websocket dua arah antara kandidat dan pewawancara virtual."
               >
                 <option value="gemini-2.5-flash-native-audio-latest">
-                  gemini-2.5-flash-native-audio-latest (Resmi - Native Bidirectional Audio)
+                  gemini-2.5-flash-native-audio-latest (Native Audio)
                 </option>
                 <option value="gemini-2.5-flash">
                   gemini-2.5-flash (Standard Multimodal)
@@ -287,17 +293,19 @@ export default function AIConfigView() {
                   gemini-3.5-flash-lite (Ultra Low Latency)
                 </option>
               </Select>
+              <p className="text-[13px] text-[#64748B] mt-1.5">
+                Mengontrol streaming audio websocket dua arah antara kandidat dan pewawancara virtual.
+              </p>
             </div>
 
-            <div>
+            <div className="max-w-[400px]">
               <Select
                 label="Model Analisis ATS Resume (CV Screening)"
                 value={config.cvScreeningModel}
                 onChange={(e) => setConfig({ ...config, cvScreeningModel: e.target.value })}
-                hint="Digunakan untuk membedah teks PDF CV, riwayat kerja, kecocokan kompetensi, dan ringkasan penilaian."
               >
                 <option value="gemini-2.5-flash">
-                  gemini-2.5-flash (Direkomendasikan - Ekstraksi Presisi Tinggi)
+                  gemini-2.5-flash (Ekstraksi Presisi Tinggi)
                 </option>
                 <option value="gemini-3.5-flash-lite">
                   gemini-3.5-flash-lite (Inference Cepat)
@@ -306,22 +314,25 @@ export default function AIConfigView() {
                   gemini-flash-latest (Kompatibilitas Standar)
                 </option>
               </Select>
+              <p className="text-[13px] text-[#64748B] mt-1.5">
+                Digunakan untuk membedah teks PDF CV, riwayat kerja, kecocokan kompetensi, dan ringkasan penilaian.
+              </p>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="block text-xs font-semibold text-[#475569] mb-1.5">
                 Batas Waktu Maksimum Sesi Wawancara
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="inline-flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-lg">
                 {[15, 20, 30].map(mins => (
                   <button
                     key={mins}
                     type="button"
                     onClick={() => setConfig({ ...config, maxDurationMinutes: mins })}
-                    className={`py-2 text-xs font-semibold rounded-lg border text-center transition-colors cursor-pointer ${
+                    className={`h-8 px-4 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                       config.maxDurationMinutes === mins
-                        ? 'bg-soft-blue border-primary-navy text-primary-navy shadow-xs font-bold'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 font-medium'
+                        ? 'bg-[#1E3A8A] text-white'
+                        : 'text-[#475569] hover:text-[#0F172A]'
                     }`}
                   >
                     {mins} Menit
@@ -401,84 +412,89 @@ export default function AIConfigView() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* CV ATS Weight */}
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2">
-            <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 space-y-2">
+            <div className="flex justify-between items-center text-xs font-semibold text-[#475569]">
               <span>Bobot ATS Resume (CV)</span>
-              <span className="font-mono font-bold text-primary-navy text-sm">{config.cvWeight}%</span>
+              <span className="font-mono font-semibold text-[#0F172A] text-base w-16 text-right tabular-nums whitespace-nowrap">{config.cvWeight}%</span>
             </div>
-            <input 
+            <input
               type="range"
               min="10"
               max="70"
               value={config.cvWeight}
               onChange={(e) => setConfig({ ...config, cvWeight: parseInt(e.target.value) })}
-              className="w-full accent-primary-navy cursor-pointer"
+              className="w-full accent-[#2563EB] cursor-pointer"
             />
-            <p className="text-[11px] text-slate-500">
+            <p className="text-xs text-[#64748B]">
               Evaluasi latar belakang pendidikan, kompetensi teknis, dan portofolio kerja.
             </p>
           </div>
 
           {/* Voice Interview Weight */}
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2">
-            <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 space-y-2">
+            <div className="flex justify-between items-center text-xs font-semibold text-[#475569]">
               <span>Bobot Wawancara Suara AI</span>
-              <span className="font-mono font-bold text-primary-navy text-sm">{config.interviewWeight}%</span>
+              <span className="font-mono font-semibold text-[#0F172A] text-base w-16 text-right tabular-nums whitespace-nowrap">{config.interviewWeight}%</span>
             </div>
-            <input 
+            <input
               type="range"
               min="20"
               max="80"
               value={config.interviewWeight}
               onChange={(e) => setConfig({ ...config, interviewWeight: parseInt(e.target.value) })}
-              className="w-full accent-primary-navy cursor-pointer"
+              className="w-full accent-[#2563EB] cursor-pointer"
             />
-            <p className="text-[11px] text-slate-500">
+            <p className="text-xs text-[#64748B]">
               Evaluasi artikulasi, ketajaman analisis, problem-solving, dan soft skill verbal.
             </p>
           </div>
 
           {/* Proctoring Penalty Factor */}
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2">
-            <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 space-y-2">
+            <div className="flex justify-between items-center text-xs font-semibold text-[#475569]">
               <span>Faktor Penalti Integritas</span>
-              <span className="font-mono font-bold text-rose-700 text-sm">-{config.integrityWeight}%</span>
+              <span className="font-mono font-semibold text-[#DC2626] text-base w-16 text-right tabular-nums whitespace-nowrap">&minus;{config.integrityWeight}%</span>
             </div>
-            <input 
+            <input
               type="range"
               min="5"
               max="30"
               value={config.integrityWeight}
               onChange={(e) => setConfig({ ...config, integrityWeight: parseInt(e.target.value) })}
-              className="w-full accent-rose-600 cursor-pointer"
+              className="w-full accent-[#DC2626] cursor-pointer"
             />
-            <p className="text-[11px] text-slate-500">
+            <p className="text-xs text-[#64748B]">
               Pengurangan skor otomatis per insiden tab berpindah atau kehilangan fokus layar.
             </p>
           </div>
         </div>
 
-        {/* Passing Threshold Slider */}
-        <div className="border-t border-slate-100 pt-4 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="space-y-0.5">
-            <div className="text-xs font-bold text-slate-900">
-              Passing Threshold Kelulusan (Rekomendasi Kerja)
+        {/* Passing Threshold Slider & Total Composition */}
+        <div className="border-t border-[#E2E8F0] pt-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-[#0F172A]">
+                Passing Threshold Kelulusan (Rekomendasi Kerja)
+              </span>
+              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-mono font-semibold bg-[#F1F5F9] text-[#475569] tabular-nums">
+                Komposisi: {config.cvWeight} + {config.interviewWeight} &minus; {config.integrityWeight}
+              </span>
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-[#64748B]">
               Kandidat dengan skor komposit di atas ambang ini berhak mendapatkan Surat Penawaran Kerja (Offer Letter).
             </div>
           </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <input 
+          <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+            <input
               type="range"
               min="50"
               max="90"
               value={config.passingThreshold}
               onChange={(e) => setConfig({ ...config, passingThreshold: parseInt(e.target.value) })}
-              className="w-48 accent-primary-navy cursor-pointer"
+              className="w-48 accent-[#2563EB] cursor-pointer"
             />
-            <span className="text-lg font-bold font-mono text-blue-accent min-w-12 text-right">
-              {config.passingThreshold} / 100
+            <span className="text-base font-semibold font-mono text-[#0F172A] w-16 text-right tabular-nums whitespace-nowrap">
+              {config.passingThreshold}/100
             </span>
           </div>
         </div>
@@ -506,17 +522,17 @@ export default function AIConfigView() {
           {/* Ringan */}
           <div
             onClick={() => setConfig({ ...config, proctoringPreset: 'ringan' })}
-            className={`p-4 rounded-xl border cursor-pointer transition-all ${
+            className={`p-4 rounded-xl cursor-pointer transition-colors ${
               config.proctoringPreset === 'ringan'
-                ? 'bg-soft-blue/70 border-primary-navy ring-1 ring-primary-navy/30 shadow-2xs'
-                : 'bg-white border-slate-200 hover:border-slate-300'
+                ? 'bg-[#EEF2FF] border-2 border-[#1E3A8A]'
+                : 'bg-white border border-[#E2E8F0] hover:border-slate-300'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="font-bold text-xs text-slate-900">Ringan (Permisif)</span>
-              <span className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded">Toleransi 5x</span>
+              <span className="font-semibold text-xs text-[#0F172A]">Ringan (Permisif)</span>
+              <span className="text-[11px] bg-[#F1F5F9] text-[#475569] font-semibold px-2.5 py-0.5 rounded-full">Toleransi 5x</span>
             </div>
-            <p className="text-[11px] text-slate-500 leading-relaxed">
+            <p className="text-xs text-[#64748B] leading-relaxed">
               Kamera &amp; mic aktif berkala. Toleransi 5x perpindahan tab, tanpa penguncian fullscreen mutlak. Cocok untuk simulasi atau asesmen internal informal.
             </p>
           </div>
@@ -524,17 +540,17 @@ export default function AIConfigView() {
           {/* Sedang */}
           <div
             onClick={() => setConfig({ ...config, proctoringPreset: 'sedang' })}
-            className={`p-4 rounded-xl border cursor-pointer transition-all ${
+            className={`p-4 rounded-xl cursor-pointer transition-colors ${
               config.proctoringPreset === 'sedang'
-                ? 'bg-soft-blue/70 border-primary-navy ring-1 ring-primary-navy/30 shadow-2xs'
-                : 'bg-white border-slate-200 hover:border-slate-300'
+                ? 'bg-[#EEF2FF] border-2 border-[#1E3A8A]'
+                : 'bg-white border border-[#E2E8F0] hover:border-slate-300'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="font-bold text-xs text-primary-navy">Sedang (Standar BUMN/Bank)</span>
-              <span className="text-[10px] bg-blue-100 text-primary-navy font-bold px-2 py-0.5 rounded">Rekomendasi</span>
+              <span className="font-semibold text-xs text-[#0F172A]">Sedang (Standar BUMN/Bank)</span>
+              <span className="text-[11px] bg-[#E0F2FE] text-[#075985] font-semibold px-2.5 py-0.5 rounded-full">Rekomendasi</span>
             </div>
-            <p className="text-[11px] text-slate-600 leading-relaxed">
+            <p className="text-xs text-[#64748B] leading-relaxed">
               Deteksi tab-switching (maks 3x toleransi), deteksi wajah ganda, audio background, dan alert waktu-nyata ke dewan asesor.
             </p>
           </div>
@@ -542,17 +558,17 @@ export default function AIConfigView() {
           {/* Ketat */}
           <div
             onClick={() => setConfig({ ...config, proctoringPreset: 'ketat' })}
-            className={`p-4 rounded-xl border cursor-pointer transition-all ${
+            className={`p-4 rounded-xl cursor-pointer transition-colors ${
               config.proctoringPreset === 'ketat'
-                ? 'bg-soft-blue/70 border-primary-navy ring-1 ring-primary-navy/30 shadow-2xs'
-                : 'bg-white border-slate-200 hover:border-slate-300'
+                ? 'bg-[#EEF2FF] border-2 border-[#1E3A8A]'
+                : 'bg-white border border-[#E2E8F0] hover:border-slate-300'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="font-bold text-xs text-rose-900">Ketat (High-Stakes)</span>
-              <span className="text-[10px] bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded">0 Toleransi</span>
+              <span className="font-semibold text-xs text-[#0F172A]">Ketat (High-Stakes)</span>
+              <span className="text-[11px] bg-[#FEE2E2] text-[#991B1B] font-semibold px-2.5 py-0.5 rounded-full">0 Toleransi</span>
             </div>
-            <p className="text-[11px] text-slate-500 leading-relaxed">
+            <p className="text-xs text-[#64748B] leading-relaxed">
               Fullscreen lockdown seketika, snapshot berkala 30 detik, deteksi eye tracking, larangan keras virtual background, dan audit trail instan ke LHA.
             </p>
           </div>
@@ -700,6 +716,33 @@ export default function AIConfigView() {
           </Button>
         </div>
       </Card>
+      {/* Sticky Save Bar on Unsaved Changes */}
+      {hasUnsavedChanges && (
+        <div className="sticky bottom-4 z-30 bg-white border border-[#E2E8F0] rounded-xl px-5 py-3.5 shadow-lg flex flex-wrap items-center justify-between gap-3">
+          <span className="text-sm font-medium text-[#0F172A]">
+            Ada perubahan belum disimpan
+          </span>
+          <div className="flex items-center gap-2.5">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfig(savedConfig)}
+              className="h-10 px-4 rounded-lg border-[#E2E8F0] text-[#475569] min-w-fit whitespace-nowrap"
+            >
+              Buang
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleSave}
+              disabled={saving}
+              className="h-10 px-4 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white min-w-fit whitespace-nowrap"
+            >
+              {saving ? 'Menyimpan...' : 'Simpan Konfigurasi'}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

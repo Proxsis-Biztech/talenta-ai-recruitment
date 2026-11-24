@@ -45,6 +45,7 @@ import {
   TableCell,
   Modal
 } from './ui';
+import { AdminStatCard } from './admin/AdminStatCard';
 import {
   COMPANIES_CATALOG,
   getAllPrograms,
@@ -885,16 +886,11 @@ export default function UserManagement() {
             </TableCell>
 
             <TableCell className="hidden lg:table-cell">
-              <div className="space-y-1 whitespace-nowrap">
+              <div className="whitespace-nowrap">
                 <Badge variant="neutral" format="outline" className="font-medium text-[11px] whitespace-nowrap">
                   <Building2 className="w-3 h-3 mr-1 text-slate-500 shrink-0" />
                   {p.companyName || '-'}
                 </Badge>
-                {p.companyId && (
-                  <div className="text-[10px] text-slate-400 font-mono pl-1">
-                    {p.companyId}
-                  </div>
-                )}
               </div>
             </TableCell>
 
@@ -1122,68 +1118,69 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6 font-sans">
-      {/* ─── Top Main Tab Bar ─── */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-2 shadow-xs">
-        <div className={`grid grid-cols-1 ${isSuperadmin ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-2`}>
-          <button
-            onClick={() => setActiveTab('peserta')}
-            className={`flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-              activeTab === 'peserta'
-                ? 'bg-primary-navy text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+      {/* ─── Segmented Main Tab Bar ─── */}
+      <div className="inline-flex flex-wrap items-center gap-1 bg-[#F1F5F9] p-1 rounded-lg">
+        <button
+          type="button"
+          onClick={() => setActiveTab('peserta')}
+          className={`h-10 px-4 rounded-md text-sm font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'peserta'
+              ? 'bg-[#1E3A8A] text-white'
+              : 'text-[#475569] hover:text-[#0F172A]'
+          }`}
+        >
+          <GraduationCap className="w-4 h-4" />
+          <span>Akun Peserta</span>
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+              activeTab === 'peserta' ? 'bg-white/20 text-white' : 'bg-white text-[#475569]'
             }`}
           >
-            <GraduationCap className={`w-4 h-4 ${activeTab === 'peserta' ? 'text-amber-300' : 'text-slate-500'}`} />
-            <span>Akun Peserta (Kandidat)</span>
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full font-mono ${
-                activeTab === 'peserta' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {pesertaList.length}
-            </span>
-          </button>
+            {pesertaList.length}
+          </span>
+        </button>
 
-          <button
-            onClick={() => setActiveTab('asesor')}
-            className={`flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-              activeTab === 'asesor'
-                ? 'bg-primary-navy text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+        <button
+          type="button"
+          onClick={() => setActiveTab('asesor')}
+          className={`h-10 px-4 rounded-md text-sm font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'asesor'
+              ? 'bg-[#1E3A8A] text-white'
+              : 'text-[#475569] hover:text-[#0F172A]'
+          }`}
+        >
+          <Scale className="w-4 h-4" />
+          <span>Akun Asesor</span>
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+              activeTab === 'asesor' ? 'bg-white/20 text-white' : 'bg-white text-[#475569]'
             }`}
           >
-            <Scale className={`w-4 h-4 ${activeTab === 'asesor' ? 'text-cyan-300' : 'text-slate-500'}`} />
-            <span>Akun Asesor (Penguji)</span>
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full font-mono ${
-                activeTab === 'asesor' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {asesorList.length}
-            </span>
-          </button>
+            {asesorList.length}
+          </span>
+        </button>
 
-          {isSuperadmin && (
+        {isSuperadmin && (
           <button
+            type="button"
             onClick={() => setActiveTab('admin')}
-            className={`flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+            className={`h-10 px-4 rounded-md text-sm font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'admin'
-                ? 'bg-primary-navy text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                ? 'bg-[#1E3A8A] text-white'
+                : 'text-[#475569] hover:text-[#0F172A]'
             }`}
           >
-            <Shield className={`w-4 h-4 ${activeTab === 'admin' ? 'text-emerald-300' : 'text-slate-500'}`} />
+            <Shield className="w-4 h-4" />
             <span>Akun Administrator</span>
             <span
               className={`text-xs px-2 py-0.5 rounded-full font-mono ${
-                activeTab === 'admin' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                activeTab === 'admin' ? 'bg-white/20 text-white' : 'bg-white text-[#475569]'
               }`}
             >
               {admins.length}
             </span>
           </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
@@ -1191,109 +1188,61 @@ export default function UserManagement() {
       {/* ══════════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'peserta' && (
         <div className="space-y-6">
-          {/* Telemetry Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card elevation="flat" className="admin-card-accent-blue p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl admin-icon-blue text-white flex items-center justify-center shadow-md shadow-blue-500/20">
-                  <GraduationCap className="w-5 h-5" />
-                </div>
-                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200/60">
-                  Terdaftar
-                </span>
-              </div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
-                Total Akun Peserta
-              </p>
-              <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
-                  {pesertaList.length} <span className="text-xs font-bold text-slate-400 font-sans">Kandidat</span>
-                </span>
-                <span className="text-[11px] text-slate-400 font-mono">100% Siap Ujian</span>
-              </div>
-            </Card>
-
-            <Card elevation="flat" className="admin-card-accent-purple p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl admin-icon-purple text-white flex items-center justify-center shadow-md shadow-purple-500/20">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full font-semibold border border-purple-200/60">
-                  Multi-Company
-                </span>
-              </div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
-                Perusahaan (PT) Terhubung
-              </p>
-              <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
-                  {companyOptions.length} <span className="text-xs font-bold text-slate-400 font-sans">PT</span>
-                </span>
-                <span className="text-[11px] text-slate-400 font-mono">Multi-Tenant</span>
-              </div>
-            </Card>
-
-            <Card elevation="flat" className="admin-card-accent-emerald p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl admin-icon-emerald text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold border border-emerald-200/60">
-                  Grade A / B / C
-                </span>
-              </div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
-                Program Asesmen Aktif
-              </p>
-              <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
-                  {programOptions.length} <span className="text-xs font-bold text-slate-400 font-sans">Paket</span>
-                </span>
-                <span className="text-[11px] text-slate-400 font-mono">Syllabus Sync</span>
-              </div>
-            </Card>
-
-            <Card elevation="flat" className="admin-card-accent-amber p-4.5 bg-white border border-slate-200/90 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl admin-icon-amber text-white flex items-center justify-center shadow-md shadow-amber-500/20">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-semibold border border-amber-200/60">
-                  AI Proctoring
-                </span>
-              </div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-3">
-                Model Ujian Standard
-              </p>
-              <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
-                  40 <span className="text-xs font-bold text-slate-400 font-sans">Soal CAT</span>
-                </span>
-                <span className="text-[11px] text-slate-400 font-mono">Real-time Anti-Cheat</span>
-              </div>
-            </Card>
+          {/* Standardized Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            <AdminStatCard
+              label="Total Akun Peserta"
+              value={pesertaList.length}
+              subtext="100% siap ujian"
+              badge="Terdaftar"
+              badgeVariant="info"
+              icon={GraduationCap}
+            />
+            <AdminStatCard
+              label="Perusahaan Terhubung"
+              value={companyOptions.length}
+              subtext="Tenant multi-perusahaan"
+              badge="Multi-Company"
+              badgeVariant="neutral"
+              icon={Building2}
+            />
+            <AdminStatCard
+              label="Program Asesmen"
+              value={programOptions.length}
+              subtext="Grade A / B / C"
+              badge="Aktif"
+              badgeVariant="success"
+              icon={BookOpen}
+            />
+            <AdminStatCard
+              label="Standar Ujian CAT"
+              value="40"
+              subtext="Real-time anti-cheat"
+              badge="AI Proctoring"
+              badgeVariant="neutral"
+              icon={ShieldCheck}
+            />
           </div>
 
-          {/* Action Ribbon & Filters */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
-            <div className="flex flex-wrap items-center gap-2.5 flex-1">
-              <div className="min-w-[220px] flex-1 max-w-sm">
+          {/* 64px Action Ribbon & Filters */}
+          <div className="min-h-[64px] flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-[#E2E8F0]">
+            <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
+              <div className="w-full sm:w-[280px]">
                 <Input
                   type="text"
-                  placeholder="Cari nama, email, program, atau ID peserta..."
+                  placeholder="Cari nama, email, program, atau ID..."
                   value={pesertaSearch}
                   onChange={(e) => setPesertaSearch(e.target.value)}
-                  leftIcon={<Search className="w-4 h-4 text-slate-400" />}
-                  className="h-11 rounded-xl"
+                  leftIcon={<Search className="w-4 h-4 text-[#94A3B8]" />}
+                  className="h-10 rounded-lg"
                 />
               </div>
 
-              {/* PT Filter */}
-              <div className="w-full sm:w-56">
+              <div className="w-full sm:w-[200px]">
                 <Select
                   value={pesertaCompanyFilter}
                   onChange={(e) => setPesertaCompanyFilter(e.target.value)}
-                  className="h-11 rounded-xl font-semibold"
+                  className="h-10 rounded-lg font-medium"
                 >
                   <option value="ALL">Semua Perusahaan (PT)</option>
                   {companyOptions.map((c) => (
@@ -1304,46 +1253,45 @@ export default function UserManagement() {
                 </Select>
               </div>
 
-              {/* Grade Filter */}
-              <div className="w-full sm:w-52">
+              <div className="w-full sm:w-[170px]">
                 <Select
                   value={pesertaGradeFilter}
                   onChange={(e) => setPesertaGradeFilter(e.target.value)}
-                  className="h-11 rounded-xl font-semibold"
+                  className="h-10 rounded-lg font-medium"
                 >
-                  <option value="ALL">Semua Grade Soal</option>
-                  <option value="Grade C">Grade C (Junior / Dasar)</option>
-                  <option value="Grade B">Grade B (Specialist / Mid)</option>
-                  <option value="Grade A">Grade A (Lead / Senior)</option>
+                  <option value="ALL">Semua Grade</option>
+                  <option value="Grade C">Grade C (Dasar)</option>
+                  <option value="Grade B">Grade B (Mid)</option>
+                  <option value="Grade A">Grade A (Senior)</option>
                 </Select>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <Button
                 variant="outline"
-                size="sm"
                 onClick={handleDownloadTemplate}
                 leftIcon={<Download className="w-4 h-4" />}
+                className="h-10 px-3.5 rounded-lg border-[#E2E8F0] text-[#475569] min-w-fit whitespace-nowrap"
               >
                 Template Excel
               </Button>
               <Button
                 variant="outline"
-                size="sm"
                 disabled={importing}
                 onClick={() => importInputRef.current?.click()}
                 leftIcon={importing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                className="h-10 px-3.5 rounded-lg border-[#E2E8F0] text-[#475569] min-w-fit whitespace-nowrap"
               >
                 {importing ? 'Mengimpor...' : 'Impor Excel'}
               </Button>
               <Button
                 variant="primary"
-                size="sm"
                 onClick={handleOpenAddPeserta}
                 leftIcon={<UserPlus className="w-4 h-4" />}
+                className="h-10 px-4 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white min-w-fit whitespace-nowrap"
               >
-                + Daftarkan Akun Peserta Baru
+                Daftarkan Akun Baru
               </Button>
               <input
                 ref={importInputRef}

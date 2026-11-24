@@ -298,235 +298,240 @@ ${app.interviewTranscript ? `<div class="banner"><h2>Transkrip Percakapan</h2><d
   };
 
   return (
-    <div className="animate-fade-in space-y-5">
-      {/* Header Bar */}
+    <div className="animate-fade-in space-y-6">
+      {/* Page Header (1 row: title + subtitle left, actions right) */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-base font-extrabold text-slate-900 font-heading">Ranking & Perbandingan Hasil AI Interview</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Daftar kandidat yang telah dievaluasi oleh Ava AI, diurutkan berdasarkan skor kompetensi tertinggi</p>
+          <h1 className="text-2xl font-bold text-[#0F172A] font-heading">Hasil &amp; Peringkat (LHA)</h1>
+          <p className="text-sm text-[#64748B] mt-0.5">Daftar kandidat yang telah dievaluasi AI, diurutkan berdasarkan skor kompetensi tertinggi</p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
-          {/* Export button */}
+        <div className="flex items-center gap-2.5 shrink-0">
           <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleExportCSV}
-            disabled={applicants.length === 0}
-            leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
-          >
-            Export Ranking CSV
-          </Button>
-
-          {/* Compare Button */}
-          <Button
-            variant="primary"
-            size="sm"
+            variant="outline"
             onClick={compareOpen}
-            disabled={selected.length === 0}
-            leftIcon={<Scale className="w-3.5 h-3.5" />}
+            disabled={selected.length < 2}
+            className="h-10 px-4 rounded-lg border-[#E2E8F0] text-[#475569] min-w-fit whitespace-nowrap"
+            leftIcon={<Scale className="w-4 h-4" />}
           >
             Bandingkan ({selected.length}/3)
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleExportCSV}
+            disabled={applicants.length === 0}
+            className="h-10 px-4 rounded-lg border-[#E2E8F0] text-[#475569] min-w-fit whitespace-nowrap"
+            leftIcon={<Download className="w-4 h-4" />}
+          >
+            Export Ranking CSV
           </Button>
         </div>
       </div>
 
-      {/* Filter Row */}
-      <div className="flex flex-col sm:flex-row gap-2.5">
-        <div className="relative flex-1 min-w-0 sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+      {/* Filter Toolbar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative w-full sm:w-[280px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
           <input
             type="text"
             placeholder="Cari kandidat atau universitas..."
-            className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-sans placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-primary-navy focus:border-primary-navy transition-colors outline-none"
+            className="w-full h-10 pl-9 pr-8 bg-white border border-[#E2E8F0] rounded-lg text-sm font-sans placeholder:text-[#94A3B8] focus:ring-2 focus:ring-[#2563EB]/15 focus:border-[#2563EB] transition-colors outline-none"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#0F172A]">
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        <div className="min-w-[230px]">
+        <div className="w-full sm:w-[220px]">
           <Select
             value={jobFilter}
             onChange={(e) => setJobFilter(e.target.value)}
-            leftIcon={<Briefcase className="w-4 h-4 text-slate-400" />}
+            leftIcon={<Briefcase className="w-4 h-4 text-[#94A3B8]" />}
+            className="h-10 rounded-lg"
           >
-            <option value="">Semua Lowongan Pekerjaan</option>
+            <option value="">Semua Lowongan</option>
             {jobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
           </Select>
         </div>
       </div>
 
       {/* Ranking Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="hidden lg:grid grid-cols-12 gap-3 px-6 py-3.5 bg-slate-50/90 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider font-sans">
-          <div className="col-span-1">Peringkat</div>
-          <div className="col-span-3">Kandidat</div>
-          <div className="col-span-2">Posisi & Kelulusan</div>
-          <div className="col-span-3">Skor Penilaian</div>
-          <div className="col-span-2">Rekomendasi AI</div>
-          <div className="col-span-1 text-right">Aksi & Banding</div>
-        </div>
+      <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-[0_1px_3px_rgba(15,23,42,0.08)] overflow-x-auto">
+        <table className="w-full min-w-[920px] text-left border-collapse">
+          <thead className="sticky top-0 z-10 bg-white border-b border-[#E2E8F0]">
+            <tr className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
+              <th className="w-16 px-4 py-3 text-center whitespace-nowrap">Peringkat</th>
+              <th className="w-[220px] px-4 py-3 whitespace-nowrap">Kandidat</th>
+              <th className="min-w-[180px] px-4 py-3 whitespace-nowrap">Posisi &amp; Kelulusan</th>
+              <th className="w-[190px] px-4 py-3 whitespace-nowrap">Skor Penilaian</th>
+              <th className="w-[180px] px-4 py-3 whitespace-nowrap">Rekomendasi AI</th>
+              <th className="w-24 px-4 py-3 text-right whitespace-nowrap">Aksi</th>
+            </tr>
+          </thead>
 
-        {loading ? (
-          <div className="divide-y divide-slate-100">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="p-5 lg:px-6 flex items-center gap-4">
-                <div className="h-6 w-8 skeleton rounded-lg" />
-                <div className="w-10 h-10 skeleton rounded-xl" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-48 skeleton rounded-lg" />
-                  <div className="h-3 w-32 skeleton rounded-lg" />
-                </div>
-                <div className="h-8 w-32 skeleton rounded-xl" />
-              </div>
-            ))}
-          </div>
-        ) : filteredApplicants.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 px-6">
-            <div className="w-16 h-16 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
-              <Trophy className="w-8 h-8 text-slate-400" />
-            </div>
-            <h4 className="text-lg font-extrabold text-slate-700 font-heading">
-              {search ? 'Kandidat Tidak Ditemukan' : 'Belum Ada Hasil Interview Dinilai'}
-            </h4>
-            <p className="text-sm text-slate-400 mt-1 max-w-sm text-center">
-              {search ? 'Coba ubah kata kunci pencarian Anda.' : 'Kandidat akan muncul di ranking setelah wawancara mereka dinilai oleh AI.'}
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100/80">
-            {filteredApplicants.map((app, idx) => {
-              const rec = getRecommendation(app.interviewResult);
-              const flagged = app.proctorFlags?.flagged || (app.proctorFlags?.violations?.length ?? 0) > 0;
-              const isPassed = app.passingScore != null && app.interviewScore != null
-                ? app.interviewScore >= app.passingScore
-                : null;
+          <tbody className="divide-y divide-[#E2E8F0]">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="h-16">
+                  <td colSpan={6} className="px-4">
+                    <div className="h-5 w-full rounded bg-[#E2E8F0] animate-pulse" />
+                  </td>
+                </tr>
+              ))
+            ) : filteredApplicants.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-14 px-6 text-center space-y-2">
+                  <Trophy className="w-12 h-12 text-[#CBD5E1] mx-auto" />
+                  <p className="text-base font-semibold text-[#0F172A] font-heading">
+                    {search ? 'Kandidat Tidak Ditemukan' : 'Belum Ada Hasil Interview Dinilai'}
+                  </p>
+                  <p className="text-sm text-[#64748B] max-w-sm mx-auto">
+                    {search ? 'Coba ubah kata kunci pencarian Anda.' : 'Kandidat akan muncul di ranking setelah wawancara mereka dinilai oleh AI.'}
+                  </p>
+                </td>
+              </tr>
+            ) : (
+              filteredApplicants.map((app, idx) => {
+                const rec = getRecommendation(app.interviewResult);
+                const flagged = app.proctorFlags?.flagged || (app.proctorFlags?.violations?.length ?? 0) > 0;
+                const isPassed = app.passingScore != null && app.interviewScore != null
+                  ? app.interviewScore >= app.passingScore
+                  : null;
+                const scoreVal = app.interviewScore ?? 0;
+                const barHex = scoreVal >= 80 ? 'bg-[#16A34A]' : scoreVal >= 60 ? 'bg-[#D97706]' : 'bg-[#DC2626]';
+                const isChecked = selected.some(s => s.id === app.id);
 
-              return (
-                <div
-                  key={app.id}
-                  className={`grid grid-cols-1 lg:grid-cols-12 gap-3 px-4 lg:px-6 py-3.5 items-center transition-colors ${
-                    selected.some(s => s.id === app.id) ? 'bg-soft-blue/70 border-l-2 border-primary-navy' : 'hover:bg-slate-50/70'
-                  }`}
-                >
-                  {/* Rank Badge */}
-                  <div className="lg:col-span-1 flex items-center gap-2">
-                    <span className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-mono font-bold border ${
-                      idx === 0 ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-xs' :
-                      idx === 1 ? 'bg-slate-100 text-slate-700 border-slate-200' :
-                      idx === 2 ? 'bg-amber-100/60 text-amber-900 border-amber-300' :
-                      'bg-slate-50 text-slate-500 border-slate-200'
-                    }`}>
-                      {idx === 0 ? <Trophy className="w-3.5 h-3.5 text-amber-600" /> : idx + 1}
-                    </span>
-                  </div>
+                return (
+                  <tr
+                    key={app.id}
+                    className={`h-16 transition-colors ${
+                      isChecked ? 'bg-[#EEF2FF]/70' : 'hover:bg-[#F8FAFC]'
+                    }`}
+                  >
+                    {/* Peringkat 64px */}
+                    <td className="w-16 px-4 text-center">
+                      {idx === 0 ? (
+                        <Trophy className="w-5 h-5 text-[#F59E0B] mx-auto" />
+                      ) : idx === 1 ? (
+                        <Award className="w-5 h-5 text-[#94A3B8] mx-auto" />
+                      ) : idx === 2 ? (
+                        <Award className="w-5 h-5 text-[#B45309] mx-auto" />
+                      ) : (
+                        <span className="text-sm font-semibold text-[#475569] tabular-nums">{idx + 1}</span>
+                      )}
+                    </td>
 
-                  {/* Candidate Identity */}
-                  <div className="lg:col-span-3 flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-mono font-bold text-xs flex-shrink-0">
-                      {app.fullName.charAt(0)}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate flex items-center gap-1.5">
-                        <span className="truncate">{app.fullName}</span>
-                        {flagged && (
-                          <Badge variant="warning" format="soft" className="text-[10px] px-1.5 py-0 font-medium">
-                            <ShieldAlert className="w-2.5 h-2.5 mr-0.5 inline" /> Flag
-                          </Badge>
+                    {/* Kandidat 220px */}
+                    <td className="w-[220px] max-w-[220px] px-4">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-[#EEF2FF] text-[#1E3A8A] flex items-center justify-center font-bold text-xs shrink-0">
+                          {app.fullName.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-[#0F172A] truncate flex items-center gap-1.5" title={app.fullName}>
+                            <span className="truncate">{app.fullName}</span>
+                            {flagged && (
+                              <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-[#FEF3C7] text-[#92400E] shrink-0">
+                                Flag
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-[#64748B] truncate" title={`${app.education}${app.university ? ` • ${app.university}` : ''}`}>
+                            {app.education}{app.university ? ` • ${app.university}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Posisi & Kelulusan */}
+                    <td className="px-4">
+                      <div className="space-y-1 min-w-0">
+                        <p className="text-sm font-medium text-[#0F172A] line-clamp-2 leading-snug" title={app.jobTitle}>
+                          {app.jobTitle}
+                        </p>
+                        {isPassed !== null && (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${
+                              isPassed ? 'bg-[#DCFCE7] text-[#166534]' : 'bg-[#FEE2E2] text-[#991B1B]'
+                            }`}
+                          >
+                            {isPassed ? `Lolos (Min. ${app.passingScore}%)` : 'Di bawah ambang'}
+                          </span>
                         )}
-                      </p>
-                      <p className="text-xs text-slate-500 font-sans truncate mt-0.5">{app.education}{app.university ? ` • ${app.university}` : ''}</p>
-                    </div>
-                  </div>
-
-                  {/* Position & Passing Grade */}
-                  <div className="lg:col-span-2 flex flex-col justify-center min-w-0">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 truncate">
-                      <Briefcase className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                      <span className="truncate">{app.jobTitle}</span>
-                    </div>
-                    {isPassed !== null && (
-                      <span className={`inline-flex items-center gap-1 mt-1 text-[11px] font-semibold ${
-                        isPassed ? 'text-emerald-600' : 'text-rose-600'
-                      }`}>
-                        {isPassed ? `✓ Lolos (Min. ${app.passingScore}%)` : `✗ Di bawah threshold (${app.passingScore}%)`}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Scores Progress Bars */}
-                  <div className="lg:col-span-3 space-y-1.5">
-                    <div>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Interview AI</span>
-                        <span className="text-xs font-bold font-mono text-slate-800">{app.interviewScore}%</span>
                       </div>
-                      <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                        <div className={`h-full rounded-full ${scoreColor(app.interviewScore)}`} style={{ width: `${app.interviewScore ?? 0}%` }} />
+                    </td>
+
+                    {/* Skor Penilaian */}
+                    <td className="w-[190px] px-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-[120px] h-2 rounded-full bg-[#E2E8F0] overflow-hidden shrink-0">
+                          <div className={`h-full rounded-full ${barHex}`} style={{ width: `${scoreVal}%` }} />
+                        </div>
+                        <span className="text-sm font-semibold text-[#0F172A] font-mono tabular-nums whitespace-nowrap">
+                          {app.interviewScore ?? 0}%
+                        </span>
                       </div>
-                    </div>
-                  </div>
+                    </td>
 
-                  {/* Recommendation Badge */}
-                  <div className="lg:col-span-2">
-                    {app.compositeEvaluation ? (
-                      <Badge
-                        variant={
-                          app.compositeEvaluation.recommendation === 'STRONG HIRE' ? 'teal' :
-                          app.compositeEvaluation.recommendation === 'RECOMMENDED HIRE' ? 'success' :
-                          app.compositeEvaluation.recommendation === 'CONSIDER' ? 'warning' : 'danger'
-                        }
-                        format="soft"
-                        className="text-[11px]"
-                      >
-                        {app.compositeEvaluation.recommendation} ({app.compositeEvaluation.compositeScore})
-                      </Badge>
-                    ) : (
-                      <Badge variant="neutral" format="soft" className="text-[11px]">
-                        <Brain className="w-3 h-3 mr-1 inline" /> {rec.label}
-                      </Badge>
-                    )}
-                  </div>
+                    {/* Rekomendasi AI 180px */}
+                    <td className="w-[180px] px-4">
+                      {app.compositeEvaluation ? (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${
+                            app.compositeEvaluation.recommendation === 'STRONG HIRE' ||
+                            app.compositeEvaluation.recommendation === 'RECOMMENDED HIRE'
+                              ? 'bg-[#DCFCE7] text-[#166534]'
+                              : app.compositeEvaluation.recommendation === 'CONSIDER'
+                                ? 'bg-[#FEF3C7] text-[#92400E]'
+                                : 'bg-[#FEE2E2] text-[#991B1B]'
+                          }`}
+                        >
+                          {app.compositeEvaluation.recommendation} ({app.compositeEvaluation.compositeScore})
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569] whitespace-nowrap">
+                          {rec.label}
+                        </span>
+                      )}
+                    </td>
 
-                  {/* Action & Compare Checkbox */}
-                  <div className="lg:col-span-1 flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => setDetailApplicant(app)}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                      title="Lihat Detail Laporan"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <label className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold cursor-pointer transition-all border ${
-                      selected.some(s => s.id === app.id)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : selected.length >= 3 ? 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'
-                    }`}>
-                      <input
-                        type="checkbox"
-                        className="hidden"
-                        disabled={!selected.some(s => s.id === app.id) && selected.length >= 3}
-                        checked={selected.some(s => s.id === app.id)}
-                        onChange={() => toggleSelect(app)}
-                      />
-                      <span>{selected.some(s => s.id === app.id) ? '✓' : '+'}</span>
-                    </label>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                    {/* Aksi 96px */}
+                    <td className="w-24 px-4 text-right">
+                      <div className="inline-flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDetailApplicant(app)}
+                          className="p-1.5 text-[#475569] hover:text-[#1E3A8A] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                          title="Lihat Detail Laporan"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <input
+                          type="checkbox"
+                          disabled={!isChecked && selected.length >= 3}
+                          checked={isChecked}
+                          onChange={() => toggleSelect(app)}
+                          title="Pilih untuk dibandingkan"
+                          className="w-4 h-4 rounded border-slate-300 text-[#1E3A8A] focus:ring-[#1E3A8A] cursor-pointer disabled:opacity-40"
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Candidate Detail Modal */}
       {detailApplicant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/45 animate-fade-in">
           <div className="bg-white rounded-lg border border-slate-200 shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex-shrink-0">

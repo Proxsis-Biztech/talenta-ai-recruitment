@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BarChart3, Printer } from 'lucide-react';
+import { Printer } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { AdminAnalyticsCharts } from './admin/AdminAnalyticsCharts';
@@ -52,74 +52,77 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Top Header Card */}
-      <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      {/* Top Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-primary-navy" />
-            <h2 className="text-lg font-bold text-ink font-heading tracking-tight">
-              Laporan Analitika Eksekutif &amp; Konversi Bakat
-            </h2>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Visualisasi efisiensi funnel rekrutmen, disparitas nilai posisi, dan demografi kandidat terintegrasi.
+          <h1 className="text-2xl font-bold text-[#0F172A] font-heading tracking-tight">
+            Analitika &amp; Metrik
+          </h1>
+          <p className="text-sm text-[#64748B] mt-0.5">
+            Visualisasi funnel konversi rekrutmen, komposisi pipeline, dan tren pendaftaran kandidat.
           </p>
         </div>
 
         <Button
-          variant="secondary"
-          size="sm"
+          variant="outline"
           onClick={handlePrint}
-          leftIcon={<Printer className="w-3.5 h-3.5 text-slate-500" />}
+          className="h-10 px-4 rounded-lg border-[#E2E8F0] text-[#475569] min-w-fit whitespace-nowrap"
+          leftIcon={<Printer className="w-4 h-4" />}
         >
-          Cetak Ringkasan Eksekutif
+          Cetak Ringkasan
         </Button>
       </div>
 
-      {/* Funnel Conversion Ribbon */}
-      <Card elevation="flat" className="p-5 border-slate-200">
-        <h3 className="text-sm font-heading font-bold text-ink tracking-tight mb-4">
-          Funnel Konversi Bakat (End-to-End Recruitment)
+      {/* Funnel Conversion Ribbon (4 uniform white cards + conversion ratio arrows) */}
+      <Card elevation="flat" className="p-6 border-[#E2E8F0] rounded-xl shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+        <h3 className="text-base font-heading font-semibold text-[#0F172A] tracking-tight mb-4">
+          Funnel Konversi Bakat
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-1">
-            <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500 block font-sans">
-              1. Pendaftaran Masuk
-            </span>
-            <div className="text-xl font-bold font-mono text-slate-900">{totalApplicants}</div>
-            <span className="text-[11px] text-slate-500 font-sans">100% Total Pelamar</span>
-          </div>
-
-          <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-1">
-            <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500 block font-sans">
-              2. Sesi Wawancara AI
-            </span>
-            <div className="text-xl font-bold font-mono text-slate-900">{interviewedCount}</div>
-            <span className="text-[11px] text-slate-500 font-sans">
-              {totalApplicants > 0 ? Math.round((interviewedCount / totalApplicants) * 100) : 0}% Selesai Sesi
-            </span>
-          </div>
-
-          <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-1">
-            <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500 block font-sans">
-              3. Sudah Dinilai
-            </span>
-            <div className="text-xl font-bold font-mono text-slate-900">{scoredCount}</div>
-            <span className="text-[11px] text-slate-500 font-sans">
-              {totalApplicants > 0 ? Math.round((scoredCount / totalApplicants) * 100) : 0}% Terhitung AI
-            </span>
-          </div>
-
-          <div className="p-3.5 rounded-lg border border-emerald-200 bg-emerald-50/60 space-y-1">
-            <span className="text-[10px] uppercase font-semibold tracking-wider text-emerald-800 block font-sans">
-              4. Direkomendasikan
-            </span>
-            <div className="text-xl font-bold font-mono text-emerald-900">{strongHireCount}</div>
-            <span className="text-[11px] text-emerald-700 font-sans font-semibold">
-              {totalApplicants > 0 ? Math.round((strongHireCount / totalApplicants) * 100) : 0}% Siap Offer
-            </span>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            {
+              step: '1. Pendaftaran Masuk',
+              value: totalApplicants,
+              pct: '100% total pelamar',
+              conv: totalApplicants > 0 ? `${Math.round((interviewedCount / totalApplicants) * 100)}% →` : null,
+            },
+            {
+              step: '2. Sesi Wawancara AI',
+              value: interviewedCount,
+              pct: `${totalApplicants > 0 ? Math.round((interviewedCount / totalApplicants) * 100) : 0}% selesai sesi`,
+              conv: interviewedCount > 0 ? `${Math.round((scoredCount / interviewedCount) * 100)}% →` : null,
+            },
+            {
+              step: '3. Sudah Dinilai',
+              value: scoredCount,
+              pct: `${totalApplicants > 0 ? Math.round((scoredCount / totalApplicants) * 100) : 0}% terhitung AI`,
+              conv: scoredCount > 0 ? `${Math.round((strongHireCount / scoredCount) * 100)}% →` : null,
+            },
+            {
+              step: '4. Direkomendasikan',
+              value: strongHireCount,
+              pct: `${totalApplicants > 0 ? Math.round((strongHireCount / totalApplicants) * 100) : 0}% siap offer`,
+              conv: null,
+            },
+          ].map((item) => (
+            <div key={item.step} className="relative p-5 rounded-xl border border-[#E2E8F0] bg-white space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs uppercase font-semibold tracking-wider text-[#64748B] truncate">
+                  {item.step}
+                </span>
+                {item.conv && (
+                  <span className="text-[11px] font-mono font-semibold text-[#2563EB] bg-[#EEF2FF] px-2 py-0.5 rounded-full shrink-0">
+                    {item.conv}
+                  </span>
+                )}
+              </div>
+              <div className="text-[30px] leading-tight font-bold text-[#0F172A] tabular-nums font-heading">
+                {item.value.toLocaleString('id-ID')}
+              </div>
+              <p className="text-xs text-[#64748B]">{item.pct}</p>
+            </div>
+          ))}
         </div>
       </Card>
 

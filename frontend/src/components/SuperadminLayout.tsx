@@ -23,14 +23,12 @@ import {
   Building2,
   PanelLeftClose,
   PanelLeftOpen,
-  Sparkles,
   ExternalLink,
   ShieldCheck,
   MessageSquare,
   Bot,
   Scale,
 } from 'lucide-react';
-import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
@@ -215,46 +213,43 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
     .toUpperCase();
 
   return (
-    <div id="superadmin-root" className="min-h-screen bg-[#F1F5F9] text-slate-900 flex font-sans">
+    <div id="superadmin-root" className="min-h-screen bg-[#F8FAFC] text-[#0F172A] flex font-sans">
       {/* ─── SIDEBAR CONTAINER (CLEAN WHITE THEME) ─── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex flex-col bg-white border-r border-slate-200/90 transition-all duration-300 shadow-[1px_0_4px_rgba(15,23,42,0.03)] ${
-          isCollapsed ? 'w-20 overflow-visible' : 'w-72'
+        className={`fixed inset-y-0 left-0 z-30 flex flex-col bg-white border-r border-[#E2E8F0] transition-all duration-200 ${
+          isCollapsed ? 'w-16 overflow-visible' : 'w-60'
         } ${
           mobileDrawerOpen
-            ? 'translate-x-0 !w-72 shadow-2xl'
+            ? 'translate-x-0 !w-60 shadow-2xl'
             : '-translate-x-full lg:translate-x-0'
         }`}
       >
         {/* Brand Logo */}
-        <div className={`h-20 flex items-center border-b border-slate-100 shrink-0 transition-all ${isCollapsed ? 'justify-center px-2' : 'justify-start px-5'}`}>
+        <div className={`h-16 flex items-center border-b border-[#E2E8F0] shrink-0 transition-all ${isCollapsed ? 'justify-center px-2' : 'justify-start px-5'}`}>
           {!isCollapsed ? (
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <img
                 src="/img/logoRIght.jpeg"
                 alt="RIGHT Assessment Platform"
-                className="h-9 w-auto max-w-[170px] object-contain"
+                className="h-8 w-auto max-w-[160px] object-contain"
               />
-              <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono shrink-0">
-                Admin
-              </span>
             </div>
           ) : (
-            <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1.5 overflow-hidden shadow-2xs" title="RIGHT Assessment Platform">
+            <div className="w-9 h-9 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center p-1 overflow-hidden" title="RIGHT Assessment Platform">
               <img src="/img/logo-symbol.png" alt="RIGHT" className="h-full w-full object-contain" />
             </div>
           )}
         </div>
 
         {/* Navigation Items */}
-        <nav className={`flex-1 ${isCollapsed ? 'overflow-visible py-4 px-2 space-y-2.5' : 'overflow-y-auto py-4 px-3 space-y-3'}`}>
+        <nav className={`flex-1 ${isCollapsed ? 'overflow-visible py-3 px-2 space-y-2' : 'overflow-y-auto py-3 px-3 space-y-2.5'}`}>
           {NAV_GROUPS.filter((group) => !group.superadminOnly || userRole === 'superadmin').map(
             (group, groupIndex) => (
               <div
                 key={group.id}
                 className={`${
                   groupIndex > 0 && !isCollapsed
-                    ? 'pt-3 border-t border-slate-100'
+                    ? 'pt-2.5 border-t border-slate-100'
                     : ''
                 }`}
               >
@@ -268,11 +263,11 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.id)}
-                    className="w-full min-w-0 px-3.5 pt-1 pb-2 text-[10px] font-extrabold tracking-wider text-slate-400 uppercase flex items-center justify-between gap-2 cursor-pointer hover:text-slate-700 transition-colors"
+                    className="w-full min-w-0 px-3 pt-1 pb-1.5 text-[10px] font-bold tracking-wider text-[#64748B] uppercase flex items-center justify-between gap-2 cursor-pointer hover:text-[#0F172A] transition-colors"
                     aria-expanded={!collapsedGroups[group.id]}
                   >
                     <span className="truncate whitespace-nowrap">{group.label}</span>
-                    {collapsedGroups[group.id] ? <ChevronRight className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+                    {collapsedGroups[group.id] ? <ChevronRight className="w-3.5 h-3.5 text-[#64748B]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#64748B]" />}
                   </button>
                 )}
 
@@ -284,32 +279,32 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                       return isCollapsed ? (
                         <div key={item.key} className="relative group sidebar-item-group flex justify-center py-0.5">
                           {isActive && (
-                            <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-blue-600 rounded-r-md" />
+                            <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] bg-[#1E3A8A] rounded-r-sm" />
                           )}
                           <button
                             onClick={() => {
                               setActiveMenu(item.key);
                               if (window.innerWidth < 1024) setMobileDrawerOpen(false);
                             }}
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
                               isActive
-                                ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
-                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                                ? 'bg-[#EEF2FF] text-[#1E3A8A] font-semibold'
+                                : 'text-[#475569] hover:text-[#0F172A] hover:bg-slate-100'
                             }`}
                             aria-label={item.label}
                           >
-                            <item.icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-slate-500'}`} />
+                            <item.icon className={`w-[18px] h-[18px] ${isActive ? 'text-[#1E3A8A]' : 'text-[#64748B]'}`} />
                           </button>
 
                           {/* Floating Tooltip */}
-                          <div className="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 border border-slate-700 text-white text-xs font-medium rounded-xl shadow-xl pointer-events-none whitespace-nowrap z-50 flex flex-col gap-1">
+                          <div className="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 border border-slate-700 text-white text-xs font-medium rounded-lg shadow-xl pointer-events-none whitespace-nowrap z-50 flex flex-col gap-1">
                             <span className="text-[9.5px] uppercase tracking-wider text-slate-400 font-bold">
                               {group.label}
                             </span>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold">{item.label}</span>
                               {item.badge && (
-                                <span className="text-[10px] px-1.5 py-0.2 bg-blue-600 text-white rounded font-mono font-bold">
+                                <span className="text-[10px] px-1.5 py-0.2 bg-[#1E3A8A] text-white rounded font-mono font-bold">
                                   {item.badge}
                                 </span>
                               )}
@@ -323,24 +318,24 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                             setActiveMenu(item.key);
                             if (window.innerWidth < 1024) setMobileDrawerOpen(false);
                           }}
-                          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium group text-left cursor-pointer ${
+                          className={`w-full h-10 flex items-center gap-2.5 px-3 rounded-lg transition-colors text-[14px] group text-left cursor-pointer ${
                             isActive
-                              ? 'bg-blue-50 text-blue-700 font-bold border-l-3 border-blue-600 pl-3 shadow-2xs'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                              ? 'bg-[#EEF2FF] text-[#1E3A8A] font-semibold border-l-[3px] border-[#1E3A8A] pl-[9px]'
+                              : 'text-[#475569] font-medium hover:text-[#0F172A] hover:bg-slate-50'
                           }`}
                         >
                           <item.icon
-                            className={`w-4.5 h-4.5 shrink-0 transition-colors ${
-                              isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-700'
+                            className={`w-[18px] h-[18px] shrink-0 transition-colors ${
+                              isActive ? 'text-[#1E3A8A]' : 'text-[#64748B] group-hover:text-[#0F172A]'
                             }`}
                           />
                           <span className="truncate whitespace-nowrap flex-1">{item.label}</span>
                           {item.badge && (
                             <span
-                              className={`text-[10px] px-2 py-0.5 rounded-full font-bold font-mono transition-colors ${
+                              className={`text-[11px] px-2 py-0.5 rounded-full font-semibold font-mono transition-colors ${
                                 isActive
-                                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                                  : 'bg-slate-100 text-slate-600'
+                                  ? 'bg-white text-[#1E3A8A]'
+                                  : 'bg-[#F1F5F9] text-[#475569]'
                               }`}
                             >
                               {item.badge}
@@ -357,47 +352,28 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
 
         {/* Sidebar Footer */}
         {isCollapsed ? (
-          <div className="p-2 border-t border-slate-100 flex flex-col items-center gap-2">
+          <div className="p-2 border-t border-[#E2E8F0] flex flex-col items-center gap-2">
             <button
               onClick={onLogout}
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer group relative"
+              className="w-10 h-10 rounded-lg flex items-center justify-center text-[#64748B] hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer group relative"
               title="Keluar Sesi"
             >
-              <LogOut className="w-4.5 h-4.5" />
+              <LogOut className="w-[18px] h-[18px]" />
               <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
                 Keluar Sesi
               </span>
             </button>
           </div>
         ) : (
-          <div className="p-3.5 border-t border-slate-100 space-y-3">
-            {/* Live AI Status Card */}
-            <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200/60 flex flex-col gap-1.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                  <span>AI Proctoring Engine</span>
-                </div>
-                <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-600 font-bold bg-white/80 px-1.5 py-0.5 rounded border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  LIVE
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-600 leading-tight">
-                Right Enterprise siap melayani ujian &amp; wawancara terstandar.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-              <span className="font-mono text-slate-400">v2.4.0 • Enterprise</span>
-              <button
-                onClick={onLogout}
-                className="flex items-center gap-1 text-slate-500 hover:text-rose-600 font-semibold transition-colors cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Keluar</span>
-              </button>
-            </div>
+          <div className="px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between text-[11px] text-[#94A3B8]">
+            <span className="font-mono">v2.4.0</span>
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1.5 text-[#475569] hover:text-rose-600 font-semibold transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Keluar</span>
+            </button>
           </div>
         )}
       </aside>
@@ -405,7 +381,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
       {/* Mobile Drawer Backdrop */}
       {mobileDrawerOpen && (
         <div
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-20 lg:hidden animate-in fade-in duration-150"
+          className="fixed inset-0 bg-slate-950/50 z-20 lg:hidden animate-in fade-in duration-150"
           onClick={() => setMobileDrawerOpen(false)}
           aria-hidden="true"
         />
@@ -413,20 +389,20 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
 
       {/* ─── MAIN CONTENT CONTAINER ─── */}
       <div
-        className={`flex-1 flex flex-col min-h-screen min-w-0 w-full transition-all duration-300 ${
-          isCollapsed ? 'lg:ml-20' : 'lg:ml-72'
+        className={`flex-1 flex flex-col min-h-screen min-w-0 w-full transition-all duration-200 ${
+          isCollapsed ? 'lg:ml-16' : 'lg:ml-60'
         }`}
       >
         {/* Sticky Topbar */}
-        <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-20 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
-          <div className="px-5 sm:px-8">
-            <div className="flex items-center justify-between h-20 gap-4">
+        <header className="h-16 bg-white border-b border-[#E2E8F0] sticky top-0 z-30 shrink-0">
+          <div className="px-4 sm:px-6 h-full">
+            <div className="flex items-center justify-between h-full gap-3">
               {/* Left Breadcrumb & Toggles */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
                 {/* Mobile Drawer Toggle */}
                 <button
                   onClick={() => setMobileDrawerOpen(!mobileDrawerOpen)}
-                  className="lg:hidden p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  className="lg:hidden p-2 text-[#475569] hover:text-[#0F172A] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
                   aria-label="Toggle Menu"
                 >
                   <Menu className="w-5 h-5" />
@@ -435,54 +411,59 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                 {/* Desktop Collapse Toggle */}
                 <button
                   onClick={toggleCollapse}
-                  className="hidden lg:flex p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  className="hidden lg:flex p-1.5 text-[#64748B] hover:text-[#0F172A] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
                   title={isCollapsed ? 'Perluas Sidebar' : 'Ciutkan Sidebar'}
                   aria-label="Toggle Sidebar Collapse"
                 >
                   {isCollapsed ? (
-                    <PanelLeftOpen className="w-5 h-5 text-primary-navy" />
+                    <PanelLeftOpen className="w-4.5 h-4.5 text-[#1E3A8A]" />
                   ) : (
-                    <PanelLeftClose className="w-5 h-5 text-slate-500" />
+                    <PanelLeftClose className="w-4.5 h-4.5 text-[#64748B]" />
                   )}
                 </button>
 
-                {/* Breadcrumb */}
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <span className="text-muted-slate">Right</span>
-                  <span className="text-slate-400">/</span>
-                  <span className="text-ink font-bold">
+                {/* Breadcrumb (1 line fixed) */}
+                <div
+                  className="flex items-center gap-2 text-[14px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis max-w-[420px]"
+                  title={`Right / ${title || 'Admin'}`}
+                >
+                  <span className="text-[#64748B] font-normal shrink-0">Right</span>
+                  <span className="text-[#94A3B8] shrink-0">/</span>
+                  <span className="text-[#0F172A] truncate">
                     {title || 'Admin'}
                   </span>
                 </div>
-
-                <Badge variant="navy" className="hidden sm:inline-flex py-0.5 px-2 text-[10.5px]">
-                  Admin
-                </Badge>
               </div>
 
-              {/* Center Search Input */}
-              <div className="hidden md:flex flex-1 max-w-md mx-4">
+              {/* Center Search Input (fixed 240px width) */}
+              <div className="hidden md:flex items-center flex-none w-[240px]">
                 <div className="relative w-full">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     placeholder="Cari peserta, program, soal..."
-                    className="w-full h-10 pl-10 pr-12 rounded-xl bg-page-bg border border-border-slate text-sm text-ink placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-primary-navy focus:ring-2 focus:ring-primary-navy/15 transition-all"
+                    className="w-full h-9 pl-9 pr-10 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:bg-white focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-colors"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-mono text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs">
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-[#64748B] bg-white border border-[#E2E8F0] px-1.5 py-0.5 rounded pointer-events-none">
                     ⌘K
                   </span>
                 </div>
               </div>
 
               {/* Right Utilities & Profile */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 shrink-0">
                 {headerRight}
 
+                {/* Topbar Proctoring Live Indicator */}
+                <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#DCFCE7] border border-[#BBF7D0] shrink-0">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-semibold text-[#166534] whitespace-nowrap">Proctoring Live</span>
+                </div>
+
                 {tenants.length > 0 && (
-                  <div className="hidden lg:flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-500">Tenant</span>
-                    <div className="w-[220px]">
+                  <div className="hidden lg:flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-semibold text-[#64748B]">Tenant</span>
+                    <div className="w-[180px]">
                       <Select
                         value={activeTenantId}
                         onChange={(event) => {
@@ -494,7 +475,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                         }}
                         disabled={userRole !== 'superadmin'}
                         placeholder="Semua tenant"
-                        className="h-10 rounded-xl font-semibold"
+                        className="h-9 rounded-lg font-medium text-xs"
                       >
                         {userRole === 'superadmin' && <option value="">Semua tenant</option>}
                         {tenants.map((tenant) => (
@@ -592,7 +573,7 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 p-6 sm:p-10 space-y-10 max-w-[1600px] w-full mx-auto">
+        <main className="flex-1 p-6 space-y-6 max-w-[1600px] w-full mx-auto">
           {children}
         </main>
       </div>

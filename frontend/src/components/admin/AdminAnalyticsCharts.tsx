@@ -103,14 +103,14 @@ export function AdminAnalyticsCharts({ applicants }: AdminAnalyticsChartsProps) 
   const areaPath = `${linePath} L ${points[points.length - 1]?.x || paddingX} ${chartHeight - paddingY} L ${paddingX} ${chartHeight - paddingY} Z`;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
         <div className="flex items-center gap-2 mb-4">
-          <PieChart className="w-4 h-4 text-primary-navy" />
-          <h3 className="text-sm font-heading font-bold text-ink">Komposisi Pipeline</h3>
+          <PieChart className="w-4 h-4 text-[#1E3A8A]" />
+          <h3 className="text-base font-heading font-semibold text-[#0F172A]">Komposisi Pipeline</h3>
         </div>
-        <div className="flex items-center gap-5">
-          <div className="relative shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+          <div className="relative shrink-0 mx-auto sm:mx-0">
             <svg viewBox="0 0 140 140" className="w-32 h-32 -rotate-90">
               <circle cx="70" cy="70" r="54" fill="none" stroke="#F1F5F9" strokeWidth="16" />
               {donutSegments.map((segment) => (
@@ -133,17 +133,17 @@ export function AdminAnalyticsCharts({ applicants }: AdminAnalyticsChartsProps) 
               ))}
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-extrabold font-mono text-ink">{total}</span>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase">Kandidat</span>
+              <span className="text-2xl font-bold font-mono text-[#0F172A] tabular-nums">{total}</span>
+              <span className="text-[11px] text-[#64748B] font-semibold uppercase">Kandidat</span>
             </div>
           </div>
-          <div className="space-y-2 min-w-0">
+          <div className="space-y-2.5 flex-1 min-w-0">
             {pipeline.map((item) => (
-              <div key={item.label} className="flex items-center gap-2 text-xs">
+              <div key={item.label} className="grid grid-cols-[10px_1fr_44px_44px] items-center gap-2.5 text-xs">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                <span className="text-slate-600 truncate">{item.label}</span>
-                <span className="ml-auto font-mono font-bold text-ink">{item.value}</span>
-                <span className="text-[10px] text-slate-400 font-mono w-8 text-right">
+                <span className="text-[#475569] truncate">{item.label}</span>
+                <span className="font-mono font-semibold text-[#0F172A] text-right tabular-nums">{item.value}</span>
+                <span className="text-[#64748B] font-mono text-right tabular-nums">
                   {total > 0 ? Math.round((item.value / total) * 100) : 0}%
                 </span>
               </div>
@@ -152,13 +152,15 @@ export function AdminAnalyticsCharts({ applicants }: AdminAnalyticsChartsProps) 
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
-        <div className="flex items-center gap-2 mb-2">
-          <TrendingUp className="w-4 h-4 text-emerald-600" />
-          <h3 className="text-sm font-heading font-bold text-ink">Tren Pendaftaran</h3>
+      <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-[#2563EB]" />
+            <h3 className="text-base font-heading font-semibold text-[#0F172A]">Tren Pendaftaran</h3>
+          </div>
+          <span className="text-xs text-[#64748B]">6 bulan terakhir</span>
         </div>
-        <p className="text-[11px] text-slate-400 mb-2">6 bulan terakhir</p>
-        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-36" role="img" aria-label="Tren pendaftaran enam bulan terakhir">
+        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-36 mt-2" role="img" aria-label="Tren pendaftaran enam bulan terakhir">
           {[0.25, 0.5, 0.75].map((ratio) => (
             <line
               key={ratio}
@@ -166,7 +168,7 @@ export function AdminAnalyticsCharts({ applicants }: AdminAnalyticsChartsProps) 
               x2={chartWidth - paddingX}
               y1={paddingY + ratio * (chartHeight - paddingY * 2)}
               y2={paddingY + ratio * (chartHeight - paddingY * 2)}
-              stroke="#F1F5F9"
+              stroke="#E2E8F0"
               strokeWidth="1"
             />
           ))}

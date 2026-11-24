@@ -667,30 +667,28 @@ export function AdminCompanyMatrix({
   return (
     <div className="bg-white rounded-2xl border border-border-slate p-6 shadow-xs space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E2E8F0]">
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[11px] font-bold text-primary-navy bg-soft-blue px-2.5 py-0.5 rounded border border-accent-border">
-              KORPORASI &amp; PT MITRA
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#E0F2FE] text-[#075985]">
+              {companies.length} Institusi Mitra Aktif
             </span>
-            <Badge variant="navy">{companies.length} Institusi Mitra Aktif</Badge>
           </div>
-          <h2 className="text-xl font-extrabold font-heading text-ink tracking-tight mt-1">
-            Manajemen Kuota &amp; Matriks Peserta Perusahaan
-          </h2>
-          <p className="text-xs text-muted-slate mt-0.5">
+          <h1 className="text-2xl font-bold font-heading text-[#0F172A] tracking-tight mt-1.5">
+            Perusahaan (PT) &amp; Kuota Asesmen
+          </h1>
+          <p className="text-sm text-[#64748B] mt-0.5">
             Daftar tenant multi-perusahaan, alokasi kuota lisensi, dan matriks sebaran kelulusan per tahapan.
           </p>
         </div>
 
         <Button
           variant="primary"
-          size="sm"
           onClick={() => setIsAddModalOpen(true)}
-          className="text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+          className="h-10 px-4 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white shrink-0 min-w-fit whitespace-nowrap"
+          leftIcon={<Plus className="w-4 h-4" />}
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Tambah PT Mitra</span>
+          Tambah PT Mitra
         </Button>
       </div>
 
@@ -701,8 +699,8 @@ export function AdminCompanyMatrix({
         </div>
       )}
 
-      {/* ─── PT Grid: Card per PT (hover-only border & highlight, no card click) ─── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {/* ─── PT Grid: Clickable Card per PT ─── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         {companies.map((c) => {
           const pct = Math.min(100, Math.round((c.quotaUsed / (c.quotaMax || 1)) * 100));
           const matchedPrograms = getProgramsForCompany(c);
@@ -711,82 +709,73 @@ export function AdminCompanyMatrix({
           return (
             <div
               key={c.id}
-              className="pt-hover-card group rounded-2xl border border-slate-200 bg-white p-5 transition-all flex flex-col justify-between gap-4 hover:bg-soft-blue/35 hover:border-primary-navy hover:ring-1 hover:ring-primary-navy/25 hover:shadow-sm"
+              onClick={() => {
+                resetDetailProgramForms();
+                setSelectedPtId(c.id);
+                setDetailPt(c);
+              }}
+              className="group rounded-xl border border-[#E2E8F0] bg-white p-6 transition-colors flex flex-col justify-between gap-4 hover:border-[#2563EB] shadow-[0_1px_3px_rgba(15,23,42,0.08)] cursor-pointer"
             >
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors bg-soft-blue text-primary-navy group-hover:bg-primary-navy group-hover:text-white">
-                      <Building2 className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-mono text-[10px] font-bold text-primary-navy bg-soft-blue px-2 py-0.5 rounded border border-accent-border">
-                          {c.id}
-                        </span>
-                        <Badge variant="teal" format="soft">
-                          {programCount} Program
-                        </Badge>
-                      </div>
-                    </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-[#EEF2FF] text-[#1E3A8A]">
+                    <Building2 className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-mono font-semibold bg-[#F1F5F9] text-[#475569]">
+                      {c.id}
+                    </span>
+                    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
+                      {programCount} Program
+                    </span>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="font-heading font-extrabold text-sm sm:text-base text-ink leading-snug">
+                  <h3 className="font-heading font-semibold text-base text-[#0F172A] leading-snug truncate" title={c.name}>
                     {c.name}
                   </h3>
-                  <p className="text-xs text-muted-slate mt-0.5">{c.industry}</p>
+                  <p className="text-xs text-[#64748B] mt-0.5 truncate">{c.industry}</p>
                 </div>
 
-                <div className="space-y-1.5 text-xs text-slate-600 pt-1 border-t border-slate-100">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-slate-400">PIC Resmi</span>
-                    <span className="font-semibold text-slate-800 text-right truncate">{c.pic}</span>
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#E2E8F0]">
+                  <div className="min-w-0">
+                    <span className="text-xs text-[#64748B] block">PIC Resmi</span>
+                    <span className="text-sm font-medium text-[#0F172A] block truncate mt-0.5" title={c.pic}>
+                      {c.pic}
+                    </span>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-slate-400">Kontrak</span>
-                    <span className="font-mono text-[11px] font-semibold text-slate-700">{c.contractPeriod}</span>
+                  <div className="min-w-0">
+                    <span className="text-xs text-[#64748B] block">Kontrak</span>
+                    <span className="text-sm font-mono font-medium text-[#0F172A] block truncate mt-0.5">
+                      {c.contractPeriod}
+                    </span>
                   </div>
                 </div>
 
                 <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 font-medium">Kuota Asesmen</span>
-                    <span>
-                      <strong className="font-mono text-primary-navy">{c.quotaUsed}</strong>
-                      <span className="text-slate-400">
-                        {' '}/ {c.quotaMax} ({pct}%)
-                      </span>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#64748B]">Kuota Asesmen</span>
+                    <span className="font-mono font-semibold text-[#0F172A] tabular-nums">
+                      {c.quotaUsed} / {c.quotaMax} ({pct}%)
                     </span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                  <div className="w-full bg-[#E2E8F0] rounded-full h-2 overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${pct > 80 ? 'bg-warning-amber' : 'bg-primary-navy'}`}
+                      className={`h-full rounded-full ${pct >= 90 ? 'bg-[#DC2626]' : 'bg-[#2563EB]'}`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
-                <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                  <BookOpen className="w-3.5 h-3.5 text-primary-navy" />
-                  <span>{programCount} program asesmen</span>
+              <div className="flex items-center justify-between gap-2 pt-3 border-t border-[#E2E8F0]">
+                <span className="text-xs text-[#64748B]">
+                  {programCount} program asesmen
                 </span>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  className="pt-detail-btn cursor-pointer text-slate-700 border-slate-300 transition-colors group-hover:bg-primary-navy group-hover:text-white group-hover:border-primary-navy hover:bg-navy-dark hover:text-white hover:border-navy-dark"
-                  leftIcon={<Eye className="w-3.5 h-3.5" />}
-                  onClick={() => {
-                    resetDetailProgramForms();
-                    setSelectedPtId(c.id);
-                    setDetailPt(c);
-                  }}
-                >
-                  Detail
-                </Button>
+                <span className="text-xs font-semibold text-[#2563EB] group-hover:underline">
+                  Lihat detail →
+                </span>
               </div>
             </div>
           );
