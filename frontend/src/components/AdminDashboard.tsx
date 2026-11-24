@@ -347,8 +347,8 @@ export default function AdminDashboard() {
 
   const handleDelete = async (id: string) => {
     const result = await Swal.fire({
-      title: 'Hapus Data Pelamar?',
-      text: 'Data yang dihapus tidak dapat dikembalikan.',
+      title: 'Hapus Data Peserta?',
+      text: 'Data peserta, akun portal, dan riwayat asesmennya akan dihapus permanen.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
@@ -363,10 +363,53 @@ export default function AdminDashboard() {
       await axios.delete(`/api/admin/applicants/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data pelamar berhasil dihapus', timer: 2000, showConfirmButton: false });
-      fetchApplicants();
-    } catch {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: 'Gagal menghapus data pelamar' });
+      setSelectedIds((prev) => prev.filter((item) => item !== id));
+      if (applicants.length === 1 && page > 1) {
+        setPage((p) => p - 1);
+      } else {
+        fetchApplicants();
+      }
+      Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data peserta berhasil dihapus', timer: 1800, showConfirmButton: false });
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal menghapus data peserta' : 'Gagal menghapus data peserta';
+      Swal.fire({ icon: 'error', title: 'Gagal', text: msg });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    const result = await Swal.fire({
+      title: `Hapus ${count} Data Peserta Terpilih?`,
+      text: 'Semua data peserta terpilih beserta akun portal dan riwayat asesmennya akan dihapus permanen.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: `Ya, Hapus (${count})`,
+      cancelButtonText: 'Batal',
+      reverseButtons: true,
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.post(
+        '/api/admin/applicants/bulk-delete',
+        { ids: selectedIds },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const removedSet = new Set(selectedIds);
+      const remainingOnPage = applicants.filter((a) => !removedSet.has(a.id)).length;
+      setSelectedIds([]);
+      if (remainingOnPage === 0 && page > 1) {
+        setPage((p) => p - 1);
+      } else {
+        fetchApplicants();
+      }
+      Swal.fire({ icon: 'success', title: 'Berhasil', text: `${count} data peserta berhasil dihapus`, timer: 1800, showConfirmButton: false });
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error || 'Gagal menghapus data peserta terpilih' : 'Gagal menghapus data peserta terpilih';
+      Swal.fire({ icon: 'error', title: 'Gagal', text: msg });
     }
   };
 
@@ -1499,10 +1542,37 @@ ${app.interviewResult ? `
               </div>
             </div>
 
-            {/* Candidate Table */}
-            <div className="flex items-center justify-end gap-2 pb-2 text-[11px] text-slate-500">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Live • hasil ujian diperbarui otomatis setiap 15 detik</span>
+            {/* Bulk Action & Live Info Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
+              {userRole === 'superadmin' && selectedIds.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-2 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl text-xs">
+                  <span className="font-bold text-rose-900">
+                    {selectedIds.length} peserta dipilih
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setSelectedIds([])}
+                    className="bg-white"
+                  >
+                    Batal Pilih
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="xs"
+                    onClick={() => void handleBulkDelete()}
+                    leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                  >
+                    Hapus Terpilih
+                  </Button>
+                </div>
+              ) : (
+                <span />
+              )}
+              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Live • hasil ujian diperbarui otomatis setiap 15 detik</span>
+              </div>
             </div>
             {/* Mobile Responsive Cards (< md) */}
             <div className="md:hidden space-y-3">

@@ -921,7 +921,23 @@ export const deletePortalUser = async (req: AuthRequest, res: Response) => {
     if (tenantId && existing.tenantId !== tenantId && (!tenantName || existing.companyName !== tenantName)) {
       return res.status(403).json({ error: 'Pengguna bukan milik tenant Anda.' });
     }
-    await prisma.portalUser.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      if (existing.candidateCode) {
+        await tx.assessorScore.deleteMany({ where: { candidateCode: existing.candidateCode } });
+        await tx.proctoringReview.deleteMany({ where: { candidateCode: existing.candidateCode } });
+      }
+      if (existing.role === 'peserta') {
+        const linkedApplicants = await tx.applicant.findMany({
+          where: { email: { equals: existing.email, mode: 'insensitive' } },
+          select: { id: true }
+        });
+        for (const app of linkedApplicants) {
+          await tx.experience.deleteMany({ where: { applicantId: app.id } });
+          await tx.applicant.delete({ where: { id: app.id } });
+        }
+      }
+      await tx.portalUser.delete({ where: { id } });
+    });
     return res.json({ message: 'Pengguna portal berhasil dihapus.' });
   } catch (error) {
     console.error('Delete portal user error:', error);

@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 import rateLimit from 'express-rate-limit';
 import { 
   submitApplication, getApplicants, downloadCV, exportApplicantsCSV, 
-  updateApplicant, deleteApplicant, screenApplicantCV, saveInterview, 
+  updateApplicant, deleteApplicant, bulkDeleteApplicants, screenApplicantCV, saveInterview, 
   scoreInterview, checkEmail, getInterviewResultByEmail, getApplicantRanking,
   batchScreenApplicants, generateDecisionLetter, getAuditLogsHandler, testAiLatencyHandler,
   evaluateInterviewTurn, transcribeAudioHandler, synthesizeSpeechHandler
@@ -190,6 +190,7 @@ router.delete('/admin/jobs/:id', authenticateToken, deleteJob);
 // Superadmin only routes (edit & delete)
 router.put('/admin/applicants/:id', authenticateToken, requireSuperadmin, updateApplicant);
 router.delete('/admin/applicants/:id', authenticateToken, requireSuperadmin, deleteApplicant);
+router.post('/admin/applicants/bulk-delete', authenticateToken, requireSuperadmin, bulkDeleteApplicants);
 
 // Interview save route (rate-limited — called from unauthenticated interview page)
 // Applicants authenticate by providing their registered email

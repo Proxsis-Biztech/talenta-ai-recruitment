@@ -18,7 +18,6 @@ import {
   transcribeInterviewAudio,
   synthesizeIndonesianSpeech
 } from '../services/langchainInterviewService';
-import { bootstrapDatabaseSeed } from '../services/bootstrapSeedService';
 
 const prisma = new PrismaClient();
 
@@ -153,11 +152,6 @@ export const submitApplication = async (req: Request, res: Response) => {
 
 export const getApplicants = async (req: Request, res: Response) => {
   try {
-    const count = await prisma.applicant.count();
-    if (count === 0) {
-      await bootstrapDatabaseSeed();
-    }
-
     const portalUserRecords = await prisma.portalUser.findMany({ where: { role: 'peserta' }, select: { id: true } });
     for (const portalUser of portalUserRecords) {
       await ensureApplicantForPortalUser(portalUser.id);
@@ -427,24 +421,73 @@ export const updateApplicant = async (req: Request, res: Response) => {
   }
 };
 
+async function deleteApplicantCascade(id: string): Promise<boolean> {
+  const applicant = await prisma.applicant.findUnique({ where: { id } });
+  if (!applicant) return false;
+
+  await prisma.$transaction(async (tx) => {
+    const portalUser = await tx.portalUser.findFirst({
+      where: {
+        email: { equals: applicant.email, mode: 'insensitive' },
+        role: 'peserta'
+      },
+      select: { id: true, candidateCode: true }
+    });
+
+    await tx.experience.deleteMany({ where: { applicantId: id } });
+    await tx.applicant.delete({ where: { id } });
+
+    if (portalUser) {
+      if (portalUser.candidateCode) {
+        await tx.assessorScore.deleteMany({ where: { candidateCode: portalUser.candidateCode } });
+        await tx.proctoringReview.deleteMany({ where: { candidateCode: portalUser.candidateCode } });
+      }
+      await tx.portalUser.delete({ where: { id: portalUser.id } });
+    }
+  });
+
+  if (applicant.localCvPath) {
+    const localFilePath = path.join(__dirname, '../../uploads', path.basename(applicant.localCvPath));
+    fs.unlink(localFilePath, () => undefined);
+  }
+
+  return true;
+}
+
 export const deleteApplicant = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const applicant = await prisma.applicant.findUnique({ where: { id } });
-    if (!applicant) return res.status(404).json({ error: 'Data pelamar tidak ditemukan' });
-
-    await prisma.experience.deleteMany({ where: { applicantId: id } });
-    await prisma.applicant.delete({ where: { id } });
-
-    if (applicant.localCvPath) {
-      const localFilePath = path.join(__dirname, '../../uploads', path.basename(applicant.localCvPath));
-      fs.unlink(localFilePath, () => undefined);
-    }
+    const deleted = await deleteApplicantCascade(id);
+    if (!deleted) return res.status(404).json({ error: 'Data pelamar tidak ditemukan' });
 
     res.json({ message: 'Data pelamar berhasil dihapus' });
   } catch (error) {
     console.error('Delete applicant error:', error);
     res.status(500).json({ error: 'Gagal menghapus data pelamar' });
+  }
+};
+
+export const bulkDeleteApplicants = async (req: Request, res: Response) => {
+  try {
+    const rawIds = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const ids = Array.from(new Set(rawIds.map((v: unknown) => String(v || '').trim()).filter(Boolean))) as string[];
+    if (ids.length === 0) {
+      return res.status(400).json({ error: 'Pilih minimal satu peserta untuk dihapus.' });
+    }
+
+    let deletedCount = 0;
+    for (const id of ids) {
+      const ok = await deleteApplicantCascade(id);
+      if (ok) deletedCount += 1;
+    }
+
+    return res.json({
+      message: `${deletedCount} data peserta berhasil dihapus.`,
+      deletedCount
+    });
+  } catch (error) {
+    console.error('Bulk delete applicants error:', error);
+    return res.status(500).json({ error: 'Gagal menghapus data peserta terpilih' });
   }
 };
 

@@ -163,7 +163,7 @@ export default function PesertaProfile() {
   const fieldValidationBorderClass = (valid: boolean) =>
     valid
       ? 'border-emerald-400 bg-emerald-50/15 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/10'
-      : 'border-rose-300 bg-rose-50/20 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10';
+      : 'border-slate-200 bg-white focus:border-primary-navy focus:ring-4 focus:ring-primary-navy/10';
 
   const renderValidationStatus = (valid: boolean, missingText = 'Wajib diisi', validText = 'Lengkap') =>
     valid ? (
@@ -188,7 +188,7 @@ export default function PesertaProfile() {
       className={`rounded-2xl border p-4 sm:p-6 space-y-4 transition-colors ${
         isFaceRegistered
           ? 'border-emerald-300/90 bg-emerald-50/25'
-          : 'border-rose-300 bg-rose-50/30'
+          : 'border-slate-200 bg-slate-50/40'
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
@@ -681,14 +681,14 @@ export default function PesertaProfile() {
               className={`rounded-xl border p-3.5 space-y-2 ${
                 completedItemsCount === 7
                   ? 'border-emerald-200 bg-emerald-50/40'
-                  : 'border-rose-200 bg-rose-50/30'
+                  : 'border-slate-200 bg-slate-50/60'
               }`}
             >
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-slate-700">Kelengkapan identitas &amp; foto resmi</span>
                 <span
                   className={`font-mono font-bold flex items-center gap-1 ${
-                    completedItemsCount === 7 ? 'text-emerald-700' : 'text-rose-600'
+                    completedItemsCount === 7 ? 'text-emerald-700' : 'text-primary-navy'
                   }`}
                 >
                   {completedItemsCount === 7 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
@@ -698,13 +698,13 @@ export default function PesertaProfile() {
               <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-300 ${
-                    completedItemsCount === 7 ? 'bg-emerald-600' : 'bg-rose-500'
+                    completedItemsCount === 7 ? 'bg-emerald-600' : 'bg-primary-navy'
                   }`}
                   style={{ width: `${(completedItemsCount / 7) * 100}%` }}
                 />
               </div>
               <p className="text-[11px] text-slate-600">
-                Kolom bertanda <span className="text-rose-600 font-bold">*</span> wajib dilengkapi (merah = belum valid/kosong, hijau checklist = sudah lengkap).
+                Kolom bertanda <span className="text-rose-600 font-bold">*</span> wajib dilengkapi (hijau checklist = sudah lengkap).
               </p>
             </div>
 

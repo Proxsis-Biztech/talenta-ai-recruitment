@@ -402,6 +402,7 @@ export default function PesertaAsesmenList() {
         } catch {}
         return next;
       });
+      setShowLiveCoding(false);
     },
     [activeProgramCode, liveCodingStorageKey]
   );
@@ -641,8 +642,9 @@ export default function PesertaAsesmenList() {
               (isCatCompleted ? 1 : 0) +
               (isLiveCodingCompleted ? 1 : 0) +
               (isInterviewCompleted ? 1 : 0);
+            const isTechnicalExamCompleted = isCatCompleted && isLiveCodingCompleted;
             const overallPct =
-              isCatCompleted && isInterviewCompleted
+              isTechnicalExamCompleted && isInterviewCompleted
                 ? 100
                 : Math.round((doneUnits / (totalUnits || 1)) * 100);
 
@@ -956,12 +958,18 @@ export default function PesertaAsesmenList() {
                     <div className="flex items-center gap-3 shrink-0">
                       <span
                         className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-md ${
-                          isCatCompleted
+                          isTechnicalExamCompleted
                             ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-blue-50 text-[#0F275C]'
+                            : isCatCompleted
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-blue-50 text-[#0F275C]'
                         }`}
                       >
-                        {isCatCompleted ? 'CAT SELESAI' : 'SIAP DIKERJAKAN'}
+                        {isTechnicalExamCompleted
+                          ? 'SELESAI'
+                          : isCatCompleted
+                            ? 'LANJUT LIVE CODING'
+                            : 'SIAP DIKERJAKAN'}
                       </span>
                       {openSections.ujian ? (
                         <ChevronUp className="w-4 h-4 text-slate-400" />
@@ -1011,15 +1019,6 @@ export default function PesertaAsesmenList() {
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0 justify-end">
-                          {!isCatCompleted && (
-                            <button
-                              type="button"
-                              onClick={() => navigate('/peserta/device-check')}
-                              className="px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
-                            >
-                              Cek Perangkat
-                            </button>
-                          )}
                           <button
                             type="button"
                             onClick={() =>
