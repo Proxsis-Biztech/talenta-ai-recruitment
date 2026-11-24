@@ -153,7 +153,7 @@ export default function UserManagement() {
         return {
           id: user.id,
           name: user.name,
-          username: user.email,
+          username: user.email?.endsWith('@username.local') && user.username ? user.username : user.email,
           password: '',
           phone: user.phone || '',
           companyId: user.companyId || '',
@@ -219,7 +219,7 @@ export default function UserManagement() {
       const list = (response.data.data || []).map((user: any): AsesorUser => ({
         id: user.id,
         name: user.name,
-        username: user.email,
+        username: user.email?.endsWith('@username.local') && user.username ? user.username : user.email,
         password: '',
         phone: user.phone || '',
         specialization: user.specialization || '',
@@ -432,9 +432,10 @@ export default function UserManagement() {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
+        const loginInput = pesertaFormUsername.trim();
         const res = await axios.post('/api/admin/portal-users', {
           ...payload,
-          email: pesertaFormUsername,
+          ...(loginInput.includes('@') ? { email: loginInput } : { username: loginInput }),
           ...(pesertaFormPassword.trim() ? { password: pesertaFormPassword.trim() } : { activationMode: 'email_link' }),
           role: 'peserta'
         }, { headers: { Authorization: `Bearer ${token}` } });
@@ -461,14 +462,15 @@ export default function UserManagement() {
           : fallbackActivationUrl
             ? `<div class="text-left text-xs space-y-2">
                  <p>Akun <b>${pesertaFormUsername}</b> dibuat dengan aktivasi mandiri.</p>
-                 <p class="text-slate-500">Salin tautan aktivasi berikut bila email outbox lokal digunakan:</p>
+                 <p class="text-slate-500">Salin tautan aktivasi berikut untuk dibagikan kepada peserta:</p>
                  <input readonly value="${fallbackActivationUrl}" onclick="this.select()" class="w-full px-2.5 py-1.5 border rounded font-mono text-[11px] bg-slate-50" />
                </div>`
             : `Akun <b>${pesertaFormUsername}</b> berhasil didaftarkan dan tautan aktivasi akun telah dikirim ke email peserta.`,
         ...(fallbackActivationUrl ? { showConfirmButton: true, confirmButtonText: 'Tutup' } : { timer: 2800, showConfirmButton: false })
       });
     } catch (err: any) {
-      setPesertaFormError(err.message || 'Gagal mendaftarkan akun peserta.');
+      const apiMsg = axios.isAxiosError(err) ? err.response?.data?.error : undefined;
+      setPesertaFormError(apiMsg || err?.message || 'Gagal mendaftarkan akun peserta.');
     }
   };
 
@@ -592,9 +594,10 @@ export default function UserManagement() {
     try {
       const token = localStorage.getItem('adminToken');
       const company = companyOptions.find((item) => item.id === asesorFormCompanyId);
+      const asesorLogin = asesorFormUsername.trim();
       await axios.post('/api/admin/portal-users', {
         name: asesorFormName,
-        email: asesorFormUsername,
+        ...(asesorLogin.includes('@') ? { email: asesorLogin } : { username: asesorLogin }),
         password: asesorFormPassword,
         phone: asesorFormPhone,
         role: 'asesor',
@@ -621,7 +624,8 @@ export default function UserManagement() {
         showConfirmButton: false
       });
     } catch (err: any) {
-      setAsesorFormError(err.message || 'Gagal mendaftarkan akun asesor.');
+      const apiMsg = axios.isAxiosError(err) ? err.response?.data?.error : undefined;
+      setAsesorFormError(apiMsg || err?.message || 'Gagal mendaftarkan akun asesor.');
     }
   };
 

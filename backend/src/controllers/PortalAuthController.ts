@@ -13,6 +13,14 @@ import { getLhaVersionMeta } from '../services/lhaGovernanceService';
 const prisma = new PrismaClient();
 
 const emailSchema = z.string().trim().email('Format email tidak valid').toLowerCase();
+const usernameSchema = z
+  .string()
+  .trim()
+  .min(3, 'Username minimal 3 karakter')
+  .max(50, 'Username maksimal 50 karakter')
+  .regex(/^[a-zA-Z0-9._-]+$/, 'Username hanya boleh berisi huruf, angka, titik (.), garis bawah (_), atau strip (-).')
+  .toLowerCase();
+const isSyntheticLocalEmail = (email: string): boolean => email.endsWith('@username.local');
 const passwordSchema = z.string().min(8, 'Kata sandi minimal 8 karakter');
 
 const userSelect = {
@@ -744,19 +752,41 @@ export const issueUserActivationToken = async (user: {
     }
   });
   const activationUrl = `${appBaseUrl()}/login?activate=${token}`;
-  const mail = await sendActivationEmail(
-    user.email,
-    user.name,
-    token,
-    activationUrl,
-    user.assessmentTitle || user.assessmentId || undefined
-  );
+  const mail = isSyntheticLocalEmail(user.email)
+    ? { delivered: false, provider: 'username_only' }
+    : await sendActivationEmail(
+        user.email,
+        user.name,
+        token,
+        activationUrl,
+        user.assessmentTitle || user.assessmentId || undefined
+      );
   return { mail, token, activationUrl };
 };
 
 export const createPortalUser = async (req: AuthRequest, res: Response) => {
   try {
-    const email = emailSchema.parse(req.body.email);
+    const rawLogin = String(req.body.email ?? req.body.username ?? '').trim();
+    if (!rawLogin) {
+      return res.status(400).json({ error: 'Username atau email login wajib diisi.' });
+    }
+    const name = String(req.body.name || '').trim();
+    if (!name) {
+      return res.status(400).json({ error: 'Nama lengkap wajib diisi.' });
+    }
+
+    let email: string;
+    let username: string | null = null;
+    if (rawLogin.includes('@')) {
+      email = emailSchema.parse(rawLogin);
+      if (req.body.username && String(req.body.username).trim()) {
+        username = usernameSchema.parse(String(req.body.username));
+      }
+    } else {
+      username = usernameSchema.parse(rawLogin);
+      email = `${username}@username.local`;
+    }
+
     const rawPassword = typeof req.body.password === 'string' ? req.body.password.trim() : '';
     const role = String(req.body.role || 'peserta');
     if (!['peserta', 'asesor'].includes(role)) {
@@ -767,9 +797,18 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
       ? crypto.randomBytes(32).toString('hex')
       : passwordSchema.parse(rawPassword);
 
-    const existing = await prisma.portalUser.findUnique({ where: { email } });
+    const existing = await prisma.portalUser.findFirst({
+      where: {
+        OR: [
+          { email },
+          ...(username ? [{ username }] : [])
+        ]
+      }
+    });
     if (existing) {
-      return res.status(409).json({ error: 'Email sudah digunakan.' });
+      return res.status(409).json({
+        error: isSyntheticLocalEmail(email) ? 'Username sudah digunakan.' : 'Email atau username sudah digunakan.'
+      });
     }
 
     const resolvedTenantId =
@@ -781,8 +820,8 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
       data: {
         email,
         password: await bcrypt.hash(password, 10),
-        name: String(req.body.name || '').trim(),
-        username: req.body.username ? String(req.body.username).trim() : null,
+        name,
+        username,
         role,
         tenantId: resolvedTenantId,
         profileCompleted: role !== 'peserta',
@@ -835,7 +874,7 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
             devActivationToken = activation.token;
           }
         }
-      } else {
+      } else if (!isSyntheticLocalEmail(user.email)) {
         mail = await sendCredentialsEmail(user.email, user.name, {
           loginUrl: `${appBaseUrl()}/login`,
           programTitle: user.assessmentTitle || user.assessmentId || undefined,
