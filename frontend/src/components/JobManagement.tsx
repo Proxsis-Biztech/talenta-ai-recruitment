@@ -14,7 +14,7 @@ import {
   Badge,
   Input,
   Select,
-  Textarea,
+  Checkbox,
   Table,
   TableHeader,
   TableBody,
@@ -34,13 +34,6 @@ import {
   INITIAL_MATERI_LIST, 
   type MasterMateriItem 
 } from './admin/AdminMasterMateriTree';
-import {
-  QuestionFormFields,
-  syncProgramQuestions,
-  createQuestionId,
-  type BankQuestion,
-  type QuestionCategory
-} from './admin/AdminBankSoalEditor';
 import { loadMasterScope, saveMasterRecord } from '../services/masterDataService';
 import {
   INITIAL_COMPANIES,
@@ -137,9 +130,14 @@ function questionTypeLabel(t: QuestionItem['type']): string {
     : 'Matching';
 }
 
-export default function JobManagement() {
+interface JobManagementProps {
+  onOpenMateriAndSoal?: (programCode: string, companyName?: string) => void;
+}
+
+export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProps = {}) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [companies, setCompanies] = useState<CompanyItem[]>(INITIAL_COMPANIES);
+  const [companyProgramLinks, setCompanyProgramLinks] = useState<Record<string, string[]>>({});
   const [bankSoalQuestions, setBankSoalQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -148,7 +146,7 @@ export default function JobManagement() {
 
   // Add Job Modal State
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyIds, setNewCompanyIds] = useState<string[]>([]);
   const [newCode, setNewCode] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -162,7 +160,7 @@ export default function JobManagement() {
 
   // Edit Job Modal State
   const [editingJob, setEditingJob] = useState<Job | null>(null);
-  const [editCompanyName, setEditCompanyName] = useState('');
+  const [editCompanyIds, setEditCompanyIds] = useState<string[]>([]);
   const [editCode, setEditCode] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -173,22 +171,6 @@ export default function JobManagement() {
   const [editAssessmentEndDate, setEditAssessmentEndDate] = useState('');
   const [editError, setEditError] = useState('');
   const [editLoading, setEditLoading] = useState(false);
-
-  // Add Materi / Add Soal modals inside Edit Program Asesmen
-  const [isEditMateriModalOpen, setIsEditMateriModalOpen] = useState(false);
-  const [matTitle, setMatTitle] = useState('');
-  const [matCategory, setMatCategory] = useState('Panduan & Kisi-Kisi Asesmen');
-  const [matCompetency, setMatCompetency] = useState('');
-  const [matType, setMatType] = useState<MasterMateriItem['type']>('Studi Kasus');
-  const [matContent, setMatContent] = useState('');
-  const [matRubric, setMatRubric] = useState('Skala penilaian BARS 1-5 berdasarkan ketepatan analisis dan kesiapan solusi.');
-  const [matIndicatorsText, setMatIndicatorsText] = useState(
-    'Memahami alur pengerjaan dan struktur soal asesmen\nMampu menjelaskan alasan dan mitigasi risiko secara terstruktur'
-  );
-  const [matStatus, setMatStatus] = useState<'Aktif' | 'Draft' | 'Reviu'>('Aktif');
-
-  const [isEditQuestionModalOpen, setIsEditQuestionModalOpen] = useState(false);
-  const [newEditQuestion, setNewEditQuestion] = useState<BankQuestion | null>(null);
 
   // Details Modal State (Soal, Materi, Rubrik)
   type DetailedQuestion = QuestionItem & { category?: 'psikotes' | 'kompetensi' };
@@ -443,10 +425,128 @@ export default function JobManagement() {
     void loadCompanyDirectory().then((list) => {
       if (!cancelled && list.length > 0) setCompanies(list);
     });
+    void loadMasterScope<any>('company')
+      .then((data) => {
+        if (!cancelled && data?.programLinks && typeof data.programLinks === 'object') {
+          const normalized: Record<string, string[]> = {};
+          for (const [k, v] of Object.entries(data.programLinks)) {
+            if (Array.isArray(v)) normalized[k] = v.map((item) => String(item).toUpperCase());
+          }
+          setCompanyProgramLinks(normalized);
+        }
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const syncCompanyProgramLinks = async (
+    linkKey: string,
+    selectedCompanyIds: string[],
+    previousLinkKey?: string
+  ) => {
+    const normalizedKey = linkKey.trim().toUpperCase();
+    const normalizedPrev = previousLinkKey ? previousLinkKey.trim().toUpperCase() : '';
+    if (!normalizedKey) return;
+
+    let baseLinks: Record<string, string[]> = { ...companyProgramLinks };
+    try {
+      const remote = await loadMasterScope<any>('company');
+      if (remote?.programLinks && typeof remote.programLinks === 'object') {
+        const parsed: Record<string, string[]> = {};
+        for (const [k, v] of Object.entries(remote.programLinks)) {
+          if (Array.isArray(v)) parsed[k] = v.map((item) => String(item).toUpperCase());
+        }
+        baseLinks = parsed;
+      }
+    } catch {
+      // keep local baseLinks
+    }
+
+    const nextLinks: Record<string, string[]> = { ...baseLinks };
+    for (const company of companies) {
+      const existing = (nextLinks[company.id] || []).filter(
+        (code) => code !== normalizedKey && (!normalizedPrev || code !== normalizedPrev)
+      );
+      if (selectedCompanyIds.includes(company.id)) {
+        nextLinks[company.id] = Array.from(new Set([...existing, normalizedKey]));
+      } else {
+        nextLinks[company.id] = existing;
+      }
+    }
+
+    setCompanyProgramLinks(nextLinks);
+    try {
+      localStorage.setItem('talenta_company_program_links_v1', JSON.stringify(nextLinks));
+    } catch {
+      // ignore storage errors
+    }
+    await saveMasterRecord('company', 'programLinks', nextLinks).catch(() => undefined);
+  };
+
+  const renderCompanyChecklist = (
+    selectedIds: string[],
+    onToggle: (companyId: string) => void,
+    onSelectAll: () => void,
+    onClear: () => void
+  ) => (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className="block text-sm font-semibold text-slate-800">
+          Perusahaan (PT) Mitra
+        </label>
+        <div className="flex items-center gap-2 text-[11px]">
+          <span className="font-semibold text-primary-navy bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+            {selectedIds.length} PT dipilih
+          </span>
+          <button
+            type="button"
+            onClick={onSelectAll}
+            className="text-primary-navy font-semibold hover:underline cursor-pointer"
+          >
+            Pilih Semua
+          </button>
+          {selectedIds.length > 0 && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-slate-500 font-semibold hover:underline cursor-pointer"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="max-h-44 overflow-y-auto space-y-1.5 p-2.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+        {companies.map((c) => {
+          const checked = selectedIds.includes(c.id);
+          return (
+            <label
+              key={c.id}
+              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-colors ${
+                checked
+                  ? 'bg-blue-50/80 border-blue-300 text-slate-900'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <Checkbox
+                checked={checked}
+                onCheckedChange={() => onToggle(c.id)}
+              />
+              <span className="font-mono text-[11px] font-semibold text-primary-navy shrink-0">
+                [{c.id}]
+              </span>
+              <span className="text-xs font-medium truncate">{c.name}</span>
+            </label>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-slate-500">
+        Centang satu atau beberapa Perusahaan (PT) mitra yang terhubung ke program asesmen ini.
+      </p>
+    </div>
+  );
 
   const handleAddJob = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -458,13 +558,18 @@ export default function JobManagement() {
       setAddError('Deskripsi / job deskripsi wajib diisi.');
       return;
     }
-    const finalTitle = applyCompanyToTitle(newTitle, newCompanyName);
+    const selectedCompanies = companies.filter((c) => newCompanyIds.includes(c.id));
+    const finalTitle =
+      selectedCompanies.length === 1
+        ? applyCompanyToTitle(newTitle, selectedCompanies[0].name)
+        : newTitle.trim();
     setAddLoading(true);
     setAddError('');
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.post('/api/admin/jobs', {
-        code: newCode.trim() ? newCode.trim().toUpperCase() : null,
+      const normalizedCode = newCode.trim() ? newCode.trim().toUpperCase() : null;
+      const response = await axios.post('/api/admin/jobs', {
+        code: normalizedCode,
         title: finalTitle,
         description: newDescription.trim(),
         status: newStatus,
@@ -476,8 +581,14 @@ export default function JobManagement() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      const createdJob = response.data?.data;
+      const linkKey = String(createdJob?.code || normalizedCode || createdJob?.id || '').trim().toUpperCase();
+      if (linkKey && newCompanyIds.length > 0) {
+        await syncCompanyProgramLinks(linkKey, newCompanyIds);
+      }
+
       setShowAddModal(false);
-      setNewCompanyName('');
+      setNewCompanyIds([]);
       setNewCode('');
       setNewTitle('');
       setNewDescription('');
@@ -503,8 +614,11 @@ export default function JobManagement() {
 
   const openEditModal = (job: Job) => {
     setEditingJob(job);
-    const matchedComp = companies.find((c) => companyMatchesName(c.name, job.title));
-    setEditCompanyName(matchedComp ? matchedComp.name : '');
+    const linkKey = String(job.code || job.id || '').trim().toUpperCase();
+    const preselectedIds = companies
+      .filter((c) => companyMatchesName(c.name, job.title) || (companyProgramLinks[c.id] || []).includes(linkKey))
+      .map((c) => c.id);
+    setEditCompanyIds(preselectedIds);
     setEditCode(job.code || '');
     setEditTitle(job.title);
     setEditDescription(job.description || '');
@@ -526,10 +640,22 @@ export default function JobManagement() {
     setEditLoading(true);
     setEditError('');
     try {
-      const finalEditTitle = applyCompanyToTitle(editTitle, editCompanyName);
+      const selectedCompanies = companies.filter((c) => editCompanyIds.includes(c.id));
+      const parenMatch = editTitle.match(/\(([^)]+)\)\s*$/);
+      const parenMatchesCompany =
+        Boolean(parenMatch) && companies.some((c) => companyMatchesName(c.name, parenMatch?.[1]));
+      const baseTitle = parenMatchesCompany
+        ? editTitle.replace(/\s*\([^)]+\)\s*$/, '').trim()
+        : editTitle.trim();
+      const finalEditTitle =
+        selectedCompanies.length === 1
+          ? applyCompanyToTitle(baseTitle, selectedCompanies[0].name)
+          : baseTitle;
+
       const token = localStorage.getItem('adminToken');
+      const nextCode = editCode.trim() ? editCode.trim().toUpperCase() : null;
       await axios.put(`/api/admin/jobs/${editingJob.id}`, {
-        code: editCode.trim() ? editCode.trim().toUpperCase() : null,
+        code: nextCode,
         title: finalEditTitle,
         description: editDescription.trim(),
         status: editStatus,
@@ -540,6 +666,10 @@ export default function JobManagement() {
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
+
+      const nextLinkKey = String(nextCode || editingJob.id || '').trim().toUpperCase();
+      const prevLinkKey = String(editingJob.code || editingJob.id || '').trim().toUpperCase();
+      await syncCompanyProgramLinks(nextLinkKey, editCompanyIds, prevLinkKey);
 
       setEditingJob(null);
       Swal.fire({
@@ -573,158 +703,6 @@ export default function JobManagement() {
       (q) => (q.programCode || 'SE-402').toUpperCase() === resolvedEditProgramCode
     ).length;
   }, [editingJob, resolvedEditProgramCode, bankSoalQuestions]);
-
-  const openEditAddMateriModal = () => {
-    setMatTitle('');
-    setMatCategory('Panduan & Kisi-Kisi Asesmen');
-    setMatCompetency('');
-    setMatType('Studi Kasus');
-    setMatContent('');
-    setMatRubric('Skala penilaian BARS 1-5 berdasarkan ketepatan analisis dan kesiapan solusi.');
-    setMatIndicatorsText(
-      'Memahami alur pengerjaan dan struktur soal asesmen\nMampu menjelaskan alasan dan mitigasi risiko secara terstruktur'
-    );
-    setMatStatus('Aktif');
-    setIsEditMateriModalOpen(true);
-  };
-
-  const handleSaveEditMateri = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingJob || !matTitle.trim()) return;
-    const programCode = resolvedEditProgramCode;
-    const matchedComp = companies.find((c) => companyMatchesName(c.name, editCompanyName || editTitle || editingJob.title));
-    const companyName = matchedComp?.name || editCompanyName || 'PT Mitra';
-    const companyId = matchedComp?.id || 'PT-GENERAL';
-    const indicators = matIndicatorsText
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const newItem: MasterMateriItem = {
-      id: `mat-${Date.now()}`,
-      code: programCode,
-      title: matTitle.trim(),
-      category: matCategory.trim() || 'Panduan Asesmen',
-      competency: matCompetency.trim() || undefined,
-      companyId,
-      companyName,
-      assessmentType: 'Technical & Hard Competency',
-      assessmentLevel: 'Level 2: Mid-Level / Professional Specialist',
-      type: matType,
-      version: 'v1.0',
-      content: matContent.trim() || 'Panduan persiapan pengerjaan asesmen.',
-      rubric: matRubric.trim() || 'Skala penilaian BARS 1-5.',
-      behavioralIndicators:
-        indicators.length > 0 ? indicators : ['Memahami instruksi dan kisi-kisi pengerjaan asesmen'],
-      status: matStatus,
-      updatedAt: new Date().toISOString().split('T')[0]
-    };
-
-    const currentPool = serverMateri !== null ? serverMateri : getPersistedMasterMateri();
-    const updatedPool = [newItem, ...currentPool];
-    setServerMateri(updatedPool);
-    try {
-      localStorage.setItem('talenta_master_materi_table_v2', JSON.stringify(updatedPool));
-    } catch {
-      // ignore storage errors
-    }
-    await saveMasterRecord('materi', 'table', updatedPool).catch(() => undefined);
-    setIsEditMateriModalOpen(false);
-    Swal.fire({
-      icon: 'success',
-      title: 'Materi Ditambahkan',
-      text: `Panduan materi "${newItem.title}" tersimpan untuk ${programCode}.`,
-      timer: 1800,
-      showConfirmButton: false
-    });
-  };
-
-  const openEditAddQuestionModal = () => {
-    if (!editingJob) return;
-    const programCode = resolvedEditProgramCode;
-    const category: QuestionCategory = 'kompetensi';
-    const newQ: BankQuestion = {
-      id: createQuestionId(category),
-      category,
-      type: 'Pilihan Ganda',
-      programCode,
-      text: '',
-      competency: 'System Architecture',
-      difficulty: 'Sedang',
-      status: 'Published',
-      pValue: 0.5,
-      distractorStats: [
-        { label: 'A (Kunci)', pct: 50 },
-        { label: 'B', pct: 20 },
-        { label: 'C', pct: 15 },
-        { label: 'D', pct: 15 }
-      ],
-      options: [
-        { key: 'A', text: 'Opsi Jawaban Benar (Kunci)', isCorrect: true },
-        { key: 'B', text: 'Distraktor 1', isCorrect: false },
-        { key: 'C', text: 'Distraktor 2', isCorrect: false },
-        { key: 'D', text: 'Distraktor 3', isCorrect: false }
-      ],
-      explanation: 'Pembahasan kunci jawaban terstandar.'
-    };
-    setNewEditQuestion(newQ);
-    setIsEditQuestionModalOpen(true);
-  };
-
-  const handleEditQuestionAttachmentUpload = async (file: File) => {
-    if (!newEditQuestion) return;
-    const token = localStorage.getItem('adminToken');
-    if (!token) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('programCode', resolvedEditProgramCode);
-    try {
-      const response = await axios.post('/api/admin/questions/attachment', formData, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
-      });
-      const stored = response.data?.data;
-      if (!stored) return;
-      setNewEditQuestion((prev) =>
-        prev
-          ? {
-              ...prev,
-              attachmentUrl: stored.url,
-              attachmentName: stored.name,
-              attachmentMime: stored.mime
-            }
-          : prev
-      );
-    } catch {
-      Swal.fire('Gagal', 'Lampiran soal gagal diunggah.', 'error');
-    }
-  };
-
-  const handleSaveEditQuestion = async () => {
-    if (!editingJob || !newEditQuestion) return;
-    if (!newEditQuestion.text.trim()) {
-      Swal.fire('Perhatian', 'Teks pertanyaan tidak boleh kosong.', 'warning');
-      return;
-    }
-    const programCode = resolvedEditProgramCode;
-    const normalizedQ: BankQuestion = {
-      ...newEditQuestion,
-      programCode,
-      category: newEditQuestion.category === 'psikotes' ? 'psikotes' : 'kompetensi'
-    };
-    const nextQuestions = [normalizedQ, ...bankSoalQuestions];
-    setBankSoalQuestions(nextQuestions);
-    await saveMasterRecord('bank-soal', 'questions', nextQuestions).catch(() => undefined);
-    await syncProgramQuestions(programCode, nextQuestions as BankQuestion[]).catch(() => undefined);
-    setIsEditQuestionModalOpen(false);
-    setNewEditQuestion(null);
-    Swal.fire({
-      icon: 'success',
-      title: 'Soal Ditambahkan',
-      text: `Butir soal ${normalizedQ.id} tersimpan ke Bank Soal ${programCode}.`,
-      timer: 1800,
-      showConfirmButton: false
-    });
-  };
 
   // Distribusi tipe soal dinamis sesuai kategori aktif (Psikotes / Uji Kompetensi)
   const detailQuestionCounts = useMemo(() => {
@@ -1130,21 +1108,15 @@ export default function JobManagement() {
             </div>
           )}
 
-          <div>
-            <Select
-              label="Perusahaan (PT) Mitra"
-              value={newCompanyName}
-              onChange={(e) => setNewCompanyName(e.target.value)}
-            >
-              <option value="">-- Pilih Perusahaan (atau ketik manual di judul) --</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.name}>
-                  [{c.id}] {c.name}
-                </option>
-              ))}
-            </Select>
-            <p className="text-[11px] text-slate-500 mt-1">Program akan otomatis terhubung ke card Perusahaan (PT) yang dipilih.</p>
-          </div>
+          {renderCompanyChecklist(
+            newCompanyIds,
+            (companyId) =>
+              setNewCompanyIds((prev) =>
+                prev.includes(companyId) ? prev.filter((id) => id !== companyId) : [...prev, companyId]
+              ),
+            () => setNewCompanyIds(companies.map((c) => c.id)),
+            () => setNewCompanyIds([])
+          )}
 
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">
@@ -1294,26 +1266,15 @@ export default function JobManagement() {
                   </div>
                 )}
 
-                <div>
-                  <Select
-                    label="Perusahaan (PT) Mitra"
-                    value={editCompanyName}
-                    onChange={(e) => {
-                      const nextPt = e.target.value;
-                      setEditCompanyName(nextPt);
-                      if (nextPt) {
-                        setEditTitle((prev) => applyCompanyToTitle(prev.replace(/\s*\([^)]+\)\s*$/, ''), nextPt));
-                      }
-                    }}
-                  >
-                    <option value="">-- Tanpa PT Khusus / Lainnya --</option>
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.name}>
-                        [{c.id}] {c.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
+                {renderCompanyChecklist(
+                  editCompanyIds,
+                  (companyId) =>
+                    setEditCompanyIds((prev) =>
+                      prev.includes(companyId) ? prev.filter((id) => id !== companyId) : [...prev, companyId]
+                    ),
+                  () => setEditCompanyIds(companies.map((c) => c.id)),
+                  () => setEditCompanyIds([])
+                )}
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-800 mb-1.5">Judul Posisi Pekerjaan</label>
@@ -1408,7 +1369,7 @@ export default function JobManagement() {
                   </Select>
                 </div>
 
-                {/* Materi & Soal Quick Actions */}
+                {/* Materi & Soal Combined Navigation Action */}
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold text-slate-900">
@@ -1419,26 +1380,25 @@ export default function JobManagement() {
                       <strong className="font-mono text-slate-800">{editProgramQuestionCount} Butir Soal CAT</strong>
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="sm"
-                      onClick={openEditAddMateriModal}
-                      leftIcon={<BookOpen className="w-3.5 h-3.5" />}
-                    >
-                      Tambah Materi
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="sm"
-                      onClick={openEditAddQuestionModal}
-                      leftIcon={<Plus className="w-3.5 h-3.5" />}
-                    >
-                      Tambah Soal
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      const targetCode = resolvedEditProgramCode;
+                      const firstCompany = companies.find((c) => editCompanyIds.includes(c.id))?.name;
+                      setEditingJob(null);
+                      if (onOpenMateriAndSoal) {
+                        onOpenMateriAndSoal(targetCode, firstCompany);
+                      } else if (editingJob) {
+                        void handleOpenDetailModal(editingJob, 'materi');
+                      }
+                    }}
+                    leftIcon={<BookOpen className="w-3.5 h-3.5" />}
+                    className="shrink-0"
+                  >
+                    Tambah Materi &amp; Soal
+                  </Button>
                 </div>
 
               </form>
@@ -1470,132 +1430,6 @@ export default function JobManagement() {
           </div>
         </Modal>
       )}
-
-      {/* Modal Tambah Panduan Materi dari Edit Program Asesmen */}
-      <Modal
-        isOpen={isEditMateriModalOpen}
-        onClose={() => setIsEditMateriModalOpen(false)}
-        title={`Tambah Panduan Materi [${resolvedEditProgramCode}]`}
-        description="Panduan ini ditampilkan ke peserta sebagai bahan persiapan dan kisi-kisi sebelum mengerjakan asesmen."
-        size="lg"
-      >
-        <form onSubmit={handleSaveEditMateri} className="p-2 space-y-3.5 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Judul Panduan Materi *"
-              value={matTitle}
-              onChange={(e) => setMatTitle(e.target.value)}
-              placeholder="Contoh: Panduan Pengerjaan Uji Kasus Arsitektur Sistem"
-              required
-            />
-            <Input
-              label="Kompetensi Utama"
-              value={matCompetency}
-              onChange={(e) => setMatCompetency(e.target.value)}
-              placeholder="Contoh: System Architecture & Risk Mitigation"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Input
-              label="Kategori"
-              value={matCategory}
-              onChange={(e) => setMatCategory(e.target.value)}
-              placeholder="Panduan & Kisi-Kisi Asesmen"
-            />
-            <Select
-              label="Format Panduan"
-              value={matType}
-              onChange={(e) => setMatType(e.target.value as MasterMateriItem['type'])}
-            >
-              <option value="Studi Kasus">Studi Kasus</option>
-              <option value="Teori">Teori</option>
-              <option value="Algoritma">Algoritma</option>
-              <option value="Praktikum">Praktikum</option>
-            </Select>
-            <Select
-              label="Status Publikasi"
-              value={matStatus}
-              onChange={(e) => setMatStatus(e.target.value as 'Aktif' | 'Draft' | 'Reviu')}
-            >
-              <option value="Aktif">Aktif (Tampil ke Peserta)</option>
-              <option value="Draft">Draft (Internal Admin)</option>
-              <option value="Reviu">Reviu</option>
-            </Select>
-          </div>
-
-          <Textarea
-            label="Ringkasan Materi & Kisi-Kisi Asesmen"
-            rows={3}
-            value={matContent}
-            onChange={(e) => setMatContent(e.target.value)}
-            placeholder="Jelaskan pokok bahasan, alur pengerjaan ujian, dan hal yang harus dipersiapkan peserta..."
-          />
-
-          <Textarea
-            label="Rubrik Penilaian Asesor (BARS)"
-            rows={2}
-            value={matRubric}
-            onChange={(e) => setMatRubric(e.target.value)}
-          />
-
-          <Textarea
-            label="Indikator Kompetensi (1 poin per baris)"
-            rows={3}
-            value={matIndicatorsText}
-            onChange={(e) => setMatIndicatorsText(e.target.value)}
-          />
-
-          <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsEditMateriModalOpen(false)}>
-              Batal
-            </Button>
-            <Button type="submit" variant="primary" size="sm">
-              Simpan Panduan Materi
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal Tambah Butir Soal dari Edit Program Asesmen */}
-      <Modal
-        isOpen={isEditQuestionModalOpen && Boolean(newEditQuestion)}
-        onClose={() => {
-          setIsEditQuestionModalOpen(false);
-          setNewEditQuestion(null);
-        }}
-        title={`Tambah Butir Soal CAT [${resolvedEditProgramCode}]`}
-        description="Buat butir soal psikotes atau uji kompetensi baru untuk program asesmen ini."
-        size="xl"
-      >
-        {newEditQuestion && (
-          <div className="p-2 max-h-[70vh] overflow-y-auto pr-1">
-            <QuestionFormFields
-              question={newEditQuestion}
-              onChange={(patch) => setNewEditQuestion((prev) => (prev ? { ...prev, ...patch } : prev))}
-              onSave={() => void handleSaveEditQuestion()}
-              onCancel={() => {
-                setIsEditQuestionModalOpen(false);
-                setNewEditQuestion(null);
-              }}
-              onUploadAttachment={(file) => void handleEditQuestionAttachmentUpload(file)}
-              onRemoveAttachment={() =>
-                setNewEditQuestion((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        attachmentUrl: null,
-                        attachmentName: null,
-                        attachmentMime: null
-                      }
-                    : prev
-                )
-              }
-              headerLabel={`Tambah Butir Soal — ${resolvedEditProgramCode}`}
-            />
-          </div>
-        )}
-      </Modal>
 
       {/* Detail Soal & Materi Program Asesmen Modal */}
       {selectedJobDetail && (

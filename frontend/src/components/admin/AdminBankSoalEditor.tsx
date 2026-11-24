@@ -216,7 +216,7 @@ const INITIAL_QUESTIONS: BankQuestion[] = [
 ];
 
 
-export const syncProgramQuestions = async (programCode: string, allQuestions: BankQuestion[]) => {
+const syncProgramQuestions = async (programCode: string, allQuestions: BankQuestion[]) => {
   const token = localStorage.getItem('adminToken');
   if (!token) return;
   const programQuestions = allQuestions.filter(
@@ -276,11 +276,11 @@ const DEFAULT_CATEGORY_TYPES: Record<QuestionCategory, BankQuestion['type'][]> =
 const getQuestionCategory = (question: Pick<BankQuestion, 'category'>): QuestionCategory =>
   question.category === 'psikotes' ? 'psikotes' : 'kompetensi';
 
-export const createQuestionId = (category: QuestionCategory): string =>
+const createQuestionId = (category: QuestionCategory): string =>
   `${category === 'psikotes' ? 'PSI' : 'SOAL'}-${Math.floor(400 + Math.random() * 500)}`;
 
 
-export const QuestionFormFields = memo(function QuestionFormFields({
+const QuestionFormFields = memo(function QuestionFormFields({
   question,
   onChange,
   onPatch,
@@ -542,12 +542,14 @@ export interface AdminBankSoalEditorProps {
   initialProgramCode?: string;
   initialCompanyName?: string;
   initialFocus?: 'materi' | 'bank-soal';
+  onBackToPrograms?: () => void;
 }
 
 export function AdminBankSoalEditor({
   initialProgramCode,
   initialCompanyName,
-  initialFocus
+  initialFocus,
+  onBackToPrograms
 }: AdminBankSoalEditorProps = {}) {
   const [viewMode, setViewMode] = useState<'programs' | 'table' | 'editor' | 'stats' | 'factsheet'>(
     initialProgramCode ? 'table' : 'programs'
@@ -635,10 +637,12 @@ export function AdminBankSoalEditor({
         if (cancelled) return;
         const merged = getAllPrograms();
         for (const job of response.data?.data || []) {
-          if (!job.code) continue;
-          if (!merged.some((program) => program.id === job.code)) {
+          const jobCodeOrId = String(job.code || job.id || '').toUpperCase();
+          if (!job.code && jobCodeOrId !== String(initialProgramCode || '').toUpperCase()) continue;
+          const targetId = job.code || jobCodeOrId;
+          if (!merged.some((program) => program.id.toUpperCase() === targetId.toUpperCase())) {
             merged.push({
-              id: job.code,
+              id: targetId,
               title: job.title,
               companyName: job.title.includes('(')
                 ? job.title.split('(').slice(-1)[0].replace(')', '').trim()
@@ -1299,7 +1303,17 @@ export function AdminBankSoalEditor({
         </div>
 
         {viewMode !== 'programs' && (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {onBackToPrograms && (
+              <Button
+                variant="outline"
+                onClick={onBackToPrograms}
+                className="h-10 px-4 rounded-lg border-[#E2E8F0] text-[#475569]"
+                leftIcon={<ChevronLeft className="w-4 h-4" />}
+              >
+                Kembali ke Program Asesmen
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => setViewMode('programs')}

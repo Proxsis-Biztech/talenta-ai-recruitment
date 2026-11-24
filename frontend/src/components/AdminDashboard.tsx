@@ -1885,7 +1885,14 @@ ${app.interviewResult ? `
               {showProgramBuilder ? (
                 <AdminProgramBuilder onBack={() => setShowProgramBuilder(false)} />
               ) : (
-                <JobManagement />
+                <JobManagement
+                  onOpenMateriAndSoal={(programCode, companyName) => {
+                    setMateriHubProgramCode(programCode);
+                    setMateriHubCompanyName(companyName);
+                    setMateriHubTab('materi');
+                    setActiveMenu('materi');
+                  }}
+                />
               )}
             </div>
           ) : activeMenu === 'ranking' ? (
@@ -1928,6 +1935,7 @@ ${app.interviewResult ? `
                 initialTab={activeMenu === 'bank-soal' ? 'bank-soal' : materiHubTab}
                 initialProgramCode={materiHubProgramCode}
                 initialCompanyName={materiHubCompanyName}
+                onBackToPrograms={() => setActiveMenu('jobs')}
               />
             </div>
           ) : activeMenu === 'perusahaan' ? (
