@@ -14,6 +14,7 @@ import {
   Badge,
   Input,
   Select,
+  Textarea,
   Table,
   TableHeader,
   TableBody,
@@ -33,7 +34,14 @@ import {
   INITIAL_MATERI_LIST, 
   type MasterMateriItem 
 } from './admin/AdminMasterMateriTree';
-import { loadMasterScope } from '../services/masterDataService';
+import {
+  QuestionFormFields,
+  syncProgramQuestions,
+  createQuestionId,
+  type BankQuestion,
+  type QuestionCategory
+} from './admin/AdminBankSoalEditor';
+import { loadMasterScope, saveMasterRecord } from '../services/masterDataService';
 import {
   INITIAL_COMPANIES,
   loadCompanyDirectory,
@@ -165,6 +173,22 @@ export default function JobManagement() {
   const [editAssessmentEndDate, setEditAssessmentEndDate] = useState('');
   const [editError, setEditError] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+
+  // Add Materi / Add Soal modals inside Edit Program Asesmen
+  const [isEditMateriModalOpen, setIsEditMateriModalOpen] = useState(false);
+  const [matTitle, setMatTitle] = useState('');
+  const [matCategory, setMatCategory] = useState('Panduan & Kisi-Kisi Asesmen');
+  const [matCompetency, setMatCompetency] = useState('');
+  const [matType, setMatType] = useState<MasterMateriItem['type']>('Studi Kasus');
+  const [matContent, setMatContent] = useState('');
+  const [matRubric, setMatRubric] = useState('Skala penilaian BARS 1-5 berdasarkan ketepatan analisis dan kesiapan solusi.');
+  const [matIndicatorsText, setMatIndicatorsText] = useState(
+    'Memahami alur pengerjaan dan struktur soal asesmen\nMampu menjelaskan alasan dan mitigasi risiko secara terstruktur'
+  );
+  const [matStatus, setMatStatus] = useState<'Aktif' | 'Draft' | 'Reviu'>('Aktif');
+
+  const [isEditQuestionModalOpen, setIsEditQuestionModalOpen] = useState(false);
+  const [newEditQuestion, setNewEditQuestion] = useState<BankQuestion | null>(null);
 
   // Details Modal State (Soal, Materi, Rubrik)
   type DetailedQuestion = QuestionItem & { category?: 'psikotes' | 'kompetensi' };
@@ -531,6 +555,175 @@ export default function JobManagement() {
     } finally {
       setEditLoading(false);
     }
+  };
+
+  const resolvedEditProgramCode = editingJob
+    ? (editCode.trim() || editingJob.code || findProgramByTitle(editTitle || editingJob.title, editingJob.id).id).toUpperCase()
+    : '';
+
+  const editProgramMateriCount = useMemo(() => {
+    if (!editingJob || !resolvedEditProgramCode) return 0;
+    const pool = serverMateri !== null ? serverMateri : getPersistedMasterMateri();
+    return pool.filter((m) => String(m.code || '').toUpperCase() === resolvedEditProgramCode).length;
+  }, [editingJob, resolvedEditProgramCode, serverMateri]);
+
+  const editProgramQuestionCount = useMemo(() => {
+    if (!editingJob || !resolvedEditProgramCode) return 0;
+    return bankSoalQuestions.filter(
+      (q) => (q.programCode || 'SE-402').toUpperCase() === resolvedEditProgramCode
+    ).length;
+  }, [editingJob, resolvedEditProgramCode, bankSoalQuestions]);
+
+  const openEditAddMateriModal = () => {
+    setMatTitle('');
+    setMatCategory('Panduan & Kisi-Kisi Asesmen');
+    setMatCompetency('');
+    setMatType('Studi Kasus');
+    setMatContent('');
+    setMatRubric('Skala penilaian BARS 1-5 berdasarkan ketepatan analisis dan kesiapan solusi.');
+    setMatIndicatorsText(
+      'Memahami alur pengerjaan dan struktur soal asesmen\nMampu menjelaskan alasan dan mitigasi risiko secara terstruktur'
+    );
+    setMatStatus('Aktif');
+    setIsEditMateriModalOpen(true);
+  };
+
+  const handleSaveEditMateri = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingJob || !matTitle.trim()) return;
+    const programCode = resolvedEditProgramCode;
+    const matchedComp = companies.find((c) => companyMatchesName(c.name, editCompanyName || editTitle || editingJob.title));
+    const companyName = matchedComp?.name || editCompanyName || 'PT Mitra';
+    const companyId = matchedComp?.id || 'PT-GENERAL';
+    const indicators = matIndicatorsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const newItem: MasterMateriItem = {
+      id: `mat-${Date.now()}`,
+      code: programCode,
+      title: matTitle.trim(),
+      category: matCategory.trim() || 'Panduan Asesmen',
+      competency: matCompetency.trim() || undefined,
+      companyId,
+      companyName,
+      assessmentType: 'Technical & Hard Competency',
+      assessmentLevel: 'Level 2: Mid-Level / Professional Specialist',
+      type: matType,
+      version: 'v1.0',
+      content: matContent.trim() || 'Panduan persiapan pengerjaan asesmen.',
+      rubric: matRubric.trim() || 'Skala penilaian BARS 1-5.',
+      behavioralIndicators:
+        indicators.length > 0 ? indicators : ['Memahami instruksi dan kisi-kisi pengerjaan asesmen'],
+      status: matStatus,
+      updatedAt: new Date().toISOString().split('T')[0]
+    };
+
+    const currentPool = serverMateri !== null ? serverMateri : getPersistedMasterMateri();
+    const updatedPool = [newItem, ...currentPool];
+    setServerMateri(updatedPool);
+    try {
+      localStorage.setItem('talenta_master_materi_table_v2', JSON.stringify(updatedPool));
+    } catch {
+      // ignore storage errors
+    }
+    await saveMasterRecord('materi', 'table', updatedPool).catch(() => undefined);
+    setIsEditMateriModalOpen(false);
+    Swal.fire({
+      icon: 'success',
+      title: 'Materi Ditambahkan',
+      text: `Panduan materi "${newItem.title}" tersimpan untuk ${programCode}.`,
+      timer: 1800,
+      showConfirmButton: false
+    });
+  };
+
+  const openEditAddQuestionModal = () => {
+    if (!editingJob) return;
+    const programCode = resolvedEditProgramCode;
+    const category: QuestionCategory = 'kompetensi';
+    const newQ: BankQuestion = {
+      id: createQuestionId(category),
+      category,
+      type: 'Pilihan Ganda',
+      programCode,
+      text: '',
+      competency: 'System Architecture',
+      difficulty: 'Sedang',
+      status: 'Published',
+      pValue: 0.5,
+      distractorStats: [
+        { label: 'A (Kunci)', pct: 50 },
+        { label: 'B', pct: 20 },
+        { label: 'C', pct: 15 },
+        { label: 'D', pct: 15 }
+      ],
+      options: [
+        { key: 'A', text: 'Opsi Jawaban Benar (Kunci)', isCorrect: true },
+        { key: 'B', text: 'Distraktor 1', isCorrect: false },
+        { key: 'C', text: 'Distraktor 2', isCorrect: false },
+        { key: 'D', text: 'Distraktor 3', isCorrect: false }
+      ],
+      explanation: 'Pembahasan kunci jawaban terstandar.'
+    };
+    setNewEditQuestion(newQ);
+    setIsEditQuestionModalOpen(true);
+  };
+
+  const handleEditQuestionAttachmentUpload = async (file: File) => {
+    if (!newEditQuestion) return;
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('programCode', resolvedEditProgramCode);
+    try {
+      const response = await axios.post('/api/admin/questions/attachment', formData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+      });
+      const stored = response.data?.data;
+      if (!stored) return;
+      setNewEditQuestion((prev) =>
+        prev
+          ? {
+              ...prev,
+              attachmentUrl: stored.url,
+              attachmentName: stored.name,
+              attachmentMime: stored.mime
+            }
+          : prev
+      );
+    } catch {
+      Swal.fire('Gagal', 'Lampiran soal gagal diunggah.', 'error');
+    }
+  };
+
+  const handleSaveEditQuestion = async () => {
+    if (!editingJob || !newEditQuestion) return;
+    if (!newEditQuestion.text.trim()) {
+      Swal.fire('Perhatian', 'Teks pertanyaan tidak boleh kosong.', 'warning');
+      return;
+    }
+    const programCode = resolvedEditProgramCode;
+    const normalizedQ: BankQuestion = {
+      ...newEditQuestion,
+      programCode,
+      category: newEditQuestion.category === 'psikotes' ? 'psikotes' : 'kompetensi'
+    };
+    const nextQuestions = [normalizedQ, ...bankSoalQuestions];
+    setBankSoalQuestions(nextQuestions);
+    await saveMasterRecord('bank-soal', 'questions', nextQuestions).catch(() => undefined);
+    await syncProgramQuestions(programCode, nextQuestions as BankQuestion[]).catch(() => undefined);
+    setIsEditQuestionModalOpen(false);
+    setNewEditQuestion(null);
+    Swal.fire({
+      icon: 'success',
+      title: 'Soal Ditambahkan',
+      text: `Butir soal ${normalizedQ.id} tersimpan ke Bank Soal ${programCode}.`,
+      timer: 1800,
+      showConfirmButton: false
+    });
   };
 
   // Distribusi tipe soal dinamis sesuai kategori aktif (Psikotes / Uji Kompetensi)
@@ -1215,6 +1408,39 @@ export default function JobManagement() {
                   </Select>
                 </div>
 
+                {/* Materi & Soal Quick Actions */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">
+                      Materi &amp; Bank Soal Program ({resolvedEditProgramCode})
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Saat ini: <strong className="font-mono text-slate-800">{editProgramMateriCount} Panduan Materi</strong> •{' '}
+                      <strong className="font-mono text-slate-800">{editProgramQuestionCount} Butir Soal CAT</strong>
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={openEditAddMateriModal}
+                      leftIcon={<BookOpen className="w-3.5 h-3.5" />}
+                    >
+                      Tambah Materi
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={openEditAddQuestionModal}
+                      leftIcon={<Plus className="w-3.5 h-3.5" />}
+                    >
+                      Tambah Soal
+                    </Button>
+                  </div>
+                </div>
+
               </form>
           </div>
 
@@ -1244,6 +1470,132 @@ export default function JobManagement() {
           </div>
         </Modal>
       )}
+
+      {/* Modal Tambah Panduan Materi dari Edit Program Asesmen */}
+      <Modal
+        isOpen={isEditMateriModalOpen}
+        onClose={() => setIsEditMateriModalOpen(false)}
+        title={`Tambah Panduan Materi [${resolvedEditProgramCode}]`}
+        description="Panduan ini ditampilkan ke peserta sebagai bahan persiapan dan kisi-kisi sebelum mengerjakan asesmen."
+        size="lg"
+      >
+        <form onSubmit={handleSaveEditMateri} className="p-2 space-y-3.5 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Judul Panduan Materi *"
+              value={matTitle}
+              onChange={(e) => setMatTitle(e.target.value)}
+              placeholder="Contoh: Panduan Pengerjaan Uji Kasus Arsitektur Sistem"
+              required
+            />
+            <Input
+              label="Kompetensi Utama"
+              value={matCompetency}
+              onChange={(e) => setMatCompetency(e.target.value)}
+              placeholder="Contoh: System Architecture & Risk Mitigation"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input
+              label="Kategori"
+              value={matCategory}
+              onChange={(e) => setMatCategory(e.target.value)}
+              placeholder="Panduan & Kisi-Kisi Asesmen"
+            />
+            <Select
+              label="Format Panduan"
+              value={matType}
+              onChange={(e) => setMatType(e.target.value as MasterMateriItem['type'])}
+            >
+              <option value="Studi Kasus">Studi Kasus</option>
+              <option value="Teori">Teori</option>
+              <option value="Algoritma">Algoritma</option>
+              <option value="Praktikum">Praktikum</option>
+            </Select>
+            <Select
+              label="Status Publikasi"
+              value={matStatus}
+              onChange={(e) => setMatStatus(e.target.value as 'Aktif' | 'Draft' | 'Reviu')}
+            >
+              <option value="Aktif">Aktif (Tampil ke Peserta)</option>
+              <option value="Draft">Draft (Internal Admin)</option>
+              <option value="Reviu">Reviu</option>
+            </Select>
+          </div>
+
+          <Textarea
+            label="Ringkasan Materi & Kisi-Kisi Asesmen"
+            rows={3}
+            value={matContent}
+            onChange={(e) => setMatContent(e.target.value)}
+            placeholder="Jelaskan pokok bahasan, alur pengerjaan ujian, dan hal yang harus dipersiapkan peserta..."
+          />
+
+          <Textarea
+            label="Rubrik Penilaian Asesor (BARS)"
+            rows={2}
+            value={matRubric}
+            onChange={(e) => setMatRubric(e.target.value)}
+          />
+
+          <Textarea
+            label="Indikator Kompetensi (1 poin per baris)"
+            rows={3}
+            value={matIndicatorsText}
+            onChange={(e) => setMatIndicatorsText(e.target.value)}
+          />
+
+          <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsEditMateriModalOpen(false)}>
+              Batal
+            </Button>
+            <Button type="submit" variant="primary" size="sm">
+              Simpan Panduan Materi
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Tambah Butir Soal dari Edit Program Asesmen */}
+      <Modal
+        isOpen={isEditQuestionModalOpen && Boolean(newEditQuestion)}
+        onClose={() => {
+          setIsEditQuestionModalOpen(false);
+          setNewEditQuestion(null);
+        }}
+        title={`Tambah Butir Soal CAT [${resolvedEditProgramCode}]`}
+        description="Buat butir soal psikotes atau uji kompetensi baru untuk program asesmen ini."
+        size="xl"
+      >
+        {newEditQuestion && (
+          <div className="p-2 max-h-[70vh] overflow-y-auto pr-1">
+            <QuestionFormFields
+              question={newEditQuestion}
+              onChange={(patch) => setNewEditQuestion((prev) => (prev ? { ...prev, ...patch } : prev))}
+              onSave={() => void handleSaveEditQuestion()}
+              onCancel={() => {
+                setIsEditQuestionModalOpen(false);
+                setNewEditQuestion(null);
+              }}
+              onUploadAttachment={(file) => void handleEditQuestionAttachmentUpload(file)}
+              onRemoveAttachment={() =>
+                setNewEditQuestion((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        attachmentUrl: null,
+                        attachmentName: null,
+                        attachmentMime: null
+                      }
+                    : prev
+                )
+              }
+              headerLabel={`Tambah Butir Soal — ${resolvedEditProgramCode}`}
+            />
+          </div>
+        )}
+      </Modal>
 
       {/* Detail Soal & Materi Program Asesmen Modal */}
       {selectedJobDetail && (

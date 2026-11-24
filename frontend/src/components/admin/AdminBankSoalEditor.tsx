@@ -216,7 +216,7 @@ const INITIAL_QUESTIONS: BankQuestion[] = [
 ];
 
 
-const syncProgramQuestions = async (programCode: string, allQuestions: BankQuestion[]) => {
+export const syncProgramQuestions = async (programCode: string, allQuestions: BankQuestion[]) => {
   const token = localStorage.getItem('adminToken');
   if (!token) return;
   const programQuestions = allQuestions.filter(
@@ -276,11 +276,11 @@ const DEFAULT_CATEGORY_TYPES: Record<QuestionCategory, BankQuestion['type'][]> =
 const getQuestionCategory = (question: Pick<BankQuestion, 'category'>): QuestionCategory =>
   question.category === 'psikotes' ? 'psikotes' : 'kompetensi';
 
-const createQuestionId = (category: QuestionCategory): string =>
+export const createQuestionId = (category: QuestionCategory): string =>
   `${category === 'psikotes' ? 'PSI' : 'SOAL'}-${Math.floor(400 + Math.random() * 500)}`;
 
 
-const QuestionFormFields = memo(function QuestionFormFields({
+export const QuestionFormFields = memo(function QuestionFormFields({
   question,
   onChange,
   onPatch,
