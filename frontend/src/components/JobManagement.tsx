@@ -737,7 +737,7 @@ export default function JobManagement() {
           <TableRow className="border-b border-[#E2E8F0]">
             <TableHead className="w-[48px] text-center text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">#</TableHead>
             <TableHead className="min-w-[260px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Formasi</TableHead>
-            <TableHead className="w-[260px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Interview AI</TableHead>
+            <TableHead className="w-[260px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Konten Asesmen</TableHead>
             <TableHead className="w-[100px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Status</TableHead>
             <TableHead className="w-[150px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Periode</TableHead>
             <TableHead className="w-[110px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Rilis</TableHead>

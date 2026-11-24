@@ -39,8 +39,6 @@ import {
   Button,
   Badge,
   Input,
-  Select,
-  Textarea,
   Table,
   TableHeader,
   TableBody,
@@ -52,6 +50,7 @@ import {
 
 const STORAGE_KEY = 'talenta_companies_matrix_v1';
 const HIDDEN_CATALOG_STORAGE_KEY = 'talenta_hidden_catalog_programs_v1';
+const PROGRAM_LINKS_STORAGE_KEY = 'talenta_company_program_links_v1';
 
 interface AdminCompanyMatrixProps {
   onNavigateToPrograms?: () => void;
@@ -61,6 +60,7 @@ interface AdminCompanyMatrixProps {
 
 interface PtProgramRow {
   key: string;
+  linkKey: string;
   jobId?: string;
   code: string;
   title: string;
@@ -72,6 +72,7 @@ interface PtProgramRow {
   applicantCount: number;
   status: string;
   source: 'server' | 'catalog';
+  isExplicitLink?: boolean;
 }
 
 export function AdminCompanyMatrix({
@@ -92,18 +93,29 @@ export function AdminCompanyMatrix({
       return [];
     }
   });
+  const [programLinks, setProgramLinks] = useState<Record<string, string[]>>(() => {
+    try {
+      const raw = localStorage.getItem(PROGRAM_LINKS_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const normalized: Record<string, string[]> = {};
+        for (const [k, v] of Object.entries(parsed)) {
+          if (Array.isArray(v)) {
+            normalized[k] = v.map((item) => String(item).toUpperCase());
+          }
+        }
+        return normalized;
+      }
+      return {};
+    } catch {
+      return {};
+    }
+  });
 
-  // Inline Add/Delete Program Asesmen states inside Detail PT modal
+  // Inline program picker state inside Detail PT modal (assigns from Program Asesmen list)
   const [isAddProgramOpen, setIsAddProgramOpen] = useState(false);
-  const [progTitle, setProgTitle] = useState('');
-  const [progCode, setProgCode] = useState('');
-  const [progDescription, setProgDescription] = useState('');
-  const [progDuration, setProgDuration] = useState(60);
-  const [progPassingScore, setProgPassingScore] = useState(75);
-  const [progStatus, setProgStatus] = useState<'active' | 'inactive'>('active');
-  const [progStartDate, setProgStartDate] = useState('');
-  const [progEndDate, setProgEndDate] = useState('');
-  const [progSubmitting, setProgSubmitting] = useState(false);
+  const [programPickerSearch, setProgramPickerSearch] = useState('');
+  const [selectedProgramKeysToAdd, setSelectedProgramKeysToAdd] = useState<string[]>([]);
   const [progFormError, setProgFormError] = useState<string | null>(null);
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
@@ -124,6 +136,20 @@ export function AdminCompanyMatrix({
           setHiddenCatalogCodes(normalized);
           try {
             localStorage.setItem(HIDDEN_CATALOG_STORAGE_KEY, JSON.stringify(normalized));
+          } catch {
+            // ignore storage errors
+          }
+        }
+        if (data.programLinks && typeof data.programLinks === 'object' && !Array.isArray(data.programLinks)) {
+          const normalizedLinks: Record<string, string[]> = {};
+          for (const [k, v] of Object.entries(data.programLinks)) {
+            if (Array.isArray(v)) {
+              normalizedLinks[k] = Array.from(new Set(v.map((item) => String(item).toUpperCase())));
+            }
+          }
+          setProgramLinks(normalizedLinks);
+          try {
+            localStorage.setItem(PROGRAM_LINKS_STORAGE_KEY, JSON.stringify(normalizedLinks));
           } catch {
             // ignore storage errors
           }
@@ -353,101 +379,120 @@ export function AdminCompanyMatrix({
     void saveMasterRecord('company', 'hiddenCatalogPrograms', nextCodes);
   };
 
+  const persistProgramLinks = (nextLinks: Record<string, string[]>) => {
+    setProgramLinks(nextLinks);
+    try {
+      localStorage.setItem(PROGRAM_LINKS_STORAGE_KEY, JSON.stringify(nextLinks));
+    } catch {
+      // ignore storage quota errors
+    }
+    void saveMasterRecord('company', 'programLinks', nextLinks);
+  };
+
   const resetDetailProgramForms = () => {
     setIsAddProgramOpen(false);
-    setProgTitle('');
-    setProgCode('');
-    setProgDescription('');
-    setProgDuration(60);
-    setProgPassingScore(75);
-    setProgStatus('active');
-    setProgStartDate('');
-    setProgEndDate('');
+    setProgramPickerSearch('');
+    setSelectedProgramKeysToAdd([]);
     setProgFormError(null);
     setConfirmDeleteKey(null);
     setPtModalNotice(null);
   };
 
-  const handleCreateProgramForPt = async (e: React.FormEvent) => {
+  const buildJobRow = (job: any, isExplicitLink = false): PtProgramRow => {
+    const code = String(job.code || '').toUpperCase();
+    const linkKey = String(job.code || job.id || job.title || '').trim().toUpperCase();
+    const relatedApplicants = allApplicants.filter(
+      (applicant: any) =>
+        applicant.jobId === job.id || applicant.job?.title === job.title || applicant.appliedPosition === job.title
+    );
+    const cat = catalogPrograms.find(
+      (p) => (code && p.id.toUpperCase() === code) || p.title.toLowerCase() === String(job.title || '').toLowerCase()
+    );
+    return {
+      key: String(job.id || linkKey),
+      linkKey,
+      jobId: job.id ? String(job.id) : undefined,
+      code: job.code || cat?.id || '-',
+      title: job.title,
+      category: cat?.category || 'Asesmen Korporasi',
+      gradeLevel: cat?.gradeLevel || 'Grade B (Specialist / Mid)',
+      durationMinutes: Number(job.interviewDuration || cat?.durationMinutes || 60),
+      passingScore: Number(job.interviewPassingScore || cat?.passingScore || 75),
+      totalQuestions: cat?.totalQuestions || 40,
+      applicantCount: relatedApplicants.length,
+      status: job.status === 'active' ? 'Aktif' : 'Nonaktif',
+      source: 'server',
+      isExplicitLink
+    };
+  };
+
+  const buildCatalogRow = (prog: AssessmentProgram, isExplicitLink = false): PtProgramRow => {
+    const linkKey = prog.id.toUpperCase();
+    return {
+      key: `catalog:${linkKey}`,
+      linkKey,
+      code: prog.id,
+      title: prog.title,
+      category: prog.category,
+      gradeLevel: prog.gradeLevel,
+      durationMinutes: prog.durationMinutes,
+      passingScore: prog.passingScore,
+      totalQuestions: prog.totalQuestions,
+      applicantCount: 0,
+      status: 'Katalog Program',
+      source: 'catalog',
+      isExplicitLink
+    };
+  };
+
+  const availableProgramsList = useMemo<PtProgramRow[]>(() => {
+    const byKey = new Map<string, PtProgramRow>();
+    for (const job of allJobs) {
+      const row = buildJobRow(job);
+      if (!byKey.has(row.linkKey)) {
+        byKey.set(row.linkKey, row);
+      }
+    }
+    for (const prog of catalogPrograms) {
+      const row = buildCatalogRow(prog);
+      if (!byKey.has(row.linkKey)) {
+        byKey.set(row.linkKey, row);
+      }
+    }
+    return Array.from(byKey.values());
+  }, [allJobs, allApplicants, catalogPrograms]);
+
+  const handleAssignProgramsToPt = (e: React.FormEvent) => {
     e.preventDefault();
     if (!detailPt) return;
-
-    const trimmedTitle = progTitle.trim();
-    const trimmedDesc = progDescription.trim();
-    const normalizedCode = progCode.trim().toUpperCase();
-
-    if (!trimmedTitle) {
-      setProgFormError('Nama program / posisi wajib diisi.');
-      return;
-    }
-    if (!trimmedDesc) {
-      setProgFormError('Deskripsi & kualifikasi program wajib diisi.');
-      return;
-    }
-    if (progStartDate && progEndDate && progEndDate < progStartDate) {
-      setProgFormError('Tanggal selesai tidak boleh lebih awal dari tanggal mulai.');
+    if (selectedProgramKeysToAdd.length === 0) {
+      setProgFormError('Pilih minimal satu program dari daftar Program Asesmen terlebih dahulu.');
       return;
     }
 
-    const token = localStorage.getItem('adminToken');
-    if (!token) {
-      setProgFormError('Sesi admin tidak ditemukan. Silakan login ulang.');
-      return;
+    const currentLinks = programLinks[detailPt.id] || [];
+    const nextCompanyLinks = Array.from(new Set([...currentLinks, ...selectedProgramKeysToAdd]));
+    persistProgramLinks({
+      ...programLinks,
+      [detailPt.id]: nextCompanyLinks
+    });
+
+    // If any selected catalog program was previously hidden, unhide it
+    const toUnhide = selectedProgramKeysToAdd.filter((k) => hiddenCatalogCodes.includes(k));
+    if (toUnhide.length > 0) {
+      persistHiddenCatalogCodes(hiddenCatalogCodes.filter((c) => !toUnhide.includes(c)));
     }
 
-    const finalTitle = companyMatchesName(detailPt.name, trimmedTitle)
-      ? trimmedTitle
-      : `${trimmedTitle} (${detailPt.name})`;
-
-    setProgSubmitting(true);
+    const addedCount = selectedProgramKeysToAdd.length;
+    setIsAddProgramOpen(false);
+    setProgramPickerSearch('');
+    setSelectedProgramKeysToAdd([]);
     setProgFormError(null);
-    try {
-      const response = await axios.post(
-        '/api/admin/jobs',
-        {
-          code: normalizedCode || null,
-          title: finalTitle,
-          description: trimmedDesc,
-          status: progStatus,
-          interviewDuration: Number(progDuration) || 60,
-          interviewPassingScore: Number(progPassingScore) || 75,
-          assessmentDate: progStartDate || null,
-          assessmentEndDate: progEndDate || null
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const createdJob = response.data?.data;
-      if (createdJob) {
-        setAllJobs((prev) => [createdJob, ...prev]);
-      }
-      if (normalizedCode && hiddenCatalogCodes.includes(normalizedCode)) {
-        persistHiddenCatalogCodes(hiddenCatalogCodes.filter((c) => c !== normalizedCode));
-      }
-      await reloadServerCatalog();
-
-      setIsAddProgramOpen(false);
-      setProgTitle('');
-      setProgCode('');
-      setProgDescription('');
-      setProgDuration(60);
-      setProgPassingScore(75);
-      setProgStatus('active');
-      setProgStartDate('');
-      setProgEndDate('');
-      setPtModalNotice({
-        type: 'success',
-        text: `Program "${finalTitle}" berhasil ditambahkan ke ${detailPt.name}.`
-      });
-      showToast(`Program asesmen "${finalTitle}" ditambahkan untuk ${detailPt.name}.`);
-    } catch (err: unknown) {
-      const msg = axios.isAxiosError(err)
-        ? err.response?.data?.error || 'Gagal menambahkan program asesmen.'
-        : 'Gagal menambahkan program asesmen.';
-      setProgFormError(msg);
-    } finally {
-      setProgSubmitting(false);
-    }
+    setPtModalNotice({
+      type: 'success',
+      text: `${addedCount} program asesmen berhasil ditambahkan ke ${detailPt.name}.`
+    });
+    showToast(`${addedCount} program asesmen ditambahkan untuk ${detailPt.name}.`);
   };
 
   const handleDeleteProgramFromPt = async (prog: PtProgramRow) => {
@@ -456,7 +501,30 @@ export function AdminCompanyMatrix({
     setPtModalNotice(null);
 
     try {
-      if (prog.source === 'server' && prog.jobId) {
+      const companyLinkedKeys = programLinks[detailPt.id] || [];
+      const isLinkedHere = companyLinkedKeys.includes(prog.linkKey);
+
+      if (isLinkedHere) {
+        const remaining = companyLinkedKeys.filter((k) => k !== prog.linkKey);
+        persistProgramLinks({
+          ...programLinks,
+          [detailPt.id]: remaining
+        });
+      }
+
+      // Only delete the master server Job if it wasn't solely cross-linked from the global Program Asesmen list
+      const jobRecord = prog.jobId ? allJobs.find((j) => j.id === prog.jobId) : undefined;
+      const jobCompany = jobRecord
+        ? jobRecord.companyName ||
+          jobRecord.tenant?.name ||
+          String(jobRecord.title || '').match(/\(([^)]+)\)\s*$/)?.[1] ||
+          ''
+        : '';
+      const matchesThisCompanyDirectly =
+        Boolean(jobRecord) &&
+        (companyMatchesName(detailPt.name, jobCompany) || companyMatchesName(detailPt.name, jobRecord.title || ''));
+
+      if (prog.source === 'server' && prog.jobId && (!isLinkedHere || matchesThisCompanyDirectly)) {
         const token = localStorage.getItem('adminToken');
         if (!token) {
           setPtModalNotice({ type: 'error', text: 'Sesi admin tidak ditemukan. Silakan login ulang.' });
@@ -495,55 +563,27 @@ export function AdminCompanyMatrix({
 
   const getProgramsForCompany = (company: CompanyItem): PtProgramRow[] => {
     const byKey = new Map<string, PtProgramRow>();
+    const linkedKeys = programLinks[company.id] || [];
 
     for (const job of allJobs) {
       const parentheticalPt = String(job.title || '').match(/\(([^)]+)\)\s*$/)?.[1] || '';
       const jobCompany = job.companyName || job.tenant?.name || parentheticalPt || '';
-      if (!companyMatchesName(company.name, jobCompany) && !companyMatchesName(company.name, job.title || '')) {
+      const matchesDirectly =
+        companyMatchesName(company.name, jobCompany) || companyMatchesName(company.name, job.title || '');
+      const row = buildJobRow(job, linkedKeys.includes(String(job.code || job.id || '').trim().toUpperCase()));
+      if (!matchesDirectly && !linkedKeys.includes(row.linkKey)) {
         continue;
       }
-      const code = String(job.code || job.id || '').toUpperCase();
-      const relatedApplicants = allApplicants.filter(
-        (applicant: any) => applicant.jobId === job.id || applicant.job?.title === job.title || applicant.appliedPosition === job.title
-      );
-      const cat = catalogPrograms.find(
-        (p) => p.id.toUpperCase() === code || p.title.toLowerCase() === String(job.title || '').toLowerCase()
-      );
-      const mapKey = code || String(job.id || job.title).toLowerCase();
-      byKey.set(mapKey, {
-        key: String(job.id || mapKey),
-        jobId: job.id ? String(job.id) : undefined,
-        code: job.code || cat?.id || '-',
-        title: job.title,
-        category: cat?.category || 'Asesmen Korporasi',
-        gradeLevel: cat?.gradeLevel || 'Grade B (Specialist / Mid)',
-        durationMinutes: Number(job.interviewDuration || cat?.durationMinutes || 60),
-        passingScore: Number(job.interviewPassingScore || cat?.passingScore || 75),
-        totalQuestions: cat?.totalQuestions || 40,
-        applicantCount: relatedApplicants.length,
-        status: job.status === 'active' ? 'Aktif' : 'Nonaktif',
-        source: 'server'
-      });
+      byKey.set(row.linkKey, row);
     }
 
     for (const prog of catalogPrograms) {
-      if (!companyMatchesName(company.name, prog.companyName)) continue;
       const key = prog.id.toUpperCase();
-      if (hiddenCatalogCodes.includes(key)) continue;
+      const isLinked = linkedKeys.includes(key);
+      if (!companyMatchesName(company.name, prog.companyName) && !isLinked) continue;
+      if (hiddenCatalogCodes.includes(key) && !isLinked) continue;
       if (byKey.has(key)) continue;
-      byKey.set(key, {
-        key: `catalog:${key}`,
-        code: prog.id,
-        title: prog.title,
-        category: prog.category,
-        gradeLevel: prog.gradeLevel,
-        durationMinutes: prog.durationMinutes,
-        passingScore: prog.passingScore,
-        totalQuestions: prog.totalQuestions,
-        applicantCount: 0,
-        status: 'Katalog Program',
-        source: 'catalog'
-      });
+      byKey.set(key, buildCatalogRow(prog, isLinked));
     }
 
     return Array.from(byKey.values());
@@ -605,7 +645,7 @@ export function AdminCompanyMatrix({
         };
       });
     setMatrixData(fallbackRows);
-  }, [selectedPtId, companies, allJobs, allApplicants, catalogPrograms]);
+  }, [selectedPtId, companies, allJobs, allApplicants, catalogPrograms, programLinks, hiddenCatalogCodes]);
 
   const handleAddCompany = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1186,11 +1226,19 @@ export function AdminCompanyMatrix({
                       size="xs"
                       leftIcon={isAddProgramOpen ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                       onClick={() => {
-                        setIsAddProgramOpen((prev) => !prev);
+                        setIsAddProgramOpen((prev) => {
+                          const next = !prev;
+                          if (next) {
+                            void reloadServerCatalog();
+                          }
+                          return next;
+                        });
+                        setSelectedProgramKeysToAdd([]);
+                        setProgramPickerSearch('');
                         setProgFormError(null);
                       }}
                     >
-                      {isAddProgramOpen ? 'Tutup Form' : 'Tambah Program'}
+                      {isAddProgramOpen ? 'Tutup Pilihan' : 'Tambah Program'}
                     </Button>
                     {onNavigateToBankSoal && (
                       <Button
@@ -1223,144 +1271,165 @@ export function AdminCompanyMatrix({
                   </div>
                 </div>
 
-                {isAddProgramOpen && (
-                  <form
-                    onSubmit={handleCreateProgramForPt}
-                    className="p-4 rounded-xl border border-accent-border bg-soft-blue/35 space-y-3.5"
-                  >
-                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-accent-border/60">
-                      <div>
-                        <h5 className="font-heading font-bold text-xs sm:text-sm text-slate-900">
-                          Tambah Program Asesmen Baru — {detailPt.name}
-                        </h5>
-                        <p className="text-[11px] text-slate-500">
-                          Program otomatis terhubung ke {detailPt.name} dan siap digunakan di Bank Soal CAT serta daftar program aktif.
-                        </p>
-                      </div>
-                    </div>
+                {isAddProgramOpen && (() => {
+                  const existingKeys = new Set(programs.map((p) => p.linkKey));
+                  const qLower = programPickerSearch.trim().toLowerCase();
+                  const filteredOptions = availableProgramsList.filter((item) => {
+                    if (!qLower) return true;
+                    return (
+                      item.title.toLowerCase().includes(qLower) ||
+                      item.code.toLowerCase().includes(qLower) ||
+                      item.category.toLowerCase().includes(qLower)
+                    );
+                  });
 
-                    {progFormError && (
-                      <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>{progFormError}</span>
-                      </div>
-                    )}
+                  const togglePick = (linkKey: string) => {
+                    setProgFormError(null);
+                    setSelectedProgramKeysToAdd((prev) =>
+                      prev.includes(linkKey) ? prev.filter((k) => k !== linkKey) : [...prev, linkKey]
+                    );
+                  };
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="sm:col-span-2">
-                        <Input
-                          label="Nama Program / Posisi *"
-                          value={progTitle}
-                          onChange={(e) => setProgTitle(e.target.value)}
-                          placeholder="Contoh: Management Trainee Operational"
-                          required
-                        />
+                  return (
+                    <form
+                      onSubmit={handleAssignProgramsToPt}
+                      className="p-4 rounded-xl border border-accent-border bg-soft-blue/35 space-y-3"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2 pb-2 border-b border-accent-border/60">
+                        <div>
+                          <h5 className="font-heading font-bold text-xs sm:text-sm text-slate-900">
+                            Pilih dari Daftar Program Asesmen — {detailPt.name}
+                          </h5>
+                          <p className="text-[11px] text-slate-500">
+                            Pilih program yang sudah dibuat pada halaman Program Asesmen. Untuk membuat program baru, gunakan halaman Program Asesmen.
+                          </p>
+                        </div>
+                        {onNavigateToPrograms && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            leftIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                            onClick={() => {
+                              setDetailPt(null);
+                              resetDetailProgramForms();
+                              onNavigateToPrograms();
+                            }}
+                          >
+                            Buat di Program Asesmen
+                          </Button>
+                        )}
                       </div>
-                      <div>
-                        <Input
-                          label="Kode Program"
-                          value={progCode}
-                          onChange={(e) => setProgCode(e.target.value.toUpperCase())}
-                          placeholder="Contoh: PT02-MT-01"
-                          isMonospace
-                        />
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <Input
-                          label="Durasi CAT/Interview (menit)"
-                          type="number"
-                          min={1}
-                          max={180}
-                          value={progDuration}
-                          onChange={(e) => setProgDuration(Number(e.target.value))}
-                          isMonospace
-                        />
-                      </div>
-                      <div>
-                        <Input
-                          label="Passing Grade (0–100)"
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={progPassingScore}
-                          onChange={(e) => setProgPassingScore(Number(e.target.value))}
-                          isMonospace
-                        />
-                      </div>
-                      <div>
-                        <Select
-                          label="Status Program"
-                          value={progStatus}
-                          onChange={(e) => setProgStatus(e.target.value as 'active' | 'inactive')}
-                        >
-                          <option value="active">Aktif</option>
-                          <option value="inactive">Nonaktif</option>
-                        </Select>
-                      </div>
-                    </div>
+                      {progFormError && (
+                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>{progFormError}</span>
+                        </div>
+                      )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <Input
-                          label="Tanggal Mulai (opsional)"
-                          type="date"
-                          value={progStartDate}
-                          onChange={(e) => setProgStartDate(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Input
-                          label="Tanggal Selesai (opsional)"
-                          type="date"
-                          value={progEndDate}
-                          onChange={(e) => setProgEndDate(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Textarea
-                        label="Deskripsi & Kriteria Kualifikasi *"
-                        rows={3}
-                        value={progDescription}
-                        onChange={(e) => setProgDescription(e.target.value)}
-                        placeholder={`Jelaskan tujuan asesmen, kompetensi yang diuji, dan kualifikasi peserta untuk ${detailPt.name}...`}
-                        required
+                      <Input
+                        value={programPickerSearch}
+                        onChange={(e) => setProgramPickerSearch(e.target.value)}
+                        placeholder="Cari kode atau nama program asesmen..."
+                        leftIcon={<Search className="w-3.5 h-3.5 text-slate-400" />}
                       />
-                    </div>
 
-                    <div className="flex items-center justify-end gap-2 pt-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        onClick={() => {
-                          setIsAddProgramOpen(false);
-                          setProgFormError(null);
-                        }}
-                      >
-                        Batal
-                      </Button>
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        size="xs"
-                        disabled={progSubmitting}
-                        leftIcon={<Save className="w-3.5 h-3.5" />}
-                      >
-                        {progSubmitting ? 'Menyimpan...' : 'Simpan Program'}
-                      </Button>
-                    </div>
-                  </form>
-                )}
+                      <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+                        {filteredOptions.length === 0 ? (
+                          <div className="p-4 text-center rounded-lg border border-dashed border-slate-200 bg-white text-[11px] text-slate-500">
+                            Tidak ada program asesmen yang cocok dengan pencarian Anda.
+                          </div>
+                        ) : (
+                          filteredOptions.map((item) => {
+                            const alreadyAssigned = existingKeys.has(item.linkKey);
+                            const checked = selectedProgramKeysToAdd.includes(item.linkKey);
+                            return (
+                              <label
+                                key={item.linkKey}
+                                className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border transition-colors ${
+                                  alreadyAssigned
+                                    ? 'bg-slate-50 border-slate-200 opacity-65 cursor-not-allowed'
+                                    : checked
+                                    ? 'bg-white border-primary-navy ring-1 ring-primary-navy/20 cursor-pointer'
+                                    : 'bg-white border-slate-200 hover:border-primary-navy/40 cursor-pointer'
+                                }`}
+                              >
+                                <div className="flex items-start gap-2.5 min-w-0">
+                                  <input
+                                    type="checkbox"
+                                    disabled={alreadyAssigned}
+                                    checked={alreadyAssigned || checked}
+                                    onChange={() => !alreadyAssigned && togglePick(item.linkKey)}
+                                    className="mt-0.5 rounded border-slate-300 text-primary-navy focus:ring-primary-navy"
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className="font-mono text-[10px] font-bold text-primary-navy bg-soft-blue px-1.5 py-0.5 rounded border border-accent-border">
+                                        {item.code}
+                                      </span>
+                                      <Badge variant={item.status === 'Aktif' ? 'success' : 'teal'} format="soft">
+                                        {item.status}
+                                      </Badge>
+                                      {alreadyAssigned && (
+                                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                          Sudah Terdaftar
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="font-semibold text-xs text-slate-900 mt-1 truncate" title={item.title}>
+                                      {item.title}
+                                    </p>
+                                    <p className="text-[11px] text-slate-500">
+                                      {item.category} • {item.durationMinutes} mnt • Pass {item.passingScore}
+                                    </p>
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-1">
+                        <span className="text-[11px] text-slate-600">
+                          {selectedProgramKeysToAdd.length > 0
+                            ? `${selectedProgramKeysToAdd.length} program dipilih`
+                            : 'Centang program yang ingin ditautkan'}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            onClick={() => {
+                              setIsAddProgramOpen(false);
+                              setSelectedProgramKeysToAdd([]);
+                              setProgramPickerSearch('');
+                              setProgFormError(null);
+                            }}
+                          >
+                            Batal
+                          </Button>
+                          <Button
+                            type="submit"
+                            variant="primary"
+                            size="xs"
+                            disabled={selectedProgramKeysToAdd.length === 0}
+                            leftIcon={<Check className="w-3.5 h-3.5" />}
+                          >
+                            Tambahkan Program ({selectedProgramKeysToAdd.length})
+                          </Button>
+                        </div>
+                      </div>
+                    </form>
+                  );
+                })()}
 
                 {programs.length === 0 ? (
                   <div className="p-8 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-500">
                     Belum ada program asesmen yang terhubung ke {detailPt.name}. Klik tombol{' '}
-                    <strong className="text-slate-700">+ Tambah Program</strong> di atas untuk menambahkan program baru.
+                    <strong className="text-slate-700">+ Tambah Program</strong> di atas untuk memilih dari daftar Program Asesmen.
                   </div>
                 ) : (
                   <div className="space-y-2.5">
