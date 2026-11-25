@@ -715,16 +715,26 @@ export default function AsesorInterviewResults() {
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>GPA = (Rata-rata BARS ÷ 5) × 4.00</span>
                 </span>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  disabled={saving}
-                  onClick={handleSaveBarsGpa}
-                  leftIcon={<Save className="w-3.5 h-3.5" />}
-                >
-                  {saving ? 'Menyimpan...' : 'Simpan Penilaian BARS & GPA'}
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/asesor/rekap-lha/${selected.code}`)}
+                  >
+                    Rekap &amp; Terbitkan LHA →
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    disabled={saving}
+                    onClick={handleSaveBarsGpa}
+                    leftIcon={<Save className="w-3.5 h-3.5" />}
+                  >
+                    {saving ? 'Menyimpan...' : 'Simpan Penilaian BARS & GPA'}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

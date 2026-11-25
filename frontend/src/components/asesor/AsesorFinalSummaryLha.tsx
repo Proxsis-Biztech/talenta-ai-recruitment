@@ -175,6 +175,18 @@ export default function AsesorFinalSummaryLha() {
     setSigning(true);
     setNotice(null);
     try {
+      const scoredComps = competencies.filter((c: any) => Number(c?.score) > 0);
+      const totalWeight = competencies.reduce((sum: number, c: any) => sum + (Number(c?.weight) || 0), 0);
+      const barsAvg =
+        totalWeight > 0
+          ? competencies.reduce(
+              (sum: number, c: any) => sum + ((Number(c?.score) || 0) * (Number(c?.weight) || 0)) / totalWeight,
+              0
+            )
+          : scoredComps.length > 0
+            ? scoredComps.reduce((sum: number, c: any) => sum + (Number(c?.score) || 0), 0) / scoredComps.length
+            : 0;
+      const derivedInterviewScore = Math.round((barsAvg / 5) * 100);
       const token = getPortalToken();
       await axios.post(
         '/api/asesor/scores',
@@ -182,9 +194,12 @@ export default function AsesorFinalSummaryLha() {
           candidateCode: selected.code,
           candidateName: selected.name,
           candidateEmail: selected.email,
-          programTitle: selected.program,
+          programCode: selected.programCode,
+          programTitle: selectedScore?.programTitle || selected.program,
           evaluationMode: 'bars_gpa',
           competencies,
+          interviewScore: derivedInterviewScore,
+          compositeScore: derivedInterviewScore,
           recommendation: finalRec,
           notes: finalNotes,
           status: 'signed',

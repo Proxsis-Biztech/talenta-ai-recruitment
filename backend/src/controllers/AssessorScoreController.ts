@@ -238,8 +238,28 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
     const programTitle = String(req.body.programTitle || req.body.program || '').trim();
     const programCode = req.body.programCode ? String(req.body.programCode).trim().toUpperCase() : null;
     const competencies = Array.isArray(req.body.competencies) ? req.body.competencies : [];
-    const interviewScore = Number(req.body.interviewScore);
-    const compositeScore = Number(req.body.compositeScore);
+    const isSimpleBarsGpaMode = req.body.evaluationMode === 'bars_gpa';
+    const barsMetrics = computeBarsAndGpa(competencies);
+    const rawInterviewScore =
+      req.body.interviewScore === undefined || req.body.interviewScore === null || req.body.interviewScore === ''
+        ? NaN
+        : Number(req.body.interviewScore);
+    const rawCompositeScore =
+      req.body.compositeScore === undefined || req.body.compositeScore === null || req.body.compositeScore === ''
+        ? NaN
+        : Number(req.body.compositeScore);
+    const derivedBarsScore =
+      barsMetrics.barsAverage != null ? Math.round((barsMetrics.barsAverage / 5) * 100) : NaN;
+    const interviewScore = Number.isFinite(rawInterviewScore)
+      ? rawInterviewScore
+      : isSimpleBarsGpaMode && Number.isFinite(derivedBarsScore)
+        ? derivedBarsScore
+        : NaN;
+    const compositeScore = Number.isFinite(rawCompositeScore)
+      ? rawCompositeScore
+      : isSimpleBarsGpaMode && Number.isFinite(interviewScore)
+        ? interviewScore
+        : NaN;
     const recommendation = String(req.body.recommendation || '').trim().toUpperCase();
     const notes = req.body.notes ? String(req.body.notes) : null;
     const status = req.body.status === 'signed' ? 'signed' : 'draft';
@@ -249,14 +269,14 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
     if (!candidateCode || !candidateName || !programTitle) {
       return res.status(400).json({ error: 'Kandidat dan program wajib diisi.' });
     }
+    if (competencies.length === 0) {
+      return res.status(400).json({ error: 'Rubrik kompetensi wajib diisi.' });
+    }
     if (!Number.isFinite(interviewScore) || !Number.isFinite(compositeScore)) {
-      return res.status(400).json({ error: 'Skor wawancara dan komposit tidak valid.' });
+      return res.status(400).json({ error: 'Skor BARS / wawancara tidak valid.' });
     }
     if (!['LANJUT', 'DIPERTIMBANGKAN', 'TIDAK'].includes(recommendation)) {
       return res.status(400).json({ error: 'Rekomendasi tidak valid.' });
-    }
-    if (competencies.length === 0) {
-      return res.status(400).json({ error: 'Rubrik kompetensi wajib diisi.' });
     }
 
     const tenantId = tenantForRequest(req);
@@ -286,7 +306,6 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
         });
       }
     }
-    const isSimpleBarsGpaMode = req.body.evaluationMode === 'bars_gpa';
     if (!isSimpleBarsGpaMode && overriddenItems.length > 0 && aiOverrideReason.length < 5) {
       return res.status(400).json({
         error: 'Anda mengubah skor rekomendasi AI. Wajib mengisi alasan perubahan skor minimal 5 karakter.'
@@ -314,9 +333,15 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
       lhaNumber = `LHA/SAI-PTF/${new Date().getFullYear()}/${suffix}-${lhaHash.slice(0, 6).toUpperCase()}`;
     }
 
-    const existing = await prisma.assessorScore.findUnique({
+    let existing = await prisma.assessorScore.findUnique({
       where: { candidateCode_programTitle: { candidateCode, programTitle } }
     });
+    if (!existing && programCode) {
+      existing = await prisma.assessorScore.findFirst({
+        where: { candidateCode, programCode },
+        orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
+      });
+    }
 
     if (existing?.status === 'signed' && status === 'signed') {
       return res.status(409).json({

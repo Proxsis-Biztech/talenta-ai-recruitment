@@ -200,32 +200,62 @@ export const getApplicants = async (req: Request, res: Response) => {
     ]);
 
     const emails = applicants.map((app) => app.email).filter(Boolean);
-    const portalUsers = emails.length
-      ? await prisma.portalUser.findMany({
-          where: { email: { in: emails } },
-          select: {
-            email: true,
-            candidateCode: true,
-            companyName: true,
-            assessmentId: true,
-            assessmentIds: true,
-            assessmentTitle: true,
-            interviewStatus: true,
-            interviewScore: true,
-            examAttempts: {
-              select: {
-                programCode: true,
-                status: true,
-                score: true,
-                integrityScore: true,
-                violations: true,
-                answers: true,
-                submittedAt: true
+    const [portalUsers, liveCodingRows] = await Promise.all([
+      emails.length
+        ? prisma.portalUser.findMany({
+            where: { email: { in: emails } },
+            select: {
+              id: true,
+              email: true,
+              candidateCode: true,
+              companyName: true,
+              assessmentId: true,
+              assessmentIds: true,
+              assessmentTitle: true,
+              interviewStatus: true,
+              interviewScore: true,
+              examAttempts: {
+                select: {
+                  programCode: true,
+                  status: true,
+                  score: true,
+                  integrityScore: true,
+                  violations: true,
+                  answers: true,
+                  submittedAt: true
+                }
               }
             }
-          }
+          })
+        : Promise.resolve([]),
+      prisma.masterRecord.findMany({ where: { scope: 'live-coding-submissions' } })
+    ]);
+    const portalCodes = portalUsers
+      .map((u) => u.candidateCode || u.id.slice(0, 8))
+      .filter(Boolean);
+    const scoreRows = portalCodes.length
+      ? await prisma.assessorScore.findMany({
+          where: { candidateCode: { in: portalCodes } },
+          orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
         })
       : [];
+    const scoreByCode = new Map<string, (typeof scoreRows)[number]>();
+    for (const s of scoreRows) {
+      if (!scoreByCode.has(s.candidateCode)) scoreByCode.set(s.candidateCode, s);
+    }
+    const liveCodingByUser = new Map<string, any>();
+    for (const row of liveCodingRows) {
+      try {
+        const parsed = JSON.parse(row.value);
+        if (!parsed?.userId) continue;
+        const prev = liveCodingByUser.get(parsed.userId);
+        if (!prev || new Date(parsed.submittedAt).getTime() > new Date(prev.submittedAt).getTime()) {
+          liveCodingByUser.set(parsed.userId, parsed);
+        }
+      } catch {
+        // ignore malformed record
+      }
+    }
     const portalByEmail = new Map(portalUsers.map((user) => [user.email, user]));
     const reviewMap = await loadAiReviewRecordsMap();
 
@@ -233,6 +263,29 @@ export const getApplicants = async (req: Request, res: Response) => {
       const portal = portalByEmail.get(app.email);
       const codeKey = String(portal?.candidateCode || '').toUpperCase();
       const reviewRec = codeKey ? reviewMap.get(codeKey) : null;
+      const assessorScore = portal ? scoreByCode.get(portal.candidateCode || portal.id.slice(0, 8)) : null;
+      const liveCoding = portal ? liveCodingByUser.get(portal.id) : null;
+      let barsAverage: number | null = null;
+      let gpaScore: number | null = null;
+      if (assessorScore?.competencies) {
+        try {
+          const comps = JSON.parse(assessorScore.competencies);
+          if (Array.isArray(comps)) {
+            const scored = comps.filter((c: any) => typeof c?.score === 'number' && c.score > 0);
+            if (scored.length > 0) {
+              const totalW = comps.reduce((s: number, c: any) => s + (Number(c?.weight) || 0), 0);
+              const avg =
+                totalW > 0
+                  ? comps.reduce((s: number, c: any) => s + ((Number(c?.score) || 0) * (Number(c?.weight) || 0)) / totalW, 0)
+                  : scored.reduce((s: number, c: any) => s + (Number(c?.score) || 0), 0) / scored.length;
+              barsAverage = Math.round(avg * 100) / 100;
+              gpaScore = Math.round((barsAverage / 5) * 4 * 100) / 100;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
       const attempt = portal?.examAttempts?.sort((a, b) => {
         const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
         const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
@@ -271,6 +324,12 @@ export const getApplicants = async (req: Request, res: Response) => {
         portalAssessmentTitle: portal?.assessmentTitle || null,
         proctorFlags: mergedFlags,
         candidateCode: portal?.candidateCode || null,
+        barsAverage,
+        gpaScore,
+        lhaStatus: assessorScore?.status || null,
+        lhaNumber: assessorScore?.lhaNumber || null,
+        liveCodingStatus: liveCoding ? (liveCoding.completed ? 'selesai' : 'sedang') : 'belum',
+        liveCodingScore: liveCoding?.score ?? null,
         examAttempt: attempt ? { ...attempt, totalAnswered } : null,
         compositeEvaluation: reviewRec?.needsAction
           ? computeCompositeEvaluation(app.screeningScore, null, mergedFlags, 'pending')

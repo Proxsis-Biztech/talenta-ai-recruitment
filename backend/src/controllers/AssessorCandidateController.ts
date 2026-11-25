@@ -95,13 +95,25 @@ const latestAttempt = (
     competencyScores?: string | null;
     answers?: string;
     violations?: string | null;
-  }>
-) =>
-  [...attempts].sort((a, b) => {
+  }>,
+  preferredProgramCode?: string | null
+) => {
+  const pref = String(preferredProgramCode || '').trim().toUpperCase();
+  const isDone = (item: { status: string; submittedAt: Date | null }) =>
+    ['submitted', 'graded', 'completed'].includes(item.status) || Boolean(item.submittedAt);
+
+  return [...attempts].sort((a, b) => {
+    const aPref = pref && String(a.programCode || '').toUpperCase() === pref ? 1 : 0;
+    const bPref = pref && String(b.programCode || '').toUpperCase() === pref ? 1 : 0;
+    const aDone = isDone(a) ? 1 : 0;
+    const bDone = isDone(b) ? 1 : 0;
+    if (aDone !== bDone) return bDone - aDone;
+    if (aPref !== bPref) return bPref - aPref;
     const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
     const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
     return bTime - aTime;
   })[0];
+};
 
 const isTestAccountUser = (user: { email?: string | null; candidateCode?: string | null; name?: string | null }) => {
   const email = String(user.email || '').toLowerCase().trim();
@@ -196,7 +208,7 @@ const serializeCandidate = (
   liveCoding: LiveCodingMeta | null = null,
   questionCountMap: Map<string, number> = new Map()
 ) => {
-  const attempt = latestAttempt(user.examAttempts || []);
+  const attempt = latestAttempt(user.examAttempts || [], user.assessmentId);
   const violationCount =
     countNonPeriodicEvents(attempt?.violations) +
     countNonPeriodicEvents(applicantData?.proctorFlags);
@@ -545,7 +557,7 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
     ]);
     const bestScore = pickBestScore(scores);
 
-    const attempt = latestAttempt(user.examAttempts || []);
+    const attempt = latestAttempt(user.examAttempts || [], user.assessmentId);
     const activeProgramCode = String(attempt?.programCode || user.assessmentId || '').trim().toUpperCase();
     const programQuestions = activeProgramCode
       ? await prisma.programQuestion.findMany({
