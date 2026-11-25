@@ -156,7 +156,6 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
 
   // Add Job Modal State
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newCompanyIds, setNewCompanyIds] = useState<string[]>([]);
   const [newCourseCodes, setNewCourseCodes] = useState<string[]>([]);
   const [coursePickerSearch, setCoursePickerSearch] = useState('');
   const [newCode, setNewCode] = useState('');
@@ -172,7 +171,6 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
 
   // Edit Job Modal State
   const [editingJob, setEditingJob] = useState<Job | null>(null);
-  const [editCompanyIds, setEditCompanyIds] = useState<string[]>([]);
   const [editCourseCodes, setEditCourseCodes] = useState<string[]>([]);
   const [editCode, setEditCode] = useState('');
   const [editTitle, setEditTitle] = useState('');
@@ -440,14 +438,6 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
     fetchJobs();
   }, [fetchJobs]);
 
-  const applyCompanyToTitle = (rawTitle: string, companyName: string): string => {
-    const trimmed = rawTitle.trim();
-    if (!companyName) return trimmed;
-    if (companyMatchesName(companyName, trimmed)) return trimmed;
-    const baseTitle = trimmed.replace(/\s*\([^)]+\)\s*$/, '').trim();
-    return `${baseTitle} (${companyName})`;
-  };
-
   useEffect(() => {
     let cancelled = false;
     void loadCompanyDirectory().then((list) => {
@@ -687,69 +677,6 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
     await saveMasterRecord('company', 'programLinks', nextLinks).catch(() => undefined);
   };
 
-  const renderCompanyChecklist = (
-    selectedIds: string[],
-    onToggle: (companyId: string) => void,
-    onSelectAll: () => void,
-    onClear: () => void
-  ) => (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <label className="block text-sm font-semibold text-slate-800">
-          Perusahaan (PT) Mitra
-        </label>
-        <div className="flex items-center gap-2 text-[11px]">
-          <span className="font-semibold text-primary-navy bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-            {selectedIds.length} PT dipilih
-          </span>
-          <button
-            type="button"
-            onClick={onSelectAll}
-            className="text-primary-navy font-semibold hover:underline cursor-pointer"
-          >
-            Pilih Semua
-          </button>
-          {selectedIds.length > 0 && (
-            <button
-              type="button"
-              onClick={onClear}
-              className="text-slate-500 font-semibold hover:underline cursor-pointer"
-            >
-              Reset
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="max-h-44 overflow-y-auto space-y-1.5 p-2.5 bg-slate-50/70 border border-slate-200 rounded-xl">
-        {companies.map((c) => {
-          const checked = selectedIds.includes(c.id);
-          return (
-            <label
-              key={c.id}
-              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-colors ${
-                checked
-                  ? 'bg-blue-50/80 border-blue-300 text-slate-900'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <Checkbox
-                checked={checked}
-                onCheckedChange={() => onToggle(c.id)}
-              />
-              <span className="font-mono text-[11px] font-semibold text-primary-navy shrink-0">
-                [{c.id}]
-              </span>
-              <span className="text-xs font-medium truncate">{c.name}</span>
-            </label>
-          );
-        })}
-      </div>
-      <p className="text-[11px] text-slate-500">
-        Centang satu atau beberapa Perusahaan (PT) mitra yang terhubung ke program asesmen ini.
-      </p>
-    </div>
-  );
-
   const handleAddJob = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) {
@@ -760,11 +687,7 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
       setAddError('Deskripsi / job deskripsi wajib diisi.');
       return;
     }
-    const selectedCompanies = companies.filter((c) => newCompanyIds.includes(c.id));
-    const finalTitle =
-      selectedCompanies.length === 1
-        ? applyCompanyToTitle(newTitle, selectedCompanies[0].name)
-        : newTitle.trim();
+    const finalTitle = newTitle.trim();
     setAddLoading(true);
     setAddError('');
     try {
@@ -785,15 +708,11 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
 
       const createdJob = response.data?.data;
       const linkKey = String(createdJob?.code || normalizedCode || createdJob?.id || '').trim().toUpperCase();
-      if (linkKey && newCompanyIds.length > 0) {
-        await syncCompanyProgramLinks(linkKey, newCompanyIds);
-      }
       if (linkKey && newCourseCodes.length > 0) {
         await syncAttachedCoursesToProgram(linkKey, newCourseCodes, createdJob?.id);
       }
 
       setShowAddModal(false);
-      setNewCompanyIds([]);
       setNewCourseCodes([]);
       setCoursePickerSearch('');
       setNewCode('');
@@ -822,10 +741,6 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
   const openEditModal = (job: Job) => {
     setEditingJob(job);
     const linkKey = String(job.code || job.id || '').trim().toUpperCase();
-    const preselectedIds = companies
-      .filter((c) => companyMatchesName(c.name, job.title) || (companyProgramLinks[c.id] || []).includes(linkKey))
-      .map((c) => c.id);
-    setEditCompanyIds(preselectedIds);
     setEditCourseCodes(resolveProgramCourseCodes(linkKey, programCourses, courses));
     setCoursePickerSearch('');
     setEditCode(job.code || '');
@@ -849,23 +764,11 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
     setEditLoading(true);
     setEditError('');
     try {
-      const selectedCompanies = companies.filter((c) => editCompanyIds.includes(c.id));
-      const parenMatch = editTitle.match(/\(([^)]+)\)\s*$/);
-      const parenMatchesCompany =
-        Boolean(parenMatch) && companies.some((c) => companyMatchesName(c.name, parenMatch?.[1]));
-      const baseTitle = parenMatchesCompany
-        ? editTitle.replace(/\s*\([^)]+\)\s*$/, '').trim()
-        : editTitle.trim();
-      const finalEditTitle =
-        selectedCompanies.length === 1
-          ? applyCompanyToTitle(baseTitle, selectedCompanies[0].name)
-          : baseTitle;
-
       const token = localStorage.getItem('adminToken');
       const nextCode = editCode.trim() ? editCode.trim().toUpperCase() : null;
       await axios.put(`/api/admin/jobs/${editingJob.id}`, {
         code: nextCode,
-        title: finalEditTitle,
+        title: editTitle.trim(),
         description: editDescription.trim(),
         status: editStatus,
         interviewDuration: editDuration === '' ? null : Number(editDuration),
@@ -878,7 +781,14 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
 
       const nextLinkKey = String(nextCode || editingJob.id || '').trim().toUpperCase();
       const prevLinkKey = String(editingJob.code || editingJob.id || '').trim().toUpperCase();
-      await syncCompanyProgramLinks(nextLinkKey, editCompanyIds, prevLinkKey);
+      if (prevLinkKey && nextLinkKey && prevLinkKey !== nextLinkKey) {
+        const linkedCompanyIds = companies
+          .filter((c) => (companyProgramLinks[c.id] || []).includes(prevLinkKey))
+          .map((c) => c.id);
+        if (linkedCompanyIds.length > 0) {
+          await syncCompanyProgramLinks(nextLinkKey, linkedCompanyIds, prevLinkKey);
+        }
+      }
       await syncAttachedCoursesToProgram(nextLinkKey, editCourseCodes, editingJob.id);
 
       setEditingJob(null);
@@ -1320,16 +1230,6 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
             </div>
           )}
 
-          {renderCompanyChecklist(
-            newCompanyIds,
-            (companyId) =>
-              setNewCompanyIds((prev) =>
-                prev.includes(companyId) ? prev.filter((id) => id !== companyId) : [...prev, companyId]
-              ),
-            () => setNewCompanyIds(companies.map((c) => c.id)),
-            () => setNewCompanyIds([])
-          )}
-
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">
               Judul Posisi Pekerjaan
@@ -1488,16 +1388,6 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
                   </div>
                 )}
 
-                {renderCompanyChecklist(
-                  editCompanyIds,
-                  (companyId) =>
-                    setEditCompanyIds((prev) =>
-                      prev.includes(companyId) ? prev.filter((id) => id !== companyId) : [...prev, companyId]
-                    ),
-                  () => setEditCompanyIds(companies.map((c) => c.id)),
-                  () => setEditCompanyIds([])
-                )}
-
                 <div>
                   <label className="block text-sm font-semibold text-slate-800 mb-1.5">Judul Posisi Pekerjaan</label>
                   <input
@@ -1619,7 +1509,11 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
                     size="sm"
                     onClick={() => {
                       const targetCode = editCourseCodes[0] || resolvedEditProgramCode;
-                      const firstCompany = companies.find((c) => editCompanyIds.includes(c.id))?.name;
+                      const firstCompany = companies.find(
+                        (c) =>
+                          (editingJob && companyMatchesName(c.name, editingJob.title)) ||
+                          (companyProgramLinks[c.id] || []).includes(resolvedEditProgramCode)
+                      )?.name;
                       setEditingJob(null);
                       if (onOpenMateriAndSoal) {
                         onOpenMateriAndSoal(targetCode, firstCompany);
