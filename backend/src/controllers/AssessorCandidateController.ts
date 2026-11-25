@@ -2,6 +2,17 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { type AuthRequest } from '../middleware/auth';
 import { isCandidateInAssessorScope, resolveAssessorScopeContext } from '../middleware/tenant';
+import { recordAuditLog, resolveRequestIp } from '../services/auditService';
+import {
+  buildAiCompetenciesFromData,
+  deriveUnifiedReviewState,
+  getAiReviewRecord,
+  isDeterministicCalibrationSample,
+  loadAiReviewRecordsMap,
+  parseTimestampedTranscript,
+  saveAiReviewRecord,
+  type AiInterviewReviewRecord
+} from '../services/reviewWorkflowService';
 
 const prisma = new PrismaClient();
 
@@ -112,21 +123,69 @@ const countNonPeriodicEvents = (jsonStr: string | null | undefined): number => {
   }).length;
 };
 
+interface RecordingMeta {
+  id: string;
+  kind: string;
+  fileName: string | null;
+  mimeType: string | null;
+  durationSec: number | null;
+  transcript: string | null;
+  createdAt: Date;
+}
+
 const serializeCandidate = (
   user: any,
   score: CandidateAssessorScoreRow | null = null,
-  applicantProctorFlagsJson: string | null = null
+  applicantData: {
+    proctorFlags?: string | null;
+    interviewTranscript?: string | null;
+    interviewResult?: string | null;
+    interviewScore?: number | null;
+  } | null = null,
+  recordings: RecordingMeta[] = [],
+  reviewRecord: AiInterviewReviewRecord | null = null
 ) => {
   const attempt = latestAttempt(user.examAttempts || []);
   const violationCount =
     countNonPeriodicEvents(attempt?.violations) +
-    countNonPeriodicEvents(applicantProctorFlagsJson);
+    countNonPeriodicEvents(applicantData?.proctorFlags);
   const proctoringFlagCount =
     violationCount > 0
       ? violationCount
       : attempt?.integrityScore != null && attempt.integrityScore < 100
         ? 1
         : 0;
+
+  const audioRecording = recordings.find((r) => r.kind === 'audio' && r.fileName) || null;
+  const transcriptRecord = recordings.find((r) => r.kind === 'transcript' && r.transcript) || null;
+  const transcriptText = transcriptRecord?.transcript || applicantData?.interviewTranscript || null;
+  const transcriptSegments = parseTimestampedTranscript(transcriptText);
+  const hasAudio = Boolean(audioRecording);
+  const hasTranscript = Boolean(transcriptText && transcriptText.trim().length > 0);
+  const codeKey = String(user.candidateCode || user.id.slice(0, 8)).toUpperCase();
+
+  const unified = deriveUnifiedReviewState({
+    interviewStatus: user.interviewStatus,
+    hasTranscript,
+    hasAudio,
+    integrityScore: attempt?.integrityScore ?? null,
+    proctoringFlagCount,
+    assessorScoreStatus: score?.status ?? null,
+    reviewRecord,
+    transcriptSegmentCount: transcriptSegments.length
+  });
+
+  const aiCompetencies =
+    reviewRecord?.aiCompetencies && reviewRecord.aiCompetencies.length > 0
+      ? reviewRecord.aiCompetencies
+      : hasTranscript || applicantData?.interviewResult || user.interviewScore != null
+        ? buildAiCompetenciesFromData({
+            transcript: transcriptText,
+            applicantInterviewResult: applicantData?.interviewResult,
+            overallScore: user.interviewScore ?? applicantData?.interviewScore ?? null
+          })
+        : [];
+
   return {
     id: user.id,
     code: user.candidateCode || user.id.slice(0, 8),
@@ -154,7 +213,21 @@ const serializeCandidate = (
     lhaHash: score?.lhaHash ?? null,
     signedAt: score?.signedAt ?? null,
     assessorNotes: score?.notes ?? null,
-    isTestAccount: isTestAccountUser(user)
+    isTestAccount: isTestAccountUser(user),
+    reviewStage: unified.stage,
+    reviewStageLabel: unified.label,
+    needsAction: unified.needsAction,
+    actionReason: unified.actionReason,
+    hasAudioRecording: hasAudio,
+    audioRecordingId: audioRecording?.id ?? null,
+    hasTranscript,
+    interviewDurationSec: audioRecording?.durationSec ?? transcriptRecord?.durationSec ?? null,
+    isCalibrationSample:
+      reviewRecord?.isCalibrationSample ?? isDeterministicCalibrationSample(codeKey),
+    aiCompetencies,
+    aiSummary: reviewRecord?.aiSummary || null,
+    aiOverrideReason: reviewRecord?.aiOverrideReason || null,
+    finalized: Boolean(reviewRecord?.finalized)
   };
 };
 
@@ -220,11 +293,12 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
 
     const users = allUsers.filter((u) => isCandidateInAssessorScope(scopeCtx, u));
 
+    const userIds = users.map((u) => u.id).filter(Boolean);
     const codes = users
       .map((u) => u.candidateCode || u.id.slice(0, 8))
       .filter(Boolean);
     const emails = users.map((u) => u.email).filter(Boolean);
-    const [scoreRows, applicantRows] = await Promise.all([
+    const [scoreRows, applicantRows, recordingRows, reviewRecordsMap] = await Promise.all([
       codes.length > 0
         ? prisma.assessorScore.findMany({
             where: { candidateCode: { in: codes } },
@@ -235,14 +309,43 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
       emails.length > 0
         ? prisma.applicant.findMany({
             where: { email: { in: emails } },
-            select: { email: true, proctorFlags: true }
+            select: {
+              email: true,
+              proctorFlags: true,
+              interviewTranscript: true,
+              interviewResult: true,
+              interviewScore: true
+            }
           })
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      userIds.length > 0
+        ? prisma.interviewRecording.findMany({
+            where: { userId: { in: userIds } },
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              userId: true,
+              kind: true,
+              fileName: true,
+              mimeType: true,
+              durationSec: true,
+              transcript: true,
+              createdAt: true
+            }
+          })
+        : Promise.resolve([]),
+      loadAiReviewRecordsMap()
     ]);
 
-    const flagsByEmail = new Map(
-      applicantRows.map((a) => [a.email.toLowerCase(), a.proctorFlags])
+    const applicantByEmail = new Map(
+      applicantRows.map((a) => [a.email.toLowerCase(), a])
     );
+    const recordingsByUserId = new Map<string, RecordingMeta[]>();
+    for (const rec of recordingRows) {
+      const list = recordingsByUserId.get(rec.userId) || [];
+      list.push(rec);
+      recordingsByUserId.set(rec.userId, list);
+    }
 
     const scoresByCode = new Map<string, CandidateAssessorScoreRow[]>();
     for (const row of scoreRows) {
@@ -255,8 +358,10 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
       data: users.map((u) => {
         const key = u.candidateCode || u.id.slice(0, 8);
         const bestScore = pickBestScore(scoresByCode.get(key) || []);
-        const applicantFlags = flagsByEmail.get(u.email.toLowerCase()) || null;
-        return serializeCandidate(u, bestScore, applicantFlags);
+        const applicantData = applicantByEmail.get(u.email.toLowerCase()) || null;
+        const recordings = recordingsByUserId.get(u.id) || [];
+        const reviewRec = reviewRecordsMap.get(key.toUpperCase()) || null;
+        return serializeCandidate(u, bestScore, applicantData, recordings, reviewRec);
       })
     });
   } catch (error) {
@@ -287,7 +392,7 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
     }
 
     const codeKey = user.candidateCode || user.id.slice(0, 8);
-    const [scores, applicant] = await Promise.all([
+    const [scores, applicant, recordings, reviewRecord] = await Promise.all([
       prisma.assessorScore.findMany({
         where: {
           OR: [{ candidateCode: codeKey }, { candidateCode: identifier }]
@@ -297,8 +402,27 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
       }),
       prisma.applicant.findUnique({
         where: { email: user.email },
-        select: { proctorFlags: true }
-      })
+        select: {
+          proctorFlags: true,
+          interviewTranscript: true,
+          interviewResult: true,
+          interviewScore: true
+        }
+      }),
+      prisma.interviewRecording.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          kind: true,
+          fileName: true,
+          mimeType: true,
+          durationSec: true,
+          transcript: true,
+          createdAt: true
+        }
+      }),
+      getAiReviewRecord(codeKey)
     ]);
     const bestScore = pickBestScore(scores);
 
@@ -339,11 +463,27 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    const transcriptText =
+      recordings.find((r) => r.kind === 'transcript' && r.transcript)?.transcript ||
+      applicant?.interviewTranscript ||
+      null;
+    const transcriptSegments = parseTimestampedTranscript(transcriptText);
+
     return res.json({
       data: {
-        ...serializeCandidate(user, bestScore, applicant?.proctorFlags || null),
+        ...serializeCandidate(user, bestScore, applicant || null, recordings, reviewRecord),
         competencies: bestScore?.competencies ? parseJson<any[]>(bestScore.competencies, []) : [],
-        essayAnswers
+        essayAnswers,
+        transcriptText,
+        transcriptSegments,
+        recordings: recordings.map((r) => ({
+          id: r.id,
+          kind: r.kind,
+          fileName: r.fileName,
+          mimeType: r.mimeType,
+          durationSec: r.durationSec,
+          createdAt: r.createdAt
+        }))
       }
     });
   } catch (error) {
@@ -576,5 +716,149 @@ export const listAllAssessorProctoringEvents = async (req: AuthRequest, res: Res
   } catch (error) {
     console.error('List aggregate assessor proctoring error:', error);
     return res.status(500).json({ error: 'Gagal memuat agregat event proctoring.' });
+  }
+};
+
+export const handleAssessorSessionAction = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi asesor tidak valid.' });
+    const identifier = String(req.params.candidateCode || '').trim();
+    const action = String(req.body.action || '').trim();
+    const reason = String(req.body.reason || '').trim();
+    const scheduledAtRaw = req.body.scheduledAt ? String(req.body.scheduledAt) : null;
+
+    if (!['reschedule', 'resolve_manual', 'flag_issue', 'toggle_calibration'].includes(action)) {
+      return res.status(400).json({ error: 'Aksi sesi tidak valid.' });
+    }
+
+    const user = await prisma.portalUser.findFirst({
+      where: {
+        role: 'peserta',
+        OR: [
+          { candidateCode: identifier },
+          { id: identifier },
+          ...(identifier.length >= 6 ? [{ id: { startsWith: identifier } }] : [])
+        ]
+      },
+      select: {
+        id: true,
+        name: true,
+        candidateCode: true,
+        tenantId: true,
+        companyId: true,
+        companyName: true,
+        tenant: { select: { name: true } }
+      }
+    });
+    if (!user) return res.status(404).json({ error: 'Kandidat tidak ditemukan.' });
+
+    const scopeCtx = await resolveAssessorScopeContext(req.portalUser, prisma);
+    if (!isCandidateInAssessorScope(scopeCtx, user)) {
+      return res.status(403).json({ error: 'Kandidat bukan milik tenant PT Anda.' });
+    }
+
+    const codeKey = (user.candidateCode || user.id.slice(0, 8)).toUpperCase();
+    const existing = await getAiReviewRecord(codeKey);
+    const baseRecord: AiInterviewReviewRecord = existing || {
+      candidateCode: codeKey,
+      aiCompetencies: [],
+      aiOverallScore: null,
+      aiSummary: null,
+      isCalibrationSample: isDeterministicCalibrationSample(codeKey),
+      needsAction: false,
+      actionReason: null,
+      actionType: null,
+      finalized: false,
+      aiOverrideReason: null,
+      manualDecisionNote: null,
+      updatedAt: new Date().toISOString()
+    };
+
+    const actor = req.portalUser.name || req.portalUser.email || 'Asesor';
+
+    if (action === 'reschedule') {
+      const nextScheduledAt = scheduledAtRaw ? new Date(scheduledAtRaw) : new Date();
+      await prisma.portalUser.update({
+        where: { id: user.id },
+        data: {
+          interviewStatus: 'scheduled',
+          interviewScheduledAt: nextScheduledAt,
+          interviewCalledAt: null,
+          interviewCompletedAt: null
+        }
+      });
+      const saved = await saveAiReviewRecord({
+        ...baseRecord,
+        needsAction: false,
+        actionReason: null,
+        actionType: 'rescheduled',
+        manualDecisionNote: reason || 'Dijadwalkan ulang wawancara AI oleh asesor.'
+      });
+      recordAuditLog({
+        actor,
+        action: 'ASSESSOR_SESSION_RESCHEDULED',
+        category: 'DATA_MUTATION',
+        ip: resolveRequestIp(req),
+        target: codeKey,
+        details: `Asesor menjadwalkan ulang sesi wawancara AI (${user.name}). Alasan: ${reason || '-'}`,
+        status: 'SUCCESS'
+      });
+      return res.json({ data: saved });
+    }
+
+    if (action === 'resolve_manual') {
+      if (reason.length < 5) {
+        return res.status(400).json({ error: 'Catatan keputusan manual wajib diisi minimal 5 karakter.' });
+      }
+      const saved = await saveAiReviewRecord({
+        ...baseRecord,
+        needsAction: false,
+        actionReason: null,
+        actionType: 'resolved_manual',
+        manualDecisionNote: reason
+      });
+      recordAuditLog({
+        actor,
+        action: 'ASSESSOR_SESSION_MANUAL_DECISION',
+        category: 'DECISION',
+        ip: resolveRequestIp(req),
+        target: codeKey,
+        details: `Asesor menyelesaikan status Perlu Tindakan secara manual (${user.name}). Catatan: ${reason}`,
+        status: 'SUCCESS'
+      });
+      return res.json({ data: saved });
+    }
+
+    if (action === 'toggle_calibration') {
+      const saved = await saveAiReviewRecord({
+        ...baseRecord,
+        isCalibrationSample: !baseRecord.isCalibrationSample
+      });
+      return res.json({ data: saved });
+    }
+
+    // flag_issue
+    if (reason.length < 5) {
+      return res.status(400).json({ error: 'Alasan kendala sesi wajib diisi minimal 5 karakter.' });
+    }
+    const saved = await saveAiReviewRecord({
+      ...baseRecord,
+      needsAction: true,
+      actionReason: reason,
+      actionType: 'flagged_by_assessor'
+    });
+    recordAuditLog({
+      actor,
+      action: 'ASSESSOR_SESSION_FLAGGED_ISSUE',
+      category: 'DATA_MUTATION',
+      ip: resolveRequestIp(req),
+      target: codeKey,
+      details: `Asesor menandai sesi perlu tindakan (${user.name}): ${reason}`,
+      status: 'WARNING'
+    });
+    return res.json({ data: saved });
+  } catch (error) {
+    console.error('Assessor session action error:', error);
+    return res.status(500).json({ error: 'Gagal memproses tindakan sesi.' });
   }
 };

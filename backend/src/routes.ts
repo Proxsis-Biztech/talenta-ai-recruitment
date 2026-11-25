@@ -43,7 +43,8 @@ import {
   listAssessorCandidates,
   getAssessorCandidate,
   getAssessorCandidateProctoring,
-  listAllAssessorProctoringEvents
+  listAllAssessorProctoringEvents,
+  handleAssessorSessionAction
 } from './controllers/AssessorCandidateController';
 import { getWaitingRoomStatus, completeAndCallNext, streamWaitingRoom } from './controllers/InterviewQueueController';
 import { getPortalMaterials } from './controllers/PortalMaterialController';
@@ -305,6 +306,7 @@ router.delete('/admin/classes/:id/members/:userId', authenticateToken, removeCla
 
 router.get('/asesor/candidates', authenticatePortal, requirePortalRole('asesor'), listAssessorCandidates);
 router.get('/asesor/candidates/:candidateCode', authenticatePortal, requirePortalRole('asesor'), getAssessorCandidate);
+router.post('/asesor/candidates/:candidateCode/session-action', authenticatePortal, requirePortalRole('asesor'), handleAssessorSessionAction);
 router.get('/asesor/candidates/:candidateCode/proctoring', authenticatePortal, requirePortalRole('asesor'), getAssessorCandidateProctoring);
 router.get('/asesor/proctoring', authenticatePortal, requirePortalRole('asesor'), listAllAssessorProctoringEvents);
 

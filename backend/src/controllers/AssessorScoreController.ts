@@ -25,6 +25,11 @@ import {
   type CompetencyScoreItem,
   type LhaVersionSnapshot
 } from '../services/lhaGovernanceService';
+import {
+  getAiReviewRecord,
+  isDeterministicCalibrationSample,
+  saveAiReviewRecord
+} from '../services/reviewWorkflowService';
 
 const prisma = new PrismaClient();
 
@@ -212,6 +217,8 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
     const recommendation = String(req.body.recommendation || '').trim().toUpperCase();
     const notes = req.body.notes ? String(req.body.notes) : null;
     const status = req.body.status === 'signed' ? 'signed' : 'draft';
+    const finalized = Boolean(req.body.finalized) || status === 'signed';
+    const aiOverrideReason = typeof req.body.aiOverrideReason === 'string' ? req.body.aiOverrideReason.trim() : '';
 
     if (!candidateCode || !candidateName || !programTitle) {
       return res.status(400).json({ error: 'Kandidat dan program wajib diisi.' });
@@ -232,6 +239,30 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
     if (allowedCodes && !targetKeys.some((k) => allowedCodes.includes(k))) {
       return res.status(403).json({
         error: 'Kandidat ini terdaftar pada tenant PT lain. Pastikan akun asesor dan kandidat berada pada tenant PT yang sama.'
+      });
+    }
+
+    // Quality control: require written reason if any AI competency score was modified by the assessor
+    const existingAiReview = await getAiReviewRecord(candidateCode);
+    const aiBaseline = existingAiReview?.aiCompetencies || [];
+    const overriddenItems: Array<{ name: string; aiScore: number; newScore: number }> = [];
+    for (const comp of competencies) {
+      const compName = String(comp?.name || '');
+      const submittedRating = Number(comp?.score ?? comp?.rating ?? 0);
+      const aiMatch = aiBaseline.find(
+        (ai) => ai.name.toLowerCase() === compName.toLowerCase()
+      );
+      if (aiMatch && submittedRating > 0 && submittedRating !== aiMatch.aiScore) {
+        overriddenItems.push({
+          name: compName,
+          aiScore: aiMatch.aiScore,
+          newScore: submittedRating
+        });
+      }
+    }
+    if (overriddenItems.length > 0 && aiOverrideReason.length < 5) {
+      return res.status(400).json({
+        error: 'Anda mengubah skor rekomendasi AI. Wajib mengisi alasan perubahan skor minimal 5 karakter.'
       });
     }
 
@@ -296,6 +327,37 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
       compositeScore,
       recommendation
     });
+
+    const codeKey = candidateCode.toUpperCase();
+    await saveAiReviewRecord({
+      candidateCode: codeKey,
+      aiCompetencies: existingAiReview?.aiCompetencies || [],
+      aiOverallScore: existingAiReview?.aiOverallScore ?? null,
+      aiSummary: existingAiReview?.aiSummary ?? null,
+      isCalibrationSample: existingAiReview?.isCalibrationSample ?? isDeterministicCalibrationSample(codeKey),
+      needsAction: existingAiReview?.needsAction ?? false,
+      actionReason: existingAiReview?.actionReason ?? null,
+      actionType: existingAiReview?.actionType ?? null,
+      finalized: finalized || Boolean(existingAiReview?.finalized),
+      aiOverrideReason: aiOverrideReason || existingAiReview?.aiOverrideReason || null,
+      manualDecisionNote: existingAiReview?.manualDecisionNote ?? null,
+      updatedAt: new Date().toISOString()
+    });
+
+    if (overriddenItems.length > 0) {
+      const diffSummary = overriddenItems
+        .map((o) => `${o.name}: AI ${o.aiScore}/5 -> Asesor ${o.newScore}/5`)
+        .join('; ');
+      recordAuditLog({
+        actor: req.portalUser.name || req.portalUser.email || 'asesor',
+        action: 'AI_SCORE_OVERRIDE',
+        category: 'DATA_MUTATION',
+        ip: resolveRequestIp(req),
+        target: `${candidateCode} (${programTitle})`,
+        details: `Asesor mengubah skor AI [${diffSummary}]. Alasan: ${aiOverrideReason}`,
+        status: 'SUCCESS'
+      });
+    }
 
     return res.status(existing ? 200 : 201).json({ data: serializeScore(score) });
   } catch (error) {

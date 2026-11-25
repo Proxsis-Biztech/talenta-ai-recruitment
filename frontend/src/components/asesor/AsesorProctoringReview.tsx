@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -11,7 +11,11 @@ import {
   Camera,
   AlertTriangle,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  ChevronDown,
+  Search,
+  Check,
+  Video
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
 import { Button, Badge } from '../ui';
@@ -25,6 +29,39 @@ import {
 
 type ProctoringEvent = AssessorProctoringEvent;
 
+const getInterviewStatusMeta = (candidate?: AssessorCandidate | null) => {
+  if (!candidate) {
+    return {
+      hasJoined: false,
+      label: 'Belum Interview',
+      badgeClass: 'bg-slate-100 text-slate-600 border-slate-200'
+    };
+  }
+  if (
+    candidate.interviewStatus === 'completed' ||
+    Boolean(candidate.completedAt) ||
+    candidate.interviewScore != null
+  ) {
+    return {
+      hasJoined: true,
+      label: 'Sudah Interview',
+      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    };
+  }
+  if (candidate.interviewStatus === 'called' || candidate.interviewStatus === 'in_progress') {
+    return {
+      hasJoined: false,
+      label: 'Sedang / Dipanggil Interview',
+      badgeClass: 'bg-blue-50 text-blue-700 border-blue-200'
+    };
+  }
+  return {
+    hasJoined: false,
+    label: 'Belum Interview',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200'
+  };
+};
+
 export default function AsesorProctoringReview() {
   const navigate = useNavigate();
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'high' | 'medium' | 'low'>('all');
@@ -33,8 +70,29 @@ export default function AsesorProctoringReview() {
   const [candidates, setCandidates] = useState<AssessorCandidate[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(true);
   const [selectedCode, setSelectedCode] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [candidateSearch, setCandidateSearch] = useState('');
+  const [interviewFilter, setInterviewFilter] = useState<'all' | 'done' | 'pending'>('all');
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
   const [events, setEvents] = useState<ProctoringEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,6 +154,32 @@ export default function AsesorProctoringReview() {
   const selectedCandidate = candidates.find(
     (candidate) => (candidate.candidateCode || candidate.id) === selectedCode
   );
+  const selectedInterviewMeta = getInterviewStatusMeta(selectedCandidate);
+
+  const interviewCounts = useMemo(() => {
+    let done = 0;
+    let pending = 0;
+    for (const c of candidates) {
+      if (getInterviewStatusMeta(c).hasJoined) done += 1;
+      else pending += 1;
+    }
+    return { all: candidates.length, done, pending };
+  }, [candidates]);
+
+  const filteredCandidates = useMemo(() => {
+    const q = candidateSearch.trim().toLowerCase();
+    return candidates.filter((c) => {
+      const meta = getInterviewStatusMeta(c);
+      if (interviewFilter === 'done' && !meta.hasJoined) return false;
+      if (interviewFilter === 'pending' && meta.hasJoined) return false;
+      if (!q) return true;
+      return (
+        c.name.toLowerCase().includes(q) ||
+        (c.code || '').toLowerCase().includes(q) ||
+        (c.programCode || '').toLowerCase().includes(q)
+      );
+    });
+  }, [candidates, candidateSearch, interviewFilter]);
 
   useEffect(() => {
     const baseScore = apiIntegrityScore ?? selectedCandidate?.integrityScore ?? null;
@@ -184,11 +268,23 @@ export default function AsesorProctoringReview() {
     <AsesorLayout activeTab="proctoring">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-6">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <Badge variant="danger" format="soft" className="uppercase font-semibold text-xs">
               PROCTORING AUDIT
             </Badge>
             <Badge variant="navy" className="text-xs">{`Kandidat: ${selectedCandidate?.name || '-'} (${selectedCandidate?.programCode || '-'})`}</Badge>
+            {selectedCandidate && (
+              <span
+                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${selectedInterviewMeta.badgeClass}`}
+              >
+                {selectedInterviewMeta.hasJoined ? (
+                  <CheckCircle2 className="w-3 h-3" />
+                ) : (
+                  <Clock className="w-3 h-3" />
+                )}
+                {selectedInterviewMeta.label}
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
             Review Temuan Integritas & Flag Proctoring AI
@@ -196,25 +292,162 @@ export default function AsesorProctoringReview() {
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Audit rekaman snapshot kejadian mencurigakan yang ditangkap otomatis oleh mesin OpenCV & Browser Integrity Guard.
           </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <label className="text-xs font-semibold text-slate-600">Pilih Kandidat</label>
-            <select
-              value={selectedCode}
-              onChange={(event) => setSelectedCode(event.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-ink focus:outline-none focus:border-primary-navy"
-            >
-              {loadingCandidates ? (
-                <option value="">Memuat daftar kandidat...</option>
-              ) : candidates.length === 0 ? (
-                <option value="">Belum ada kandidat</option>
-              ) : (
-                candidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.candidateCode || candidate.id}>
-                    {candidate.name} ({candidate.code})
-                  </option>
-                ))
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <label className="text-xs font-semibold text-slate-700 shrink-0">Pilih Kandidat</label>
+            <div ref={dropdownRef} className="relative w-full sm:w-[460px]">
+              <button
+                type="button"
+                disabled={loadingCandidates || candidates.length === 0}
+                onClick={() => setDropdownOpen((open) => !open)}
+                className="w-full px-3.5 py-2.5 text-left bg-white border border-slate-200 hover:border-primary-navy/60 focus:outline-none focus:ring-2 focus:ring-primary-navy/15 rounded-xl shadow-2xs flex items-center justify-between gap-3 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loadingCandidates ? (
+                  <span className="text-xs text-slate-500">Memuat daftar kandidat...</span>
+                ) : candidates.length === 0 ? (
+                  <span className="text-xs text-slate-500">Belum ada kandidat pada tenant PT Anda</span>
+                ) : selectedCandidate ? (
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200 text-primary-navy font-bold text-xs flex items-center justify-center shrink-0">
+                      {selectedCandidate.name.charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-ink truncate">
+                          {selectedCandidate.name}
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-500 shrink-0">
+                          ({selectedCandidate.code})
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${selectedInterviewMeta.badgeClass}`}
+                    >
+                      {selectedInterviewMeta.label}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-500">Pilih kandidat...</span>
+                )}
+                <ChevronDown
+                  className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-150 ${
+                    dropdownOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {dropdownOpen && candidates.length > 0 && (
+                <div className="absolute left-0 right-0 mt-2 z-40 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
+                  <div className="p-3 bg-slate-50/80 border-b border-slate-200 space-y-2.5">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={candidateSearch}
+                        onChange={(e) => setCandidateSearch(e.target.value)}
+                        placeholder="Cari nama, kode kandidat, atau program..."
+                        autoFocus
+                        className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-primary-navy"
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {(
+                        [
+                          { key: 'all', label: `Semua (${interviewCounts.all})` },
+                          { key: 'done', label: `Sudah Interview (${interviewCounts.done})` },
+                          { key: 'pending', label: `Belum Interview (${interviewCounts.pending})` }
+                        ] as const
+                      ).map((tab) => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => setInterviewFilter(tab.key)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                            interviewFilter === tab.key
+                              ? 'bg-primary-navy text-white'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                    {filteredCandidates.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-slate-500">
+                        Tidak ada kandidat yang sesuai filter.
+                      </div>
+                    ) : (
+                      filteredCandidates.map((candidate) => {
+                        const codeVal = candidate.candidateCode || candidate.id;
+                        const isSelected = codeVal === selectedCode;
+                        const interviewMeta = getInterviewStatusMeta(candidate);
+                        const flagCount = candidate.proctoringFlagCount ?? 0;
+                        return (
+                          <button
+                            key={candidate.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCode(codeVal);
+                              setDropdownOpen(false);
+                            }}
+                            className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2.5 transition-colors cursor-pointer ${
+                              isSelected ? 'bg-blue-50/80' : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <span
+                                className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 ${
+                                  isSelected
+                                    ? 'bg-primary-navy text-white'
+                                    : 'bg-slate-100 text-slate-700'
+                                }`}
+                              >
+                                {candidate.name.charAt(0).toUpperCase()}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-semibold text-ink truncate">
+                                    {candidate.name}
+                                  </span>
+                                  <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                                    {candidate.code}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                                  <span className="truncate">{candidate.programCode || '-'}</span>
+                                  {flagCount > 0 && (
+                                    <span className="px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 font-semibold shrink-0">
+                                      {flagCount} Flag
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${interviewMeta.badgeClass}`}
+                              >
+                                {interviewMeta.hasJoined ? (
+                                  <CheckCircle2 className="w-2.5 h-2.5" />
+                                ) : (
+                                  <Video className="w-2.5 h-2.5" />
+                                )}
+                                {interviewMeta.label}
+                              </span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-primary-navy" />}
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
               )}
-            </select>
+            </div>
           </div>
         </div>
 

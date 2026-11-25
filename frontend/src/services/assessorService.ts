@@ -8,6 +8,30 @@ export interface AssessorEssayAnswer {
   answer: string;
 }
 
+export interface AiCompetencyEvidence {
+  name: string;
+  weight: number;
+  aiScore: number;
+  rationale: string;
+  quote: string;
+  timestamp: string;
+}
+
+export interface TranscriptSegment {
+  timestamp: string;
+  speaker: 'Ava AI' | 'Kandidat' | 'Sistem';
+  text: string;
+}
+
+export interface AssessorCandidateRecordingMeta {
+  id: string;
+  kind: string;
+  fileName: string | null;
+  mimeType: string | null;
+  durationSec: number | null;
+  createdAt: string;
+}
+
 export interface AssessorCandidate {
   id: string;
   code: string;
@@ -36,6 +60,22 @@ export interface AssessorCandidate {
   signedAt: string | null;
   assessorNotes?: string | null;
   isTestAccount?: boolean;
+  reviewStage?: 'BELUM_INTERVIEW' | 'PERLU_TINDAKAN' | 'MENUNGGU_REVIEW' | 'DIREVIEW' | 'FINALISASI' | 'TERBIT';
+  reviewStageLabel?: string;
+  needsAction?: boolean;
+  actionReason?: string | null;
+  hasAudioRecording?: boolean;
+  audioRecordingId?: string | null;
+  hasTranscript?: boolean;
+  transcriptText?: string | null;
+  transcriptSegments?: TranscriptSegment[];
+  recordings?: AssessorCandidateRecordingMeta[];
+  interviewDurationSec?: number | null;
+  isCalibrationSample?: boolean;
+  aiCompetencies?: AiCompetencyEvidence[];
+  aiSummary?: string | null;
+  aiOverrideReason?: string | null;
+  finalized?: boolean;
   competencies?: Array<{ name: string; weight: number; score: number; notes?: string }>;
   essayAnswers?: AssessorEssayAnswer[];
 }
@@ -122,4 +162,28 @@ export const fetchAssessorScoreByCode = async (
     if (axios.isAxiosError(error) && error.response?.status === 404) return null;
     throw error;
   }
+};
+
+export const submitAssessorSessionAction = async (
+  candidateCode: string,
+  payload: {
+    action: 'reschedule' | 'resolve_manual' | 'flag_issue' | 'toggle_calibration';
+    reason?: string;
+    scheduledAt?: string;
+  }
+) => {
+  const response = await axios.post(
+    `/api/asesor/candidates/${encodeURIComponent(candidateCode)}/session-action`,
+    payload,
+    { headers: authHeaders() }
+  );
+  return response.data?.data;
+};
+
+export const fetchRecordingAudioBlobUrl = async (recordingId: string): Promise<string> => {
+  const response = await axios.get(`/api/portal/recordings/${encodeURIComponent(recordingId)}/file`, {
+    headers: authHeaders(),
+    responseType: 'blob'
+  });
+  return URL.createObjectURL(response.data);
 };

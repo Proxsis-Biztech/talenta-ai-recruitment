@@ -1,23 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Users,
-  Video,
   ShieldAlert,
   ClipboardCheck,
-  Calendar,
   Clock,
   ArrowRight,
   AlertTriangle,
-  CheckCircle2,
-  PlayCircle,
   Scale,
-  Building2
+  Building2,
+  Sparkles,
+  FileAudio
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
-import { Button, Badge, Card, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
+import { Button, Badge, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
+import { resolveCandidateReviewStage } from '../../services/asesorReviewState';
 
 export default function AsesorDashboard() {
   const navigate = useNavigate();
@@ -25,6 +23,7 @@ export default function AsesorDashboard() {
   const activeAsesor = useMemo(() => getActiveSessionUser(), []);
   const [candidates, setCandidates] = useState<AssessorCandidate[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(true);
+  const [accountFilter, setAccountFilter] = useState<'all' | 'real' | 'test'>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -43,82 +42,62 @@ export default function AsesorDashboard() {
     };
   }, []);
 
-  const [accountFilter, setAccountFilter] = useState<'all' | 'real' | 'test'>('all');
-
   const visibleCandidates = useMemo(() => {
     if (accountFilter === 'real') return candidates.filter((c) => !c.isTestAccount);
     if (accountFilter === 'test') return candidates.filter((c) => c.isTestAccount);
     return candidates;
   }, [candidates, accountFilter]);
 
-  const todayDateStr = useMemo(() => new Date().toLocaleDateString('id-ID'), []);
-  const todayScheduledCount = useMemo(
+  const waitingReviewCount = useMemo(
     () =>
-      visibleCandidates.filter(
-        (c) =>
-          Boolean(c.scheduledAt) &&
-          new Date(c.scheduledAt as string).toLocaleDateString('id-ID') === todayDateStr
-      ).length,
-    [visibleCandidates, todayDateStr]
+      visibleCandidates.filter((c) => resolveCandidateReviewStage(c).stage === 'MENUNGGU_REVIEW').length,
+    [visibleCandidates]
   );
 
-  const todaySlots = useMemo(() => {
-    return visibleCandidates.slice(0, 5).map((c) => ({
-      id: c.id,
-      candidate: c.name,
-      code: c.code,
-      program: c.program,
-      company: c.company,
-      catRawScore: c.catScore,
-      integrityScore: c.integrityScore,
-      interviewStatusRaw: c.interviewStatus,
-      isTestAccount: Boolean(c.isTestAccount),
-      time: c.scheduledAt
-        ? `${new Date(c.scheduledAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`
-        : 'Belum dijadwalkan',
-      status:
-        c.interviewStatus === 'called'
-          ? 'Dipanggil'
-          : c.interviewStatus === 'completed'
-            ? 'Selesai Dinilai'
-            : c.interviewStatus === 'scheduled'
-              ? 'Terjadwal'
-              : c.examStatus === 'in_progress'
-                ? 'Sedang Ujian CAT'
-                : 'Menunggu',
-      statusVariant: (c.interviewStatus === 'called'
-        ? 'teal'
-        : c.interviewStatus === 'completed'
-          ? 'neutral'
-          : 'navy') as any,
-      catScore: c.catScore != null ? `${c.catScore}/100` : '-',
-      action: c.interviewStatus === 'called' ? 'Masuk Live Console' : 'Buka Dossier',
-      actionPath:
-        c.interviewStatus === 'called'
-          ? `/asesor/live-console/${c.code}`
-          : `/asesor/scoring/${c.code}`
-    }));
+  const needsActionCount = useMemo(
+    () =>
+      visibleCandidates.filter((c) => resolveCandidateReviewStage(c).stage === 'PERLU_TINDAKAN').length,
+    [visibleCandidates]
+  );
+
+  const readyToSignCount = useMemo(
+    () =>
+      visibleCandidates.filter((c) => {
+        const st = resolveCandidateReviewStage(c).stage;
+        return st === 'FINALISASI' || st === 'DIREVIEW';
+      }).length,
+    [visibleCandidates]
+  );
+
+  const calibrationSampleCount = useMemo(
+    () => visibleCandidates.filter((c) => c.isCalibrationSample).length,
+    [visibleCandidates]
+  );
+
+  const prioritizedRows = useMemo(() => {
+    return [...visibleCandidates]
+      .map((c) => ({ candidate: c, stageMeta: resolveCandidateReviewStage(c) }))
+      .sort((a, b) => a.stageMeta.sortOrder - b.stageMeta.sortOrder)
+      .slice(0, 6);
   }, [visibleCandidates]);
 
   const primaryCandidate = useMemo(
     () =>
-      visibleCandidates.find((c) => c.interviewStatus === 'called') ||
-      visibleCandidates.find((c) => c.interviewStatus !== 'completed') ||
-      visibleCandidates[0] ||
-      null,
-    [visibleCandidates]
+      prioritizedRows[0]?.candidate || visibleCandidates[0] || null,
+    [prioritizedRows, visibleCandidates]
   );
   const primaryCode = primaryCandidate?.code;
-  const openConsole = () => {
-    if (primaryCode) navigate(`/asesor/live-console/${primaryCode}`);
+
+  const openReviewConsole = () => {
+    if (primaryCode) navigate(`/asesor/review-console/${primaryCode}`);
+    else navigate('/asesor/review-console');
   };
+
   const openScoring = () => {
     if (primaryCode) navigate(`/asesor/scoring/${primaryCode}`);
     else navigate('/asesor/scoring');
   };
-  const pendingLha = visibleCandidates.filter(
-    (candidate) => candidate.interviewStatus === 'completed' && candidate.lhaStatus !== 'signed'
-  ).length;
+
   const proctoringCandidateCount = visibleCandidates.filter(
     (candidate) =>
       (candidate.proctoringFlagCount ?? 0) > 0 ||
@@ -133,86 +112,123 @@ export default function AsesorDashboard() {
   );
   const programCount = new Set(visibleCandidates.map((c) => c.program).filter(Boolean)).size;
 
+  const primaryStageMeta = resolveCandidateReviewStage(primaryCandidate);
+
   return (
     <AsesorLayout activeTab="dashboard">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8 antialiased">
         {/* ─── Hero Assessor Header: Asymmetric 8 / 4 Split ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* Sisi Kiri (8 kolom): Profil Asesor & Sesi Aktif */}
           <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-soft-blue text-primary-navy border border-accent-border text-xs font-bold">
                   <Scale className="w-3.5 h-3.5 text-blue-accent" />
-                  Dewan Asesor Penguji Independen
+                  Dewan Asesor &amp; Kalibrasi LHA (Ava AI-First)
                 </span>
                 <span className="font-mono text-xs text-muted-slate bg-exam-bg px-2.5 py-1 rounded-md border border-slate-200">
-                  ID: AS-8821
+                  Sampel Kalibrasi: {calibrationSampleCount} Sesi
                 </span>
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-extrabold font-heading tracking-tight text-ink">
-                Panel Penilaian: {activeAsesor.name || 'Dr. Ir. Dwi Hartanto'}
+                Panel Review Asesor: {activeAsesor.name || 'Asesor'}
               </h1>
-              <p className="text-xs sm:text-sm text-muted-slate mt-2 flex items-center gap-2">
+              <p className="text-xs sm:text-sm text-muted-slate mt-2 flex flex-wrap items-center gap-2">
                 <Building2 className="w-4 h-4 text-slate-400" />
-                <span>Instansi Pengujian: <strong className="text-ink font-semibold">{activeAsesor.companyName || 'PT Telkom Indonesia Tbk'}</strong></span>
+                <span>
+                  Instansi PT:{' '}
+                  <strong className="text-ink font-semibold">
+                    {activeAsesor.companyName || 'Tenant Terdaftar'}
+                  </strong>
+                </span>
                 <span className="text-slate-300">•</span>
-                <span>Program: <strong className="text-primary-navy font-semibold">{programCount > 1 ? `${programCount} Program Aktif` : visibleCandidates[0]?.program || 'Semua Program Aktif'}</strong></span>
+                <span>
+                  Program:{' '}
+                  <strong className="text-primary-navy font-semibold">
+                    {programCount > 1
+                      ? `${programCount} Program Aktif`
+                      : visibleCandidates[0]?.program || 'Semua Program Aktif'}
+                  </strong>
+                </span>
               </p>
+
+              {/* Clickable Priority Review Banner */}
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate('/asesor/interview-queue?status=MENUNGGU_REVIEW')}
+                  className="text-left p-4 rounded-xl bg-amber-50/80 hover:bg-amber-100/70 border border-amber-200 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                      SIAP DIREVIEW ASESOR
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-amber-700 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                  <p className="text-xl font-extrabold font-mono text-amber-950 mt-1">
+                    {waitingReviewCount} Sesi Menunggu Review
+                  </p>
+                  <p className="text-[11px] text-amber-800 mt-0.5">
+                    Klik untuk membuka antrean hasil wawancara Ava AI
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/asesor/interview-queue?status=PERLU_TINDAKAN')}
+                  className="text-left p-4 rounded-xl bg-rose-50/70 hover:bg-rose-100/70 border border-rose-200 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800">
+                      ANOMALI / KENDALA TEKNIS
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-rose-700 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                  <p className="text-xl font-extrabold font-mono text-rose-950 mt-1">
+                    {needsActionCount} Sesi Perlu Tindakan
+                  </p>
+                  <p className="text-[11px] text-rose-800 mt-0.5">
+                    Mic gagal, koneksi putus, atau risiko proctoring tinggi
+                  </p>
+                </button>
+              </div>
             </div>
 
-            <div className="mt-6 pt-5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5 text-muted-slate">
-                  <Calendar className="w-4 h-4 text-primary-navy" />
-                  <span>Jadwal Hari Ini: <strong className="text-ink">{todayScheduledCount} Kandidat</strong></span>
+            <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4 text-xs text-muted-slate">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-primary-navy" />
+                  <span>Wawancara AI otomatis dijalankan oleh <strong className="text-ink">Ava</strong></span>
                 </div>
-                <div className="flex items-center gap-1.5 text-muted-slate">
+                <div className="flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-blue-accent" />
-                  <span>Antrean Dipanggil: <strong className="text-emerald-600">{visibleCandidates.filter((candidate) => candidate.interviewStatus === 'called').length} Kandidat</strong></span>
+                  <span>Siap Finalisasi / E-Sign: <strong className="text-primary-navy">{readyToSignCount}</strong></span>
                 </div>
               </div>
 
               <Button
                 variant="primary"
-                onClick={openConsole}
+                onClick={openReviewConsole}
                 disabled={!primaryCode}
                 className="py-2.5 px-5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
               >
-                <Video className="w-4 h-4 text-blue-100" />
-                <span>Masuk Konsol Wawancara</span>
+                <FileAudio className="w-4 h-4 text-blue-100" />
+                <span>Buka Review Console</span>
               </Button>
             </div>
           </div>
 
-          {/* Sisi Kanan (4 kolom): Kandidat Segera Diuji (Quick Dossier) */}
+          {/* Sisi Kanan (4 kolom): Sesi Prioritas Berikutnya */}
           <div className="lg:col-span-4 bg-exam-bg rounded-2xl border border-slate-200 p-6 flex flex-col justify-between shadow-2xs">
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-primary-navy bg-white px-2.5 py-0.5 rounded border border-slate-200">
-                  KANDIDAT BERIKUTNYA
+                  PRIORITAS REVIEW
                 </span>
-                <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                    primaryCandidate?.interviewStatus === 'called'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-slate-100 text-slate-700'
-                  }`}
-                >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      primaryCandidate?.interviewStatus === 'called'
-                        ? 'bg-emerald-600 animate-pulse'
-                        : 'bg-slate-400'
-                    }`}
-                  />
-                  {primaryCandidate?.interviewStatus === 'called'
-                    ? 'Siap di Room'
-                    : primaryCandidate?.interviewStatus === 'completed'
-                      ? 'Selesai Dinilai'
-                      : 'Menunggu Antrean'}
-                </span>
+                <Badge variant={primaryStageMeta.badgeVariant} format="soft">
+                  {primaryStageMeta.label}
+                </Badge>
               </div>
 
               <h3 className="font-heading font-bold text-base text-ink">
@@ -230,6 +246,12 @@ export default function AsesorDashboard() {
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-200/60">
+                  <span className="text-muted-slate">Skor Ava AI</span>
+                  <span className="font-mono font-bold text-primary-navy">
+                    {primaryCandidate?.interviewScore != null ? `${primaryCandidate.interviewScore}/100` : '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1">
                   <span className="text-muted-slate">Proctoring AI</span>
                   <span
                     className={`font-semibold ${
@@ -247,38 +269,43 @@ export default function AsesorDashboard() {
                         : `${primaryCandidate.integrityScore}% (Perlu Review)`}
                   </span>
                 </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-muted-slate">Alokasi Waktu</span>
-                  <span className="font-mono font-semibold text-ink">45 Menit</span>
-                </div>
               </div>
             </div>
 
-            <div className="mt-5 pt-3 border-t border-slate-200">
+            <div className="mt-5 pt-3 border-t border-slate-200 space-y-2">
+              <Button
+                variant="primary"
+                size="xs"
+                onClick={openReviewConsole}
+                disabled={!primaryCode}
+                className="w-full py-2 rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Putar Rekaman &amp; Review</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
               <Button
                 variant="outline"
                 size="xs"
                 onClick={openScoring}
                 className="w-full py-2 rounded-xl text-primary-navy font-bold flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 border-slate-200 cursor-pointer"
               >
-                <span>Buka Lembar Penilaian BARS</span>
+                <span>Buka Penilaian &amp; LHA</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
         </div>
 
-        {/* ─── Asymmetric 8 / 4 Split: Interview Queue & Audit Action Center ─── */}
+        {/* ─── Asymmetric 8 / 4 Split: Review Queue & Audit Action Center ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Kolom Kiri (8 kolom): Tabel Antrean Wawancara Hari Ini */}
           <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="font-heading font-extrabold text-lg text-ink">
-                  Daftar Antrean Wawancara Hari Ini
+                  Daftar Sesi Review Prioritas
                 </h2>
                 <p className="text-xs text-muted-slate mt-0.5">
-                  Slot waktu, hasil ujian CAT mandatori, dan tautan langsung ke ruang pengujian
+                  Diurutkan otomatis: Perlu Tindakan &rarr; Menunggu Review &rarr; Direview &rarr; Finalisasi &rarr; Terbit
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -304,7 +331,7 @@ export default function AsesorDashboard() {
                   onClick={() => navigate('/asesor/interview-queue')}
                   className="text-xs py-1.5 px-3 rounded-lg font-semibold cursor-pointer"
                 >
-                  Lihat Semua Antrean ({visibleCandidates.length})
+                  Lihat Antrean Review ({visibleCandidates.length})
                 </Button>
               </div>
             </div>
@@ -313,34 +340,61 @@ export default function AsesorDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>KANDIDAT</TableHead>
-                  <TableHead>WAKTU</TableHead>
-                  <TableHead>CAT TEKNIS</TableHead>
-                  <TableHead>STATUS</TableHead>
+                  <TableHead>CAT / AVA AI</TableHead>
+                  <TableHead>STATUS REVIEW</TableHead>
                   <TableHead className="text-right">AKSI</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {todaySlots.map((slot) => (
-                  <TableRow key={slot.id}>
+                {prioritizedRows.map(({ candidate, stageMeta }) => (
+                  <TableRow key={candidate.id}>
                     <TableCell>
                       <div>
-                        <p className="font-bold text-xs sm:text-sm text-ink">{slot.candidate}</p>
-                        <p className="font-mono text-[11px] text-muted-slate">{slot.code}</p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="font-bold text-xs sm:text-sm text-ink">{candidate.name}</p>
+                          {candidate.isCalibrationSample && (
+                            <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
+                              Sampel Kalibrasi
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-mono text-[11px] text-muted-slate">
+                          {candidate.code} • {candidate.program}
+                        </p>
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs font-medium text-primary-navy">{slot.time}</TableCell>
-                    <TableCell className="font-mono text-xs font-bold text-emerald-700">{slot.catScore}</TableCell>
+                    <TableCell className="font-mono text-xs whitespace-nowrap">
+                      <span className="font-bold text-emerald-700">
+                        {candidate.catScore != null ? `${candidate.catScore}` : '-'}
+                      </span>
+                      <span className="text-slate-300 mx-1">/</span>
+                      <span className="font-bold text-primary-navy">
+                        {candidate.interviewScore != null ? `${candidate.interviewScore}` : '-'}
+                      </span>
+                    </TableCell>
                     <TableCell>
-                      <Badge variant={slot.statusVariant} format="soft">{slot.status}</Badge>
+                      <Badge variant={stageMeta.badgeVariant} format="soft">
+                        {stageMeta.label}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
-                        variant="primary"
+                        variant={stageMeta.stage === 'TERBIT' ? 'outline' : 'primary'}
                         size="xs"
-                        onClick={() => navigate(slot.actionPath)}
+                        onClick={() =>
+                          navigate(
+                            stageMeta.stage === 'FINALISASI' || stageMeta.stage === 'TERBIT'
+                              ? `/asesor/scoring/${candidate.code}`
+                              : `/asesor/review-console/${candidate.code}`
+                          )
+                        }
                         className="text-xs py-1 px-3"
                       >
-                        {slot.action}
+                        {stageMeta.stage === 'TERBIT'
+                          ? 'Lihat LHA'
+                          : stageMeta.stage === 'FINALISASI'
+                            ? 'E-Sign LHA'
+                            : 'Buka Review'}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -349,29 +403,30 @@ export default function AsesorDashboard() {
             </Table>
           </div>
 
-          {/* Kolom Kanan (4 kolom): Task Action Ledger & Quick Tools ─── */}
           <div className="lg:col-span-4 space-y-4">
-            {/* Card 1: Penilaian Tertunda */}
+            {/* Card 1: Penilaian & Kalibrasi */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-muted-slate uppercase tracking-wider">
-                  TUGAS PENILAIAN
+                  FINALISASI &amp; E-SIGN LHA
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
                   <ClipboardCheck className="w-4 h-4" />
                 </div>
               </div>
               <div>
-                <p className="font-mono text-2xl font-bold text-ink">{pendingLha} Berkas LHA</p>
-                <p className="text-xs text-muted-slate mt-0.5">Memerlukan finalisasi rekomendasi &amp; e-sign</p>
+                <p className="font-mono text-2xl font-bold text-ink">{readyToSignCount} Berkas Review</p>
+                <p className="text-xs text-muted-slate mt-0.5">
+                  Direview / siap difinalisasi &amp; tanda tangan elektronik LHA
+                </p>
               </div>
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => { if (primaryCode) navigate(`/asesor/scoring/${primaryCode}`); }}
+                onClick={openScoring}
                 className="w-full text-xs py-2 rounded-lg font-semibold text-amber-800 bg-amber-50/60 hover:bg-amber-100/70 border-amber-200 flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <span>Selesaikan Penilaian</span>
+                <span>Buka Penilaian &amp; LHA</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Button>
             </div>
@@ -380,7 +435,7 @@ export default function AsesorDashboard() {
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-muted-slate uppercase tracking-wider">
-                  AUDIT PROCTORING
+                  INBOX FLAG PROCTORING
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-red-50 text-error-red flex items-center justify-center">
                   <ShieldAlert className="w-4 h-4" />
@@ -388,7 +443,9 @@ export default function AsesorDashboard() {
               </div>
               <div>
                 <p className="font-mono text-2xl font-bold text-ink">{proctoringFindings} Event AI</p>
-                <p className="text-xs text-muted-slate mt-0.5">{proctoringCandidateCount} kandidat perlu konfirmasi valid vs false positive</p>
+                <p className="text-xs text-muted-slate mt-0.5">
+                  {proctoringCandidateCount} kandidat perlu verifikasi snapshot bukti
+                </p>
               </div>
               <Button
                 variant="outline"
@@ -396,19 +453,19 @@ export default function AsesorDashboard() {
                 onClick={() => navigate('/asesor/proctoring')}
                 className="w-full text-xs py-2 rounded-lg font-semibold text-red-800 bg-red-50/60 hover:bg-red-100/70 border-red-200 flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <span>Tinjau Snapshot Rekaman</span>
+                <span>Tinjau Inbox Proctoring</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Button>
             </div>
 
-            {/* Card 3: Metodologi Rubrik BARS */}
+            {/* Card 3: Kalibrasi Sampel Acak */}
             <div className="bg-exam-bg rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-primary-navy">
-                <Scale className="w-4 h-4 text-blue-accent" />
-                <span>Pedoman Penilaian BARS (1-5)</span>
+                <AlertTriangle className="w-4 h-4 text-purple-600" />
+                <span>Sampel Kalibrasi &amp; Kontrol Kualitas</span>
               </div>
               <p className="text-xs text-muted-slate leading-relaxed">
-                Penilaian menggunakan indikator perilaku teramati (*Behaviorally Anchored Rating Scales*) untuk menjamin objektivitas seleksi.
+                Terdapat <strong>{calibrationSampleCount} sesi sampel acak</strong> untuk kalibrasi konsistensi penilai antar-asesor. Setiap perubahan skor AI wajib disertai alasan untuk Log Audit.
               </p>
               <div className="pt-1">
                 <Button
@@ -417,7 +474,7 @@ export default function AsesorDashboard() {
                   onClick={() => navigate('/asesor/rekap')}
                   className="w-full text-xs py-1.5 rounded-lg bg-white border-slate-200 text-slate-700"
                 >
-                  Buka Matriks Rekapitulasi Nilai
+                  Buka Rekap Program
                 </Button>
               </div>
             </div>

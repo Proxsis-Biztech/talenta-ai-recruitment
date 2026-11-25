@@ -26,6 +26,7 @@ import {
 import { Badge, Modal, Button } from '../ui';
 import { getActiveSessionUser, clearActiveSession } from '../../services/userRegistryService';
 import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
+import { resolveCandidateReviewStage } from '../../services/asesorReviewState';
 
 interface AsesorLayoutProps {
   children: React.ReactNode;
@@ -89,17 +90,19 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
         (candidate.integrityScore != null && candidate.integrityScore < 100 ? 1 : 0)),
     0
   );
-  const calledCandidates = notifCandidates.filter(
-    (candidate) =>
-      candidate.interviewStatus === 'called' ||
-      candidate.interviewStatus === 'waiting' ||
-      (candidate.interviewStatus !== 'completed' && candidate.examStatus === 'submitted')
-  );
-  const activeQueueCandidates = notifCandidates.filter(
-    (candidate) => candidate.interviewStatus !== 'completed'
-  );
+  const waitingReviewCandidates = notifCandidates.filter((candidate) => {
+    const stage = resolveCandidateReviewStage(candidate).stage;
+    return stage === 'MENUNGGU_REVIEW' || stage === 'PERLU_TINDAKAN';
+  });
+  const inReviewCandidates = notifCandidates.filter((candidate) => {
+    const stage = resolveCandidateReviewStage(candidate).stage;
+    return stage === 'DIREVIEW' || stage === 'FINALISASI';
+  });
   const firstConsoleTarget =
-    calledCandidates[0]?.code || activeQueueCandidates[0]?.code || notifCandidates[0]?.code || '';
+    waitingReviewCandidates[0]?.code ||
+    inReviewCandidates[0]?.code ||
+    notifCandidates[0]?.code ||
+    '';
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   useEffect(() => {
@@ -120,17 +123,17 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
         { id: 'dashboard', label: 'Dashboard', path: '/asesor/dashboard', icon: LayoutDashboard },
         {
           id: 'queue',
-          label: 'Antrean Interview',
+          label: 'Antrean Review',
           path: '/asesor/interview-queue',
           icon: Users,
-          badge: loadingStats ? undefined : `${notifCandidates.length} Slot`
+          badge: loadingStats ? undefined : `${waitingReviewCandidates.length} Review`
         },
         {
           id: 'console',
-          label: 'Live Console',
-          path: firstConsoleTarget ? `/asesor/live-console/${firstConsoleTarget}` : '/asesor/live-console',
+          label: 'Review Console',
+          path: firstConsoleTarget ? `/asesor/review-console/${firstConsoleTarget}` : '/asesor/review-console',
           icon: Video,
-          badge: 'Scoring'
+          badge: 'BARS'
         },
         {
           id: 'proctoring',
@@ -395,10 +398,14 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           {/* Right Topbar Indicators */}
           <div className="flex items-center gap-3">
             {/* Pending Reviews Telemetry */}
-            <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-amber-900 text-xs sm:text-sm font-semibold">
+            <button
+              type="button"
+              onClick={() => navigate('/asesor/interview-queue?status=MENUNGGU_REVIEW')}
+              className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100/80 border border-amber-200 rounded-full text-amber-900 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+            >
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              <span>{calledCandidates.length} Antrean Menunggu Review</span>
-            </div>
+              <span>{waitingReviewCandidates.length} Menunggu Review</span>
+            </button>
 
             {/* Notification Bell */}
             <button
@@ -574,16 +581,20 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-3">
             <Users className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-blue-950">Jadwal Sesi Live Interview Berikutnya</p>
-              <p className="text-blue-800 text-[11px] mt-0.5">{calledCandidates.length > 0 ? `${calledCandidates.length} kandidat siap/menunggu wawancara (termasuk ${calledCandidates[0].name} • ${calledCandidates[0].code}).` : 'Belum ada kandidat di ruang tunggu saat ini.'}</p>
+              <p className="font-bold text-blue-950">Sesi Wawancara Ava AI Menunggu Review</p>
+              <p className="text-blue-800 text-[11px] mt-0.5">
+                {waitingReviewCandidates.length > 0
+                  ? `${waitingReviewCandidates.length} sesi menunggu review / tindakan (termasuk ${waitingReviewCandidates[0].name} • ${waitingReviewCandidates[0].code}).`
+                  : 'Semua sesi wawancara AI saat ini sudah direview.'}
+              </p>
               <button
                 onClick={() => {
                   setNotifModalOpen(false);
-                  navigate('/asesor/interview-queue');
+                  navigate('/asesor/interview-queue?status=MENUNGGU_REVIEW');
                 }}
                 className="text-blue-900 font-bold underline mt-1 block cursor-pointer"
               >
-                Lihat Antrean Kandidat →
+                Buka Antrean Review →
               </button>
             </div>
           </div>

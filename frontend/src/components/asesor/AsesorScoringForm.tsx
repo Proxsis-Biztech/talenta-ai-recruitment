@@ -33,6 +33,7 @@ import {
   fetchAssessorCandidates,
   type AssessorCandidate
 } from '../../services/assessorService';
+import { resolveCandidateReviewStage } from '../../services/asesorReviewState';
 import { getActiveSessionUser } from '../../services/userRegistryService';
 import { getPortalToken } from '../../services/portalAuthService';
 import AsesorGovernancePanels from './AsesorGovernancePanels';
@@ -429,7 +430,9 @@ export default function AsesorScoringForm() {
         compositeScore: calculateCompositeScore(candidate!.catScore ?? 0, interviewScore),
         recommendation,
         notes: assessorNotes.trim() || undefined,
-        status
+        status,
+        finalized: true,
+        aiOverrideReason: candidate?.aiOverrideReason || undefined
       },
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -565,6 +568,7 @@ export default function AsesorScoringForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {candidateList.map((item) => {
                 const signed = item.lhaStatus === 'signed';
+                const stageMeta = resolveCandidateReviewStage(item);
                 const displayComposite =
                   item.compositeScore ??
                   (item.catScore != null && item.interviewScore != null
@@ -578,9 +582,12 @@ export default function AsesorScoringForm() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs font-bold text-primary-navy">{item.code}</span>
-                        <Badge variant={signed ? 'success' : item.interviewStatus === 'completed' ? 'warning' : 'outline'}>
-                          {signed ? 'LHA Terbit (Terkunci)' : item.interviewStatus === 'completed' ? 'Siap E-Sign' : item.interviewStatus}
+                        <Badge variant={stageMeta.badgeVariant}>
+                          {stageMeta.label}
                         </Badge>
+                        {item.isCalibrationSample && (
+                          <Badge variant="outline">Sampel Kalibrasi</Badge>
+                        )}
                         {item.isTestAccount && (
                           <Badge variant="outline">Akun Uji</Badge>
                         )}

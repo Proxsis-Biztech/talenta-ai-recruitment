@@ -227,8 +227,11 @@ function App() {
             <Route path="/asesor" element={<RequireRole roles={['asesor']}><AsesorDashboard /></RequireRole>} />
             <Route path="/asesor/dashboard" element={<RequireRole roles={['asesor']}><AsesorDashboard /></RequireRole>} />
             <Route path="/asesor/interview-queue" element={<RequireRole roles={['asesor']}><AsesorQueueTable /></RequireRole>} />
+            <Route path="/asesor/review-console" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
+            <Route path="/asesor/review-console/:id" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
             <Route path="/asesor/live-console" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
             <Route path="/asesor/live-console/:id" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
+            <Route path="/asesor/observer/:id" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
             <Route path="/asesor/proctoring" element={<RequireRole roles={['asesor']}><AsesorProctoringReview /></RequireRole>} />
             <Route path="/asesor/scoring" element={<RequireRole roles={['asesor']}><AsesorScoringForm /></RequireRole>} />
             <Route path="/asesor/scoring/:id" element={<RequireRole roles={['asesor']}><AsesorScoringForm /></RequireRole>} />

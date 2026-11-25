@@ -17,6 +17,7 @@ import { downloadCsvFile } from '../../utils/csvExport';
 import { Button, Badge, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
 import { calculateCompositeScore, formatToday } from '../../services/asesorScoreService';
 import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
+import { resolveCandidateReviewStage } from '../../services/asesorReviewState';
 import { getPortalToken } from '../../services/portalAuthService';
 
 export default function AsesorRekapProgram() {
@@ -107,14 +108,7 @@ export default function AsesorRekapProgram() {
         : c.signedAt
           ? new Date(c.signedAt).toLocaleDateString('id-ID')
           : null,
-      statusLabel:
-        c.lhaStatus === 'signed'
-          ? 'LHA terbit (final)'
-          : Boolean(saved) || Boolean(recommendation)
-            ? 'dinilai asesor (draft)'
-            : interviewScore != null
-              ? 'skor wawancara tercatat (menunggu rubrik)'
-              : 'belum dinilai',
+      statusLabel: resolveCandidateReviewStage(c).label,
       isSaved: Boolean(saved) || c.lhaStatus === 'signed' || Boolean(recommendation)
     };
   });

@@ -5,6 +5,13 @@ import path from 'path';
 import crypto from 'crypto';
 import { type AuthRequest } from '../middleware/auth';
 import { isCandidateInAssessorScope, resolveAssessorScopeContext } from '../middleware/tenant';
+import {
+  buildAiCompetenciesFromData,
+  getAiReviewRecord,
+  isDeterministicCalibrationSample,
+  parseTimestampedTranscript,
+  saveAiReviewRecord
+} from '../services/reviewWorkflowService';
 
 const prisma = new PrismaClient();
 const RECORDING_DIR = path.join(__dirname, '../../uploads/recordings');
@@ -94,6 +101,56 @@ export const saveInterviewTranscript = async (req: AuthRequest, res: Response) =
       }
     }
 
+    const aiScoreNum = Number.isFinite(Number(req.body.aiScore)) ? Number(req.body.aiScore) : null;
+    await prisma.portalUser.update({
+      where: { id: req.portalUser.id },
+      data: {
+        interviewStatus: 'completed',
+        interviewCompletedAt: new Date(),
+        ...(aiScoreNum != null ? { interviewScore: aiScoreNum } : {})
+      }
+    });
+
+    const candidateKey = (req.portalUser.candidateCode || req.portalUser.id).toUpperCase();
+    const existingReview = await getAiReviewRecord(candidateKey);
+    const segments = parseTimestampedTranscript(transcript);
+    const candidateTurnCount = segments.filter((s) => s.speaker === 'Kandidat').length;
+    const micFailed = Boolean(req.body.micFailed);
+    const connectionLost = Boolean(req.body.connectionLost);
+    const issueReason = micFailed
+      ? 'Mikrofon peserta gagal / tidak terdeteksi selama wawancara AI.'
+      : connectionLost
+        ? 'Koneksi terputus sebelum sesi wawancara AI selesai.'
+        : candidateTurnCount < 2
+          ? 'Jumlah respons kandidat pada transkrip sangat minim (< 2 giliran bicara).'
+          : null;
+
+    const aiCompetencies =
+      Array.isArray(req.body.aiCompetencies) && req.body.aiCompetencies.length > 0
+        ? req.body.aiCompetencies
+        : buildAiCompetenciesFromData({
+            transcript,
+            overallScore: aiScoreNum
+          });
+
+    await saveAiReviewRecord({
+      candidateCode: candidateKey,
+      aiCompetencies,
+      aiOverallScore: aiScoreNum ?? existingReview?.aiOverallScore ?? null,
+      aiSummary:
+        (typeof req.body.aiSummary === 'string' && req.body.aiSummary.trim()) ||
+        existingReview?.aiSummary ||
+        null,
+      isCalibrationSample: existingReview?.isCalibrationSample ?? isDeterministicCalibrationSample(candidateKey),
+      needsAction: Boolean(issueReason) || Boolean(existingReview?.needsAction),
+      actionReason: issueReason || existingReview?.actionReason || null,
+      actionType: issueReason ? 'auto_detected' : existingReview?.actionType || null,
+      finalized: existingReview?.finalized ?? false,
+      aiOverrideReason: existingReview?.aiOverrideReason ?? null,
+      manualDecisionNote: existingReview?.manualDecisionNote ?? null,
+      updatedAt: new Date().toISOString()
+    });
+
     return res.status(201).json({ data: { id: record.id, createdAt: record.createdAt } });
   } catch (error) {
     console.error('Save interview transcript error:', error);
@@ -161,6 +218,21 @@ export const downloadRecording = async (req: AuthRequest, res: Response) => {
     }
     if (req.portalUser.role === 'peserta' && record.userId !== req.portalUser.id) {
       return res.status(403).json({ error: 'Anda tidak berhak mengakses rekaman ini.' });
+    }
+    if (req.portalUser.role === 'asesor') {
+      const owner = await prisma.portalUser.findUnique({
+        where: { id: record.userId },
+        select: {
+          tenantId: true,
+          companyId: true,
+          companyName: true,
+          tenant: { select: { name: true } }
+        }
+      });
+      const scopeCtx = await resolveAssessorScopeContext(req.portalUser, prisma);
+      if (!isCandidateInAssessorScope(scopeCtx, owner)) {
+        return res.status(403).json({ error: 'Rekaman ini bukan milik tenant PT Anda.' });
+      }
     }
     const filePath = path.join(RECORDING_DIR, path.basename(record.fileName));
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Berkas rekaman tidak tersedia.' });

@@ -1,182 +1,221 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import {
-  Video,
-  Mic,
-  MicOff,
-  Flag,
+  FileAudio,
+  FileText,
   ShieldAlert,
   Save,
   CheckCircle2,
-  Clock,
-  Sparkles,
-  Star,
-  LogOut,
   ChevronRight,
-  FileText
+  Search,
+  Sparkles,
+  Quote,
+  AlertTriangle,
+  RefreshCw,
+  Scale,
+  Eye,
+  Clock
 } from 'lucide-react';
-import { Button, Badge, Card } from '../ui';
+import { Button, Badge } from '../ui';
 import { calculateCompositeScore } from '../../services/asesorScoreService';
 import {
   fetchAssessorCandidate,
   fetchAssessorCandidates,
   fetchAssessorScoreByCode,
+  fetchRecordingAudioBlobUrl,
+  submitAssessorSessionAction,
   type AssessorCandidate
 } from '../../services/assessorService';
+import { resolveCandidateReviewStage } from '../../services/asesorReviewState';
 import { getPortalToken } from '../../services/portalAuthService';
 
 interface RubricItem {
   id: string;
   name: string;
-  weight: number; // percentage
-  score: number; // 0 = belum dinilai, 1 to 5
+  weight: number;
+  score: number;
   notes: string;
-  descriptors: { [key: number]: string };
+  descriptors: Record<number, string>;
 }
+
+const INITIAL_RUBRICS: RubricItem[] = [
+  {
+    id: 'c1',
+    name: 'System Architecture & Scalability',
+    weight: 30,
+    score: 0,
+    notes: '',
+    descriptors: {
+      1: 'Tidak memahami konsep dasar arsitektur terdistribusi.',
+      2: 'Mengetahui istilah umum namun kesulitan merancang diagram alur data.',
+      3: 'Memahami prinsip microservices dan mampu menyelesaikan skenario standar.',
+      4: 'Sangat baik dalam mendesain toleransi kesalahan dan strategi caching.',
+      5: 'Kecakapan arsitektural tingkat eksepsional dengan benchmark teruji.'
+    }
+  },
+  {
+    id: 'c2',
+    name: 'Database Optimization & Tuning',
+    weight: 25,
+    score: 0,
+    notes: '',
+    descriptors: {
+      1: 'Hanya memahami query CRUD dasar.',
+      2: 'Kurang memahami indeks B-Tree dan indexing pitfalls.',
+      3: 'Mampu menganalisis slow query dan membuat indexing standar.',
+      4: 'Sangat menguasai connection pooling, partitioning, dan locking mitigation.',
+      5: 'Mampu merancang database high-throughput tanpa resiko deadlock.'
+    }
+  },
+  {
+    id: 'c3',
+    name: 'Problem Solving & Algorithmic Thinking',
+    weight: 25,
+    score: 0,
+    notes: '',
+    descriptors: {
+      1: 'Kesulitan menemukan pendekatan awal masalah.',
+      2: 'Solusi brute force tanpa optimasi kompleksitas.',
+      3: 'Solusi optimal untuk skenario umum (O(n log n)).',
+      4: 'Analisis kompleksitas waktu dan memori sangat akurat.',
+      5: 'Menghasilkan arsitektur algoritma optimal dengan pertimbangan edge cases tinggi.'
+    }
+  },
+  {
+    id: 'c4',
+    name: 'Komunikasi & Artikulasi Teknis',
+    weight: 20,
+    score: 0,
+    notes: '',
+    descriptors: {
+      1: 'Tidak komunikatif dan pasif.',
+      2: 'Penjelasan berbelit-belit dan sulit dipahami.',
+      3: 'Komunikasi jelas dalam konteks teknis standar.',
+      4: 'Artikulasi terstruktur, lugas, dan persuasif.',
+      5: 'Komunikasi level leadership teknologi yang inspiratif.'
+    }
+  }
+];
 
 export default function AsesorLiveConsole() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
+
+  const isHiddenObserverMode =
+    location.pathname.startsWith('/asesor/observer') ||
+    new URLSearchParams(location.search).get('mode') === 'observer';
+
   const [candidate, setCandidate] = useState<AssessorCandidate | null>(null);
   const [candidateList, setCandidateList] = useState<AssessorCandidate[]>([]);
   const [candidateLoading, setCandidateLoading] = useState(true);
+  const [pickerSearch, setPickerSearch] = useState('');
 
-  const [isRecording, setIsRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [transcriptQuery, setTranscriptQuery] = useState('');
+
   const [activeCompetency, setActiveCompetency] = useState<string>('c1');
-  const [flagModalOpen, setFlagModalOpen] = useState(false);
+  const [rubrics, setRubrics] = useState<RubricItem[]>(INITIAL_RUBRICS);
+  const [aiOverrideReason, setAiOverrideReason] = useState('');
   const [saving, setSaving] = useState(false);
-  const [callingNext, setCallingNext] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
 
-  // Rubric state — clean initial state (no dummy 85/100 or dummy assessor notes)
-  const [rubrics, setRubrics] = useState<RubricItem[]>([
-    {
-      id: 'c1',
-      name: 'System Architecture & Scalability',
-      weight: 30,
-      score: 0,
-      notes: '',
-      descriptors: {
-        1: 'Tidak memahami konsep dasar arsitektur terdistribusi.',
-        2: 'Mengetahui istilah umum namun kesulitan merancang diagram alur data.',
-        3: 'Memahami prinsip microservices dan mampu menyelesaikan skenario standar.',
-        4: 'Sangat baik dalam mendesain toleransi kesalahan dan strategi caching.',
-        5: 'Kecakapan arsitektural tingkat eksepsional dengan benchmark teruji.'
+  const loadCandidateDetail = async (targetId: string) => {
+    setCandidateLoading(true);
+    try {
+      const data = await fetchAssessorCandidate(targetId);
+      setCandidate(data);
+      if (!data) return;
+
+      if (data.aiOverrideReason) {
+        setAiOverrideReason(data.aiOverrideReason);
+      } else {
+        setAiOverrideReason('');
       }
-    },
-    {
-      id: 'c2',
-      name: 'Database Optimization & Tuning',
-      weight: 25,
-      score: 0,
-      notes: '',
-      descriptors: {
-        1: 'Hanya memahami query CRUD dasar.',
-        2: 'Kurang memahami indeks B-Tree dan indexing pitfalls.',
-        3: 'Mampu menganalisis slow query dan membuat indexing standar.',
-        4: 'Sangat menguasai connection pooling, partitioning, dan locking mitigation.',
-        5: 'Mampu merancang database high-throughput tanpa resiko deadlock.'
+
+      let loadedFromSaved = false;
+      try {
+        const saved = await fetchAssessorScoreByCode(data.code, data.program);
+        if (saved && Array.isArray(saved.competencies) && saved.competencies.length > 0) {
+          loadedFromSaved = true;
+          setRubrics(
+            INITIAL_RUBRICS.map((item, idx) => {
+              const match =
+                saved.competencies.find((c: any) => c.name === item.name) ||
+                saved.competencies[idx];
+              if (!match) return item;
+              return {
+                ...item,
+                score: typeof match.score === 'number' ? match.score : item.score,
+                notes: typeof match.notes === 'string' ? match.notes : item.notes
+              };
+            })
+          );
+        }
+      } catch {
+        // Ignore when no AssessorScore exists yet
       }
-    },
-    {
-      id: 'c3',
-      name: 'Problem Solving & Algorithmic Thinking',
-      weight: 25,
-      score: 0,
-      notes: '',
-      descriptors: {
-        1: 'Kesulitan menemukan pendekatan awal masalah.',
-        2: 'Solusi brute force tanpa optimasi kompleksitas.',
-        3: 'Solusi optimal untuk skenario umum (O(n log n)).',
-        4: 'Analisis kompleksitas waktu dan memori sangat akurat.',
-        5: 'Menghasilkan arsitektur algoritma optimal dengan pertimbangan edge cases tinggi.'
+
+      if (!loadedFromSaved) {
+        if (Array.isArray(data.aiCompetencies) && data.aiCompetencies.length > 0) {
+          setRubrics(
+            INITIAL_RUBRICS.map((item, idx) => {
+              const aiMatch =
+                data.aiCompetencies?.find(
+                  (ai) => ai.name.toLowerCase() === item.name.toLowerCase()
+                ) || data.aiCompetencies?.[idx];
+              return {
+                ...item,
+                score: aiMatch ? aiMatch.aiScore : 0,
+                notes: ''
+              };
+            })
+          );
+        } else {
+          setRubrics(INITIAL_RUBRICS);
+        }
       }
-    },
-    {
-      id: 'c4',
-      name: 'Komunikasi & Artikulasi Teknis',
-      weight: 20,
-      score: 0,
-      notes: '',
-      descriptors: {
-        1: 'Tidak komunikatif dan pasif.',
-        2: 'Penjelasan berbelit-belit dan sulit dipahami.',
-        3: 'Komunikasi jelas dalam konteks teknis standar.',
-        4: 'Artikulasi terstruktur, lugas, dan persuasif.',
-        5: 'Komunikasi level leadership teknologi yang inspiratif.'
-      }
+    } catch {
+      setCandidate(null);
+    } finally {
+      setCandidateLoading(false);
     }
-  ]);
+  };
 
   useEffect(() => {
-    let cancelled = false;
-    setCandidateLoading(true);
     if (!id) {
       setCandidate(null);
+      setCandidateLoading(true);
       fetchAssessorCandidates()
-        .then((list) => {
-          if (!cancelled) setCandidateList(list);
-        })
-        .catch(() => {
-          if (!cancelled) setCandidateList([]);
-        })
-        .finally(() => {
-          if (!cancelled) setCandidateLoading(false);
-        });
-      return () => {
-        cancelled = true;
-      };
+        .then((list) => setCandidateList(list))
+        .catch(() => setCandidateList([]))
+        .finally(() => setCandidateLoading(false));
+      return;
     }
-
-    fetchAssessorCandidate(id)
-      .then(async (data) => {
-        if (cancelled) return;
-        setCandidate(data);
-        if (!data) return;
-        try {
-          const saved = await fetchAssessorScoreByCode(data.code, data.program);
-          if (!cancelled && saved && Array.isArray(saved.competencies) && saved.competencies.length > 0) {
-            setRubrics((prev) =>
-              prev.map((item, idx) => {
-                const match =
-                  saved.competencies.find((c: any) => c.name === item.name) ||
-                  saved.competencies[idx];
-                if (!match) return item;
-                return {
-                  ...item,
-                  score: typeof match.score === 'number' ? match.score : item.score,
-                  notes: typeof match.notes === 'string' ? match.notes : item.notes
-                };
-              })
-            );
-          }
-        } catch {
-          // Ignore missing draft scores
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setCandidate(null);
-      })
-      .finally(() => {
-        if (!cancelled) setCandidateLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    void loadCandidateDetail(id);
   }, [id]);
 
   useEffect(() => {
-    if (!isRecording) return;
-    const timer = setInterval(() => setElapsed((prev) => prev + 1), 1000);
-    return () => clearInterval(timer);
-  }, [isRecording]);
+    let activeUrl: string | null = null;
+    if (!candidate?.audioRecordingId) {
+      setAudioBlobUrl(null);
+      return;
+    }
+    setAudioLoading(true);
+    fetchRecordingAudioBlobUrl(candidate.audioRecordingId)
+      .then((url) => {
+        activeUrl = url;
+        setAudioBlobUrl(url);
+      })
+      .catch(() => setAudioBlobUrl(null))
+      .finally(() => setAudioLoading(false));
 
-  const formatTimer = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  };
+    return () => {
+      if (activeUrl) URL.revokeObjectURL(activeUrl);
+    };
+  }, [candidate?.audioRecordingId]);
 
   const handleScoreChange = (rubricId: string, val: number) => {
     setRubrics((prev) =>
@@ -190,131 +229,282 @@ export default function AsesorLiveConsole() {
     );
   };
 
+  const aiBaselineByName = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const ai of candidate?.aiCompetencies || []) {
+      map.set(ai.name.toLowerCase(), ai.aiScore);
+    }
+    return map;
+  }, [candidate?.aiCompetencies]);
+
+  const overriddenCompetencies = useMemo(() => {
+    const diffs: Array<{ name: string; aiScore: number; newScore: number }> = [];
+    for (const r of rubrics) {
+      const aiScore = aiBaselineByName.get(r.name.toLowerCase());
+      if (aiScore != null && r.score > 0 && r.score !== aiScore) {
+        diffs.push({ name: r.name, aiScore, newScore: r.score });
+      }
+    }
+    return diffs;
+  }, [rubrics, aiBaselineByName]);
+
+  const handleAdoptAllAiScores = () => {
+    if (!candidate?.aiCompetencies?.length) return;
+    setRubrics((prev) =>
+      prev.map((item, idx) => {
+        const ai =
+          candidate.aiCompetencies?.find((a) => a.name.toLowerCase() === item.name.toLowerCase()) ||
+          candidate.aiCompetencies?.[idx];
+        return ai ? { ...item, score: ai.aiScore } : item;
+      })
+    );
+  };
+
+  const handleAdoptSingleAiScore = (rubricName: string, aiScore: number) => {
+    setRubrics((prev) =>
+      prev.map((r) => (r.name === rubricName ? { ...r, score: aiScore } : r))
+    );
+  };
+
   const hasScoredAny = rubrics.some((r) => r.score > 0);
-  // Calculate weighted score (scaled to 100)
   const totalWeightedScore = rubrics.reduce((acc, r) => {
     return acc + (r.score > 0 ? (r.score / 5) * r.weight : 0);
   }, 0);
 
   const currentRubric = rubrics.find((r) => r.id === activeCompetency) || rubrics[0];
+  const currentAiEvidence = useMemo(() => {
+    const list = candidate?.aiCompetencies || [];
+    const idx = rubrics.findIndex((r) => r.id === currentRubric.id);
+    return (
+      list.find((a) => a.name.toLowerCase() === currentRubric.name.toLowerCase()) ||
+      list[idx] ||
+      null
+    );
+  }, [candidate?.aiCompetencies, currentRubric, rubrics]);
 
-  const handleEndSession = async () => {
+  const transcriptSegments = useMemo(() => {
+    const segs = candidate?.transcriptSegments || [];
+    const q = transcriptQuery.trim().toLowerCase();
+    if (!q) return segs;
+    return segs.filter(
+      (s) =>
+        s.text.toLowerCase().includes(q) ||
+        s.speaker.toLowerCase().includes(q) ||
+        s.timestamp.toLowerCase().includes(q)
+    );
+  }, [candidate?.transcriptSegments, transcriptQuery]);
+
+  const saveReview = async (finalizeAndRedirect: boolean) => {
+    if (!candidate) return;
     if (!hasScoredAny) {
-      window.alert('Silakan berikan minimal satu nilai rubrik (skala 1-5) sebelum menyimpan sesi wawancara.');
+      window.alert('Silakan berikan minimal satu nilai rubrik (skala 1–5) terlebih dahulu.');
       return;
     }
+    if (overriddenCompetencies.length > 0 && aiOverrideReason.trim().length < 5) {
+      window.alert(
+        'Anda mengubah skor rekomendasi Ava AI. Wajib mengisi Alasan Perubahan Skor AI minimal 5 karakter untuk pencatatan Log Audit.'
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       const token = getPortalToken();
       if (!token) throw new Error('Sesi asesor tidak ditemukan.');
       const interviewScore = Math.round(totalWeightedScore * 10) / 10;
-      const compositeScoreValue = calculateCompositeScore(candidate?.catScore ?? 0, interviewScore);
-      await axios.post('/api/asesor/scores', {
-        candidateCode: candidate!.code,
-        candidateName: candidate!.name,
-        programTitle: candidate!.program,
-        competencies: rubrics.map((rubric) => ({
-          name: rubric.name,
-          weight: rubric.weight,
-          score: rubric.score,
-          notes: rubric.notes
-        })),
-        interviewScore,
-        compositeScore: compositeScoreValue,
-        recommendation:
-          compositeScoreValue >= 80 ? 'LANJUT' : compositeScoreValue >= 60 ? 'DIPERTIMBANGKAN' : 'TIDAK',
-        status: 'draft'
-      }, { headers: { Authorization: `Bearer ${token}` } });
-      navigate(`/asesor/scoring/${candidate!.code}`);
+      const compositeScoreValue = calculateCompositeScore(candidate.catScore ?? 0, interviewScore);
+      await axios.post(
+        '/api/asesor/scores',
+        {
+          candidateCode: candidate.code,
+          candidateName: candidate.name,
+          programTitle: candidate.program,
+          programCode: candidate.programCode,
+          competencies: rubrics.map((rubric) => ({
+            name: rubric.name,
+            weight: rubric.weight,
+            score: rubric.score,
+            notes: rubric.notes
+          })),
+          interviewScore,
+          compositeScore: compositeScoreValue,
+          recommendation:
+            compositeScoreValue >= 80
+              ? 'LANJUT'
+              : compositeScoreValue >= 60
+                ? 'DIPERTIMBANGKAN'
+                : 'TIDAK',
+          status: 'draft',
+          finalized: finalizeAndRedirect,
+          aiOverrideReason: overriddenCompetencies.length > 0 ? aiOverrideReason.trim() : aiOverrideReason.trim() || undefined
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (finalizeAndRedirect) {
+        navigate(`/asesor/scoring/${candidate.code}`);
+      } else {
+        await loadCandidateDetail(candidate.code);
+        window.alert('Review dan catatan skor berhasil disimpan (status: Direview).');
+      }
     } catch (error) {
-      window.alert(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal menyimpan catatan sesi.' : 'Gagal menyimpan catatan sesi.');
+      window.alert(
+        axios.isAxiosError(error)
+          ? error.response?.data?.error || 'Gagal menyimpan hasil review.'
+          : 'Gagal menyimpan hasil review.'
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const handleCompleteAndCallNext = async () => {
-    setCallingNext(true);
-    try {
-      const token = getPortalToken();
-      if (!token) throw new Error('Sesi asesor tidak ditemukan.');
-      const response = await axios.post(
-        `/api/asesor/interview/${candidate!.code}/complete-and-call-next`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const data = response.data || {};
-      const next = data.next;
-      if (data.alreadyCompleted) {
-        window.alert('Sesi ini sudah diselesaikan sebelumnya.');
-      } else if (data.busy) {
-        window.alert('Sesi selesai. Masih ada peserta lain yang sedang diwawancarai, antrean berikutnya akan dipanggil setelah sesi tersebut selesai.');
-      } else {
-        window.alert(next ? `Sesi selesai. Peserta berikutnya: ${next.name} (${next.candidateCode || '-'}).` : 'Sesi selesai. Tidak ada peserta berikutnya dalam antrean.');
+  const handleSessionAction = async (
+    action: 'reschedule' | 'resolve_manual' | 'flag_issue' | 'toggle_calibration'
+  ) => {
+    if (!candidate) return;
+    let reason = '';
+    if (action !== 'toggle_calibration') {
+      const promptMap = {
+        reschedule: 'Masukkan alasan penjadwalan ulang wawancara AI (contoh: mikrofon kandidat mati):',
+        resolve_manual: 'Masukkan catatan keputusan manual untuk melanjutkan review:',
+        flag_issue: 'Jelaskan kendala teknis / integritas sesi (min. 5 karakter):'
+      };
+      const input = window.prompt(promptMap[action]);
+      if (input === null) return;
+      if (input.trim().length < 5) {
+        window.alert('Catatan/alasan minimal 5 karakter.');
+        return;
       }
-      navigate('/asesor/interview-queue');
-    } catch (error) {
-      window.alert(axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal memanggil peserta berikutnya.' : 'Gagal memanggil peserta berikutnya.');
+      reason = input.trim();
+    }
+
+    setActionBusy(true);
+    try {
+      await submitAssessorSessionAction(candidate.code, { action, reason });
+      await loadCandidateDetail(candidate.code);
+      if (action === 'reschedule') {
+        window.alert('Sesi dijadwalkan ulang untuk wawancara AI. Status diperbarui.');
+        navigate('/asesor/interview-queue');
+      }
+    } catch (err: any) {
+      window.alert(err?.response?.data?.error || 'Gagal memproses tindakan sesi.');
     } finally {
-      setCallingNext(false);
+      setActionBusy(false);
     }
   };
 
   if (candidateLoading) {
-    return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center text-sm">Memuat kandidat...</div>;
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center text-sm">
+        Memuat Review Console &amp; data wawancara AI...
+      </div>
+    );
   }
 
   if (!id) {
+    const q = pickerSearch.trim().toLowerCase();
+    const sorted = [...candidateList]
+      .filter((c) => {
+        if (!q) return true;
+        return (
+          c.name.toLowerCase().includes(q) ||
+          c.code.toLowerCase().includes(q) ||
+          c.program.toLowerCase().includes(q)
+        );
+      })
+      .sort(
+        (a, b) =>
+          resolveCandidateReviewStage(a).sortOrder - resolveCandidateReviewStage(b).sortOrder
+      );
+
     return (
       <div className="min-h-screen bg-slate-950 text-white p-6 sm:p-10">
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-5">
             <div>
-              <h1 className="font-heading text-xl font-extrabold">Live Console Scoring Wawancara</h1>
+              <h1 className="font-heading text-xl font-extrabold">
+                Review Console Wawancara Ava AI
+              </h1>
               <p className="text-xs text-slate-400 mt-1">
-                Pilih kandidat yang siap diuji untuk membuka sesi Live Console & Rubrik BARS.
+                Pilih sesi kandidat untuk memutar rekaman audio, memeriksa transkrip, bukti kutipan skor AI, dan mengisi rubrik BARS.
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => navigate('/asesor/interview-queue')} className="border-slate-700 text-slate-200 hover:bg-slate-900">
-              Buka Daftar Antrean
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/asesor/interview-queue')}
+                className="border-slate-700 text-slate-200 hover:bg-slate-900"
+              >
+                Buka Antrean Review
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/asesor/dashboard')}
+                className="border-slate-700 text-slate-200 hover:bg-slate-900"
+              >
+                Dashboard
+              </Button>
+            </div>
           </div>
-          {candidateList.length === 0 ? (
+
+          <div className="relative max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={pickerSearch}
+              onChange={(e) => setPickerSearch(e.target.value)}
+              placeholder="Cari nama, kode kandidat, atau program..."
+              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-900 border border-slate-800 text-white placeholder:text-slate-500 focus:border-blue-500 outline-none"
+            />
+          </div>
+
+          {sorted.length === 0 ? (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-sm text-slate-400">
-              Belum ada kandidat pada tenant ini.
+              Belum ada kandidat pada tenant PT ini.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {candidateList.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-center justify-between gap-4 hover:border-slate-700 transition-colors"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-blue-400 font-bold">{item.code}</span>
-                      {item.isTestAccount && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                          Akun Uji
-                        </span>
-                      )}
-                    </div>
-                    <p className="font-bold text-sm text-white mt-1">{item.name}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{item.program}</p>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      CAT: {item.catScore != null ? `${item.catScore}/100` : 'Belum Ujian'} • Status: {item.interviewStatus}
-                    </p>
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => navigate(`/asesor/live-console/${item.code}`)}
-                    className="shrink-0"
+              {sorted.map((item) => {
+                const st = resolveCandidateReviewStage(item);
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-center justify-between gap-4 hover:border-slate-700 transition-colors"
                   >
-                    Masuk Console
-                  </Button>
-                </div>
-              ))}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs text-blue-400 font-bold">
+                          {item.code}
+                        </span>
+                        <Badge variant={st.badgeVariant} format="soft">
+                          {st.label}
+                        </Badge>
+                        {item.isCalibrationSample && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-semibold">
+                            Sampel Kalibrasi
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-bold text-sm text-white mt-1.5 truncate">{item.name}</p>
+                      <p className="text-xs text-slate-400 mt-0.5 truncate">{item.program}</p>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        CAT: {item.catScore != null ? `${item.catScore}/100` : '-'} • Skor AI:{' '}
+                        {item.interviewScore != null ? `${item.interviewScore}/100` : '-'}
+                      </p>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => navigate(`/asesor/review-console/${item.code}`)}
+                      className="shrink-0"
+                    >
+                      Buka Review
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -325,150 +515,320 @@ export default function AsesorLiveConsole() {
   if (!candidate) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-4">
-        <p className="text-sm font-semibold">Kandidat tidak ditemukan.</p>
+        <p className="text-sm font-semibold">Kandidat tidak ditemukan atau berada di tenant PT lain.</p>
         <Button variant="primary" size="sm" onClick={() => navigate('/asesor/interview-queue')}>
-          Kembali ke Antrean
+          Kembali ke Antrean Review
         </Button>
       </div>
     );
   }
 
+  const stageMeta = resolveCandidateReviewStage(candidate);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col font-sans select-none">
-      {/* ─── Topbar Live Console ─── */}
-      <header className="h-16 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold font-heading">
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col font-sans">
+      {isHiddenObserverMode && (
+        <div className="bg-purple-950/90 border-b border-purple-800 px-6 py-2 text-xs text-purple-200 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Eye className="w-4 h-4 text-purple-300" />
+            <span>
+              <strong>Mode Observer Kalibrasi (Tersembunyi):</strong> Pemantauan acak konsistensi skor Ava AI &amp; panel penilai.
+            </span>
+          </div>
+          <span className="font-mono text-[11px] text-purple-300">{candidate.code}</span>
+        </div>
+      )}
+
+      {/* ─── Topbar Review Console ─── */}
+      <header className="min-h-16 bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold font-heading shrink-0">
             {candidate.name.charAt(0).toUpperCase()}
           </div>
-          <div>
-            <h1 className="text-sm font-bold tracking-tight">
-              Live Console Asesor: Sesi {candidate!.name} ({candidate!.code})
-            </h1>
-            <p className="text-[11px] text-slate-400">{candidate!.program} • {candidate!.company}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Record button */}
-          <button
-            onClick={() => setIsRecording(!isRecording)}
-            className={`px-3 py-1 rounded-full text-xs font-mono font-bold flex items-center gap-2 border cursor-pointer ${
-              isRecording
-                ? 'bg-red-950 text-red-300 border-red-800 animate-pulse'
-                : 'bg-slate-800 text-slate-400 border-slate-700'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${isRecording ? 'bg-red-500' : 'bg-slate-500'}`} />
-            <span>{isRecording ? `REC • ${formatTimer(elapsed)}` : 'PAUSED'}</span>
-          </button>
-
-          {/* Flag Integritas Button */}
-          <button
-            onClick={() => alert('Flag integritas dicatat: Kejadian mencurigakan ditandai pada timestamp ' + formatTimer(elapsed))}
-            className="px-3 py-1 rounded-lg bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-          >
-            <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-            <span>Tandai Flag</span>
-          </button>
-
-          {/* Akhiri Sesi Button */}
-          <button
-            onClick={handleEndSession}
-            disabled={saving}
-            className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Akhiri Sesi & Nilai</span>
-          </button>
-        </div>
-      </header>
-
-      {/* ─── Main Console Grid: Candidate Video (Left) + Rubric Scoring (Right) ─── */}
-      <div className="flex-1 flex overflow-hidden p-4 sm:p-6 gap-6">
-        {/* ─── Left: Candidate Live Stream & Notes ─── */}
-        <div className="w-1/2 flex flex-col justify-between bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden relative shadow-2xl">
-          {/* Video Placeholder */}
-          <div className="relative flex-1 flex flex-col items-center justify-center p-8 bg-slate-900">
-            <div className="w-28 h-28 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-300 font-heading font-extrabold text-3xl shadow-inner">
-              {candidate!.name
-                .split(' ')
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join('')}
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-sm font-bold tracking-tight truncate">
+                Review Console: {candidate.name} ({candidate.code})
+              </h1>
+              <Badge variant={stageMeta.badgeVariant} format="soft">
+                {stageMeta.label}
+              </Badge>
+              {candidate.isCalibrationSample && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-950 text-purple-200 border border-purple-700 text-[10px] font-bold">
+                  <Scale className="w-3 h-3" />
+                  Sampel Kalibrasi
+                </span>
+              )}
             </div>
-            <div className="mt-4 text-center">
-              <p className="font-heading font-bold text-base text-white">{candidate!.name}</p>
-              <p className="text-xs text-slate-400 font-mono">
-                Skor CAT Teknis: {candidate!.catScore ?? '-'}/100 • {candidate!.code}
-              </p>
-            </div>
-
-            {/* OpenCV Live Overlay Box */}
-            <div className={`absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-[11px] font-mono flex items-center gap-2 ${
-              isRecording ? 'text-emerald-400' : 'text-slate-400'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${isRecording ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
-              <span>{isRecording ? 'Sesi aktif • kamera terpantau' : 'Tidak ada sesi aktif'}</span>
-            </div>
-          </div>
-
-          {/* Quick Questions Helper for Assessor */}
-          <div className="p-4 bg-slate-950/80 border-t border-slate-800 text-xs space-y-2">
-            <span className="text-[11px] uppercase tracking-wider font-bold text-blue-accent">
-              Panduan Soal Terstruktur Asesor:
-            </span>
-            <p className="text-slate-300 font-medium leading-relaxed">
-              "Jelaskan bagaimana Anda mengisolasi fault pada microservice payment gateway agar kegagalan 3rd party tidak menyebabkan cascading failure pada seluruh core service."
+            <p className="text-[11px] text-slate-400 truncate">
+              {candidate.program} • {candidate.company} • CAT:{' '}
+              {candidate.catScore != null ? `${candidate.catScore}/100` : '-'}
             </p>
           </div>
         </div>
 
-        {/* ─── Right: Interactive Rubric Scoring Panel ─── */}
-        <div className="w-1/2 bg-white text-ink rounded-2xl border border-border-slate flex flex-col overflow-hidden shadow-xs">
-          {/* Header Rubrik */}
-          <div className="p-5 border-b border-border-slate flex items-center justify-between bg-slate-50">
-            <div>
-              <h2 className="font-heading font-extrabold text-base text-ink">
-                Rubrik Penilaian Multi-Kompetensi
-              </h2>
-              <p className="text-xs text-muted-slate">Skala 1 - 5 dengan pembobotan persentase otomatis</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={actionBusy}
+            onClick={() => handleSessionAction('flag_issue')}
+            className="px-3 py-1.5 rounded-lg bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+            <span>Tandai Perlu Tindakan</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => saveReview(false)}
+            className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>{saving ? 'Menyimpan...' : 'Simpan Draft Review'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/asesor/interview-queue')}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
+          >
+            Antrean Review
+          </button>
+        </div>
+      </header>
+
+      {/* ─── Main Console Grid: Audio & Transcript Evidence (Left) + AI & BARS Rubric (Right) ─── */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-6 overflow-hidden">
+        {/* ─── Left Column (6 cols): Audio Player + Timestamped Transcript + Issue Controls ─── */}
+        <div className="lg:col-span-6 flex flex-col gap-4 bg-slate-900 rounded-2xl border border-slate-800 p-4 sm:p-5 overflow-hidden">
+          {candidate.needsAction && (
+            <div className="p-3.5 rounded-xl bg-rose-950/80 border border-rose-800 space-y-2.5">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-bold text-rose-200">Sesi Masuk Antrean "Perlu Tindakan"</p>
+                  <p className="text-rose-300 mt-0.5">
+                    {candidate.actionReason || 'Terdeteksi kendala teknis atau anomali integritas pada sesi ini.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={actionBusy}
+                  onClick={() => handleSessionAction('reschedule')}
+                  className="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Jadwalkan Ulang AI</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={actionBusy}
+                  onClick={() => handleSessionAction('resolve_manual')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Putuskan Manual &amp; Lanjut Review</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Audio Player Box */}
+          <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                <FileAudio className="w-4 h-4 text-blue-400" />
+                <span>Rekaman Audio Wawancara Ava AI</span>
+              </div>
+              {candidate.interviewDurationSec != null && (
+                <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {Math.floor(candidate.interviewDurationSec / 60)}m{' '}
+                  {String(candidate.interviewDurationSec % 60).padStart(2, '0')}s
+                </span>
+              )}
             </div>
 
-            {/* Dynamic Total Score */}
-            <div className="text-right">
-              <span className="text-[10px] text-muted-slate uppercase font-bold">Skor Wawancara:</span>
-              <p className="font-mono text-2xl font-extrabold text-primary-navy">
-                {hasScoredAny ? `${totalWeightedScore.toFixed(1)} / 100` : 'Belum Dinilai'}
+            {audioLoading ? (
+              <p className="text-xs text-slate-400">Memuat berkas audio rekaman...</p>
+            ) : audioBlobUrl ? (
+              <audio controls src={audioBlobUrl} className="w-full h-10" />
+            ) : (
+              <p className="text-xs text-slate-400">
+                Rekaman audio belum tersedia untuk sesi ini (gunakan transkrip dan bukti kutipan di bawah untuk review).
               </p>
+            )}
+          </div>
+
+          {/* Timestamped Transcript */}
+          <div className="flex-1 flex flex-col min-h-[320px] bg-slate-950/60 border border-slate-800 rounded-xl overflow-hidden">
+            <div className="p-3.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                <FileText className="w-4 h-4 text-emerald-400" />
+                <span>Transkrip Lengkap dengan Penanda Waktu</span>
+                <span className="text-[10px] font-mono text-slate-400">
+                  ({transcriptSegments.length} baris)
+                </span>
+              </div>
+              <div className="relative w-full sm:w-56">
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={transcriptQuery}
+                  onChange={(e) => setTranscriptQuery(e.target.value)}
+                  placeholder="Cari di transkrip..."
+                  className="w-full pl-8 pr-2.5 py-1 text-[11px] rounded-lg bg-slate-900 border border-slate-700 text-slate-100 placeholder:text-slate-500 outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3.5 space-y-2.5 max-h-[460px]">
+              {transcriptSegments.length === 0 ? (
+                <div className="text-center py-10 text-xs text-slate-500">
+                  {candidate.transcriptText
+                    ? 'Tidak ada baris transkrip yang cocok dengan pencarian.'
+                    : 'Belum ada transkrip wawancara AI untuk kandidat ini.'}
+                </div>
+              ) : (
+                transcriptSegments.map((seg, idx) => (
+                  <div
+                    key={`${seg.timestamp}-${idx}`}
+                    className={`p-3 rounded-xl border text-xs leading-relaxed ${
+                      seg.speaker === 'Ava AI'
+                        ? 'bg-slate-900/90 border-slate-800 text-slate-200'
+                        : seg.speaker === 'Kandidat'
+                          ? 'bg-blue-950/35 border-blue-900/60 text-slate-100'
+                          : 'bg-slate-900/50 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-blue-300">
+                        {seg.timestamp}
+                      </span>
+                      <span
+                        className={`text-[11px] font-bold ${
+                          seg.speaker === 'Ava AI'
+                            ? 'text-teal-300'
+                            : seg.speaker === 'Kandidat'
+                              ? 'text-blue-300'
+                              : 'text-slate-400'
+                        }`}
+                      >
+                        {seg.speaker}
+                      </span>
+                    </div>
+                    <p className="whitespace-pre-wrap">{seg.text}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ─── Right Column (6 cols): AI Score Evidence + BARS Review + Override Audit ─── */}
+        <div className="lg:col-span-6 bg-white text-ink rounded-2xl border border-border-slate flex flex-col overflow-hidden shadow-xs">
+          {/* Header Rubrik */}
+          <div className="p-5 border-b border-border-slate flex flex-wrap items-center justify-between gap-3 bg-slate-50">
+            <div>
+              <h2 className="font-heading font-extrabold text-base text-ink">
+                Skor Ava AI &amp; Rubrik Penilaian Asesor (BARS 1–5)
+              </h2>
+              <p className="text-xs text-muted-slate">
+                Setujui rekomendasi skor AI atau sesuaikan nilai dengan alasan wajib untuk Log Audit.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {(candidate.aiCompetencies?.length || 0) > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={handleAdoptAllAiScores}
+                  leftIcon={<Sparkles className="w-3.5 h-3.5 text-indigo-600" />}
+                >
+                  Setujui Semua Skor AI
+                </Button>
+              )}
+              <div className="text-right">
+                <span className="text-[10px] text-muted-slate uppercase font-bold block">
+                  Skor Review:
+                </span>
+                <p className="font-mono text-xl font-extrabold text-primary-navy">
+                  {hasScoredAny ? `${totalWeightedScore.toFixed(1)} / 100` : 'Belum Dinilai'}
+                </p>
+              </div>
             </div>
           </div>
 
           {/* Competency Tabs */}
           <div className="flex border-b border-border-slate bg-slate-100 overflow-x-auto p-1 gap-1">
-            {rubrics.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => setActiveCompetency(r.id)}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                  activeCompetency === r.id
-                    ? 'bg-white text-primary-navy shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>{r.name.split(' ')[0]}</span>
-                <span className="ml-1 text-[10px] font-mono text-slate-400">
-                  ({r.score > 0 ? `${r.score}/5` : '-/5'})
-                </span>
-              </button>
-            ))}
+            {rubrics.map((r) => {
+              const aiVal = aiBaselineByName.get(r.name.toLowerCase());
+              const isChanged = aiVal != null && r.score > 0 && r.score !== aiVal;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setActiveCompetency(r.id)}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                    activeCompetency === r.id
+                      ? 'bg-white text-primary-navy shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>{r.name.split(' ')[0]}</span>
+                  <span className="ml-1 text-[10px] font-mono text-slate-500">
+                    ({r.score > 0 ? `${r.score}/5` : '-/5'})
+                  </span>
+                  {isChanged && (
+                    <span className="ml-1 text-[9px] px-1 rounded bg-amber-100 text-amber-800">
+                      Ubah
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Active Rubric Form */}
-          <div className="flex-1 p-6 overflow-y-auto space-y-6">
+          {/* Active Rubric Form + AI Quote Evidence */}
+          <div className="flex-1 p-5 overflow-y-auto space-y-5 max-h-[560px]">
+            {currentAiEvidence && (
+              <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
+                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                    <span>Rekomendasi Ava AI: {currentAiEvidence.aiScore} / 5</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleAdoptSingleAiScore(currentRubric.name, currentAiEvidence.aiScore)
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-bold cursor-pointer"
+                  >
+                    Setujui Skor AI ({currentAiEvidence.aiScore}/5)
+                  </button>
+                </div>
+                <p className="text-xs text-indigo-900">{currentAiEvidence.rationale}</p>
+                <div className="p-2.5 rounded-lg bg-white/90 border border-indigo-100 text-[11px] text-slate-700 flex items-start gap-2">
+                  <Quote className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-mono text-[10px] text-indigo-600 font-bold mr-1.5">
+                      [{currentAiEvidence.timestamp}]
+                    </span>
+                    <span className="italic">"{currentAiEvidence.quote}"</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-heading font-bold text-base text-ink">
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="font-heading font-bold text-sm sm:text-base text-ink">
                   {currentRubric.name}
                 </h3>
                 <span className="text-xs font-mono font-semibold text-primary-navy bg-soft-blue px-2 py-0.5 rounded">
@@ -476,19 +836,19 @@ export default function AsesorLiveConsole() {
                 </span>
               </div>
               <p className="text-xs text-muted-slate">
-                Pilihlah tingkat kecakapan kandidat berdasarkan observasi jawaban:
+                Pilih skala BARS 1–5 sesuai bukti audio &amp; kutipan transkrip:
               </p>
             </div>
 
-            {/* 1 - 5 Rating Scale Buttons with Descriptors */}
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((val) => {
                 const isSelected = currentRubric.score === val;
+                const isAiChoice = currentAiEvidence?.aiScore === val;
                 return (
                   <div
                     key={val}
                     onClick={() => handleScoreChange(currentRubric.id, val)}
-                    className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
+                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
                       isSelected
                         ? 'border-primary-navy bg-soft-blue text-primary-navy ring-1 ring-primary-navy shadow-xs'
                         : 'border-border-slate hover:bg-slate-50 text-ink'
@@ -501,10 +861,25 @@ export default function AsesorLiveConsole() {
                     >
                       {val}
                     </div>
-                    <div>
-                      <p className="text-xs font-bold">
-                        {val === 5 ? 'Sangat Istimewa (Expert)' : val === 4 ? 'Kompeten / Mahir' : val === 3 ? 'Cukup / Sesuai Standar' : val === 2 ? 'Di Bawah Standar' : 'Tidak Memenuhi'}
-                      </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs font-bold">
+                          {val === 5
+                            ? 'Sangat Istimewa (Expert)'
+                            : val === 4
+                              ? 'Kompeten / Mahir'
+                              : val === 3
+                                ? 'Cukup / Sesuai Standar'
+                                : val === 2
+                                  ? 'Di Bawah Standar'
+                                  : 'Tidak Memenuhi'}
+                        </p>
+                        {isAiChoice && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                            Pilihan AI
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-muted-slate mt-0.5 leading-relaxed">
                         {currentRubric.descriptors[val]}
                       </p>
@@ -514,43 +889,67 @@ export default function AsesorLiveConsole() {
               })}
             </div>
 
-            {/* Field Catatan Asesor */}
             <div>
               <label className="block text-xs font-bold text-ink uppercase tracking-wider mb-1.5">
                 Catatan Asesor untuk {currentRubric.name}:
               </label>
               <textarea
-                rows={3}
+                rows={2}
                 value={currentRubric.notes}
                 onChange={(e) => handleNotesChange(currentRubric.id, e.target.value)}
-                placeholder="Tuliskan poin observasi penting terkait kompetensi ini..."
-                className="w-full p-3 rounded-xl border border-border-slate focus:border-primary-navy text-xs outline-none leading-relaxed"
+                placeholder="Tuliskan observasi atau klarifikasi jawaban kandidat..."
+                className="w-full p-2.5 rounded-xl border border-border-slate focus:border-primary-navy text-xs outline-none leading-relaxed"
               />
             </div>
+
+            {overriddenCompetencies.length > 0 && (
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 space-y-2">
+                <label className="block text-xs font-bold text-amber-950">
+                  Alasan Perubahan Skor AI * (Wajib — Tercatat di Log Audit)
+                </label>
+                <p className="text-[11px] text-amber-800">
+                  Perubahan terdeteksi:{' '}
+                  {overriddenCompetencies
+                    .map((d) => `${d.name} (AI ${d.aiScore}/5 → ${d.newScore}/5)`)
+                    .join(', ')}
+                </p>
+                <textarea
+                  rows={2}
+                  required
+                  value={aiOverrideReason}
+                  onChange={(e) => setAiOverrideReason(e.target.value)}
+                  placeholder="Jelaskan dasar objektif penyesuaian skor AI (minimal 5 karakter)..."
+                  className="w-full p-2.5 rounded-lg border border-amber-300 bg-white focus:border-amber-600 text-xs outline-none"
+                />
+              </div>
+            )}
           </div>
 
-          {/* Footer Save / Next Competency */}
-          <div className="p-4 border-t border-border-slate bg-slate-50 flex items-center justify-between">
-            <span className="text-xs text-muted-slate">
-              Simpan hasil penilaian melalui formulir rekomendasi
+          {/* Footer Save / Finalize */}
+          <div className="p-4 border-t border-border-slate bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] text-muted-slate">
+              {overriddenCompetencies.length > 0
+                ? 'Perubahan skor AI akan dicatat otomatis ke Log Audit.'
+                : 'Finalisasi untuk lanjut ke Preview LHA & E-Sign.'}
             </span>
             <div className="flex items-center gap-2">
               <Button
+                type="button"
                 variant="outline"
-                onClick={handleCompleteAndCallNext}
-                disabled={callingNext || saving}
-                className="text-xs flex items-center gap-1.5"
+                onClick={() => saveReview(false)}
+                disabled={saving}
+                className="text-xs"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{callingNext ? 'Memanggil...' : 'Selesai & Panggil Berikutnya'}</span>
+                Simpan Draft
               </Button>
               <Button
+                type="button"
                 variant="primary"
-                onClick={handleEndSession}
-                disabled={saving || callingNext}
+                onClick={() => saveReview(true)}
+                disabled={saving}
                 className="text-xs flex items-center gap-1.5"
               >
-                <span>{saving ? 'Menyimpan...' : 'Lanjut ke Formulir Rekomendasi'}</span>
+                <span>{saving ? 'Memproses...' : 'Finalisasi ke Penilaian & LHA'}</span>
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>

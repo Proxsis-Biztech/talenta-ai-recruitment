@@ -1600,13 +1600,40 @@ export default function PesertaInterviewLive() {
       const token = getPortalToken();
       if (token) {
         const durationSec = Math.max(1, Math.round((Date.now() - sessionStartedAtRef.current) / 1000));
+        const candidateMessages = messages.filter((m) =>
+          m.sender.toLowerCase().includes('kandidat') || m.sender.toLowerCase().includes('anda')
+        );
+        const aiScoreVal = Math.round(Number(avg) * 20 * 10) / 10;
+        const barsCompetencyDefs = [
+          { name: 'System Architecture & Scalability', weight: 30 },
+          { name: 'Database Optimization & Tuning', weight: 25 },
+          { name: 'Problem Solving & Algorithmic Thinking', weight: 25 },
+          { name: 'Komunikasi & Artikulasi Teknis', weight: 20 }
+        ];
+        const aiCompetenciesPayload = barsCompetencyDefs.map((comp, idx) => {
+          const qItem = completedQs[idx % Math.max(1, completedQs.length)];
+          const msgItem = candidateMessages[idx % Math.max(1, candidateMessages.length)];
+          const rating = qItem?.score ? Math.min(5, Math.max(1, Math.round(qItem.score))) : Math.min(5, Math.max(1, Math.round(Number(avg))));
+          return {
+            name: comp.name,
+            weight: comp.weight,
+            aiScore: rating,
+            rationale:
+              qItem?.aiFeedback ||
+              `Skor otomatis Ava AI (${rating}/5) berdasarkan evaluasi fase wawancara "${qItem?.competency || comp.name}".`,
+            quote: msgItem?.text || 'Jawaban kandidat terekam pada sesi wawancara Ava AI.',
+            timestamp: msgItem?.time || '--:--'
+          };
+        });
         try {
           await axios.post(
             '/api/portal/interview/transcript',
             {
               transcript: formattedTranscript,
               programCode: sessionUser.assessmentId,
-              durationSec
+              durationSec,
+              aiScore: aiScoreVal,
+              aiCompetencies: aiCompetenciesPayload
             },
             { headers: { Authorization: `Bearer ${token}` } }
           );
