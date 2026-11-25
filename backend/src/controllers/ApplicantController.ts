@@ -580,13 +580,16 @@ export const saveInterview = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Transkrip terlalu besar. Maksimal 500KB.' });
     }
 
-    const portalUser = await prisma.portalUser.findUnique({ where: { email } });
+    const cleanEmail = String(email || '').trim();
+    const portalUser = await prisma.portalUser.findFirst({
+      where: { email: { equals: cleanEmail, mode: 'insensitive' } }
+    });
     if (portalUser) {
       await ensureApplicantForPortalUser(portalUser.id);
     }
 
-    const applicant = await prisma.applicant.findUnique({
-      where: { email },
+    const applicant = await prisma.applicant.findFirst({
+      where: { email: { equals: cleanEmail, mode: 'insensitive' } },
       include: { job: true }
     });
 
@@ -595,7 +598,7 @@ export const saveInterview = async (req: Request, res: Response) => {
     }
 
     const updated = await prisma.applicant.update({
-      where: { email },
+      where: { id: applicant.id },
       data: {
         interviewTranscript: transcript,
         interviewResult: summary || applicant.interviewResult, // Keep existing if no new summary
@@ -605,12 +608,32 @@ export const saveInterview = async (req: Request, res: Response) => {
     });
 
     await prisma.portalUser.updateMany({
-      where: { email },
+      where: { email: { equals: cleanEmail, mode: 'insensitive' } },
       data: {
         interviewStatus: 'completed',
+        interviewCompletedAt: new Date(),
         interviewScore: Number.isFinite(Number(score)) ? Number(score) : undefined
       }
     });
+
+    if (portalUser) {
+      const existingRec = await prisma.interviewRecording.findFirst({
+        where: { userId: portalUser.id, kind: 'transcript' }
+      });
+      if (!existingRec) {
+        await prisma.interviewRecording.create({
+          data: {
+            userId: portalUser.id,
+            candidateCode: portalUser.candidateCode || null,
+            programCode: portalUser.assessmentId || null,
+            kind: 'transcript',
+            mimeType: 'text/plain',
+            sizeBytes: Buffer.byteLength(transcript, 'utf8'),
+            transcript
+          }
+        }).catch(() => undefined);
+      }
+    }
 
     console.log(`[Interview] Transcript saved for ${email} (${transcript.length} chars). Triggering AI scoring...`);
 

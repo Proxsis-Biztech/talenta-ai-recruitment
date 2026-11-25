@@ -220,7 +220,10 @@ const serializeCandidate = (
         : 0;
 
   const audioRecording = recordings.find((r) => r.kind === 'audio' && r.fileName) || null;
-  const transcriptRecord = recordings.find((r) => r.kind === 'transcript' && r.transcript) || null;
+  const transcriptRecord =
+    recordings.find((r) => r.kind === 'transcript' && r.transcript && r.transcript.trim()) ||
+    recordings.find((r) => Boolean(r.transcript && r.transcript.trim())) ||
+    null;
   const transcriptText = transcriptRecord?.transcript || applicantData?.interviewTranscript || null;
   const transcriptSegments = parseTimestampedTranscript(transcriptText);
   const hasAudio = Boolean(audioRecording);
@@ -246,7 +249,9 @@ const serializeCandidate = (
     user.interviewStatus === 'completed' ||
       user.interviewStatus === 'scored' ||
       hasTranscript ||
-      hasAudio
+      hasAudio ||
+      user.interviewScore != null ||
+      applicantData?.interviewScore != null
   );
   const { barsAverage, gpaScore } = computeBarsAndGpa(score?.competencies);
 
@@ -409,7 +414,11 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
         : Promise.resolve([]),
       emails.length > 0
         ? prisma.applicant.findMany({
-            where: { email: { in: emails } },
+            where: {
+              OR: Array.from(new Set(emails.map((e) => e.toLowerCase().trim()))).map((email) => ({
+                email: { equals: email, mode: 'insensitive' as const }
+              }))
+            },
             select: {
               email: true,
               proctorFlags: true,
@@ -447,13 +456,23 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
 
     const liveCodingByUserProgram = new Map<string, LiveCodingMeta>();
     const liveCodingLatestByUser = new Map<string, LiveCodingMeta>();
+    const liveCodingByCode = new Map<string, LiveCodingMeta>();
     for (const row of liveCodingRows) {
       const parsed = parseJson<LiveCodingMeta | null>(row.value, null);
-      if (!parsed?.userId) continue;
-      liveCodingByUserProgram.set(`${parsed.userId}::${String(parsed.programCode || '').toUpperCase()}`, parsed);
-      const prev = liveCodingLatestByUser.get(parsed.userId);
-      if (!prev || new Date(parsed.submittedAt).getTime() > new Date(prev.submittedAt).getTime()) {
-        liveCodingLatestByUser.set(parsed.userId, parsed);
+      if (!parsed) continue;
+      if (parsed.userId) {
+        liveCodingByUserProgram.set(`${parsed.userId}::${String(parsed.programCode || '').toUpperCase()}`, parsed);
+        const prev = liveCodingLatestByUser.get(parsed.userId);
+        if (!prev || new Date(parsed.submittedAt).getTime() > new Date(prev.submittedAt).getTime()) {
+          liveCodingLatestByUser.set(parsed.userId, parsed);
+        }
+      }
+      if (parsed.candidateCode) {
+        const cKey = String(parsed.candidateCode).toUpperCase();
+        const prevCode = liveCodingByCode.get(cKey);
+        if (!prevCode || new Date(parsed.submittedAt).getTime() > new Date(prevCode.submittedAt).getTime()) {
+          liveCodingByCode.set(cKey, parsed);
+        }
       }
     }
 
@@ -485,6 +504,7 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
         const liveCoding =
           (pCode ? liveCodingByUserProgram.get(`${u.id}::${pCode}`) : null) ||
           liveCodingLatestByUser.get(u.id) ||
+          liveCodingByCode.get(key.toUpperCase()) ||
           null;
         return serializeCandidate(u, bestScore, applicantData, recordings, reviewRec, liveCoding, questionCountMap);
       })
@@ -525,8 +545,8 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
         include: { assessor: { select: { name: true } } },
         orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
       }),
-      prisma.applicant.findUnique({
-        where: { email: user.email },
+      prisma.applicant.findFirst({
+        where: { email: { equals: user.email, mode: 'insensitive' } },
         select: {
           proctorFlags: true,
           interviewTranscript: true,
@@ -551,7 +571,10 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
       prisma.masterRecord.findMany({
         where: {
           scope: 'live-coding-submissions',
-          key: { startsWith: `${user.id}::` }
+          OR: [
+            { key: { startsWith: `${user.id}::` } },
+            ...(user.candidateCode ? [{ value: { contains: user.candidateCode } }] : [])
+          ]
         }
       })
     ]);
@@ -559,24 +582,65 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
 
     const attempt = latestAttempt(user.examAttempts || [], user.assessmentId);
     const activeProgramCode = String(attempt?.programCode || user.assessmentId || '').trim().toUpperCase();
-    const programQuestions = activeProgramCode
+    let programQuestions: any[] = activeProgramCode
       ? await prisma.programQuestion.findMany({
           where: { programCode: activeProgramCode },
           orderBy: { orderNo: 'asc' }
         })
       : [];
 
+    if (programQuestions.length === 0 && activeProgramCode) {
+      const bankRecord = await prisma.masterRecord.findUnique({
+        where: { scope_key: { scope: 'bank-soal', key: 'questions' } }
+      });
+      const parsedBank = bankRecord ? parseJson<any[]>(bankRecord.value, []) : [];
+      if (Array.isArray(parsedBank)) {
+        const matched = parsedBank.filter(
+          (q) => String(q?.programCode || '').trim().toUpperCase() === activeProgramCode
+        );
+        if (matched.length > 0) {
+          programQuestions = matched.map((q, idx) => ({
+            id: String(q.id || `bank-${idx + 1}`),
+            orderNo: Number(q.orderNo || idx + 1),
+            type: String(q.type || 'single'),
+            competency: String(q.competency || 'Teknis'),
+            difficulty: String(q.difficulty || 'medium'),
+            text: String(q.text || ''),
+            codeSnippet: q.codeSnippet || null,
+            options: JSON.stringify(Array.isArray(q.options) ? q.options : []),
+            correctAnswer: q.correctAnswer === undefined || q.correctAnswer === null ? null : JSON.stringify(q.correctAnswer)
+          }));
+        }
+      }
+    }
+
     const answersObj = attempt?.answers ? parseJson<Record<string, unknown>>(attempt.answers, {}) : {};
     const essayAnswers: Array<{ questionId: string; orderNo: number; prompt: string; answer: string }> = [];
-    const catQuestions = programQuestions.map((q) => {
+    let catQuestions: Array<{
+      id: string;
+      orderNo: number;
+      type: string;
+      competency: string;
+      difficulty: string;
+      text: string;
+      codeSnippet: string | null;
+      options: Array<{ key: string; label: string }>;
+      candidateAnswer: unknown;
+      correctAnswer: unknown;
+      isCorrect: boolean | null;
+    }> = programQuestions.map((q) => {
       const candidateAnswer = answersObj[String(q.orderNo)] ?? answersObj[q.id] ?? null;
       const expectedKey = parseJson<unknown>(q.correctAnswer, null);
       const rawOptions = parseJson<any[]>(q.options, []);
       const options = Array.isArray(rawOptions)
-        ? rawOptions.map((opt, idx) => ({
-            key: String(opt?.key ?? String.fromCharCode(65 + idx)),
-            label: String(opt?.label ?? opt?.text ?? opt?.value ?? '')
-          }))
+        ? rawOptions.map((opt, idx) =>
+            typeof opt === 'string'
+              ? { key: String.fromCharCode(65 + idx), label: opt }
+              : {
+                  key: String(opt?.key ?? opt?.id ?? String.fromCharCode(65 + idx)),
+                  label: String(opt?.label ?? opt?.text ?? opt?.value ?? '')
+                }
+          )
         : [];
 
       let isCorrect: boolean | null = null;
@@ -588,6 +652,10 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
         isCorrect = a.length > 0 && JSON.stringify(a) === JSON.stringify(b);
       } else if (q.type === 'short' && typeof candidateAnswer === 'string' && expectedKey != null) {
         isCorrect = candidateAnswer.trim().toLowerCase() === String(expectedKey).trim().toLowerCase();
+      } else if (q.type === 'matching' && candidateAnswer && typeof candidateAnswer === 'object' && Array.isArray(expectedKey)) {
+        const submitted = candidateAnswer as Record<string, string>;
+        const pairs = expectedKey as Array<{ left: string; correctRight: string }>;
+        isCorrect = pairs.length > 0 && pairs.every((pair) => submitted[pair.left] === pair.correctRight);
       }
 
       if (q.type === 'essay') {
@@ -619,6 +687,22 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
       };
     });
 
+    if (catQuestions.length === 0 && Object.keys(answersObj).length > 0) {
+      catQuestions = Object.entries(answersObj).map(([key, val], idx) => ({
+        id: `ans-${key}`,
+        orderNo: Number(key) || idx + 1,
+        type: typeof val === 'string' && val.length > 60 ? 'essay' : 'single',
+        competency: activeProgramCode || 'CAT',
+        difficulty: 'medium',
+        text: `Butir Soal #${key}`,
+        codeSnippet: null,
+        options: [] as Array<{ key: string; label: string }>,
+        candidateAnswer: val ?? null,
+        correctAnswer: null,
+        isCorrect: null
+      }));
+    }
+
     if (essayAnswers.length === 0 && attempt?.answers) {
       Object.entries(answersObj).forEach(([k, val], idx) => {
         if (typeof val === 'string' && val.trim().length > 25) {
@@ -644,7 +728,8 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
     if (activeProgramCode) questionCountMap.set(activeProgramCode, programQuestions.length);
 
     const transcriptText =
-      recordings.find((r) => r.kind === 'transcript' && r.transcript)?.transcript ||
+      recordings.find((r) => r.kind === 'transcript' && r.transcript && r.transcript.trim())?.transcript ||
+      recordings.find((r) => Boolean(r.transcript && r.transcript.trim()))?.transcript ||
       applicant?.interviewTranscript ||
       null;
     const transcriptSegments = parseTimestampedTranscript(transcriptText);
@@ -727,7 +812,10 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
 
     const candidateCode = user.candidateCode || user.id;
     const [applicant, reviews] = await Promise.all([
-      prisma.applicant.findUnique({ where: { email: user.email }, select: { proctorFlags: true } }),
+      prisma.applicant.findFirst({
+        where: { email: { equals: user.email, mode: 'insensitive' } },
+        select: { proctorFlags: true }
+      }),
       prisma.proctoringReview.findMany({ where: { candidateCode } })
     ]);
     const reviewMap = new Map(reviews.map((review) => [review.eventId, review]));

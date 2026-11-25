@@ -5,6 +5,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { type AuthRequest } from '../middleware/auth';
 import { isCandidateInAssessorScope, resolveAssessorScopeContext } from '../middleware/tenant';
+import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
 import {
   getAiReviewRecord,
   isDeterministicCalibrationSample,
@@ -88,17 +89,18 @@ export const saveInterviewTranscript = async (req: AuthRequest, res: Response) =
       }
     });
 
-    if (req.portalUser.candidateCode) {
-      const applicant = await prisma.applicant.findFirst({ where: { email: req.portalUser.email } });
-      if (applicant) {
-        await prisma.applicant.update({
-          where: { id: applicant.id },
-          data: {
-            interviewTranscript: transcript,
-            interviewStatus: applicant.interviewStatus === 'scored' ? 'scored' : 'completed'
-          }
-        });
-      }
+    await ensureApplicantForPortalUser(req.portalUser.id).catch(() => null);
+    const applicant = await prisma.applicant.findFirst({
+      where: { email: { equals: req.portalUser.email, mode: 'insensitive' } }
+    });
+    if (applicant) {
+      await prisma.applicant.update({
+        where: { id: applicant.id },
+        data: {
+          interviewTranscript: transcript,
+          interviewStatus: applicant.interviewStatus === 'scored' ? 'scored' : 'completed'
+        }
+      });
     }
 
     const aiScoreNum = Number.isFinite(Number(req.body.aiScore)) ? Number(req.body.aiScore) : null;

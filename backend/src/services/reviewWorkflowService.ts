@@ -64,9 +64,66 @@ export const DEFAULT_BARS_COMPETENCIES: Array<{ name: string; weight: number; ke
   }
 ];
 
+const detectTranscriptSpeaker = (rawSpeaker: string): TranscriptSegment['speaker'] | null => {
+  const clean = rawSpeaker.toLowerCase().trim();
+  if (!clean || clean.length > 40) return null;
+  if (
+    clean.includes('kandidat') ||
+    clean.includes('candidate') ||
+    clean.includes('peserta') ||
+    clean.includes('(anda)') ||
+    clean === 'anda' ||
+    clean === 'user'
+  ) {
+    return 'Kandidat';
+  }
+  if (
+    clean.includes('ava') ||
+    clean.includes('gemini') ||
+    clean.includes('interviewer') ||
+    clean.includes('pewawancara') ||
+    clean === 'ai' ||
+    clean === 'model' ||
+    clean === 'assistant' ||
+    clean.includes(' ai') ||
+    clean.includes('hr')
+  ) {
+    return 'Ava AI';
+  }
+  if (clean.includes('system') || clean.includes('sistem')) {
+    return 'Sistem';
+  }
+  return null;
+};
+
 export const parseTimestampedTranscript = (raw: string | null | undefined): TranscriptSegment[] => {
   if (!raw || !raw.trim()) return [];
-  const lines = raw
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        const jsonSegs: TranscriptSegment[] = [];
+        for (const item of parsed) {
+          const text = String(item?.text ?? item?.message ?? '').trim();
+          if (!text) continue;
+          const speaker =
+            detectTranscriptSpeaker(String(item?.speaker ?? item?.sender ?? item?.role ?? '')) ||
+            'Kandidat';
+          jsonSegs.push({
+            timestamp: String(item?.timestamp ?? item?.time ?? '--:--').trim() || '--:--',
+            speaker,
+            text
+          });
+        }
+        if (jsonSegs.length > 0) return jsonSegs;
+      }
+    } catch {
+      // Not JSON — fall through to timestamped text parser
+    }
+  }
+
+  const lines = trimmed
     .split(/\n+/)
     .map((l) => l.trim())
     .filter(Boolean);
@@ -77,38 +134,22 @@ export const parseTimestampedTranscript = (raw: string | null | undefined): Tran
     const timestamp = tsMatch ? tsMatch[1].trim() : '--:--';
     const body = tsMatch ? tsMatch[2].trim() : line;
     const colonIdx = body.indexOf(':');
-    let speaker: TranscriptSegment['speaker'] = 'Kandidat';
-    let text = body;
-    if (colonIdx > 0 && colonIdx < 35) {
-      const rawSpeaker = body.slice(0, colonIdx).toLowerCase().trim();
-      text = body.slice(colonIdx + 1).trim();
-      if (
-        rawSpeaker.includes('kandidat') ||
-        rawSpeaker.includes('candidate') ||
-        rawSpeaker.includes('peserta') ||
-        rawSpeaker.includes('(anda)') ||
-        rawSpeaker === 'anda' ||
-        rawSpeaker === 'user'
-      ) {
-        speaker = 'Kandidat';
-      } else if (
-        rawSpeaker.includes('ava') ||
-        rawSpeaker.includes('gemini') ||
-        rawSpeaker.includes('interviewer') ||
-        rawSpeaker.includes('pewawancara') ||
-        rawSpeaker === 'ai' ||
-        rawSpeaker.includes(' ai') ||
-        rawSpeaker.includes('hr')
-      ) {
-        speaker = 'Ava AI';
-      } else if (rawSpeaker.includes('system') || rawSpeaker.includes('sistem')) {
-        speaker = 'Sistem';
-      } else {
-        speaker = 'Kandidat';
+    const detected =
+      colonIdx > 0 && colonIdx < 40
+        ? detectTranscriptSpeaker(body.slice(0, colonIdx))
+        : null;
+
+    if (tsMatch || detected) {
+      const speaker: TranscriptSegment['speaker'] = detected || 'Kandidat';
+      const text = (colonIdx > 0 && colonIdx < 40 ? body.slice(colonIdx + 1) : body).trim();
+      if (text) {
+        segments.push({ timestamp, speaker, text });
       }
-    }
-    if (text) {
-      segments.push({ timestamp, speaker, text });
+    } else if (segments.length > 0) {
+      // Continuation line of a multi-line message keeps the previous speaker instead of flipping to Kandidat
+      segments[segments.length - 1].text = `${segments[segments.length - 1].text}\n${body}`.trim();
+    } else if (body) {
+      segments.push({ timestamp: '--:--', speaker: 'Kandidat', text: body });
     }
   }
   return segments;

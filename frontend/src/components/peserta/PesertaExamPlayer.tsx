@@ -31,6 +31,7 @@ import {
   SlidersHorizontal,
   Info,
   Building2,
+  Code2,
   Video,
   Lock,
   RotateCcw,
@@ -793,11 +794,15 @@ export default function PesertaExamPlayer() {
           {/* Top Breadcrumb & Status Pill */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <button
-              onClick={() => navigate('/peserta/asesmen')}
+              onClick={() =>
+                navigate('/peserta/asesmen?tab=ujian', {
+                  state: { programCode: activeProgram.id }
+                })
+              }
               className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-muted-slate hover:text-ink transition-colors cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>Kembali ke Daftar Asesmen Saya</span>
+              <span>Kembali ke Detail Program Asesmen</span>
             </button>
 
             <span
@@ -902,29 +907,44 @@ export default function PesertaExamPlayer() {
 
               <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70">
                 <span className="text-xs text-muted-slate block font-medium">Tahap Berikutnya</span>
-                <p className="font-mono text-xs sm:text-sm font-bold text-blue-700 mt-1">Wawancara Live</p>
-                <span className="text-[11px] text-slate-500">Tahap 3 &amp; 4</span>
+                <p className="font-mono text-xs sm:text-sm font-bold text-blue-700 mt-1">Live Coding &amp; Interview</p>
+                <span className="text-[11px] text-slate-500">Detail Program Asesmen</span>
               </div>
             </div>
 
             {/* Next Stage Guide Box */}
             <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200 space-y-3">
               <div className="flex items-center gap-2.5 text-primary-navy font-extrabold text-sm sm:text-base font-heading">
-                <Video className="w-5 h-5 text-blue-600" />
-                <span>Tahap Berikutnya: Masuk ke Ruang Tunggu Wawancara (Waiting Room)</span>
+                <Code2 className="w-5 h-5 text-blue-600" />
+                <span>Tahap Berikutnya: Kembali ke Detail Program Asesmen &amp; Lanjut Live Coding</span>
               </div>
               <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                Jawaban dan penalaran studi kasus yang Anda pilih saat ujian CAT telah diteruskan kepada <strong>Lead Assessor (Dr. Ir. Dwi Hartanto / Ava AI Interviewer)</strong>. Pada sesi wawancara, Asesor akan mendalami alasan pengambilan keputusan Anda dan menguji kompetensi perilaku kerja (BARS).
+                Jawaban ujian CAT Anda telah tersimpan. Silakan lanjutkan ke modul <strong>Live Coding</strong> atau kembali ke halaman <strong>Detail Program Asesmen</strong> sebelum memasuki sesi wawancara bersama Ava AI.
               </p>
               <div className="pt-2 flex flex-wrap items-center gap-3">
                 <Button
                   variant="primary"
-                  onClick={() => navigate('/peserta/waiting-room')}
+                  onClick={() =>
+                    navigate('/peserta/asesmen?tab=coding', {
+                      state: { programCode: activeProgram.id }
+                    })
+                  }
                   className="text-xs sm:text-sm py-2.5 px-6 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 flex items-center gap-2 cursor-pointer shadow-sm"
                 >
-                  <Video className="w-4 h-4" />
-                  <span>Masuk Ruang Tunggu Wawancara Sekarang</span>
+                  <Code2 className="w-4 h-4" />
+                  <span>Lanjut ke Live Coding</span>
                   <ArrowRight className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    navigate('/peserta/asesmen?tab=ujian', {
+                      state: { programCode: activeProgram.id }
+                    })
+                  }
+                  className="text-xs sm:text-sm py-2.5 px-4 rounded-xl cursor-pointer bg-white"
+                >
+                  <span>Buka Detail Program Asesmen</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -1805,13 +1825,16 @@ export default function PesertaExamPlayer() {
         </div>
       </Modal>
 
-      {/* ─── MODAL SUKSES SUBMIT DENGAN ARAHAN KE TAHAP WAWANCARA ─── */}
+      {/* ─── MODAL SUKSES SUBMIT DENGAN ARAHAN KE DETAIL PROGRAM & LIVE CODING ─── */}
       <Modal
         isOpen={submitSuccessModalOpen}
         onClose={() => {
           setSubmitSuccessModalOpen(false);
+          setViolationAlertOpen(false);
           setIsExamLocked(true);
-          navigate('/peserta/waiting-room');
+          navigate('/peserta/asesmen?tab=ujian', {
+            state: { programCode: activeProgram.id }
+          });
         }}
         title={`Ujian CAT (${totalQuestions} Soal) Berhasil Dikumpulkan!`}
         size="md"
@@ -1832,11 +1855,11 @@ export default function PesertaExamPlayer() {
 
           <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200/80 text-left space-y-2">
             <div className="flex items-center gap-2 text-xs font-bold text-primary-navy">
-              <Video className="w-4 h-4 text-blue-600" />
-              <span>Tahap Selanjutnya: Wawancara Kompetensi (Tahap 3 &amp; 4)</span>
+              <Code2 className="w-4 h-4 text-blue-600" />
+              <span>Tahap Selanjutnya: Live Coding &amp; Detail Program Asesmen</span>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Dewan Asesor atau Ava AI akan menguji penalaran studi kasus yang baru saja Anda jawab. Silakan masuk ke <strong>Ruang Tunggu Asesor (Waiting Room)</strong> untuk persiapan sesi wawancara.
+              Anda dapat langsung melanjutkan ke tantangan <strong>Live Coding</strong> atau kembali ke halaman <strong>Detail Program Asesmen</strong> untuk memantau tahap selanjutnya sebelum sesi wawancara Ava AI.
             </p>
           </div>
 
@@ -1845,23 +1868,29 @@ export default function PesertaExamPlayer() {
               variant="outline"
               onClick={() => {
                 setSubmitSuccessModalOpen(false);
+                setViolationAlertOpen(false);
                 setIsExamLocked(true);
-                navigate('/peserta/hasil');
+                navigate('/peserta/asesmen?tab=ujian', {
+                  state: { programCode: activeProgram.id }
+                });
               }}
               className="w-full sm:w-auto text-xs py-2.5 px-4 rounded-xl cursor-pointer"
             >
-              Lihat Skor CAT Sementara
+              Kembali ke Detail Program Asesmen
             </Button>
             <Button
               variant="primary"
               onClick={() => {
                 setSubmitSuccessModalOpen(false);
+                setViolationAlertOpen(false);
                 setIsExamLocked(true);
-                navigate('/peserta/waiting-room');
+                navigate('/peserta/asesmen?tab=coding', {
+                  state: { programCode: activeProgram.id }
+                });
               }}
               className="w-full sm:w-auto text-xs py-2.5 px-6 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 shadow-sm cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>Lanjut ke Ruang Tunggu Wawancara</span>
+              <span>Lanjut ke Live Coding</span>
               <ArrowRight className="w-4 h-4" />
             </Button>
           </div>

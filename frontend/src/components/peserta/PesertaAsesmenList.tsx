@@ -108,7 +108,7 @@ export default function PesertaAsesmenList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedProgramId =
     (location.state as { programCode?: string } | null)?.programCode || searchParams.get('id');
-  const urlTab = searchParams.get('tab') as 'materi' | 'ujian' | 'coding' | null;
+  const urlTab = searchParams.get('tab') as 'materi' | 'ujian' | 'coding' | 'wawancara' | null;
 
   useEffect(() => {
     const idFromQuery = searchParams.get('id');
@@ -150,7 +150,9 @@ export default function PesertaAsesmenList() {
     wawancara: (urlTab as any) === 'wawancara'
   }));
   const [activeModalModule, setActiveModalModule] = useState<MasterMateriItem | null>(null);
-  const [showLiveCoding, setShowLiveCoding] = useState(false);
+  const [showLiveCoding, setShowLiveCoding] = useState(
+    () => urlTab === 'coding' || searchParams.get('open') === 'coding'
+  );
   const liveCodingStorageKey = `talenta_live_coding_v2_${activeUserProgressScope()}`;
   const [liveCodingCompletedMap, setLiveCodingCompletedMap] = useState<Record<string, { score: number; completedAt: string }>>(() => {
     try {
@@ -383,7 +385,42 @@ export default function PesertaAsesmenList() {
       .get('/api/portal/live-coding/my', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
         if (cancelled || !Array.isArray(res.data?.data)) return;
-        const completedRows = res.data.data.filter((item: any) => item?.completed);
+        const serverRows = res.data.data as any[];
+        const serverCodes = new Set(
+          serverRows.map((item) => String(item?.programCode || '').trim().toUpperCase()).filter(Boolean)
+        );
+        // Backfill any cached localStorage completion from earlier sessions missing on the server
+        let cachedMap: Record<string, { score: number; completedAt: string }> = {};
+        try {
+          const rawCached = localStorage.getItem(liveCodingStorageKey);
+          if (rawCached) cachedMap = JSON.parse(rawCached);
+        } catch {
+          cachedMap = {};
+        }
+        Object.entries(cachedMap).forEach(([progCode, meta]) => {
+          const upper = progCode.trim().toUpperCase();
+          if (upper && !serverCodes.has(upper) && meta) {
+            void axios
+              .post(
+                '/api/portal/live-coding/submit',
+                {
+                  programCode: upper,
+                  problemId: 'PROB-01',
+                  problemTitle: 'Live Coding Challenge',
+                  language: 'javascript',
+                  code: '// Tersinkron dari penyelesaian sesi sebelumnya',
+                  score: Number(meta.score) || 100,
+                  passedTests: 1,
+                  totalTests: 1,
+                  statusLabel: 'Accepted',
+                  completed: true
+                },
+                { headers: { Authorization: `Bearer ${token}` } }
+              )
+              .catch(() => undefined);
+          }
+        });
+        const completedRows = serverRows.filter((item: any) => item?.completed);
         if (completedRows.length === 0) return;
         setLiveCodingCompletedMap((prev) => {
           const next = { ...prev };
@@ -437,12 +474,19 @@ export default function PesertaAsesmenList() {
 
   // Sync tab with URL & enforce sequential progression
   useEffect(() => {
-    if (urlTab && ['materi', 'ujian', 'wawancara'].includes(urlTab)) {
-      setActiveLmsTab(urlTab as any);
-    } else if (urlTab === 'coding') {
+    if (urlTab === 'coding' || searchParams.get('open') === 'coding') {
       setActiveLmsTab('ujian');
+      setOpenSections({ materi: false, ujian: true, wawancara: false });
+      setShowLiveCoding(true);
+    } else if (urlTab && ['materi', 'ujian', 'wawancara'].includes(urlTab)) {
+      setActiveLmsTab(urlTab as any);
+      setOpenSections({
+        materi: urlTab === 'materi',
+        ujian: urlTab === 'ujian',
+        wawancara: urlTab === 'wawancara'
+      });
     }
-  }, [urlTab]);
+  }, [urlTab, searchParams]);
 
   const handleTabChange = (tab: 'materi' | 'ujian' | 'wawancara') => {
     setActiveLmsTab(tab);

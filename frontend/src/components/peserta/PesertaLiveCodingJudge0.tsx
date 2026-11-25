@@ -37,13 +37,88 @@ export default function PesertaLiveCodingJudge0({
   const [copied, setCopied] = useState(false);
   const [submittedProblems, setSubmittedProblems] = useState<string[]>([]);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
+  const [hydratedSavedCode, setHydratedSavedCode] = useState<{ problemId: string; language: string; code: string } | null>(null);
 
-  // Sync starter code when language or problem changes
+  // Hydrate previous Live Coding submission from backend so code & score persist across reloads
   useEffect(() => {
+    const token = getPortalToken();
+    if (!token) return;
+    let cancelled = false;
+    axios
+      .get('/api/portal/live-coding/my', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (cancelled || !Array.isArray(res.data?.data)) return;
+        const rows = res.data.data as Array<any>;
+        const targetCode = String(programCode || '').trim().toUpperCase();
+        const match =
+          (targetCode ? rows.find((r) => String(r?.programCode || '').toUpperCase() === targetCode) : null) ||
+          rows[0];
+        const doneIds = rows
+          .filter((r) => r?.completed && r?.problemId)
+          .map((r) => String(r.problemId));
+        if (doneIds.length > 0) setSubmittedProblems(doneIds);
+        if (match?.code) {
+          const prob = CODING_PROBLEMS.find((p) => p.id === match.problemId);
+          const lang = SUPPORTED_LANGUAGES.find((l) => l.key === match.language);
+          if (prob) setSelectedProblem(prob);
+          if (lang) setSelectedLanguage(lang);
+          setHydratedSavedCode({
+            problemId: String(match.problemId || selectedProblem.id),
+            language: String(match.language || selectedLanguage.key),
+            code: String(match.code)
+          });
+          setCode(String(match.code));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [programCode]);
+
+  // Sync starter code when language or problem changes (preserve hydrated code if matching)
+  useEffect(() => {
+    if (
+      hydratedSavedCode &&
+      hydratedSavedCode.problemId === selectedProblem.id &&
+      hydratedSavedCode.language === selectedLanguage.key
+    ) {
+      setCode(hydratedSavedCode.code);
+      setResult(null);
+      setSelectedTestCaseIdx(0);
+      return;
+    }
     setCode(selectedProblem.starterCode[selectedLanguage.key] || '');
     setResult(null);
     setSelectedTestCaseIdx(0);
-  }, [selectedProblem, selectedLanguage]);
+  }, [selectedProblem, selectedLanguage, hydratedSavedCode]);
+
+  const persistLiveCodingAttempt = async (res: Judge0SubmissionResult, markCompletedOnPass: boolean) => {
+    const token = getPortalToken();
+    if (!token) return;
+    const passedCount = res.passedTests;
+    const totalCount = res.totalTests;
+    const scoreVal = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0;
+    const alreadyDone = submittedProblems.includes(selectedProblem.id);
+    const completed = alreadyDone || (markCompletedOnPass && res.status.id === 3);
+
+    await axios.post(
+      '/api/portal/live-coding/submit',
+      {
+        programCode,
+        problemId: selectedProblem.id,
+        problemTitle: selectedProblem.title,
+        language: selectedLanguage.key,
+        code,
+        score: scoreVal,
+        passedTests: passedCount,
+        totalTests: totalCount,
+        statusLabel: res.status.description,
+        completed
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  };
 
   const handleRun = async () => {
     setIsRunning(true);
@@ -51,6 +126,7 @@ export default function PesertaLiveCodingJudge0({
       const res = await executeJudge0Code(selectedProblem, selectedLanguage.key, code);
       setResult(res);
       setActiveConsoleTab('tests');
+      await persistLiveCodingAttempt(res, false).catch(() => undefined);
     } finally {
       setIsRunning(false);
     }
@@ -65,28 +141,12 @@ export default function PesertaLiveCodingJudge0({
       setActiveConsoleTab('tests');
       const passedCount = res.passedTests;
       const totalCount = res.totalTests;
-      const scoreVal = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0;
 
-      const token = getPortalToken();
-      if (token) {
-        await axios
-          .post(
-            '/api/portal/live-coding/submit',
-            {
-              programCode,
-              problemId: selectedProblem.id,
-              problemTitle: selectedProblem.title,
-              language: selectedLanguage.key,
-              code,
-              score: scoreVal,
-              passedTests: passedCount,
-              totalTests: totalCount,
-              statusLabel: res.status.description,
-              completed: res.status.id === 3
-            },
-            { headers: { Authorization: `Bearer ${token}` } }
-          )
-          .catch(() => undefined);
+      let saveFailed = false;
+      try {
+        await persistLiveCodingAttempt(res, true);
+      } catch {
+        saveFailed = true;
       }
 
       if (res.status.id === 3) {
@@ -94,12 +154,14 @@ export default function PesertaLiveCodingJudge0({
           prev.includes(selectedProblem.id) ? prev : [...prev, selectedProblem.id]
         );
         setSubmissionNotice(
-          `Solusi ${selectedProblem.id} (${selectedProblem.title}) diterima (Accepted ${passedCount}/${totalCount} test case) dan status Live Coding telah ditandai selesai.`
+          saveFailed
+            ? `Solusi ${selectedProblem.id} Accepted (${passedCount}/${totalCount}), namun gagal menyinkronkan ke server. Coba klik Submit sekali lagi.`
+            : `Solusi ${selectedProblem.id} (${selectedProblem.title}) diterima (Accepted ${passedCount}/${totalCount} test case) dan status Live Coding telah tersimpan untuk asesor.`
         );
         onCompleteCoding?.(100);
       } else {
         setSubmissionNotice(
-          `Evaluasi ${selectedProblem.id}: ${passedCount}/${totalCount} test case lulus. Perbaiki kode hingga semua test case Accepted untuk menyelesaikan Live Coding.`
+          `Evaluasi ${selectedProblem.id}: ${passedCount}/${totalCount} test case lulus. Kode progres Anda telah tercatat; lengkapi semua test case untuk status Accepted.`
         );
       }
     } finally {
