@@ -913,8 +913,40 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
     }
 
     const data: Record<string, unknown> = {};
-    for (const field of ['name', 'username', 'phone', 'companyId', 'companyName', 'assessmentId', 'assessmentTitle', 'gradeLevel', 'specialization', 'status', 'nik', 'education', 'university', 'city', 'portfolioUrl', 'bio', 'employeeNumber', 'department']) {
+    for (const field of ['name', 'phone', 'companyId', 'companyName', 'assessmentId', 'assessmentTitle', 'gradeLevel', 'specialization', 'status', 'nik', 'education', 'university', 'city', 'portfolioUrl', 'bio', 'employeeNumber', 'department']) {
       if (req.body[field] !== undefined) data[field] = req.body[field] === null ? null : String(req.body[field]);
+    }
+    if (req.body.email !== undefined || req.body.username !== undefined) {
+      const rawLogin = String(req.body.email ?? req.body.username ?? '').trim();
+      if (rawLogin) {
+        let nextEmail: string;
+        let nextUsername: string | null = null;
+        if (rawLogin.includes('@')) {
+          nextEmail = emailSchema.parse(rawLogin);
+          if (req.body.username && String(req.body.username).trim() && !String(req.body.username).includes('@')) {
+            nextUsername = usernameSchema.parse(String(req.body.username));
+          }
+        } else {
+          nextUsername = usernameSchema.parse(rawLogin);
+          nextEmail = `${nextUsername}@username.local`;
+        }
+        const conflict = await prisma.portalUser.findFirst({
+          where: {
+            id: { not: id },
+            OR: [
+              { email: nextEmail },
+              ...(nextUsername ? [{ username: nextUsername }] : [])
+            ]
+          }
+        });
+        if (conflict) {
+          return res.status(409).json({
+            error: isSyntheticLocalEmail(nextEmail) ? 'Username sudah digunakan.' : 'Email atau username sudah digunakan.'
+          });
+        }
+        data.email = nextEmail;
+        data.username = nextUsername;
+      }
     }
     if (req.body.assessmentIds !== undefined) {
       if (Array.isArray(req.body.assessmentIds)) {

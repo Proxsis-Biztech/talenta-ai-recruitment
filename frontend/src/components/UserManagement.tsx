@@ -180,14 +180,16 @@ export default function UserManagement() {
   const [asesorSearch, setAsesorSearch] = useState('');
   const [asesorCompanyFilter, setAsesorCompanyFilter] = useState('ALL');
 
-  // Modal: Add Asesor
+  // Modal: Add / Edit Asesor
   const [showAddAsesorModal, setShowAddAsesorModal] = useState(false);
+  const [editingAsesorId, setEditingAsesorId] = useState<string | null>(null);
   const [asesorFormName, setAsesorFormName] = useState('');
   const [asesorFormUsername, setAsesorFormUsername] = useState('');
   const [asesorFormPassword, setAsesorFormPassword] = useState('asesor123');
   const [asesorFormPhone, setAsesorFormPhone] = useState('');
   const [asesorFormSpec, setAsesorFormSpec] = useState('Asesor Kompetensi Teknis & Perilaku');
   const [asesorFormCompanyId, setAsesorFormCompanyId] = useState(COMPANIES_CATALOG[0].id);
+  const [asesorFormStatus, setAsesorFormStatus] = useState<'Aktif' | 'Nonaktif'>('Aktif');
   const [asesorFormPrograms, setAsesorFormPrograms] = useState<string[]>([]);
   const [asesorFormError, setAsesorFormError] = useState('');
 
@@ -198,18 +200,32 @@ export default function UserManagement() {
       (program) =>
         program.companyName === company?.name && !base.some((item) => item.id === program.id)
     );
-    return [...base, ...extra];
-  }, [asesorFormCompanyId, companyOptions, programOptions]);
-
-  useEffect(() => {
-    if (availableProgramsForAsesorModal.length > 0) {
-      setAsesorFormPrograms([availableProgramsForAsesorModal[0].id]);
-    } else {
-      setAsesorFormPrograms([]);
+    const companyMatched = [...base, ...extra];
+    const pool = companyMatched.length > 0 ? [...companyMatched] : [...programOptions];
+    // Ensure all currently assigned programs remain visible for editing
+    for (const assignedId of asesorFormPrograms) {
+      if (!pool.some((p) => p.id === assignedId)) {
+        const match = programOptions.find((p) => p.id === assignedId);
+        if (match) pool.push(match);
+      }
     }
-  }, [availableProgramsForAsesorModal]);
+    return pool;
+  }, [asesorFormCompanyId, companyOptions, programOptions, asesorFormPrograms]);
 
   const loadAsesor = useCallback(async () => {
+    const parseProgramIds = (rawIds: unknown, fallbackId?: unknown): string[] => {
+      if (Array.isArray(rawIds)) return rawIds.map(String).filter(Boolean);
+      if (typeof rawIds === 'string' && rawIds.trim()) {
+        try {
+          const parsed = JSON.parse(rawIds);
+          if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+        } catch {
+          return rawIds.split(',').map((s) => s.trim()).filter(Boolean);
+        }
+      }
+      return fallbackId ? [String(fallbackId)] : [];
+    };
+
     try {
       const token = localStorage.getItem('adminToken');
       const response = await axios.get('/api/admin/portal-users', {
@@ -225,7 +241,7 @@ export default function UserManagement() {
         specialization: user.specialization || '',
         assignedCompanyId: user.companyId || '',
         assignedCompanyName: user.companyName || '',
-        assignedProgramIds: [],
+        assignedProgramIds: parseProgramIds(user.assessmentIds, user.assessmentId),
         status: user.status === 'Nonaktif' ? 'Nonaktif' : 'Aktif',
         createdAt: user.createdAt
       }));
@@ -584,10 +600,48 @@ export default function UserManagement() {
   // ──────────────────────────────────────────────
   // Handlers for Asesor
   // ──────────────────────────────────────────────
-  const handleCreateAsesor = async (e: React.FormEvent) => {
+  const handleOpenAddAsesor = () => {
+    setEditingAsesorId(null);
+    setAsesorFormName('');
+    setAsesorFormUsername('');
+    setAsesorFormPassword('asesor123');
+    setAsesorFormPhone('');
+    setAsesorFormSpec('Asesor Kompetensi Teknis & Perilaku');
+    const defaultCompanyId = companyOptions[0]?.id || COMPANIES_CATALOG[0].id;
+    setAsesorFormCompanyId(defaultCompanyId);
+    setAsesorFormStatus('Aktif');
+    const defaultProgs = getProgramsByCompany(defaultCompanyId);
+    setAsesorFormPrograms(defaultProgs.length > 0 ? [defaultProgs[0].id] : []);
+    setAsesorFormError('');
+    setShowAddAsesorModal(true);
+  };
+
+  const handleEditAsesor = (asesor: AsesorUser) => {
+    setEditingAsesorId(asesor.id);
+    setAsesorFormName(asesor.name);
+    setAsesorFormUsername(asesor.username);
+    setAsesorFormPassword('');
+    setAsesorFormPhone(asesor.phone || '');
+    setAsesorFormSpec(asesor.specialization || 'Asesor Kompetensi Teknis & Perilaku');
+    const matchedCompany =
+      companyOptions.find((c) => c.id === asesor.assignedCompanyId) ||
+      companyOptions.find((c) => c.name === asesor.assignedCompanyName) ||
+      companyOptions[0];
+    setAsesorFormCompanyId(matchedCompany?.id || COMPANIES_CATALOG[0].id);
+    setAsesorFormStatus(asesor.status === 'Nonaktif' ? 'Nonaktif' : 'Aktif');
+    setAsesorFormPrograms(asesor.assignedProgramIds || []);
+    setAsesorFormError('');
+    setShowAddAsesorModal(true);
+  };
+
+  const handleSaveAsesor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!asesorFormName.trim() || !asesorFormUsername.trim()) {
       setAsesorFormError('Nama lengkap dan username/email asesor wajib diisi.');
+      return;
+    }
+    if (!editingAsesorId && !asesorFormPassword.trim()) {
+      setAsesorFormError('Kata sandi wajib diisi untuk akun asesor baru.');
       return;
     }
 
@@ -595,37 +649,67 @@ export default function UserManagement() {
       const token = localStorage.getItem('adminToken');
       const company = companyOptions.find((item) => item.id === asesorFormCompanyId);
       const asesorLogin = asesorFormUsername.trim();
-      await axios.post('/api/admin/portal-users', {
-        name: asesorFormName,
+      const selectedPrograms = asesorFormPrograms
+        .map((id) => programOptions.find((item) => item.id === id))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item));
+      const primaryProgramId = asesorFormPrograms[0] || '';
+      const combinedTitles = selectedPrograms.map((item) => item.title).join(', ');
+
+      const basePayload: Record<string, unknown> = {
+        name: asesorFormName.trim(),
         ...(asesorLogin.includes('@') ? { email: asesorLogin } : { username: asesorLogin }),
-        password: asesorFormPassword,
-        phone: asesorFormPhone,
-        role: 'asesor',
-        specialization: asesorFormSpec,
+        phone: asesorFormPhone.trim(),
+        specialization: asesorFormSpec.trim(),
         companyId: asesorFormCompanyId,
-        companyName: company?.name
-      }, { headers: { Authorization: `Bearer ${token}` } });
+        companyName: company?.name || '',
+        status: asesorFormStatus,
+        assessmentId: primaryProgramId || null,
+        assessmentIds: asesorFormPrograms,
+        assessmentTitle: combinedTitles || null
+      };
+      if (asesorFormPassword.trim()) {
+        basePayload.password = asesorFormPassword.trim();
+      }
+
+      if (editingAsesorId) {
+        await axios.put(`/api/admin/portal-users/${editingAsesorId}`, basePayload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        await axios.post(
+          '/api/admin/portal-users',
+          {
+            ...basePayload,
+            role: 'asesor'
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
 
       await loadAsesor();
       setShowAddAsesorModal(false);
+      setEditingAsesorId(null);
 
       // Reset
       setAsesorFormName('');
       setAsesorFormUsername('');
       setAsesorFormPhone('');
       setAsesorFormPassword('asesor123');
+      setAsesorFormStatus('Aktif');
       setAsesorFormError('');
 
       Swal.fire({
         icon: 'success',
-        title: 'Akun Asesor Berhasil Dibuat!',
-        html: `Akun <b>${asesorFormName}</b> telah ditugaskan untuk menguji di PT terkait.`,
+        title: editingAsesorId ? 'Data Asesor Diperbarui!' : 'Akun Asesor Berhasil Dibuat!',
+        html: editingAsesorId
+          ? `Perubahan data akun <b>${asesorFormName.trim()}</b> berhasil disimpan.`
+          : `Akun <b>${asesorFormName.trim()}</b> telah ditugaskan untuk menguji di PT terkait.`,
         timer: 2500,
         showConfirmButton: false
       });
     } catch (err: any) {
       const apiMsg = axios.isAxiosError(err) ? err.response?.data?.error : undefined;
-      setAsesorFormError(apiMsg || err?.message || 'Gagal mendaftarkan akun asesor.');
+      setAsesorFormError(apiMsg || err?.message || 'Gagal menyimpan data akun asesor.');
     }
   };
 
@@ -1004,9 +1088,12 @@ export default function UserManagement() {
                   <span>•</span>
                   <span>{a.username}</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">
-                  Sandi: <span className="font-mono text-slate-600 bg-slate-100 px-1 rounded">{a.password}</span>
-                </div>
+                {a.phone && (
+                  <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-slate-400" />
+                    <span>{a.phone}</span>
+                  </div>
+                )}
               </div>
             </div>
           </TableCell>
@@ -1020,38 +1107,53 @@ export default function UserManagement() {
           <TableCell>
             <Badge variant="navy" format="soft">
               <Building2 className="w-3 h-3 mr-1" />
-              {a.assignedCompanyName}
+              {a.assignedCompanyName || '-'}
             </Badge>
           </TableCell>
 
           <TableCell>
             <div className="flex flex-wrap gap-1">
-              {a.assignedProgramIds.map((pId) => (
-                <span
-                  key={pId}
-                  className="text-[10px] bg-slate-100 text-slate-700 font-mono px-1.5 py-0.5 rounded border border-slate-200"
-                >
-                  {pId}
-                </span>
-              ))}
+              {a.assignedProgramIds.length > 0 ? (
+                a.assignedProgramIds.map((pId) => (
+                  <span
+                    key={pId}
+                    className="text-[10px] bg-slate-100 text-slate-700 font-mono px-1.5 py-0.5 rounded border border-slate-200"
+                  >
+                    {pId}
+                  </span>
+                ))
+              ) : (
+                <span className="text-[11px] text-slate-400">-</span>
+              )}
             </div>
           </TableCell>
 
           <TableCell>
-            <Badge variant="teal" format="soft" hasDot>
+            <Badge variant={a.status === 'Nonaktif' ? 'neutral' : 'teal'} format="soft" hasDot>
               {a.status}
             </Badge>
           </TableCell>
 
           <TableCell className="text-right">
-            <Button
-              variant="danger"
-              size="xs"
-              onClick={() => handleDeleteAsesor(a.id, a.name)}
-              leftIcon={<Trash2 className="w-3 h-3" />}
-            >
-              Cabut
-            </Button>
+            <div className="flex items-center justify-end gap-1.5">
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => handleEditAsesor(a)}
+                leftIcon={<Edit2 className="w-3 h-3" />}
+                title="Edit Data Asesor"
+              >
+                Edit
+              </Button>
+              <Button
+                variant="danger"
+                size="xs"
+                onClick={() => handleDeleteAsesor(a.id, a.name)}
+                leftIcon={<Trash2 className="w-3 h-3" />}
+              >
+                Cabut
+              </Button>
+            </div>
           </TableCell>
         </TableRow>
       )),
@@ -1723,7 +1825,7 @@ export default function UserManagement() {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => setShowAddAsesorModal(true)}
+              onClick={handleOpenAddAsesor}
               leftIcon={<UserPlus className="w-4 h-4" />}
             >
               + Daftarkan Akun Asesor Baru
@@ -1755,15 +1857,22 @@ export default function UserManagement() {
             </TableBody>
           </Table>
 
-          {/* Modal: Tambah Asesor Baru */}
+          {/* Modal: Tambah / Edit Asesor */}
           <Modal
             isOpen={showAddAsesorModal}
-            onClose={() => setShowAddAsesorModal(false)}
-            title="Daftarkan Akun Asesor / Penguji Baru"
-            description="Buat akun login asesor penilai untuk sesi wawancara, rubrik kompetensi, dan verifikasi LHA."
+            onClose={() => {
+              setShowAddAsesorModal(false);
+              setEditingAsesorId(null);
+            }}
+            title={editingAsesorId ? 'Edit Data Akun Asesor / Penguji' : 'Daftarkan Akun Asesor / Penguji Baru'}
+            description={
+              editingAsesorId
+                ? 'Perbarui biodata, spesialisasi, instansi PT, program penugasan, atau status akun asesor.'
+                : 'Buat akun login asesor penilai untuk sesi wawancara, rubrik kompetensi, dan verifikasi LHA.'
+            }
             size="md"
           >
-            <form onSubmit={handleCreateAsesor} className="space-y-4 font-sans text-xs">
+            <form onSubmit={handleSaveAsesor} className="space-y-4 font-sans text-xs">
               {asesorFormError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -1773,7 +1882,7 @@ export default function UserManagement() {
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  Nama Lengkap & Gelar *
+                  Nama Lengkap &amp; Gelar *
                 </label>
                 <input
                   type="text"
@@ -1802,16 +1911,48 @@ export default function UserManagement() {
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Kata Sandi Akun
+                    {editingAsesorId ? 'Kata Sandi Baru (Opsional)' : 'Kata Sandi Akun *'}
                   </label>
                   <input
                     type="text"
-                    required
+                    required={!editingAsesorId}
+                    placeholder={editingAsesorId ? 'Kosongkan jika tidak mengubah sandi' : 'asesor123'}
                     value={asesorFormPassword}
                     onChange={(e) => setAsesorFormPassword(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy font-mono"
                   />
-                  <span className="text-[10px] text-slate-400 mt-1 block">Default: asesor123</span>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    {editingAsesorId
+                      ? 'Minimal 8 karakter jika ingin mengganti kata sandi.'
+                      : 'Minimal 8 karakter (Default: asesor123)'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Nomor Telepon / WhatsApp
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="Contoh: 0812-3456-7890"
+                    value={asesorFormPhone}
+                    onChange={(e) => setAsesorFormPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                  />
+                </div>
+
+                <div>
+                  <Select
+                    label="Status Akun Asesor"
+                    value={asesorFormStatus}
+                    onChange={(e) => setAsesorFormStatus(e.target.value === 'Nonaktif' ? 'Nonaktif' : 'Aktif')}
+                    className="h-10 rounded-lg font-medium"
+                  >
+                    <option value="Aktif">Aktif</option>
+                    <option value="Nonaktif">Nonaktif</option>
+                  </Select>
                 </div>
               </div>
 
@@ -1833,7 +1974,14 @@ export default function UserManagement() {
                 <Select
                   label="Instansi / PT Penugasan Asesor *"
                   value={asesorFormCompanyId}
-                  onChange={(e) => setAsesorFormCompanyId(e.target.value)}
+                  onChange={(e) => {
+                    const nextCompanyId = e.target.value;
+                    setAsesorFormCompanyId(nextCompanyId);
+                    if (!editingAsesorId) {
+                      const nextProgs = getProgramsByCompany(nextCompanyId);
+                      setAsesorFormPrograms(nextProgs.length > 0 ? [nextProgs[0].id] : []);
+                    }
+                  }}
                   className="h-11 rounded-xl font-medium"
                 >
                   {companyOptions.map((c) => (
@@ -1876,12 +2024,15 @@ export default function UserManagement() {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => setShowAddAsesorModal(false)}
+                  onClick={() => {
+                    setShowAddAsesorModal(false);
+                    setEditingAsesorId(null);
+                  }}
                 >
                   Batal
                 </Button>
                 <Button type="submit" variant="primary">
-                  Daftarkan Akun Asesor
+                  {editingAsesorId ? 'Simpan Perubahan' : 'Daftarkan Akun Asesor'}
                 </Button>
               </div>
             </form>
