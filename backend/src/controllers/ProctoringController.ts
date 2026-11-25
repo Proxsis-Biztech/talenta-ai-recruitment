@@ -1,13 +1,44 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { type AuthRequest } from '../middleware/auth';
+import { isCandidateInAssessorScope, resolveAssessorScopeContext } from '../middleware/tenant';
 
 const prisma = new PrismaClient();
+
+const verifyAssessorCandidateAccess = async (
+  req: AuthRequest,
+  candidateCode: string
+): Promise<'ok' | 'not_found' | 'forbidden'> => {
+  if (!req.portalUser) return 'forbidden';
+  const candidate = await prisma.portalUser.findFirst({
+    where: {
+      role: 'peserta',
+      OR: [
+        { candidateCode },
+        { id: candidateCode },
+        ...(candidateCode.length >= 6 ? [{ id: { startsWith: candidateCode } }] : [])
+      ]
+    },
+    select: {
+      tenantId: true,
+      companyId: true,
+      companyName: true,
+      tenant: { select: { name: true } }
+    }
+  });
+  if (!candidate) return 'not_found';
+  const scopeCtx = await resolveAssessorScopeContext(req.portalUser, prisma);
+  return isCandidateInAssessorScope(scopeCtx, candidate) ? 'ok' : 'forbidden';
+};
 
 export const getProctoringReviews = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
     const candidateCode = String(req.params.candidateCode);
+    const access = await verifyAssessorCandidateAccess(req, candidateCode);
+    if (access === 'forbidden') {
+      return res.status(403).json({ error: 'Kandidat bukan milik tenant PT Anda.' });
+    }
     const reviews = await prisma.proctoringReview.findMany({
       where: { candidateCode },
       orderBy: { updatedAt: 'desc' }
@@ -23,6 +54,10 @@ export const upsertProctoringReview = async (req: AuthRequest, res: Response) =>
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
     const candidateCode = String(req.params.candidateCode);
+    const access = await verifyAssessorCandidateAccess(req, candidateCode);
+    if (access === 'forbidden') {
+      return res.status(403).json({ error: 'Kandidat bukan milik tenant PT Anda.' });
+    }
     const eventId = String(req.params.eventId);
     const status = String(req.body.status);
     const notes = req.body.notes !== undefined ? String(req.body.notes) : undefined;

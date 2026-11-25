@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { type AuthRequest } from '../middleware/auth';
+import { isCandidateInAssessorScope, resolveAssessorScopeContext } from '../middleware/tenant';
 
 const prisma = new PrismaClient();
 
@@ -18,8 +19,10 @@ const candidateSelect = {
   name: true,
   email: true,
   candidateCode: true,
+  companyId: true,
   companyName: true,
   tenantId: true,
+  tenant: { select: { name: true } },
   assessmentId: true,
   assessmentTitle: true,
   interviewStatus: true,
@@ -189,30 +192,14 @@ const formatEventTime = (value: unknown): string => {
 export const listAssessorCandidates = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi asesor tidak valid.' });
-    const tenantId = req.portalUser.tenantId || null;
+    const scopeCtx = await resolveAssessorScopeContext(req.portalUser, prisma);
     const search = String(req.query.search || '').trim();
     const programCode = String(req.query.programCode || '').trim().toUpperCase();
 
-    let tenantCompanyName: string | null = req.portalUser.companyName || null;
-    if (tenantId && !tenantCompanyName) {
-      const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
-      tenantCompanyName = tenant?.name || null;
-    }
-
-    const users = await prisma.portalUser.findMany({
+    const allUsers = await prisma.portalUser.findMany({
       where: {
         role: 'peserta',
         status: 'Aktif',
-        ...(tenantId
-          ? {
-              OR: [
-                { tenantId },
-                ...(tenantCompanyName ? [{ companyName: tenantCompanyName }] : [])
-              ]
-            }
-          : tenantCompanyName
-            ? { companyName: tenantCompanyName }
-            : {}),
         ...(programCode ? { assessmentId: programCode } : {}),
         ...(search
           ? {
@@ -230,6 +217,8 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
       ],
       select: candidateSelect
     });
+
+    const users = allUsers.filter((u) => isCandidateInAssessorScope(scopeCtx, u));
 
     const codes = users
       .map((u) => u.candidateCode || u.id.slice(0, 8))
@@ -292,8 +281,9 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
       select: candidateSelect
     });
     if (!user) return res.status(404).json({ error: 'Kandidat tidak ditemukan.' });
-    if (req.portalUser.tenantId && user.tenantId && user.tenantId !== req.portalUser.tenantId) {
-      return res.status(403).json({ error: 'Kandidat bukan milik tenant Anda.' });
+    const scopeCtx = await resolveAssessorScopeContext(req.portalUser, prisma);
+    if (!isCandidateInAssessorScope(scopeCtx, user)) {
+      return res.status(403).json({ error: 'Kandidat bukan milik tenant PT Anda.' });
     }
 
     const codeKey = user.candidateCode || user.id.slice(0, 8);
@@ -380,14 +370,18 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
         email: true,
         candidateCode: true,
         tenantId: true,
+        companyId: true,
+        companyName: true,
+        tenant: { select: { name: true } },
         examAttempts: {
           select: { violations: true, submittedAt: true, programCode: true, integrityScore: true }
         }
       }
     });
     if (!user) return res.status(404).json({ error: 'Kandidat tidak ditemukan.' });
-    if (req.portalUser.tenantId && user.tenantId && user.tenantId !== req.portalUser.tenantId) {
-      return res.status(403).json({ error: 'Kandidat bukan milik tenant Anda.' });
+    const scopeCtx = await resolveAssessorScopeContext(req.portalUser, prisma);
+    if (!isCandidateInAssessorScope(scopeCtx, user)) {
+      return res.status(403).json({ error: 'Kandidat bukan milik tenant PT Anda.' });
     }
 
     const candidateCode = user.candidateCode || user.id;
@@ -493,27 +487,12 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
 export const listAllAssessorProctoringEvents = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi asesor tidak valid.' });
-    const tenantId = req.portalUser.tenantId || null;
-    let tenantCompanyName: string | null = req.portalUser.companyName || null;
-    if (tenantId && !tenantCompanyName) {
-      const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
-      tenantCompanyName = tenant?.name || null;
-    }
+    const scopeCtx = await resolveAssessorScopeContext(req.portalUser, prisma);
 
-    const users = await prisma.portalUser.findMany({
+    const allUsers = await prisma.portalUser.findMany({
       where: {
         role: 'peserta',
-        status: 'Aktif',
-        ...(tenantId
-          ? {
-              OR: [
-                { tenantId },
-                ...(tenantCompanyName ? [{ companyName: tenantCompanyName }] : [])
-              ]
-            }
-          : tenantCompanyName
-            ? { companyName: tenantCompanyName }
-            : {})
+        status: 'Aktif'
       },
       select: {
         id: true,
@@ -521,11 +500,16 @@ export const listAllAssessorProctoringEvents = async (req: AuthRequest, res: Res
         email: true,
         candidateCode: true,
         assessmentId: true,
+        tenantId: true,
+        companyId: true,
+        companyName: true,
+        tenant: { select: { name: true } },
         examAttempts: {
           select: { violations: true, submittedAt: true, integrityScore: true }
         }
       }
     });
+    const users = allUsers.filter((u) => isCandidateInAssessorScope(scopeCtx, u));
 
     const emails = users.map((u) => u.email).filter(Boolean);
     const candidateKeys = users.map((u) => u.candidateCode || u.id).filter(Boolean);

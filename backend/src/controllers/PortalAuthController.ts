@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { type AuthRequest, getJwtSecret, portalTokenTtl } from '../middleware/auth';
-import { resolveAdminTenantId } from '../middleware/tenant';
+import { normalizeCompanyName, resolveAdminTenantId } from '../middleware/tenant';
 import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
 import { sendActivationEmail, sendCredentialsEmail, sendPasswordResetEmail } from '../services/mailService';
 import { getLhaVersionMeta } from '../services/lhaGovernanceService';
@@ -223,6 +223,11 @@ export const registerPeserta = async (req: AuthRequest, res: Response) => {
       ? await prisma.job.findFirst({ where: { code: programCode } })
       : null;
 
+    const resolvedTenantId =
+      job?.tenantId ||
+      (await resolveTenantIdForCompanyName(req.body.companyName ? String(req.body.companyName) : null)) ||
+      null;
+
     const user = await prisma.portalUser.create({
       data: {
         name,
@@ -231,7 +236,7 @@ export const registerPeserta = async (req: AuthRequest, res: Response) => {
         phone,
         role: 'peserta',
         profileCompleted: false,
-        tenantId: job?.tenantId || null,
+        tenantId: resolvedTenantId,
         companyId: req.body.companyId ? String(req.body.companyId) : null,
         companyName: req.body.companyName ? String(req.body.companyName) : null,
         gradeLevel: req.body.gradeLevel ? String(req.body.gradeLevel) : null,
@@ -676,8 +681,14 @@ const resolveTenantNameById = async (tenantId: string | null): Promise<string | 
 const resolveTenantIdForCompanyName = async (companyName?: string | null): Promise<string | null> => {
   const clean = typeof companyName === 'string' ? companyName.trim() : '';
   if (!clean) return null;
-  const found = await prisma.tenant.findFirst({ where: { name: clean }, select: { id: true } });
-  if (found) return found.id;
+  const exact = await prisma.tenant.findFirst({ where: { name: clean }, select: { id: true } });
+  if (exact) return exact.id;
+  const normTarget = normalizeCompanyName(clean);
+  if (normTarget) {
+    const allTenants = await prisma.tenant.findMany({ select: { id: true, name: true } });
+    const normMatch = allTenants.find((t) => normalizeCompanyName(t.name) === normTarget);
+    if (normMatch) return normMatch.id;
+  }
   const baseCode = (
     clean
       .replace(/^PT\.?\s+/i, '')
@@ -813,8 +824,8 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
 
     const resolvedTenantId =
       resolveAdminTenantId(req) ||
-      (req.body.tenantId ? String(req.body.tenantId) : null) ||
-      (await resolveTenantIdForCompanyName(req.body.companyName));
+      (await resolveTenantIdForCompanyName(req.body.companyName)) ||
+      (req.body.tenantId ? String(req.body.tenantId) : null);
 
     const user = await prisma.portalUser.create({
       data: {
@@ -964,6 +975,10 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
       data.interviewScheduledAt = rawDate ? new Date(rawDate) : null;
     }
     if (req.body.role && ['peserta', 'asesor'].includes(req.body.role)) data.role = req.body.role;
+    if (!tenantId && req.body.companyName !== undefined) {
+      const nextTenantId = await resolveTenantIdForCompanyName(req.body.companyName ? String(req.body.companyName) : null);
+      if (nextTenantId) data.tenantId = nextTenantId;
+    }
     if (req.body.password) {
       data.password = await bcrypt.hash(passwordSchema.parse(req.body.password), 10);
     }

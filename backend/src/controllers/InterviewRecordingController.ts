@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { type AuthRequest } from '../middleware/auth';
+import { isCandidateInAssessorScope, resolveAssessorScopeContext } from '../middleware/tenant';
 
 const prisma = new PrismaClient();
 const RECORDING_DIR = path.join(__dirname, '../../uploads/recordings');
@@ -122,12 +123,21 @@ export const listCandidateRecordings = async (req: AuthRequest, res: Response) =
 
     const user = await prisma.portalUser.findFirst({
       where: { candidateCode },
-      select: { id: true, tenantId: true }
+      select: {
+        id: true,
+        tenantId: true,
+        companyId: true,
+        companyName: true,
+        tenant: { select: { name: true } }
+      }
     });
     if (!user) return res.status(404).json({ error: 'Kandidat tidak ditemukan.' });
 
-    if (req.portalUser?.tenantId && user.tenantId && req.portalUser.tenantId !== user.tenantId) {
-      return res.status(403).json({ error: 'Kandidat bukan milik tenant Anda.' });
+    if (req.portalUser) {
+      const scopeCtx = await resolveAssessorScopeContext(req.portalUser, prisma);
+      if (!isCandidateInAssessorScope(scopeCtx, user)) {
+        return res.status(403).json({ error: 'Kandidat bukan milik tenant PT Anda.' });
+      }
     }
 
     const records = await prisma.interviewRecording.findMany({

@@ -15,7 +15,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Scale,
-  FileText,
   Sparkles,
   ShieldCheck,
   ChevronRight,
@@ -58,7 +57,6 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
 
   // Functional interactive reference modals & dropdown
   const [barsModalOpen, setBarsModalOpen] = useState(false);
-  const [factsheetModalOpen, setFactsheetModalOpen] = useState(false);
   const [notifModalOpen, setNotifModalOpen] = useState(false);
   const [notifCandidates, setNotifCandidates] = useState<AssessorCandidate[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -107,7 +105,6 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
   useEffect(() => {
     const modalParam = new URLSearchParams(location.search).get('modal');
     if (modalParam === 'bars') setBarsModalOpen(true);
-    if (modalParam === 'factsheet') setFactsheetModalOpen(true);
   }, [location.search]);
 
   const toggleCollapse = () => {
@@ -150,7 +147,6 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
       group: 'METODOLOGI & STANDAR',
       items: [
         { id: 'bars', label: 'Standar Rubrik BARS (1-5)', action: () => setBarsModalOpen(true), icon: Scale },
-        { id: 'factsheet', label: 'Kamus Fakta PT Anjak', action: () => setFactsheetModalOpen(true), icon: FileText },
       ]
     }
   ];
@@ -545,47 +541,6 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           <div className="pt-2 flex justify-end">
             <Button variant="primary" onClick={() => setBarsModalOpen(false)} className="text-xs">
               Tutup Referensi
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* ─── MODAL KAMUS FAKTA PT ANJAK ─── */}
-      <Modal
-        isOpen={factsheetModalOpen}
-        onClose={() => setFactsheetModalOpen(false)}
-        title="Kamus Fakta Kasus PT Anjak (The Complete Banker - CIMB Niaga)"
-        size="md"
-      >
-        <div className="space-y-3.5 text-xs text-slate-700">
-          <p className="text-slate-600">
-            Berikut adalah 5 data fakta acuan ground-truth kasus simulasi PT Anjak yang dicocokkan otomatis oleh AI Fact Sheet:
-          </p>
-          <div className="space-y-2">
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="font-bold text-slate-900">1. Penurunan On-Time Performance (OTP)</p>
-              <p className="text-slate-600 mt-0.5">OTP turun dari 99.2% menjadi 97.8% akibat kegagalan modul mesin setor tarik tunai (CRM) pada jam sibuk.</p>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="font-bold text-slate-900">2. Customer Satisfaction Index (CSI) Anjlok</p>
-              <p className="text-slate-600 mt-0.5">Skor CSI merosot dari 89 ke 83 pada segmen nasabah prioritas karena antrean fisik counter teller yang menumpuk.</p>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="font-bold text-slate-900">3. Lonjakan Beban OPEX Listrik (+14%)</p>
-              <p className="text-slate-600 mt-0.5">Beban tagihan listrik cabang melonjak Rp 180 Juta (+14%) tanpa pengendalian sistem kelistrikan terpusat.</p>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="font-bold text-slate-900">4. Keterlambatan Pemeliharaan Vendor Pihak Ketiga</p>
-              <p className="text-slate-600 mt-0.5">Kontrak maintenance retainer Rp 450 Juta/bulan belum memiliki klausul denda penalti keterlambatan respon SLA.</p>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="font-bold text-slate-900">5. Kepadatan Jam Operasional Pagi (08.00 - 10.30)</p>
-              <p className="text-slate-600 mt-0.5">Krisis antrean terkonsentrasi di 4 hub transit utama pada jam kedatangan nasabah.</p>
-            </div>
-          </div>
-          <div className="pt-2 flex justify-end">
-            <Button variant="primary" onClick={() => setFactsheetModalOpen(false)} className="text-xs">
-              Tutup Kamus Fakta
             </Button>
           </div>
         </div>

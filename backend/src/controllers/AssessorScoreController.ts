@@ -2,7 +2,12 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import { type AuthRequest } from '../middleware/auth';
-import { resolveAdminTenantId } from '../middleware/tenant';
+import {
+  isCandidateInAssessorScope,
+  normalizeCompanyName,
+  resolveAdminTenantId,
+  resolveAssessorScopeContext
+} from '../middleware/tenant';
 import { buildPdf, formatDateId, type PdfBlock } from '../services/pdfService';
 import { findReportTemplateForCompany } from './ReportTemplateController';
 import { recordAuditLog, resolveRequestIp } from '../services/auditService';
@@ -57,20 +62,36 @@ const serializeScore = (score: {
   signedAt: score.signedAt
 });
 
-const normalizeCompany = (value?: string | null) =>
-  String(value || '')
-    .toLowerCase()
-    .replace(/\b(tbk|persero|pt|cv)\b/g, '')
-    .replace(/[^a-z0-9]/g, '');
-
 const candidateCodesForTenant = async (req: AuthRequest, tenantId: string | null) => {
+  if (req.portalUser?.role === 'asesor') {
+    const scopeCtx = await resolveAssessorScopeContext(req.portalUser, prisma);
+    const users = await prisma.portalUser.findMany({
+      where: { role: 'peserta' },
+      select: {
+        id: true,
+        candidateCode: true,
+        tenantId: true,
+        companyId: true,
+        companyName: true,
+        tenant: { select: { name: true } }
+      }
+    });
+    const keys = new Set<string>();
+    for (const user of users) {
+      if (!isCandidateInAssessorScope(scopeCtx, user)) continue;
+      if (user.candidateCode) keys.add(user.candidateCode);
+      keys.add(user.id);
+      keys.add(user.id.slice(0, 8));
+    }
+    return Array.from(keys);
+  }
   if (!tenantId) return null;
   let companyName: string | null = req.portalUser?.companyName || null;
   if (!companyName) {
     const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
     companyName = tenant?.name || null;
   }
-  const normalizedTargetCompany = normalizeCompany(companyName);
+  const normalizedTargetCompany = normalizeCompanyName(companyName);
   const users = await prisma.portalUser.findMany({
     where: {
       role: 'peserta',
@@ -85,7 +106,7 @@ const candidateCodesForTenant = async (req: AuthRequest, tenantId: string | null
   for (const user of users) {
     const matchesTenant =
       user.tenantId === tenantId ||
-      (normalizedTargetCompany && normalizeCompany(user.companyName) === normalizedTargetCompany);
+      (normalizedTargetCompany && normalizeCompanyName(user.companyName) === normalizedTargetCompany);
     if (!matchesTenant) continue;
     if (user.candidateCode) keys.add(user.candidateCode);
     keys.add(user.id);
@@ -206,13 +227,11 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
     }
 
     const tenantId = tenantForRequest(req);
-    const candidate = await prisma.portalUser.findFirst({
-      where: { candidateCode, role: 'peserta' },
-      select: { tenantId: true }
-    });
-    if (tenantId && candidate?.tenantId && candidate.tenantId !== tenantId) {
+    const allowedCodes = await candidateCodesForTenant(req, tenantId);
+    const targetKeys = await resolveCandidateScoreKeys(candidateCode);
+    if (allowedCodes && !targetKeys.some((k) => allowedCodes.includes(k))) {
       return res.status(403).json({
-        error: 'Kandidat ini terdaftar pada tenant lain. Pastikan akun asesor dan kandidat berada pada tenant yang sama.'
+        error: 'Kandidat ini terdaftar pada tenant PT lain. Pastikan akun asesor dan kandidat berada pada tenant PT yang sama.'
       });
     }
 
@@ -756,6 +775,11 @@ export const finalizeCalibrationConsensus = async (req: AuthRequest, res: Respon
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi asesor tidak valid.' });
     const candidateCode = String(req.params.candidateCode || '').trim();
+    const allowedCodes = await candidateCodesForTenant(req, tenantForRequest(req));
+    const keys = await resolveCandidateScoreKeys(candidateCode);
+    if (allowedCodes && !keys.some((k) => allowedCodes.includes(k))) {
+      return res.status(403).json({ error: 'Kandidat bukan milik tenant PT Anda.' });
+    }
     const programTitle = String(req.body.programTitle || '').trim();
     const mode = (['average', 'primary', 'secondary', 'custom'].includes(String(req.body.mode))
       ? req.body.mode
@@ -864,6 +888,11 @@ export const submitLhaCorrectionRequest = async (req: AuthRequest, res: Response
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi asesor tidak valid.' });
     const candidateCode = String(req.params.candidateCode || '').trim();
+    const allowedCodes = await candidateCodesForTenant(req, tenantForRequest(req));
+    const keys = await resolveCandidateScoreKeys(candidateCode);
+    if (allowedCodes && !keys.some((k) => allowedCodes.includes(k))) {
+      return res.status(403).json({ error: 'Kandidat bukan milik tenant PT Anda.' });
+    }
     const programTitle = req.body.programTitle ? String(req.body.programTitle).trim() : undefined;
     const reason = String(req.body.reason || '').trim();
     if (reason.length < 10) {

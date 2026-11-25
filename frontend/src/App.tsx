@@ -235,7 +235,7 @@ function App() {
             <Route path="/asesor/penilaian" element={<RequireRole roles={['asesor']}><AsesorScoringForm /></RequireRole>} />
             <Route path="/asesor/rekap" element={<RequireRole roles={['asesor']}><AsesorRekapProgram /></RequireRole>} />
             <Route path="/asesor/bars" element={<Navigate to="/asesor/dashboard?modal=bars" replace />} />
-            <Route path="/asesor/factsheet" element={<Navigate to="/asesor/dashboard?modal=factsheet" replace />} />
+            <Route path="/asesor/factsheet" element={<Navigate to="/asesor/dashboard" replace />} />
 
             {/* Route Group C: ADMIN (/admin) */}
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />

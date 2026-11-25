@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { type AuthRequest } from '../middleware/auth';
+import { isCandidateInAssessorScope, resolveAssessorScopeContext } from '../middleware/tenant';
 import { openSseStream, publish, publishToUser } from '../services/realtimeService';
 
 const prisma = new PrismaClient();
@@ -201,13 +202,26 @@ export const completeAndCallNext = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
     const candidateCode = String(req.params.candidateCode);
+    const scopeCtx = await resolveAssessorScopeContext(req.portalUser, prisma);
 
     const result = await prisma.$transaction(async (tx) => {
       const current = await tx.portalUser.findFirst({
         where: { candidateCode, role: 'peserta' },
-        select: { id: true, name: true, assessmentId: true, tenantId: true, interviewStatus: true }
+        select: {
+          id: true,
+          name: true,
+          assessmentId: true,
+          tenantId: true,
+          companyId: true,
+          companyName: true,
+          tenant: { select: { name: true } },
+          interviewStatus: true
+        }
       });
       if (!current) return { kind: 'not_found' as const };
+      if (!isCandidateInAssessorScope(scopeCtx, current)) {
+        return { kind: 'forbidden' as const };
+      }
       if (current.interviewStatus === 'completed') {
         return { kind: 'ok' as const, completed: current, next: null, alreadyCompleted: true };
       }
@@ -239,33 +253,47 @@ export const completeAndCallNext = async (req: AuthRequest, res: Response) => {
         return { kind: 'ok' as const, completed: fresh, next: null };
       }
 
-      const activeOther = await tx.portalUser.findFirst({
+      const activeCandidates = await tx.portalUser.findMany({
         where: {
           assessmentId: fresh.assessmentId,
-          tenantId: fresh.tenantId,
           role: 'peserta',
           status: 'Aktif',
           interviewStatus: 'called',
           id: { not: fresh.id }
         },
-        select: { id: true }
+        select: {
+          id: true,
+          tenantId: true,
+          companyId: true,
+          companyName: true,
+          tenant: { select: { name: true } }
+        }
       });
+      const activeOther = activeCandidates.find((c) => isCandidateInAssessorScope(scopeCtx, c));
       if (activeOther) {
         return { kind: 'ok' as const, completed: fresh, next: null, busy: true };
       }
 
-      const next = await tx.portalUser.findFirst({
+      const waitingCandidates = await tx.portalUser.findMany({
         where: {
           assessmentId: fresh.assessmentId,
-          tenantId: fresh.tenantId,
           role: 'peserta',
           status: 'Aktif',
           id: { not: fresh.id },
           interviewStatus: { in: ['scheduled', 'waiting'] }
         },
         orderBy: queueOrder,
-        select: { id: true, name: true, candidateCode: true }
+        select: {
+          id: true,
+          name: true,
+          candidateCode: true,
+          tenantId: true,
+          companyId: true,
+          companyName: true,
+          tenant: { select: { name: true } }
+        }
       });
+      const next = waitingCandidates.find((c) => isCandidateInAssessorScope(scopeCtx, c)) || null;
       if (!next) {
         return { kind: 'ok' as const, completed: fresh, next: null };
       }
@@ -284,6 +312,9 @@ export const completeAndCallNext = async (req: AuthRequest, res: Response) => {
 
     if (result.kind === 'not_found') {
       return res.status(404).json({ error: 'Peserta tidak ditemukan.' });
+    }
+    if (result.kind === 'forbidden') {
+      return res.status(403).json({ error: 'Kandidat berada pada tenant PT yang berbeda dengan akun asesor.' });
     }
     if (result.kind === 'not_active') {
       return res.status(409).json({
