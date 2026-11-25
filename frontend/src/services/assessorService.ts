@@ -32,6 +32,47 @@ export interface AssessorCandidateRecordingMeta {
   createdAt: string;
 }
 
+export interface AssessorCatQuestionItem {
+  id: string;
+  orderNo: number;
+  type: string;
+  competency: string;
+  difficulty: string;
+  text: string;
+  codeSnippet: string | null;
+  options: Array<{ key: string; label: string }>;
+  candidateAnswer: unknown;
+  correctAnswer: unknown;
+  isCorrect: boolean | null;
+}
+
+export interface AssessorCatDetails {
+  programCode: string;
+  status: string;
+  score: number | null;
+  integrityScore: number | null;
+  startedAt: string | null;
+  submittedAt: string | null;
+  competencyScores: Array<{ name: string; score: number; max?: number; weight?: string }>;
+  questions: AssessorCatQuestionItem[];
+}
+
+export interface AssessorLiveCodingSubmission {
+  userId: string;
+  candidateCode?: string | null;
+  programCode: string;
+  problemId: string;
+  problemTitle: string;
+  language: string;
+  code: string;
+  score: number;
+  passedTests: number;
+  totalTests: number;
+  statusLabel: string;
+  completed: boolean;
+  submittedAt: string;
+}
+
 export interface AssessorCandidate {
   id: string;
   code: string;
@@ -42,6 +83,21 @@ export interface AssessorCandidate {
   program: string;
   programCode: string | null;
   catScore: number | null;
+  catStatus?: 'selesai' | 'sedang' | 'belum';
+  catStartedAt?: string | null;
+  catSubmittedAt?: string | null;
+  catAnsweredCount?: number;
+  catTotalQuestions?: number | null;
+  liveCodingStatus?: 'selesai' | 'sedang' | 'belum';
+  liveCodingScore?: number | null;
+  liveCodingProblemTitle?: string | null;
+  liveCodingLanguage?: string | null;
+  liveCodingSubmittedAt?: string | null;
+  interviewDone?: boolean;
+  barsAverage?: number | null;
+  gpaScore?: number | null;
+  catDetails?: AssessorCatDetails | null;
+  liveCodingSubmission?: AssessorLiveCodingSubmission | null;
   integrityScore: number | null;
   proctoringFlagCount?: number;
   examStatus: string;

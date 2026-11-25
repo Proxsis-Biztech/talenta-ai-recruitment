@@ -1,7 +1,12 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { bootstrapDatabaseSeed } from '../services/bootstrapSeedService';
+import {
+  bootstrapDatabaseSeed,
+  cleanDoubledCompanyTitle,
+  deduplicateJobsInDb,
+  normalizeProgramDedupeKey
+} from '../services/bootstrapSeedService';
 import { type AuthRequest } from '../middleware/auth';
 import { resolveAdminTenantId, requireAdminTenantId, UNASSIGNED_TENANT } from '../middleware/tenant';
 
@@ -55,6 +60,8 @@ export const getActiveJobs = async (req: AuthRequest, res: Response) => {
     const count = await prisma.job.count();
     if (count === 0) {
       await bootstrapDatabaseSeed();
+    } else {
+      await deduplicateJobsInDb();
     }
 
     const jobs = await prisma.job.findMany({
@@ -74,6 +81,8 @@ export const getAdminJobs = async (req: AuthRequest, res: Response) => {
     const count = await prisma.job.count();
     if (count === 0) {
       await bootstrapDatabaseSeed();
+    } else {
+      await deduplicateJobsInDb();
     }
 
     const page = parseInt(req.query.page as string) || 1;
@@ -128,12 +137,21 @@ export const createJob = async (req: AuthRequest, res: Response) => {
         ? null
         : resolvedTenant || (req.body.tenantId ? String(req.body.tenantId) : null);
 
-    const existingJob = await prisma.job.findFirst({
-      where: { title: validatedData.title, tenantId }
+    const cleanedTitle = cleanDoubledCompanyTitle(validatedData.title);
+    const candidateKey = normalizeProgramDedupeKey(cleanedTitle);
+    const sameTenantJobs = await prisma.job.findMany({
+      where: { tenantId },
+      include: { tenant: { select: { name: true } } }
     });
 
+    const existingJob = sameTenantJobs.find(
+      (j) =>
+        j.title.toLowerCase() === cleanedTitle.toLowerCase() ||
+        normalizeProgramDedupeKey(j.title, j.tenant?.name) === candidateKey
+    );
+
     if (existingJob) {
-      return res.status(400).json({ error: "Judul program sudah ada pada perusahaan ini" });
+      return res.status(400).json({ error: "Program atau course yang sama sudah terdaftar (tidak boleh ganda)" });
     }
     if (validatedData.code) {
       const existingCode = await prisma.job.findUnique({ where: { code: validatedData.code } });
@@ -145,6 +163,7 @@ export const createJob = async (req: AuthRequest, res: Response) => {
     const job = await prisma.job.create({
       data: {
         ...validatedData,
+        title: cleanedTitle,
         tenantId
       }
     });
@@ -174,16 +193,21 @@ export const updateJob = async (req: AuthRequest, res: Response) => {
     const resolvedTenant = resolveAdminTenantId(req);
     const tenantId = resolvedTenant === UNASSIGNED_TENANT ? null : resolvedTenant;
 
-    const existingJob = await prisma.job.findFirst({
-      where: { 
-        title: validatedData.title,
-        tenantId,
-        NOT: { id }
-      }
+    const cleanedTitle = cleanDoubledCompanyTitle(validatedData.title);
+    const candidateKey = normalizeProgramDedupeKey(cleanedTitle);
+    const sameTenantJobs = await prisma.job.findMany({
+      where: { tenantId, NOT: { id } },
+      include: { tenant: { select: { name: true } } }
     });
+
+    const existingJob = sameTenantJobs.find(
+      (j) =>
+        j.title.toLowerCase() === cleanedTitle.toLowerCase() ||
+        normalizeProgramDedupeKey(j.title, j.tenant?.name) === candidateKey
+    );
     
     if (existingJob) {
-      return res.status(400).json({ error: "Judul program sudah ada pada perusahaan ini" });
+      return res.status(400).json({ error: "Program atau course yang sama sudah terdaftar (tidak boleh ganda)" });
     }
     if (validatedData.code) {
       const existingCode = await prisma.job.findFirst({
@@ -200,7 +224,10 @@ export const updateJob = async (req: AuthRequest, res: Response) => {
     }
     const job = await prisma.job.update({
       where: { id },
-      data: validatedData
+      data: {
+        ...validatedData,
+        title: cleanedTitle
+      }
     });
     
     res.json({ message: "Lowongan berhasil diperbarui", data: job });

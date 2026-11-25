@@ -48,7 +48,9 @@ const candidateSelect = {
       status: true,
       score: true,
       integrityScore: true,
+      startedAt: true,
       submittedAt: true,
+      competencyScores: true,
       answers: true,
       violations: true
     }
@@ -88,7 +90,9 @@ const latestAttempt = (
     status: string;
     score: number | null;
     integrityScore: number | null;
+    startedAt?: Date | null;
     submittedAt: Date | null;
+    competencyScores?: string | null;
     answers?: string;
     violations?: string | null;
   }>
@@ -133,6 +137,51 @@ interface RecordingMeta {
   createdAt: Date;
 }
 
+interface LiveCodingMeta {
+  userId: string;
+  candidateCode?: string | null;
+  programCode: string;
+  problemId: string;
+  problemTitle: string;
+  language: string;
+  code: string;
+  score: number;
+  passedTests: number;
+  totalTests: number;
+  statusLabel: string;
+  completed: boolean;
+  submittedAt: string;
+}
+
+const computeBarsAndGpa = (rawCompetencies: string | any[] | null | undefined) => {
+  const list =
+    typeof rawCompetencies === 'string'
+      ? parseJson<any[]>(rawCompetencies, [])
+      : Array.isArray(rawCompetencies)
+        ? rawCompetencies
+        : [];
+  const scored = list.filter((c) => typeof c?.score === 'number' && c.score > 0);
+  if (scored.length === 0) return { barsAverage: null as number | null, gpaScore: null as number | null };
+  const totalWeight = list.reduce((sum, c) => sum + (Number(c?.weight) || 0), 0);
+  const barsAvg =
+    totalWeight > 0
+      ? list.reduce((sum, c) => sum + ((Number(c?.score) || 0) * (Number(c?.weight) || 0)) / totalWeight, 0)
+      : scored.reduce((sum, c) => sum + (Number(c?.score) || 0), 0) / scored.length;
+  const roundedBars = Math.round(barsAvg * 100) / 100;
+  const gpaScore = Math.round((roundedBars / 5) * 4 * 100) / 100;
+  return { barsAverage: roundedBars, gpaScore };
+};
+
+const countAnsweredItems = (answersJson: string | null | undefined): number => {
+  const parsed = parseJson<Record<string, unknown>>(answersJson, {});
+  return Object.values(parsed || {}).filter((value) => {
+    if (value === null || value === undefined || value === '') return false;
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'object') return Object.values(value as Record<string, unknown>).some(Boolean);
+    return true;
+  }).length;
+};
+
 const serializeCandidate = (
   user: any,
   score: CandidateAssessorScoreRow | null = null,
@@ -143,7 +192,9 @@ const serializeCandidate = (
     interviewScore?: number | null;
   } | null = null,
   recordings: RecordingMeta[] = [],
-  reviewRecord: AiInterviewReviewRecord | null = null
+  reviewRecord: AiInterviewReviewRecord | null = null,
+  liveCoding: LiveCodingMeta | null = null,
+  questionCountMap: Map<string, number> = new Map()
 ) => {
   const attempt = latestAttempt(user.examAttempts || []);
   const violationCount =
@@ -163,6 +214,29 @@ const serializeCandidate = (
   const hasAudio = Boolean(audioRecording);
   const hasTranscript = Boolean(transcriptText && transcriptText.trim().length > 0);
   const codeKey = String(user.candidateCode || user.id.slice(0, 8)).toUpperCase();
+  const programKey = String(attempt?.programCode || user.assessmentId || '').trim().toUpperCase();
+
+  const catStatus: 'selesai' | 'sedang' | 'belum' =
+    attempt && (['submitted', 'graded', 'completed'].includes(attempt.status) || Boolean(attempt.submittedAt))
+      ? 'selesai'
+      : attempt?.status === 'in_progress'
+        ? 'sedang'
+        : 'belum';
+  const catAnsweredCount = attempt ? countAnsweredItems(attempt.answers) : 0;
+  const catTotalQuestions = programKey ? questionCountMap.get(programKey) ?? null : null;
+
+  const liveCodingStatus: 'selesai' | 'sedang' | 'belum' = liveCoding
+    ? liveCoding.completed
+      ? 'selesai'
+      : 'sedang'
+    : 'belum';
+  const interviewDone = Boolean(
+    user.interviewStatus === 'completed' ||
+      user.interviewStatus === 'scored' ||
+      hasTranscript ||
+      hasAudio
+  );
+  const { barsAverage, gpaScore } = computeBarsAndGpa(score?.competencies);
 
   const unified = deriveUnifiedReviewState({
     interviewStatus: user.interviewStatus,
@@ -198,6 +272,19 @@ const serializeCandidate = (
     program: user.assessmentTitle || attempt?.programCode || '-',
     programCode: user.assessmentId || attempt?.programCode || null,
     catScore: attempt?.score ?? null,
+    catStatus,
+    catStartedAt: (attempt as any)?.startedAt ?? null,
+    catSubmittedAt: attempt?.submittedAt ?? null,
+    catAnsweredCount,
+    catTotalQuestions,
+    liveCodingStatus,
+    liveCodingScore: liveCoding?.score ?? null,
+    liveCodingProblemTitle: liveCoding?.problemTitle ?? null,
+    liveCodingLanguage: liveCoding?.language ?? null,
+    liveCodingSubmittedAt: liveCoding?.submittedAt ?? null,
+    interviewDone,
+    barsAverage,
+    gpaScore,
     integrityScore: attempt?.integrityScore ?? null,
     proctoringFlagCount,
     examStatus: attempt?.status || 'not_started',
@@ -300,7 +387,7 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
       .map((u) => u.candidateCode || u.id.slice(0, 8))
       .filter(Boolean);
     const emails = users.map((u) => u.email).filter(Boolean);
-    const [scoreRows, applicantRows, recordingRows, reviewRecordsMap] = await Promise.all([
+    const [scoreRows, applicantRows, recordingRows, reviewRecordsMap, liveCodingRows, questionCounts] = await Promise.all([
       codes.length > 0
         ? prisma.assessorScore.findMany({
             where: { candidateCode: { in: codes } },
@@ -336,8 +423,27 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
             }
           })
         : Promise.resolve([]),
-      loadAiReviewRecordsMap()
+      loadAiReviewRecordsMap(),
+      prisma.masterRecord.findMany({ where: { scope: 'live-coding-submissions' } }),
+      prisma.programQuestion.groupBy({ by: ['programCode'], _count: { id: true } })
     ]);
+
+    const questionCountMap = new Map<string, number>();
+    for (const grp of questionCounts) {
+      questionCountMap.set(String(grp.programCode || '').toUpperCase(), grp._count.id);
+    }
+
+    const liveCodingByUserProgram = new Map<string, LiveCodingMeta>();
+    const liveCodingLatestByUser = new Map<string, LiveCodingMeta>();
+    for (const row of liveCodingRows) {
+      const parsed = parseJson<LiveCodingMeta | null>(row.value, null);
+      if (!parsed?.userId) continue;
+      liveCodingByUserProgram.set(`${parsed.userId}::${String(parsed.programCode || '').toUpperCase()}`, parsed);
+      const prev = liveCodingLatestByUser.get(parsed.userId);
+      if (!prev || new Date(parsed.submittedAt).getTime() > new Date(prev.submittedAt).getTime()) {
+        liveCodingLatestByUser.set(parsed.userId, parsed);
+      }
+    }
 
     const applicantByEmail = new Map(
       applicantRows.map((a) => [a.email.toLowerCase(), a])
@@ -363,7 +469,12 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
         const applicantData = applicantByEmail.get(u.email.toLowerCase()) || null;
         const recordings = recordingsByUserId.get(u.id) || [];
         const reviewRec = reviewRecordsMap.get(key.toUpperCase()) || null;
-        return serializeCandidate(u, bestScore, applicantData, recordings, reviewRec);
+        const pCode = String(u.assessmentId || '').trim().toUpperCase();
+        const liveCoding =
+          (pCode ? liveCodingByUserProgram.get(`${u.id}::${pCode}`) : null) ||
+          liveCodingLatestByUser.get(u.id) ||
+          null;
+        return serializeCandidate(u, bestScore, applicantData, recordings, reviewRec, liveCoding, questionCountMap);
       })
     });
   } catch (error) {
@@ -394,7 +505,7 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
     }
 
     const codeKey = user.candidateCode || user.id.slice(0, 8);
-    const [scores, applicant, recordings, reviewRecord] = await Promise.all([
+    const [scores, applicant, recordings, reviewRecord, liveCodingRecords] = await Promise.all([
       prisma.assessorScore.findMany({
         where: {
           OR: [{ candidateCode: codeKey }, { candidateCode: identifier }]
@@ -424,46 +535,101 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
           createdAt: true
         }
       }),
-      getAiReviewRecord(codeKey)
+      getAiReviewRecord(codeKey),
+      prisma.masterRecord.findMany({
+        where: {
+          scope: 'live-coding-submissions',
+          key: { startsWith: `${user.id}::` }
+        }
+      })
     ]);
     const bestScore = pickBestScore(scores);
 
     const attempt = latestAttempt(user.examAttempts || []);
+    const activeProgramCode = String(attempt?.programCode || user.assessmentId || '').trim().toUpperCase();
+    const programQuestions = activeProgramCode
+      ? await prisma.programQuestion.findMany({
+          where: { programCode: activeProgramCode },
+          orderBy: { orderNo: 'asc' }
+        })
+      : [];
+
+    const answersObj = attempt?.answers ? parseJson<Record<string, unknown>>(attempt.answers, {}) : {};
     const essayAnswers: Array<{ questionId: string; orderNo: number; prompt: string; answer: string }> = [];
-    if (attempt && attempt.answers) {
-      const answersObj = parseJson<Record<string, unknown>>(attempt.answers, {});
-      const essayQuestions = attempt.programCode
-        ? await prisma.programQuestion.findMany({
-            where: { programCode: attempt.programCode, type: 'essay' },
-            orderBy: { orderNo: 'asc' },
-            select: { id: true, orderNo: true, text: true }
-          })
+    const catQuestions = programQuestions.map((q) => {
+      const candidateAnswer = answersObj[String(q.orderNo)] ?? answersObj[q.id] ?? null;
+      const expectedKey = parseJson<unknown>(q.correctAnswer, null);
+      const rawOptions = parseJson<any[]>(q.options, []);
+      const options = Array.isArray(rawOptions)
+        ? rawOptions.map((opt, idx) => ({
+            key: String(opt?.key ?? String.fromCharCode(65 + idx)),
+            label: String(opt?.label ?? opt?.text ?? opt?.value ?? '')
+          }))
         : [];
 
-      if (essayQuestions.length > 0) {
-        for (const q of essayQuestions) {
-          const rawAns = answersObj[String(q.orderNo)] ?? answersObj[q.id];
-          essayAnswers.push({
-            questionId: q.id,
-            orderNo: q.orderNo,
-            prompt: q.text,
-            answer: typeof rawAns === 'string' ? rawAns : rawAns != null ? JSON.stringify(rawAns) : ''
-          });
-        }
-      } else {
-        // Fallback: include any non-empty long-text answers directly from attempt.answers
-        Object.entries(answersObj).forEach(([k, val], idx) => {
-          if (typeof val === 'string' && val.trim().length > 25) {
-            essayAnswers.push({
-              questionId: k,
-              orderNo: Number(k) || idx + 1,
-              prompt: `Butir Uraian #${k}`,
-              answer: val
-            });
-          }
+      let isCorrect: boolean | null = null;
+      if (q.type === 'single' && candidateAnswer != null && expectedKey != null) {
+        isCorrect = String(candidateAnswer) === String(expectedKey);
+      } else if (q.type === 'multi' && Array.isArray(candidateAnswer) && Array.isArray(expectedKey)) {
+        const a = [...candidateAnswer].map(String).sort();
+        const b = [...expectedKey].map(String).sort();
+        isCorrect = a.length > 0 && JSON.stringify(a) === JSON.stringify(b);
+      } else if (q.type === 'short' && typeof candidateAnswer === 'string' && expectedKey != null) {
+        isCorrect = candidateAnswer.trim().toLowerCase() === String(expectedKey).trim().toLowerCase();
+      }
+
+      if (q.type === 'essay') {
+        essayAnswers.push({
+          questionId: q.id,
+          orderNo: q.orderNo,
+          prompt: q.text,
+          answer:
+            typeof candidateAnswer === 'string'
+              ? candidateAnswer
+              : candidateAnswer != null
+                ? JSON.stringify(candidateAnswer)
+                : ''
         });
       }
+
+      return {
+        id: q.id,
+        orderNo: q.orderNo,
+        type: q.type,
+        competency: q.competency,
+        difficulty: q.difficulty,
+        text: q.text,
+        codeSnippet: q.codeSnippet || null,
+        options,
+        candidateAnswer,
+        correctAnswer: expectedKey,
+        isCorrect
+      };
+    });
+
+    if (essayAnswers.length === 0 && attempt?.answers) {
+      Object.entries(answersObj).forEach(([k, val], idx) => {
+        if (typeof val === 'string' && val.trim().length > 25) {
+          essayAnswers.push({
+            questionId: k,
+            orderNo: Number(k) || idx + 1,
+            prompt: `Butir Uraian #${k}`,
+            answer: val
+          });
+        }
+      });
     }
+
+    const parsedLiveCodings = liveCodingRecords
+      .map((r) => parseJson<LiveCodingMeta | null>(r.value, null))
+      .filter((item): item is LiveCodingMeta => Boolean(item));
+    const liveCodingSubmission =
+      parsedLiveCodings.find((s) => String(s.programCode || '').toUpperCase() === activeProgramCode) ||
+      parsedLiveCodings[0] ||
+      null;
+
+    const questionCountMap = new Map<string, number>();
+    if (activeProgramCode) questionCountMap.set(activeProgramCode, programQuestions.length);
 
     const transcriptText =
       recordings.find((r) => r.kind === 'transcript' && r.transcript)?.transcript ||
@@ -473,9 +639,30 @@ export const getAssessorCandidate = async (req: AuthRequest, res: Response) => {
 
     return res.json({
       data: {
-        ...serializeCandidate(user, bestScore, applicant || null, recordings, reviewRecord),
+        ...serializeCandidate(
+          user,
+          bestScore,
+          applicant || null,
+          recordings,
+          reviewRecord,
+          liveCodingSubmission,
+          questionCountMap
+        ),
         competencies: bestScore?.competencies ? parseJson<any[]>(bestScore.competencies, []) : [],
         essayAnswers,
+        catDetails: attempt
+          ? {
+              programCode: attempt.programCode,
+              status: attempt.status,
+              score: attempt.score,
+              integrityScore: attempt.integrityScore,
+              startedAt: (attempt as any).startedAt || null,
+              submittedAt: attempt.submittedAt,
+              competencyScores: parseJson<any[]>(attempt.competencyScores, []),
+              questions: catQuestions
+            }
+          : null,
+        liveCodingSubmission,
         transcriptText,
         transcriptSegments,
         recordings: recordings.map((r) => ({

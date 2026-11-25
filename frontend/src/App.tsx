@@ -66,11 +66,10 @@ const PesertaProfile = lazyWithRetry(() => import('./components/peserta/PesertaP
 
 // Portal Asesor
 const AsesorDashboard = lazyWithRetry(() => import('./components/asesor/AsesorDashboard'), 'AsesorDashboard');
-const AsesorQueueTable = lazyWithRetry(() => import('./components/asesor/AsesorQueueTable'), 'AsesorQueueTable');
-const AsesorLiveConsole = lazyWithRetry(() => import('./components/asesor/AsesorLiveConsole'), 'AsesorLiveConsole');
-const AsesorProctoringReview = lazyWithRetry(() => import('./components/asesor/AsesorProctoringReview'), 'AsesorProctoringReview');
-const AsesorScoringForm = lazyWithRetry(() => import('./components/asesor/AsesorScoringForm'), 'AsesorScoringForm');
-const AsesorRekapProgram = lazyWithRetry(() => import('./components/asesor/AsesorRekapProgram'), 'AsesorRekapProgram');
+const AsesorProgressTracking = lazyWithRetry(() => import('./components/asesor/AsesorProgressTracking'), 'AsesorProgressTracking');
+const AsesorCatCodingResults = lazyWithRetry(() => import('./components/asesor/AsesorCatCodingResults'), 'AsesorCatCodingResults');
+const AsesorInterviewResults = lazyWithRetry(() => import('./components/asesor/AsesorInterviewResults'), 'AsesorInterviewResults');
+const AsesorFinalSummaryLha = lazyWithRetry(() => import('./components/asesor/AsesorFinalSummaryLha'), 'AsesorFinalSummaryLha');
 
 // Portal Admin
 const AdminDashboard = lazyWithRetry(() => import('./components/AdminDashboard'), 'AdminDashboard');
@@ -226,17 +225,26 @@ function App() {
             {/* Route Group B: ASESOR (/asesor) */}
             <Route path="/asesor" element={<RequireRole roles={['asesor']}><AsesorDashboard /></RequireRole>} />
             <Route path="/asesor/dashboard" element={<RequireRole roles={['asesor']}><AsesorDashboard /></RequireRole>} />
-            <Route path="/asesor/interview-queue" element={<RequireRole roles={['asesor']}><AsesorQueueTable /></RequireRole>} />
-            <Route path="/asesor/review-console" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
-            <Route path="/asesor/review-console/:id" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
-            <Route path="/asesor/live-console" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
-            <Route path="/asesor/live-console/:id" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
-            <Route path="/asesor/observer/:id" element={<RequireRole roles={['asesor']}><AsesorLiveConsole /></RequireRole>} />
-            <Route path="/asesor/proctoring" element={<RequireRole roles={['asesor']}><AsesorProctoringReview /></RequireRole>} />
-            <Route path="/asesor/scoring" element={<RequireRole roles={['asesor']}><AsesorScoringForm /></RequireRole>} />
-            <Route path="/asesor/scoring/:id" element={<RequireRole roles={['asesor']}><AsesorScoringForm /></RequireRole>} />
-            <Route path="/asesor/penilaian" element={<RequireRole roles={['asesor']}><AsesorScoringForm /></RequireRole>} />
-            <Route path="/asesor/rekap" element={<RequireRole roles={['asesor']}><AsesorRekapProgram /></RequireRole>} />
+            <Route path="/asesor/tracking" element={<RequireRole roles={['asesor']}><AsesorProgressTracking /></RequireRole>} />
+            <Route path="/asesor/tracking/:id" element={<RequireRole roles={['asesor']}><AsesorProgressTracking /></RequireRole>} />
+            <Route path="/asesor/hasil-cat" element={<RequireRole roles={['asesor']}><AsesorCatCodingResults /></RequireRole>} />
+            <Route path="/asesor/hasil-cat/:id" element={<RequireRole roles={['asesor']}><AsesorCatCodingResults /></RequireRole>} />
+            <Route path="/asesor/hasil-interview" element={<RequireRole roles={['asesor']}><AsesorInterviewResults /></RequireRole>} />
+            <Route path="/asesor/hasil-interview/:id" element={<RequireRole roles={['asesor']}><AsesorInterviewResults /></RequireRole>} />
+            <Route path="/asesor/rekap-lha" element={<RequireRole roles={['asesor']}><AsesorFinalSummaryLha /></RequireRole>} />
+            <Route path="/asesor/rekap-lha/:id" element={<RequireRole roles={['asesor']}><AsesorFinalSummaryLha /></RequireRole>} />
+            {/* Legacy Asesor path redirects */}
+            <Route path="/asesor/interview-queue" element={<Navigate to="/asesor/tracking" replace />} />
+            <Route path="/asesor/review-console" element={<Navigate to="/asesor/hasil-interview" replace />} />
+            <Route path="/asesor/review-console/:id" element={<RequireRole roles={['asesor']}><AsesorInterviewResults /></RequireRole>} />
+            <Route path="/asesor/live-console" element={<Navigate to="/asesor/hasil-interview" replace />} />
+            <Route path="/asesor/live-console/:id" element={<RequireRole roles={['asesor']}><AsesorInterviewResults /></RequireRole>} />
+            <Route path="/asesor/observer/:id" element={<RequireRole roles={['asesor']}><AsesorInterviewResults /></RequireRole>} />
+            <Route path="/asesor/proctoring" element={<Navigate to="/asesor/tracking" replace />} />
+            <Route path="/asesor/scoring" element={<Navigate to="/asesor/rekap-lha" replace />} />
+            <Route path="/asesor/scoring/:id" element={<RequireRole roles={['asesor']}><AsesorFinalSummaryLha /></RequireRole>} />
+            <Route path="/asesor/penilaian" element={<Navigate to="/asesor/rekap-lha" replace />} />
+            <Route path="/asesor/rekap" element={<Navigate to="/asesor/rekap-lha" replace />} />
             <Route path="/asesor/bars" element={<Navigate to="/asesor/dashboard?modal=bars" replace />} />
             <Route path="/asesor/factsheet" element={<Navigate to="/asesor/dashboard" replace />} />
 

@@ -5,6 +5,154 @@ import { backfillCandidateCodes } from './candidateCodeService';
 
 const prisma = new PrismaClient();
 
+const normalizeCompanyToken = (value?: string | null) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/\b(pt|tbk|persero)\b/gi, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+export const cleanDoubledCompanyTitle = (rawTitle: string): string => {
+  let title = String(rawTitle || '').replace(/\s+/g, ' ').trim();
+  // Remove consecutive repeated trailing parenthetical tags like "... (PT A) (PT A)"
+  while (true) {
+    const match = title.match(/^(.*?\(([^)]+)\))\s*\(([^)]+)\)\s*$/);
+    if (!match) break;
+    const prevNorm = normalizeCompanyToken(match[2]);
+    const lastNorm = normalizeCompanyToken(match[3]);
+    if (prevNorm && lastNorm && (prevNorm === lastNorm || prevNorm.includes(lastNorm) || lastNorm.includes(prevNorm))) {
+      title = match[1].trim();
+      continue;
+    }
+    break;
+  }
+  return title;
+};
+
+export const normalizeProgramDedupeKey = (rawTitle: string, fallbackCompany?: string | null): string => {
+  const cleaned = cleanDoubledCompanyTitle(rawTitle);
+  const trailingMatch = cleaned.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+  const baseRole = (trailingMatch ? trailingMatch[1] : cleaned)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const companyToken = normalizeCompanyToken(trailingMatch ? trailingMatch[2] : fallbackCompany);
+  return companyToken ? `${baseRole}::${companyToken}` : baseRole;
+};
+
+let dedupeInFlight: Promise<number> | null = null;
+
+export const deduplicateJobsInDb = async (): Promise<number> => {
+  if (dedupeInFlight) return dedupeInFlight;
+  dedupeInFlight = (async () => {
+    try {
+      const jobs = await prisma.job.findMany({
+        include: {
+          tenant: { select: { id: true, name: true } },
+          _count: { select: { applicants: true, classGroups: true } }
+        },
+        orderBy: { createdAt: 'asc' }
+      });
+
+      const groups = new Map<string, typeof jobs>();
+      for (const job of jobs) {
+        const key = normalizeProgramDedupeKey(job.title, job.tenant?.name);
+        const list = groups.get(key) || [];
+        list.push(job);
+        groups.set(key, list);
+      }
+
+      const defaultCodes = new Set(DEFAULT_PROGRAMS_DATA.map((p) => p.code));
+      let removedCount = 0;
+
+      for (const group of groups.values()) {
+        if (group.length === 1) {
+          const single = group[0];
+          const cleanedTitle = cleanDoubledCompanyTitle(single.title);
+          if (cleanedTitle !== single.title) {
+            await prisma.job.update({
+              where: { id: single.id },
+              data: { title: cleanedTitle }
+            });
+          }
+          continue;
+        }
+
+        // Rank canonical keeper cleanly: known default code > non-null code > more relations > cleaner title > oldest
+        const sorted = [...group].sort((a, b) => {
+          const aDef = a.code && defaultCodes.has(a.code) ? 1 : 0;
+          const bDef = b.code && defaultCodes.has(b.code) ? 1 : 0;
+          if (aDef !== bDef) return bDef - aDef;
+
+          const aCode = a.code ? 1 : 0;
+          const bCode = b.code ? 1 : 0;
+          if (aCode !== bCode) return bCode - aCode;
+
+          const aRel = (a._count?.applicants || 0) + (a._count?.classGroups || 0);
+          const bRel = (b._count?.applicants || 0) + (b._count?.classGroups || 0);
+          if (aRel !== bRel) return bRel - aRel;
+
+          const aLen = cleanDoubledCompanyTitle(a.title) === a.title ? 1 : 0;
+          const bLen = cleanDoubledCompanyTitle(b.title) === b.title ? 1 : 0;
+          if (aLen !== bLen) return bLen - aLen;
+
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        });
+
+        const keeper = sorted[0];
+        const duplicates = sorted.slice(1);
+        const cleanedTitle = cleanDoubledCompanyTitle(keeper.title);
+        const mergedTenantId = keeper.tenantId || duplicates.find((d) => d.tenantId)?.tenantId || null;
+
+        await prisma.$transaction(async (tx) => {
+          for (const dup of duplicates) {
+            await tx.applicant.updateMany({ where: { jobId: dup.id }, data: { jobId: keeper.id } });
+            if (dup.code && keeper.code && dup.code !== keeper.code) {
+              const dupClasses = await tx.classGroup.findMany({ where: { programCode: dup.code } });
+              for (const cls of dupClasses) {
+                const collision = await tx.classGroup.findFirst({
+                  where: {
+                    tenantId: cls.tenantId,
+                    programCode: keeper.code,
+                    name: cls.name
+                  }
+                });
+                if (!collision) {
+                  await tx.classGroup.update({
+                    where: { id: cls.id },
+                    data: { programCode: keeper.code }
+                  });
+                }
+              }
+            }
+            await tx.job.delete({ where: { id: dup.id } });
+            removedCount += 1;
+          }
+          if (cleanedTitle !== keeper.title || mergedTenantId !== keeper.tenantId) {
+            await tx.job.update({
+              where: { id: keeper.id },
+              data: {
+                title: cleanedTitle,
+                ...(mergedTenantId && !keeper.tenantId ? { tenantId: mergedTenantId } : {})
+              }
+            });
+          }
+        });
+      }
+
+      if (removedCount > 0) {
+        console.log(`✅ Deduplicated ${removedCount} duplicate assessment job(s).`);
+      }
+      return removedCount;
+    } finally {
+      dedupeInFlight = null;
+    }
+  })();
+  return dedupeInFlight;
+};
+
 export const DEFAULT_PROGRAMS_DATA = [
   {
     code: 'SE-402',
@@ -177,15 +325,21 @@ export async function bootstrapDatabaseSeed() {
     }
     console.log('✅ Tenant administrators synchronized.');
 
-    // 2. Ensure Assessment Jobs exist (seed only the missing ones, keep catalog order stable)
+    // 2. Ensure Assessment Jobs exist (deduplicate existing rows first, then seed only missing programs)
     console.log('ℹ️ Syncing assessment jobs into database...');
-    const existingJobs = await prisma.job.findMany();
-    const jobsByTitle = new Map(existingJobs.map((j) => [j.title, j]));
+    await deduplicateJobsInDb();
+    const existingJobs = await prisma.job.findMany({ include: { tenant: { select: { name: true } } } });
+    const jobsByCode = new Map(existingJobs.filter((j) => j.code).map((j) => [String(j.code).toUpperCase(), j]));
+    const jobsByKey = new Map(
+      existingJobs.map((j) => [normalizeProgramDedupeKey(j.title, j.tenant?.name), j])
+    );
     let jobsList: any[] = [];
     let newlySeededJobs = 0;
 
     for (const item of DEFAULT_PROGRAMS_DATA) {
-      let job = jobsByTitle.get(item.title);
+      let job: any =
+        jobsByCode.get(item.code.toUpperCase()) ||
+        jobsByKey.get(normalizeProgramDedupeKey(item.title));
       if (!job) {
         try {
           job = await prisma.job.create({
@@ -201,7 +355,7 @@ export async function bootstrapDatabaseSeed() {
           });
           newlySeededJobs += 1;
         } catch (e) {
-          // ignore duplicate title if any
+          // ignore duplicate title/code if any
         }
       } else {
         const updates: any = {};
@@ -210,6 +364,8 @@ export async function bootstrapDatabaseSeed() {
           const tenant = findTenantByTitle(item.title);
           if (tenant) updates.tenantId = tenant.id;
         }
+        const cleaned = cleanDoubledCompanyTitle(job.title);
+        if (cleaned !== job.title) updates.title = cleaned;
         if (Object.keys(updates).length > 0) {
           try {
             job = await prisma.job.update({ where: { id: job.id }, data: updates });

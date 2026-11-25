@@ -645,3 +645,85 @@ export const getExamResult = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: 'Gagal memuat hasil ujian.' });
   }
 };
+
+export interface LiveCodingSubmissionRecord {
+  userId: string;
+  candidateCode: string | null;
+  programCode: string;
+  problemId: string;
+  problemTitle: string;
+  language: string;
+  code: string;
+  score: number;
+  passedTests: number;
+  totalTests: number;
+  statusLabel: string;
+  completed: boolean;
+  submittedAt: string;
+}
+
+export const submitLiveCoding = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    const programCode = String(req.body.programCode || req.portalUser.assessmentId || 'GENERAL').trim().toUpperCase();
+    const problemId = String(req.body.problemId || 'PROB-01').trim();
+    const problemTitle = String(req.body.problemTitle || 'Live Coding Challenge').trim();
+    const language = String(req.body.language || 'javascript').trim();
+    const code = String(req.body.code || '').slice(0, 60_000);
+    const passedTests = Number(req.body.passedTests) || 0;
+    const totalTests = Math.max(1, Number(req.body.totalTests) || 1);
+    const rawScore = Number(req.body.score);
+    const score = Number.isFinite(rawScore)
+      ? Math.max(0, Math.min(100, Math.round(rawScore)))
+      : Math.round((passedTests / totalTests) * 100);
+    const statusLabel = String(req.body.statusLabel || (score === 100 ? 'Accepted' : 'Submitted')).trim();
+    const completed = Boolean(req.body.completed ?? passedTests >= totalTests);
+
+    const payload: LiveCodingSubmissionRecord = {
+      userId: req.portalUser.id,
+      candidateCode: req.portalUser.candidateCode || null,
+      programCode,
+      problemId,
+      problemTitle,
+      language,
+      code,
+      score,
+      passedTests,
+      totalTests,
+      statusLabel,
+      completed,
+      submittedAt: new Date().toISOString()
+    };
+
+    const key = `${req.portalUser.id}::${programCode}`;
+    await prisma.masterRecord.upsert({
+      where: { scope_key: { scope: 'live-coding-submissions', key } },
+      update: { value: JSON.stringify(payload) },
+      create: { scope: 'live-coding-submissions', key, value: JSON.stringify(payload) }
+    });
+
+    return res.json({ data: payload });
+  } catch (error) {
+    console.error('Submit live coding error:', error);
+    return res.status(500).json({ error: 'Gagal menyimpan hasil live coding.' });
+  }
+};
+
+export const getMyLiveCoding = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    const rows = await prisma.masterRecord.findMany({
+      where: {
+        scope: 'live-coding-submissions',
+        key: { startsWith: `${req.portalUser.id}::` }
+      }
+    });
+    const submissions = rows
+      .map((r) => parseJson<LiveCodingSubmissionRecord | null>(r.value, null))
+      .filter((item): item is LiveCodingSubmissionRecord => Boolean(item));
+    return res.json({ data: submissions });
+  } catch (error) {
+    console.error('Get my live coding error:', error);
+    return res.status(500).json({ error: 'Gagal memuat progres live coding.' });
+  }
+};

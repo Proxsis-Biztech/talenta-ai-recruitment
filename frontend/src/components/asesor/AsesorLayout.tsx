@@ -3,11 +3,10 @@ import PesertaFaqChatbot from '../peserta/PesertaFaqChatbot';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Users,
-  Video,
-  ShieldAlert,
+  ListChecks,
+  Code2,
+  MessageSquare,
   ClipboardCheck,
-  FileSpreadsheet,
   LogOut,
   Bell,
   Menu,
@@ -26,12 +25,54 @@ import {
 import { Badge, Modal, Button } from '../ui';
 import { getActiveSessionUser, clearActiveSession } from '../../services/userRegistryService';
 import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
-import { resolveCandidateReviewStage } from '../../services/asesorReviewState';
 
 interface AsesorLayoutProps {
   children: React.ReactNode;
   activeTab?: string;
 }
+
+export const resolveAsesorSessionUser = () => {
+  try {
+    const portalRaw = localStorage.getItem('portalUser');
+    if (portalRaw) {
+      const portal = JSON.parse(portalRaw);
+      if (portal?.role === 'asesor' && portal?.name) {
+        return {
+          ...getActiveSessionUser(),
+          id: portal.id || '',
+          name: portal.name,
+          username: portal.email || portal.username || '',
+          role: 'asesor' as const,
+          companyId: portal.companyId || undefined,
+          companyName: portal.companyName || undefined,
+          specialization: portal.specialization || undefined
+        };
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+
+  const session = getActiveSessionUser();
+  if (session.role === 'asesor' && session.name) {
+    return session;
+  }
+
+  const savedAsesorName = localStorage.getItem('asesorName') || localStorage.getItem('asesorUsername');
+  if (savedAsesorName && !/^(superadmin|admin)$/i.test(savedAsesorName.trim())) {
+    return {
+      ...session,
+      name: savedAsesorName.trim(),
+      role: 'asesor' as const
+    };
+  }
+
+  return {
+    ...session,
+    name: session.role === 'asesor' && session.name ? session.name : 'Asesor Evaluator',
+    role: 'asesor' as const
+  };
+};
 
 export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
   const navigate = useNavigate();
@@ -42,15 +83,15 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
   });
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
-  // Active asesor session data
-  const activeAsesor = useMemo(() => getActiveSessionUser(), []);
+  // Active asesor session data (never fall back to superadmin/admin display name)
+  const activeAsesor = useMemo(() => resolveAsesorSessionUser(), []);
   const userInitials = useMemo(() => {
     return (
-      activeAsesor.name
+      String(activeAsesor.name || 'AS')
         .split(' ')
         .filter(Boolean)
         .slice(0, 2)
-        .map((w) => w[0])
+        .map((w: string) => w[0])
         .join('')
         .toUpperCase() || 'AS'
     );
@@ -78,31 +119,19 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
     };
   }, []);
 
-  const proctoringAlerts = notifCandidates.filter(
+  const interviewDoneCandidates = notifCandidates.filter((candidate) => Boolean(candidate.interviewDone));
+  const interviewPendingBarsCandidates = interviewDoneCandidates.filter(
+    (candidate) => candidate.gpaScore == null || candidate.barsAverage == null
+  );
+  const completedAllStagesCount = notifCandidates.filter(
     (candidate) =>
-      (candidate.proctoringFlagCount ?? 0) > 0 ||
-      (candidate.integrityScore != null && candidate.integrityScore < 100)
-  );
-  const totalProctoringEvents = notifCandidates.reduce(
-    (sum, candidate) =>
-      sum +
-      (candidate.proctoringFlagCount ??
-        (candidate.integrityScore != null && candidate.integrityScore < 100 ? 1 : 0)),
-    0
-  );
-  const waitingReviewCandidates = notifCandidates.filter((candidate) => {
-    const stage = resolveCandidateReviewStage(candidate).stage;
-    return stage === 'MENUNGGU_REVIEW' || stage === 'PERLU_TINDAKAN';
-  });
-  const inReviewCandidates = notifCandidates.filter((candidate) => {
-    const stage = resolveCandidateReviewStage(candidate).stage;
-    return stage === 'DIREVIEW' || stage === 'FINALISASI';
-  });
-  const firstConsoleTarget =
-    waitingReviewCandidates[0]?.code ||
-    inReviewCandidates[0]?.code ||
-    notifCandidates[0]?.code ||
-    '';
+      candidate.catStatus === 'selesai' &&
+      candidate.liveCodingStatus === 'selesai' &&
+      Boolean(candidate.interviewDone)
+  ).length;
+  const readyLhaCount = notifCandidates.filter(
+    (candidate) => candidate.gpaScore != null && candidate.lhaStatus !== 'signed'
+  ).length;
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   useEffect(() => {
@@ -118,38 +147,50 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
 
   const navGroups = [
     {
-      group: 'KONSOL PENILAIAN',
+      group: 'MENU ASESOR',
       items: [
         { id: 'dashboard', label: 'Dashboard', path: '/asesor/dashboard', icon: LayoutDashboard },
         {
-          id: 'queue',
-          label: 'Antrean Review',
-          path: '/asesor/interview-queue',
-          icon: Users,
-          badge: loadingStats ? undefined : String(waitingReviewCandidates.length)
+          id: 'tracking',
+          label: 'Tracking Progres',
+          path: '/asesor/tracking',
+          icon: ListChecks,
+          badge: loadingStats ? undefined : String(notifCandidates.length)
         },
         {
-          id: 'console',
-          label: 'Review Console',
-          path: firstConsoleTarget ? `/asesor/review-console/${firstConsoleTarget}` : '/asesor/review-console',
-          icon: Video,
-          badge: 'BARS'
+          id: 'hasil-cat',
+          label: 'Hasil CAT & Live Coding',
+          path: '/asesor/hasil-cat',
+          icon: Code2
         },
         {
-          id: 'proctoring',
-          label: 'Review Proctoring',
-          path: '/asesor/proctoring',
-          icon: ShieldAlert,
-          badge: loadingStats ? undefined : String(totalProctoringEvents)
+          id: 'hasil-interview',
+          label: 'Hasil Interview & BARS',
+          path: '/asesor/hasil-interview',
+          icon: MessageSquare,
+          badge: loadingStats
+            ? undefined
+            : interviewPendingBarsCandidates.length > 0
+              ? String(interviewPendingBarsCandidates.length)
+              : 'GPA'
         },
-        { id: 'scoring', label: 'Penilaian & LHA', path: '/asesor/scoring', icon: ClipboardCheck, badge: 'E-Sign' },
-        { id: 'rekap', label: 'Rekap Program', path: '/asesor/rekap', icon: FileSpreadsheet },
+        {
+          id: 'rekap-lha',
+          label: 'Rekap Penilaian & LHA',
+          path: '/asesor/rekap-lha',
+          icon: ClipboardCheck,
+          badge: loadingStats
+            ? undefined
+            : readyLhaCount > 0
+              ? String(readyLhaCount)
+              : 'LHA'
+        }
       ]
     },
     {
-      group: 'METODOLOGI & STANDAR',
+      group: 'REFERENSI',
       items: [
-        { id: 'bars', label: 'Standar Rubrik BARS (1-5)', action: () => setBarsModalOpen(true), icon: Scale },
+        { id: 'bars', label: 'Standar Rubrik BARS (1-5)', action: () => setBarsModalOpen(true), icon: Scale }
       ]
     }
   ];
@@ -157,7 +198,12 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
   const getActiveTitle = () => {
     for (const grp of navGroups) {
       for (const itm of grp.items) {
-        if ('path' in itm && (activeTab === itm.id || location.pathname === itm.path)) {
+        if (
+          'path' in itm &&
+          (activeTab === itm.id ||
+            location.pathname === itm.path ||
+            location.pathname.startsWith(`${itm.path}/`))
+        ) {
           return itm.label;
         }
       }
@@ -282,7 +328,11 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const isPath = 'path' in item;
-                const isActive = isPath && (activeTab === item.id || location.pathname === item.path);
+                const isActive =
+                  isPath &&
+                  (activeTab === item.id ||
+                    location.pathname === item.path ||
+                    location.pathname.startsWith(`${item.path}/`));
 
                 return (
                   <button
@@ -397,14 +447,18 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
 
           {/* Right Topbar Indicators */}
           <div className="flex items-center gap-3">
-            {/* Pending Reviews Telemetry */}
+            {/* Pending Interview BARS Telemetry */}
             <button
               type="button"
-              onClick={() => navigate('/asesor/interview-queue?status=MENUNGGU_REVIEW')}
+              onClick={() => navigate('/asesor/hasil-interview')}
               className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100/80 border border-amber-200 rounded-full text-amber-900 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
             >
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              <span>{waitingReviewCandidates.length} Menunggu Review</span>
+              <span className="tabular-nums">
+                {interviewPendingBarsCandidates.length > 0
+                  ? `${interviewPendingBarsCandidates.length} Belum Nilai BARS`
+                  : `${interviewDoneCandidates.length} Interview Selesai`}
+              </span>
             </button>
 
             {/* Notification Bell */}
@@ -562,39 +616,43 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
       >
         <div className="space-y-3 text-xs">
           <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
-            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <MessageSquare className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-amber-950">{totalProctoringEvents} Event Proctoring Menunggu Verifikasi</p>
-              <p className="text-amber-800 text-[11px] mt-0.5">{totalProctoringEvents > 0 ? `${totalProctoringEvents} event tercatat pada ${proctoringAlerts.length} kandidat (${proctoringAlerts.slice(0, 3).map((candidate) => candidate.name).join(', ')}).` : 'Tidak ada temuan integritas yang menunggu verifikasi.'}</p>
+              <p className="font-bold text-amber-950">
+                {interviewPendingBarsCandidates.length} Interview Menunggu Penilaian BARS & GPA
+              </p>
+              <p className="text-amber-800 text-[11px] mt-0.5">
+                {interviewPendingBarsCandidates.length > 0
+                  ? `${interviewPendingBarsCandidates.length} sesi wawancara Ava AI belum dinilai dengan rubrik BARS (termasuk ${interviewPendingBarsCandidates[0].name} • ${interviewPendingBarsCandidates[0].code}).`
+                  : 'Semua sesi wawancara yang selesai sudah memiliki nilai BARS & GPA.'}
+              </p>
               <button
                 onClick={() => {
                   setNotifModalOpen(false);
-                  navigate('/asesor/proctoring');
+                  navigate('/asesor/hasil-interview');
                 }}
                 className="text-amber-900 font-bold underline mt-1 block cursor-pointer"
               >
-                Buka Layar Review Proctoring →
+                Buka Hasil Interview & BARS →
               </button>
             </div>
           </div>
 
           <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-3">
-            <Users className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            <ListChecks className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-blue-950">Sesi Wawancara Ava AI Menunggu Review</p>
+              <p className="font-bold text-blue-950">Ringkasan Progres Peserta</p>
               <p className="text-blue-800 text-[11px] mt-0.5">
-                {waitingReviewCandidates.length > 0
-                  ? `${waitingReviewCandidates.length} sesi menunggu review / tindakan (termasuk ${waitingReviewCandidates[0].name} • ${waitingReviewCandidates[0].code}).`
-                  : 'Semua sesi wawancara AI saat ini sudah direview.'}
+                {completedAllStagesCount} dari {notifCandidates.length} peserta telah menyelesaikan seluruh tahap (CAT, Live Coding, dan Interview AI).
               </p>
               <button
                 onClick={() => {
                   setNotifModalOpen(false);
-                  navigate('/asesor/interview-queue?status=MENUNGGU_REVIEW');
+                  navigate('/asesor/tracking');
                 }}
                 className="text-blue-900 font-bold underline mt-1 block cursor-pointer"
               >
-                Buka Antrean Review →
+                Lihat Tracking Progres →
               </button>
             </div>
           </div>

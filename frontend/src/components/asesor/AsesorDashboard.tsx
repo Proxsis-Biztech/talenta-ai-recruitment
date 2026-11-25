@@ -1,485 +1,790 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ShieldAlert,
-  ClipboardCheck,
-  Clock,
   ArrowRight,
-  AlertTriangle,
-  Scale,
-  Building2,
+  Award,
+  CheckCircle2,
+  ClipboardList,
+  Clock,
+  Code2,
+  GraduationCap,
+  ListChecks,
+  MessageSquare,
+  RefreshCw,
+  Search,
   Sparkles,
-  FileAudio
+  Users
 } from 'lucide-react';
-import { AsesorLayout } from './AsesorLayout';
-import { Button, Badge, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
-import { getActiveSessionUser } from '../../services/userRegistryService';
+import { AsesorLayout, resolveAsesorSessionUser } from './AsesorLayout';
+import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui';
 import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
-import { resolveCandidateReviewStage } from '../../services/asesorReviewState';
+
+type StageFilter = 'all' | 'complete' | 'in_progress' | 'needs_bars';
+type AudienceFilter = 'all' | 'real' | 'test';
+
+const stageCount = (c: AssessorCandidate) =>
+  (c.catStatus === 'selesai' ? 1 : 0) +
+  (c.liveCodingStatus === 'selesai' ? 1 : 0) +
+  (c.interviewDone ? 1 : 0);
+
+const getInitials = (name: string) =>
+  (name || 'P')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+const StageCell = ({
+  status,
+  sublabel
+}: {
+  status: 'selesai' | 'sedang' | 'belum';
+  sublabel?: string | null;
+}) => {
+  if (status === 'selesai') {
+    return (
+      <div className="space-y-1">
+        <Badge variant="success" format="soft" hasDot>
+          Selesai
+        </Badge>
+        {sublabel && <p className="text-[11px] font-medium text-slate-500 tabular-nums">{sublabel}</p>}
+      </div>
+    );
+  }
+  if (status === 'sedang') {
+    return (
+      <div className="space-y-1">
+        <Badge variant="warning" format="soft" hasDot>
+          Sedang
+        </Badge>
+        {sublabel && <p className="text-[11px] text-slate-500 tabular-nums">{sublabel}</p>}
+      </div>
+    );
+  }
+  return (
+    <Badge variant="neutral" format="outline">
+      Belum
+    </Badge>
+  );
+};
 
 export default function AsesorDashboard() {
   const navigate = useNavigate();
-
-  const activeAsesor = useMemo(() => getActiveSessionUser(), []);
+  const activeUser = useMemo(() => resolveAsesorSessionUser(), []);
   const [candidates, setCandidates] = useState<AssessorCandidate[]>([]);
-  const [loadingCandidates, setLoadingCandidates] = useState(true);
-  const [accountFilter, setAccountFilter] = useState<'all' | 'real' | 'test'>('all');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState<StageFilter>('all');
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>('all');
+
+  const loadCandidates = async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const list = await fetchAssessorCandidates();
+      setCandidates(list);
+    } catch {
+      setCandidates([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    let cancelled = false;
-    fetchAssessorCandidates()
-      .then((data) => {
-        if (!cancelled) setCandidates(data);
-      })
-      .catch(() => {
-        if (!cancelled) setCandidates([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingCandidates(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    void loadCandidates();
   }, []);
 
-  const visibleCandidates = useMemo(() => {
-    if (accountFilter === 'real') return candidates.filter((c) => !c.isTestAccount);
-    if (accountFilter === 'test') return candidates.filter((c) => c.isTestAccount);
+  const audienceCandidates = useMemo(() => {
+    if (audienceFilter === 'real') return candidates.filter((c) => !c.isTestAccount);
+    if (audienceFilter === 'test') return candidates.filter((c) => Boolean(c.isTestAccount));
     return candidates;
-  }, [candidates, accountFilter]);
+  }, [candidates, audienceFilter]);
 
-  const waitingReviewCount = useMemo(
-    () =>
-      visibleCandidates.filter((c) => resolveCandidateReviewStage(c).stage === 'MENUNGGU_REVIEW').length,
-    [visibleCandidates]
-  );
+  const stats = useMemo(() => {
+    const total = audienceCandidates.length;
+    const catDone = audienceCandidates.filter((c) => c.catStatus === 'selesai').length;
+    const codingDone = audienceCandidates.filter((c) => c.liveCodingStatus === 'selesai').length;
+    const interviewDone = audienceCandidates.filter((c) => Boolean(c.interviewDone)).length;
+    const fullComplete = audienceCandidates.filter((c) => stageCount(c) === 3).length;
+    const gradedList = audienceCandidates.filter(
+      (c) => c.gpaScore != null && c.barsAverage != null
+    );
+    const pendingBarsList = audienceCandidates.filter(
+      (c) => Boolean(c.interviewDone) && (c.gpaScore == null || c.barsAverage == null)
+    );
+    const avgGpa =
+      gradedList.length > 0
+        ? gradedList.reduce((acc, item) => acc + (item.gpaScore || 0), 0) / gradedList.length
+        : null;
 
-  const needsActionCount = useMemo(
-    () =>
-      visibleCandidates.filter((c) => resolveCandidateReviewStage(c).stage === 'PERLU_TINDAKAN').length,
-    [visibleCandidates]
-  );
+    return {
+      total,
+      catDone,
+      codingDone,
+      interviewDone,
+      fullComplete,
+      barsGraded: gradedList.length,
+      pendingBarsList,
+      avgGpa
+    };
+  }, [audienceCandidates]);
 
-  const readyToSignCount = useMemo(
-    () =>
-      visibleCandidates.filter((c) => {
-        const st = resolveCandidateReviewStage(c).stage;
-        return st === 'FINALISASI' || st === 'DIREVIEW';
-      }).length,
-    [visibleCandidates]
-  );
+  const filteredCandidates = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return audienceCandidates.filter((c) => {
+      if (stageFilter === 'complete' && stageCount(c) !== 3) return false;
+      if (stageFilter === 'in_progress' && stageCount(c) === 3) return false;
+      if (stageFilter === 'needs_bars' && (!c.interviewDone || c.gpaScore != null)) return false;
 
-  const calibrationSampleCount = useMemo(
-    () => visibleCandidates.filter((c) => c.isCalibrationSample).length,
-    [visibleCandidates]
-  );
+      if (!q) return true;
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.code.toLowerCase().includes(q) ||
+        (c.email || '').toLowerCase().includes(q) ||
+        (c.program || '').toLowerCase().includes(q) ||
+        (c.company || '').toLowerCase().includes(q)
+      );
+    });
+  }, [audienceCandidates, search, stageFilter]);
 
-  const prioritizedRows = useMemo(() => {
-    return [...visibleCandidates]
-      .map((c) => ({ candidate: c, stageMeta: resolveCandidateReviewStage(c) }))
-      .sort((a, b) => a.stageMeta.sortOrder - b.stageMeta.sortOrder)
-      .slice(0, 6);
-  }, [visibleCandidates]);
-
-  const primaryCandidate = useMemo(
-    () =>
-      prioritizedRows[0]?.candidate || visibleCandidates[0] || null,
-    [prioritizedRows, visibleCandidates]
-  );
-  const primaryCode = primaryCandidate?.code;
-
-  const openReviewConsole = () => {
-    if (primaryCode) navigate(`/asesor/review-console/${primaryCode}`);
-    else navigate('/asesor/review-console');
-  };
-
-  const openScoring = () => {
-    if (primaryCode) navigate(`/asesor/scoring/${primaryCode}`);
-    else navigate('/asesor/scoring');
-  };
-
-  const proctoringCandidateCount = visibleCandidates.filter(
-    (candidate) =>
-      (candidate.proctoringFlagCount ?? 0) > 0 ||
-      (candidate.integrityScore != null && candidate.integrityScore < 100)
-  ).length;
-  const proctoringFindings = visibleCandidates.reduce(
-    (sum, candidate) =>
-      sum +
-      (candidate.proctoringFlagCount ??
-        (candidate.integrityScore != null && candidate.integrityScore < 100 ? 1 : 0)),
-    0
-  );
-  const programCount = new Set(visibleCandidates.map((c) => c.program).filter(Boolean)).size;
-
-  const primaryStageMeta = resolveCandidateReviewStage(primaryCandidate);
+  const pct = (part: number, total: number) =>
+    total > 0 ? Math.round((part / total) * 100) : 0;
 
   return (
     <AsesorLayout activeTab="dashboard">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
-        {/* ─── Hero Assessor Header: Asymmetric 8 / 4 Split ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-soft-blue text-primary-navy border border-accent-border text-xs font-semibold">
-                  <Scale className="w-3.5 h-3.5 text-blue-accent" />
-                  Dewan Asesor &amp; Kalibrasi LHA
-                </span>
-                <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200 tabular-nums">
-                  Sampel Kalibrasi: {calibrationSampleCount} Sesi
-                </span>
-              </div>
+        {/* Executive Hero Header */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F172A] via-[#1E3A8A] to-[#172554] text-white p-6 sm:p-7 shadow-sm">
+          <div className="absolute -right-12 -top-12 w-56 h-56 rounded-full bg-blue-400/15 blur-2xl pointer-events-none" />
+          <div className="absolute right-28 -bottom-16 w-48 h-48 rounded-full bg-amber-400/10 blur-2xl pointer-events-none" />
 
-              <h1 className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-ink">
-                Panel Review Asesor: {activeAsesor.name || 'Asesor'}
+          <div className="relative flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-amber-200 text-xs font-semibold backdrop-blur-xs">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Konsol Evaluasi Asesor • Rubrik BARS &amp; GPA</span>
+              </div>
+              <h1 className="font-heading text-2xl sm:text-[28px] font-bold tracking-tight text-white">
+                Selamat Datang, {activeUser?.name || 'Asesor'}
               </h1>
-              <p className="text-xs sm:text-sm text-muted-slate mt-1.5 flex flex-wrap items-center gap-2">
-                <Building2 className="w-4 h-4 text-slate-400" />
-                <span>
-                  Instansi PT:{' '}
-                  <strong className="text-ink font-semibold">
-                    {activeAsesor.companyName || 'Tenant Terdaftar'}
-                  </strong>
-                </span>
-                <span className="text-slate-300">•</span>
-                <span>
-                  Program:{' '}
-                  <strong className="text-primary-navy font-semibold">
-                    {programCount > 1
-                      ? `${programCount} Program Aktif`
-                      : visibleCandidates[0]?.program || 'Semua Program Aktif'}
-                  </strong>
-                </span>
+              <p className="text-sm text-blue-100/85 leading-relaxed">
+                Pantau progres pengerjaan Soal CAT, Live Coding, serta evaluasi transkrip wawancara Ava AI dengan standar rubrik BARS (GPA 0.00–4.00).
               </p>
+            </div>
 
-              {/* Clickable Priority Review Banner */}
-              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+              <div className="px-4 py-3 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xs flex items-center gap-4">
+                <div>
+                  <p className="text-[11px] font-medium text-blue-200">Rata-rata GPA</p>
+                  <p className="font-heading text-xl font-bold text-white tabular-nums">
+                    {stats.avgGpa != null ? stats.avgGpa.toFixed(2) : '—'}
+                    <span className="text-xs font-normal text-blue-200/80"> / 4.00</span>
+                  </p>
+                </div>
+                <div className="h-8 w-px bg-white/15" />
+                <div>
+                  <p className="text-[11px] font-medium text-blue-200">Perlu Nilai BARS</p>
+                  <p className="font-heading text-xl font-bold text-amber-300 tabular-nums">
+                    {stats.pendingBarsList.length}
+                    <span className="text-xs font-normal text-blue-200/80"> sesi</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => navigate('/asesor/interview-queue?status=MENUNGGU_REVIEW')}
-                  className="text-left p-4 rounded-xl bg-amber-50/80 hover:bg-amber-100/70 border border-amber-200 transition-colors cursor-pointer group"
+                  onClick={() => void loadCandidates(true)}
+                  disabled={refreshing}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-semibold text-white transition-colors cursor-pointer disabled:opacity-60"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-800">
-                      Siap Direview Asesor
-                    </span>
-                    <ArrowRight className="w-4 h-4 text-amber-700 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                  <p className="font-heading text-lg sm:text-xl font-bold tabular-nums text-amber-950 mt-1">
-                    {waitingReviewCount} Sesi Menunggu Review
-                  </p>
-                  <p className="text-xs text-amber-800 mt-0.5">
-                    Klik untuk membuka antrean hasil wawancara Ava AI
-                  </p>
+                  <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                  <span>Segarkan</span>
                 </button>
-
                 <button
                   type="button"
-                  onClick={() => navigate('/asesor/interview-queue?status=PERLU_TINDAKAN')}
-                  className="text-left p-4 rounded-xl bg-rose-50/70 hover:bg-rose-100/70 border border-rose-200 transition-colors cursor-pointer group"
+                  onClick={() => navigate('/asesor/tracking')}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-semibold text-white transition-colors cursor-pointer"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-800">
-                      Anomali / Kendala Teknis
-                    </span>
-                    <ArrowRight className="w-4 h-4 text-rose-700 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                  <p className="font-heading text-lg sm:text-xl font-bold tabular-nums text-rose-950 mt-1">
-                    {needsActionCount} Sesi Perlu Tindakan
-                  </p>
-                  <p className="text-xs text-rose-800 mt-0.5">
-                    Mic gagal, koneksi putus, atau risiko proctoring tinggi
-                  </p>
+                  <ListChecks className="w-3.5 h-3.5" />
+                  <span>Tracking Progres</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/asesor/hasil-interview')}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Nilai Interview BARS</span>
                 </button>
               </div>
-            </div>
-
-            <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4 text-xs text-muted-slate">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-primary-navy" />
-                  <span>Wawancara AI otomatis dijalankan oleh <strong className="text-ink">Ava</strong></span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-blue-accent" />
-                  <span>Siap Finalisasi / E-Sign: <strong className="text-primary-navy">{readyToSignCount}</strong></span>
-                </div>
-              </div>
-
-              <Button
-                variant="primary"
-                onClick={openReviewConsole}
-                disabled={!primaryCode}
-                className="py-2.5 px-5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
-              >
-                <FileAudio className="w-4 h-4 text-blue-100" />
-                <span>Buka Review Console</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Sisi Kanan (4 kolom): Sesi Prioritas Berikutnya */}
-          <div className="lg:col-span-4 bg-slate-50/90 rounded-2xl border border-slate-200/90 p-6 flex flex-col justify-between shadow-xs">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-primary-navy bg-white px-2.5 py-0.5 rounded-md border border-slate-200">
-                  Prioritas Review
-                </span>
-                <Badge variant={primaryStageMeta.badgeVariant} format="soft">
-                  {primaryStageMeta.label}
-                </Badge>
-              </div>
-
-              <h3 className="font-heading font-bold text-base text-ink">
-                {primaryCandidate?.name || (loadingCandidates ? 'Memuat kandidat...' : 'Belum ada kandidat')}
-              </h3>
-              <p className="font-mono text-xs text-muted-slate mt-0.5">
-                {primaryCandidate?.code || '-'}
-              </p>
-
-              <div className="mt-4 space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-muted-slate">Skor CAT Teknis</span>
-                  <span className="font-mono font-bold text-emerald-700">
-                    {primaryCandidate?.catScore != null ? `${primaryCandidate.catScore}/100` : '-'}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-muted-slate">Skor Ava AI</span>
-                  <span className="font-mono font-bold text-primary-navy">
-                    {primaryCandidate?.interviewScore != null ? `${primaryCandidate.interviewScore}/100` : '-'}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-muted-slate">Proctoring AI</span>
-                  <span
-                    className={`font-semibold ${
-                      primaryCandidate?.integrityScore == null
-                        ? 'text-slate-500'
-                        : primaryCandidate.integrityScore >= 90
-                          ? 'text-emerald-700'
-                          : 'text-amber-700'
-                    }`}
-                  >
-                    {primaryCandidate?.integrityScore == null
-                      ? 'Belum Ada Data'
-                      : primaryCandidate.integrityScore >= 90
-                        ? `${primaryCandidate.integrityScore}% (Aman)`
-                        : `${primaryCandidate.integrityScore}% (Perlu Review)`}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 pt-3 border-t border-slate-200 space-y-2">
-              <Button
-                variant="primary"
-                size="xs"
-                onClick={openReviewConsole}
-                disabled={!primaryCode}
-                className="w-full py-2 rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <span>Putar Rekaman &amp; Review</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={openScoring}
-                className="w-full py-2 rounded-xl text-primary-navy font-bold flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 border-slate-200 cursor-pointer"
-              >
-                <span>Buka Penilaian &amp; LHA</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
             </div>
           </div>
         </div>
 
-        {/* ─── Asymmetric 8 / 4 Split: Review Queue & Audit Action Center ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="font-heading font-bold text-base sm:text-lg text-ink">
-                  Daftar Sesi Review Prioritas
-                </h2>
-                <p className="text-xs text-muted-slate mt-0.5">
-                  Urutan prioritas: Perlu Tindakan → Menunggu Review → Direview → Finalisasi → Terbit
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px] font-semibold">
-                  {(['all', 'real', 'test'] as const).map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setAccountFilter(key)}
-                      className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-                        accountFilter === key
-                          ? 'bg-white text-primary-navy shadow-2xs'
-                          : 'text-slate-500 hover:text-ink'
-                      }`}
-                    >
-                      {key === 'all' ? 'Semua' : key === 'real' ? 'Peserta Asli' : 'Akun Uji'}
-                    </button>
-                  ))}
+        {/* 4 Equal-Height Harmonious KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {/* Card 1: Total Peserta */}
+          <button
+            type="button"
+            onClick={() => setStageFilter('all')}
+            className={`text-left bg-white rounded-2xl border p-5 shadow-2xs transition-all cursor-pointer flex flex-col justify-between ${
+              stageFilter === 'all' && audienceFilter !== 'all'
+                ? 'border-blue-400 ring-2 ring-blue-500/10'
+                : 'border-slate-200 hover:border-slate-300 hover:shadow-xs'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-500">Total Peserta</span>
+                <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4" />
                 </div>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => navigate('/asesor/interview-queue')}
-                  className="text-xs py-1.5 px-3 rounded-lg font-semibold cursor-pointer"
-                >
-                  Lihat Antrean Review ({visibleCandidates.length})
-                </Button>
+              </div>
+              <div className="flex items-baseline gap-2 mt-3">
+                <p className="font-heading text-2xl font-bold text-slate-900 tabular-nums">
+                  {stats.total}
+                </p>
+                <span className="text-xs font-medium text-slate-500">
+                  kandidat ({stats.fullComplete} lengkap 3/3)
+                </span>
               </div>
             </div>
+            <div className="mt-4">
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-slate-700 rounded-full transition-all"
+                  style={{ width: `${pct(stats.fullComplete, stats.total)}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">
+                {pct(stats.fullComplete, stats.total)}% menyelesaikan seluruh tahap
+              </p>
+            </div>
+          </button>
 
-            <div className="overflow-x-auto">
-              <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>KANDIDAT</TableHead>
-                  <TableHead>CAT / AVA AI</TableHead>
-                  <TableHead>STATUS REVIEW</TableHead>
-                  <TableHead className="text-right">AKSI</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {prioritizedRows.map(({ candidate, stageMeta }) => (
-                  <TableRow key={candidate.id}>
-                    <TableCell>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="font-bold text-xs sm:text-sm text-ink">{candidate.name}</p>
-                          {candidate.isCalibrationSample && (
-                            <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
-                              Sampel Kalibrasi
-                            </span>
-                          )}
-                        </div>
-                        <p className="font-mono text-[11px] text-muted-slate">
-                          {candidate.code} • {candidate.program}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs whitespace-nowrap">
-                      <span className="font-bold text-emerald-700">
-                        {candidate.catScore != null ? `${candidate.catScore}` : '-'}
-                      </span>
-                      <span className="text-slate-300 mx-1">/</span>
-                      <span className="font-bold text-primary-navy">
-                        {candidate.interviewScore != null ? `${candidate.interviewScore}` : '-'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={stageMeta.badgeVariant} format="soft">
-                        {stageMeta.label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant={stageMeta.stage === 'TERBIT' ? 'outline' : 'primary'}
-                        size="xs"
-                        onClick={() =>
-                          navigate(
-                            stageMeta.stage === 'FINALISASI' || stageMeta.stage === 'TERBIT'
-                              ? `/asesor/scoring/${candidate.code}`
-                              : `/asesor/review-console/${candidate.code}`
-                          )
-                        }
-                        className="text-xs py-1 px-3"
-                      >
-                        {stageMeta.stage === 'TERBIT'
-                          ? 'Lihat LHA'
-                          : stageMeta.stage === 'FINALISASI'
-                            ? 'E-Sign LHA'
-                            : 'Buka Review'}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          {/* Card 2: Soal CAT */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-500">Selesai Soal CAT</span>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <ClipboardList className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2 mt-3">
+                <p className="font-heading text-2xl font-bold text-slate-900 tabular-nums">
+                  {stats.catDone}
+                </p>
+                <span className="text-xs font-medium text-slate-500 tabular-nums">
+                  / {stats.total} peserta
+                </span>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 rounded-full transition-all"
+                  style={{ width: `${pct(stats.catDone, stats.total)}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">
+                {pct(stats.catDone, stats.total)}% mengerjakan ujian CAT
+              </p>
             </div>
           </div>
 
-          <div className="lg:col-span-4 space-y-4">
-            {/* Card 1: Penilaian & Kalibrasi */}
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-muted-slate uppercase tracking-wider">
-                  Finalisasi &amp; E-Sign LHA
-                </span>
-                <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                  <ClipboardCheck className="w-4 h-4" />
+          {/* Card 3: Live Coding */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-500">Selesai Live Coding</span>
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <Code2 className="w-4 h-4" />
                 </div>
               </div>
-              <div>
-                <p className="font-heading text-2xl font-bold tabular-nums text-ink">{readyToSignCount} Berkas Review</p>
-                <p className="text-xs text-muted-slate mt-0.5">
-                  Direview / siap difinalisasi &amp; tanda tangan elektronik LHA
+              <div className="flex items-baseline gap-2 mt-3">
+                <p className="font-heading text-2xl font-bold text-slate-900 tabular-nums">
+                  {stats.codingDone}
                 </p>
-              </div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={openScoring}
-                className="w-full text-xs py-2 rounded-lg font-semibold text-amber-800 bg-amber-50/60 hover:bg-amber-100/70 border-amber-200 flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <span>Buka Penilaian &amp; LHA</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-
-            {/* Card 2: AI Proctoring Review */}
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-muted-slate uppercase tracking-wider">
-                  Inbox Flag Proctoring
+                <span className="text-xs font-medium text-slate-500 tabular-nums">
+                  / {stats.total} peserta
                 </span>
-                <div className="w-8 h-8 rounded-lg bg-red-50 text-error-red flex items-center justify-center">
-                  <ShieldAlert className="w-4 h-4" />
-                </div>
               </div>
-              <div>
-                <p className="font-heading text-2xl font-bold tabular-nums text-ink">{proctoringFindings} Event AI</p>
-                <p className="text-xs text-muted-slate mt-0.5">
-                  {proctoringCandidateCount} kandidat perlu verifikasi snapshot bukti
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => navigate('/asesor/proctoring')}
-                className="w-full text-xs py-2 rounded-lg font-semibold text-red-800 bg-red-50/60 hover:bg-red-100/70 border-red-200 flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <span>Tinjau Inbox Proctoring</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
             </div>
-
-            {/* Card 3: Kalibrasi Sampel Acak */}
-            <div className="bg-exam-bg rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-primary-navy">
-                <AlertTriangle className="w-4 h-4 text-purple-600" />
-                <span>Sampel Kalibrasi &amp; Kontrol Kualitas</span>
+            <div className="mt-4">
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-600 rounded-full transition-all"
+                  style={{ width: `${pct(stats.codingDone, stats.total)}%` }}
+                />
               </div>
-              <p className="text-xs text-muted-slate leading-relaxed">
-                Terdapat <strong>{calibrationSampleCount} sesi sampel acak</strong> untuk kalibrasi konsistensi penilai antar-asesor. Setiap perubahan skor AI wajib disertai alasan untuk Log Audit.
+              <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">
+                {pct(stats.codingDone, stats.total)}% mengirim solusi kode
               </p>
-              <div className="pt-1">
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => navigate('/asesor/rekap')}
-                  className="w-full text-xs py-1.5 rounded-lg bg-white border-slate-200 text-slate-700"
-                >
-                  Buka Rekap Program
-                </Button>
+            </div>
+          </div>
+
+          {/* Card 4: Interview AI & BARS */}
+          <button
+            type="button"
+            onClick={() =>
+              setStageFilter((prev) => (prev === 'needs_bars' ? 'all' : 'needs_bars'))
+            }
+            className={`text-left bg-white rounded-2xl border p-5 shadow-2xs transition-all cursor-pointer flex flex-col justify-between ${
+              stageFilter === 'needs_bars'
+                ? 'border-amber-500 ring-2 ring-amber-500/15 bg-amber-50/20'
+                : 'border-slate-200 hover:border-slate-300 hover:shadow-xs'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-500">Interview AI &amp; BARS</span>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <GraduationCap className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2 mt-3">
+                <p className="font-heading text-2xl font-bold text-slate-900 tabular-nums">
+                  {stats.interviewDone}
+                </p>
+                <span className="text-xs font-medium text-slate-500 tabular-nums">
+                  / {stats.total} selesai interview
+                </span>
               </div>
             </div>
+            <div className="mt-4">
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 rounded-full transition-all"
+                  style={{ width: `${pct(stats.barsGraded, Math.max(stats.interviewDone, 1))}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">
+                {stats.barsGraded} dinilai BARS • {stats.pendingBarsList.length} menunggu
+              </p>
+            </div>
+          </button>
+        </div>
+
+        {/* Middle Balanced Visual Insights */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
+          {/* Left: Stage Funnel Summary */}
+          <div className="xl:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-heading text-sm font-bold text-slate-900">
+                  Ringkasan Penyelesaian Tahap Asesmen
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Perbandingan capaian kandidat dari Soal CAT hingga Penilaian BARS.
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/asesor/hasil-cat')}>
+                Lihat Detail CAT
+                <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            </div>
+
+            <div className="space-y-3.5">
+              {[
+                {
+                  label: '1. Soal CAT',
+                  count: stats.catDone,
+                  total: stats.total,
+                  barColor: 'bg-blue-600',
+                  badgeBg: 'bg-blue-50 text-blue-700'
+                },
+                {
+                  label: '2. Live Coding',
+                  count: stats.codingDone,
+                  total: stats.total,
+                  barColor: 'bg-indigo-600',
+                  badgeBg: 'bg-indigo-50 text-indigo-700'
+                },
+                {
+                  label: '3. Interview Ava AI',
+                  count: stats.interviewDone,
+                  total: stats.total,
+                  barColor: 'bg-emerald-500',
+                  badgeBg: 'bg-emerald-50 text-emerald-700'
+                },
+                {
+                  label: '4. Penilaian BARS & GPA',
+                  count: stats.barsGraded,
+                  total: stats.total,
+                  barColor: 'bg-amber-500',
+                  badgeBg: 'bg-amber-50 text-amber-800'
+                }
+              ].map((step) => {
+                const percentage = pct(step.count, step.total);
+                return (
+                  <div key={step.label} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700">{step.label}</span>
+                      <div className="flex items-center gap-2 tabular-nums">
+                        <span className="text-slate-500">
+                          {step.count} dari {step.total} peserta
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${step.badgeBg}`}>
+                          {percentage}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${step.barColor}`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right: Priority Queue for BARS Grading */}
+          <div className="xl:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="font-heading text-sm font-bold text-slate-900">
+                      Antrean Penilaian BARS
+                    </h2>
+                    <p className="text-[11px] text-slate-500">
+                      Interview selesai yang menunggu nilai rubrik BARS
+                    </p>
+                  </div>
+                </div>
+                {stats.pendingBarsList.length > 0 && (
+                  <Badge variant="warning" format="soft">
+                    {stats.pendingBarsList.length} Menunggu
+                  </Badge>
+                )}
+              </div>
+
+              {loading ? (
+                <div className="py-8 text-center text-xs text-slate-400">Memuat antrean...</div>
+              ) : stats.pendingBarsList.length === 0 ? (
+                <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-emerald-950">
+                      Semua Interview Telah Dinilai
+                    </p>
+                    <p className="text-[11px] text-emerald-800 mt-0.5">
+                      Seluruh peserta yang menyelesaikan wawancara Ava AI sudah memiliki nilai BARS dan GPA.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2.5 mt-2">
+                  {stats.pendingBarsList.slice(0, 3).map((candidate) => (
+                    <div
+                      key={candidate.code}
+                      className="p-3 rounded-xl border border-slate-200/90 bg-slate-50/70 hover:bg-amber-50/40 hover:border-amber-200 transition-colors flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-900 font-heading font-bold text-xs flex items-center justify-center shrink-0">
+                          {getInitials(candidate.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate">
+                            {candidate.name}
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            <span className="font-mono">{candidate.code}</span> • {candidate.program}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => navigate(`/asesor/hasil-interview/${candidate.code}`)}
+                        className="shrink-0 text-[11px]"
+                      >
+                        Nilai BARS
+                        <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Skala Konversi: BARS 1–5 → GPA 0.00–4.00</span>
+              <button
+                type="button"
+                onClick={() => navigate('/asesor/hasil-interview')}
+                className="font-semibold text-blue-700 hover:text-blue-900 cursor-pointer"
+              >
+                Buka Semua →
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Participant Progress Table */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+          {/* Unified Toolbar */}
+          <div className="p-4 sm:p-5 border-b border-slate-200 space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div>
+                <h2 className="font-heading text-base font-bold text-slate-900">
+                  Progres Pengerjaan Tiap Peserta
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Pantau capaian tahap Soal CAT, Live Coding, Interview AI, dan nilai BARS / GPA per kandidat.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Cari nama, kode, program..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-[11px] font-semibold">
+                  {([
+                    ['all', 'Semua'],
+                    ['real', 'Peserta Asli'],
+                    ['test', 'Akun Uji']
+                  ] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setAudienceFilter(key)}
+                      className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                        audienceFilter === key
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 text-xs pt-1">
+              {([
+                ['all', `Semua (${stats.total})`],
+                ['complete', `Selesai 3/3 (${stats.fullComplete})`],
+                ['in_progress', 'Belum Lengkap'],
+                ['needs_bars', `Perlu Nilai BARS (${stats.pendingBarsList.length})`]
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setStageFilter(key)}
+                  className={`px-3 py-1 rounded-full font-semibold transition-colors cursor-pointer ${
+                    stageFilter === key
+                      ? 'bg-[#1E3A8A] text-white shadow-2xs'
+                      : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto [&_th]:px-3.5 [&_td]:px-3.5 [&_th]:whitespace-nowrap">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50/80">
+                  <TableHead>Peserta</TableHead>
+                  <TableHead>Progres</TableHead>
+                  <TableHead>Soal CAT</TableHead>
+                  <TableHead>Live Coding</TableHead>
+                  <TableHead>Interview AI</TableHead>
+                  <TableHead>BARS &amp; GPA</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-12 text-sm text-slate-500">
+                      Memuat data progres peserta...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredCandidates.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-12 text-sm text-slate-500">
+                      Tidak ada peserta yang cocok dengan filter saat ini.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredCandidates.map((c) => {
+                    const doneStages = stageCount(c);
+                    return (
+                      <TableRow key={c.code} className="hover:bg-slate-50/70 transition-colors">
+                        <TableCell>
+                          <div className="flex items-center gap-2.5 min-w-[185px] max-w-[235px]">
+                            <div className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-heading font-bold text-xs flex items-center justify-center shrink-0">
+                              {getInitials(c.name)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-900 text-xs sm:text-sm truncate">
+                                  {c.name}
+                                </span>
+                                {c.isTestAccount && (
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-semibold shrink-0">
+                                    Uji
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 min-w-0">
+                                <span className="font-mono font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">
+                                  {c.code}
+                                </span>
+                                <span className="truncate" title={c.program}>
+                                  {c.program}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="whitespace-nowrap">
+                          <div className="w-24 space-y-1.5">
+                            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700 tabular-nums">
+                              <span>{doneStages}/3 Tahap</span>
+                              <span className="text-slate-400">
+                                {Math.round((doneStages / 3) * 100)}%
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1">
+                              {[
+                                c.catStatus === 'selesai',
+                                c.liveCodingStatus === 'selesai',
+                                Boolean(c.interviewDone)
+                              ].map((done, idx) => (
+                                <span
+                                  key={idx}
+                                  className={`h-1.5 rounded-full ${
+                                    done ? 'bg-emerald-500' : 'bg-slate-200'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="whitespace-nowrap">
+                          <StageCell
+                            status={c.catStatus || 'belum'}
+                            sublabel={
+                              c.catStatus === 'selesai' && c.catScore != null
+                                ? `Skor ${Math.round(c.catScore)}/100${c.integrityScore != null ? ` • Int. ${Math.round(c.integrityScore)}%` : ''}`
+                                : c.catAnsweredCount != null && c.catTotalQuestions
+                                  ? `${c.catAnsweredCount}/${c.catTotalQuestions} soal`
+                                  : null
+                            }
+                          />
+                        </TableCell>
+
+                        <TableCell className="whitespace-nowrap">
+                          <StageCell
+                            status={c.liveCodingStatus || 'belum'}
+                            sublabel={
+                              c.liveCodingStatus === 'selesai' && c.liveCodingScore != null
+                                ? `Skor ${Math.round(c.liveCodingScore)}/100`
+                                : null
+                            }
+                          />
+                        </TableCell>
+
+                        <TableCell className="whitespace-nowrap">
+                          <StageCell
+                            status={c.interviewDone ? 'selesai' : 'belum'}
+                            sublabel={
+                              (c.proctoringFlagCount ?? 0) > 0
+                                ? `⚠ ${c.proctoringFlagCount} Flag Proctoring`
+                                : c.interviewDone
+                                  ? 'Transkrip & Proctoring siap'
+                                  : null
+                            }
+                          />
+                        </TableCell>
+
+                        <TableCell className="whitespace-nowrap">
+                          {c.gpaScore != null && c.barsAverage != null ? (
+                            <div className="tabular-nums whitespace-nowrap">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold whitespace-nowrap">
+                                GPA {c.gpaScore.toFixed(2)}
+                              </span>
+                              <p className="text-[11px] text-slate-500 mt-1 whitespace-nowrap">
+                                BARS {c.barsAverage.toFixed(2)} / 5
+                              </p>
+                            </div>
+                          ) : c.interviewDone ? (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/asesor/hasil-interview/${c.code}`)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                            >
+                              <Clock className="w-3 h-3 shrink-0" />
+                              <span>Nilai BARS</span>
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
+                              <Clock className="w-3.5 h-3.5 shrink-0" />
+                              <span>Belum Dinilai</span>
+                            </span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="text-right whitespace-nowrap">
+                          <div className="inline-flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/asesor/tracking/${c.code}`)}
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                            >
+                              Tracking
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/asesor/hasil-cat/${c.code}`)}
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                            >
+                              CAT
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/asesor/hasil-interview/${c.code}`)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs whitespace-nowrap"
+                            >
+                              <span>Interview</span>
+                              <ArrowRight className="w-3 h-3 shrink-0" />
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
           </div>
         </div>
       </div>

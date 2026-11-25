@@ -397,13 +397,23 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
-        setJobs(response.data.data);
+        const seenKeys = new Set<string>();
+        const deduped = (response.data.data as Job[]).filter((job) => {
+          const codeKey = String(job.code || '').trim().toUpperCase();
+          const titleKey = String(job.title || '').toLowerCase().replace(/\s+/g, ' ').trim();
+          const compositeKey = codeKey || titleKey;
+          if (!compositeKey) return true;
+          if (seenKeys.has(compositeKey)) return false;
+          seenKeys.add(compositeKey);
+          return true;
+        });
+        setJobs(deduped);
       } else {
         // Resilient fallback to DEFAULT_ASSESSMENT_PROGRAMS from catalog
         const fallbackJobs: Job[] = DEFAULT_ASSESSMENT_PROGRAMS.map((p) => ({
           id: p.id,
           code: p.id,
-          title: `${p.title} (${p.companyName})`,
+          title: /\([^)]+\)\s*$/.test(p.title) ? p.title : `${p.title} (${p.companyName})`,
           description: p.description,
           status: 'active',
           interviewDuration: p.durationMinutes,
@@ -419,7 +429,7 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
       const fallbackJobs: Job[] = DEFAULT_ASSESSMENT_PROGRAMS.map((p) => ({
         id: p.id,
         code: p.id,
-        title: `${p.title} (${p.companyName})`,
+        title: /\([^)]+\)\s*$/.test(p.title) ? p.title : `${p.title} (${p.companyName})`,
         description: p.description,
         status: 'active',
         interviewDuration: p.durationMinutes,

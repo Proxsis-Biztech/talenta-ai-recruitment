@@ -31,7 +31,7 @@ import {
 import { createInterviewSessionToken } from './controllers/ApplicantController';
 import { getActiveJobs, getAdminJobs, createJob, updateJob, deleteJob } from './controllers/JobController';
 import { getBillingOverview, requestTopUpQuota, approveInvoice, verifyLhaPublic, downloadInvoicePdf } from './controllers/BillingController';
-import { startExam, saveAnswers, submitExam, getExamResult } from './controllers/ExamController';
+import { startExam, saveAnswers, submitExam, getExamResult, submitLiveCoding, getMyLiveCoding } from './controllers/ExamController';
 import {
   upsertAssessorScore, listAssessorScores, getAssessorScore, getSignedLha, downloadLhaPdf, downloadMyPortalLhaPdf,
   upsertSecondaryScore, getCalibrationOverview, getCandidateCalibration, finalizeCalibrationConsensus,
@@ -162,6 +162,8 @@ router.get('/portal/interview/recordings', authenticatePortal, listMyRecordings)
 router.get('/portal/recordings/:id/file', authenticatePortal, downloadRecording);
 router.get('/portal/judge0/status', authenticatePortal, judge0Status);
 router.post('/portal/judge0/execute', authenticatePortal, requirePortalRole('peserta'), executeJudge0);
+router.post('/portal/live-coding/submit', authenticatePortal, requirePortalRole('peserta'), submitLiveCoding);
+router.get('/portal/live-coding/my', authenticatePortal, requirePortalRole('peserta'), getMyLiveCoding);
 router.get('/portal/materials', authenticatePortal, requirePortalRole('peserta'), getPortalMaterials);
 router.get('/portal/lha/pdf', authenticatePortal, requirePortalRole('peserta'), downloadMyPortalLhaPdf);
 router.post('/asesor/interview/:candidateCode/complete-and-call-next', authenticatePortal, requirePortalRole('asesor'), completeAndCallNext);

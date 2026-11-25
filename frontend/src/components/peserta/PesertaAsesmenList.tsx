@@ -376,6 +376,34 @@ export default function PesertaAsesmenList() {
   const moduleProgressStorageKey = `peserta_completed_modules_${String(activeUser?.username || 'user').trim().toLowerCase()}_${String(activeProgramCode || '').trim().toUpperCase()}`;
 
   useEffect(() => {
+    const token = getPortalToken();
+    if (!token) return;
+    let cancelled = false;
+    axios
+      .get('/api/portal/live-coding/my', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (cancelled || !Array.isArray(res.data?.data)) return;
+        const completedRows = res.data.data.filter((item: any) => item?.completed);
+        if (completedRows.length === 0) return;
+        setLiveCodingCompletedMap((prev) => {
+          const next = { ...prev };
+          for (const item of completedRows) {
+            const key = String(item.programCode || '').trim().toUpperCase();
+            if (key) next[key] = { score: Number(item.score) || 100, completedAt: item.submittedAt || new Date().toISOString() };
+          }
+          try {
+            localStorage.setItem(liveCodingStorageKey, JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [liveCodingStorageKey]);
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(moduleProgressStorageKey);
       setCompletedModules(raw ? JSON.parse(raw) : {});
@@ -1096,6 +1124,7 @@ export default function PesertaAsesmenList() {
                       {isCatCompleted && showLiveCoding && (
                         <div className="p-5 bg-slate-50/70">
                           <PesertaLiveCodingJudge0
+                            programCode={activeProgramCode}
                             programTitle={currentProgram.title}
                             onCompleteCoding={handleCompleteLiveCoding}
                           />

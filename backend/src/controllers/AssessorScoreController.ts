@@ -43,6 +43,25 @@ const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
   }
 };
 
+const computeBarsAndGpa = (competencies: any[]) => {
+  if (!Array.isArray(competencies) || competencies.length === 0) {
+    return { barsAverage: null as number | null, gpaScore: null as number | null };
+  }
+  const scored = competencies.filter((c) => typeof c?.score === 'number' && c.score > 0);
+  if (scored.length === 0) return { barsAverage: null, gpaScore: null };
+  const totalWeight = competencies.reduce((sum, c) => sum + (Number(c?.weight) || 0), 0);
+  const barsAverage =
+    totalWeight > 0
+      ? competencies.reduce(
+          (sum, c) => sum + ((Number(c?.score) || 0) * (Number(c?.weight) || 0)) / totalWeight,
+          0
+        )
+      : scored.reduce((sum, c) => sum + (Number(c?.score) || 0), 0) / scored.length;
+  const roundedBars = Math.round(barsAverage * 100) / 100;
+  const gpaScore = Math.round((roundedBars / 5) * 4 * 100) / 100;
+  return { barsAverage: roundedBars, gpaScore };
+};
+
 const serializeScore = (score: {
   id: string;
   candidateCode: string;
@@ -61,12 +80,18 @@ const serializeScore = (score: {
   signedAt: Date | null;
   updatedAt: Date;
   assessor?: { name: string } | null;
-}) => ({
-  ...score,
-  assessorName: score.assessor?.name || null,
-  competencies: parseJson(score.competencies, []),
-  signedAt: score.signedAt
-});
+}) => {
+  const parsedCompetencies = parseJson<any[]>(score.competencies, []);
+  const { barsAverage, gpaScore } = computeBarsAndGpa(parsedCompetencies);
+  return {
+    ...score,
+    assessorName: score.assessor?.name || null,
+    competencies: parsedCompetencies,
+    barsAverage,
+    gpaScore,
+    signedAt: score.signedAt
+  };
+};
 
 const candidateCodesForTenant = async (req: AuthRequest, tenantId: string | null) => {
   if (req.portalUser?.role === 'asesor') {
@@ -261,7 +286,8 @@ export const upsertAssessorScore = async (req: AuthRequest, res: Response) => {
         });
       }
     }
-    if (overriddenItems.length > 0 && aiOverrideReason.length < 5) {
+    const isSimpleBarsGpaMode = req.body.evaluationMode === 'bars_gpa';
+    if (!isSimpleBarsGpaMode && overriddenItems.length > 0 && aiOverrideReason.length < 5) {
       return res.status(400).json({
         error: 'Anda mengubah skor rekomendasi AI. Wajib mengisi alasan perubahan skor minimal 5 karakter.'
       });

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { getPortalToken } from '../../services/portalAuthService';
 import {
   Code2, Play, Send, RefreshCw, CheckCircle2, XCircle, Clock,
   Cpu, Terminal, BookOpen, AlertTriangle, ChevronRight, Layers,
@@ -14,11 +16,13 @@ import {
 } from '../../services/judge0Service';
 
 interface PesertaLiveCodingJudge0Props {
+  programCode?: string;
   programTitle?: string;
   onCompleteCoding?: (score: number) => void;
 }
 
 export default function PesertaLiveCodingJudge0({
+  programCode,
   programTitle = 'Live Coding Test',
   onCompleteCoding
 }: PesertaLiveCodingJudge0Props) {
@@ -61,6 +65,30 @@ export default function PesertaLiveCodingJudge0({
       setActiveConsoleTab('tests');
       const passedCount = res.passedTests;
       const totalCount = res.totalTests;
+      const scoreVal = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0;
+
+      const token = getPortalToken();
+      if (token) {
+        await axios
+          .post(
+            '/api/portal/live-coding/submit',
+            {
+              programCode,
+              problemId: selectedProblem.id,
+              problemTitle: selectedProblem.title,
+              language: selectedLanguage.key,
+              code,
+              score: scoreVal,
+              passedTests: passedCount,
+              totalTests: totalCount,
+              statusLabel: res.status.description,
+              completed: res.status.id === 3
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+          .catch(() => undefined);
+      }
+
       if (res.status.id === 3) {
         setSubmittedProblems((prev) =>
           prev.includes(selectedProblem.id) ? prev : [...prev, selectedProblem.id]
