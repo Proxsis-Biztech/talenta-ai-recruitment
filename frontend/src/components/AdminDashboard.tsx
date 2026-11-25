@@ -1042,7 +1042,7 @@ ${app.interviewResult ? `
     },
     materi: {
       title: materiHubProgramCode && materiHubTab === 'bank-soal' ? `Materi & Soal / ${materiHubProgramCode}` : 'Materi & Soal',
-      subtitle: 'Pengelolaan terpadu panduan persiapan asesmen (materi) dan bank soal CAT per program',
+      subtitle: 'Katalog silabus course, panduan materi belajar, dan bank soal CAT untuk Program Asesmen',
       short: 'Materi & Soal',
       dotColor: 'bg-primary-navy'
     },
@@ -1140,7 +1140,13 @@ ${app.interviewResult ? `
   return (
     <SuperadminLayout
       activeMenu={activeMenu}
-      setActiveMenu={setActiveMenu}
+      setActiveMenu={(nextMenu) => {
+        if (nextMenu === 'materi') {
+          setMateriHubProgramCode(undefined);
+          setMateriHubCompanyName(undefined);
+        }
+        setActiveMenu(nextMenu);
+      }}
       userRole={userRole}
       username={username}
       onLogout={handleLogout}
@@ -1935,7 +1941,7 @@ ${app.interviewResult ? `
                 initialTab={activeMenu === 'bank-soal' ? 'bank-soal' : materiHubTab}
                 initialProgramCode={materiHubProgramCode}
                 initialCompanyName={materiHubCompanyName}
-                onBackToPrograms={() => setActiveMenu('jobs')}
+                onBackToPrograms={materiHubProgramCode ? () => setActiveMenu('jobs') : undefined}
               />
             </div>
           ) : activeMenu === 'perusahaan' ? (

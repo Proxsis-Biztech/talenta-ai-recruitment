@@ -18,6 +18,7 @@ import {
   Search,
   Bell,
   HelpCircle,
+  FileText,
   CheckSquare,
   Building2,
   PanelLeftClose,
@@ -96,6 +97,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'perusahaan', label: 'Perusahaan (PT)', icon: Building2 },
       { key: 'jobs', label: 'Program Asesmen', icon: BookOpen },
+      { key: 'materi', label: 'Materi & Soal', icon: FileText },
     ],
   },
   {

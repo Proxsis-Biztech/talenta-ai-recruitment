@@ -27,11 +27,18 @@ import {
   FileSpreadsheet,
   BookOpen,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Search
 } from 'lucide-react';
 import axios from 'axios';
 import { loadMasterScope, saveMasterRecord } from '../../services/masterDataService';
 import { getAllPrograms, buildDefaultBankSoal } from '../../services/assessmentCatalog';
+import {
+  getCachedCourses,
+  loadCoursesAndAssignments,
+  saveCourseCatalog,
+  type CourseItem
+} from '../../services/courseCatalog';
 import {
   INITIAL_COMPANIES,
   loadCompanyDirectory,
@@ -555,7 +562,16 @@ export function AdminBankSoalEditor({
     initialProgramCode ? 'table' : 'programs'
   );
   const [companies, setCompanies] = useState<CompanyItem[]>(INITIAL_COMPANIES);
-  const [filterCompany, setFilterCompany] = useState<string>(initialCompanyName || 'ALL');
+  const [courses, setCourses] = useState<CourseItem[]>(() => getCachedCourses());
+  const [courseSearch, setCourseSearch] = useState('');
+  const [courseCategoryFilter, setCourseCategoryFilter] = useState('ALL');
+  const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
+  const [editingCourseCode, setEditingCourseCode] = useState<string | null>(null);
+  const [courseCodeInput, setCourseCodeInput] = useState('');
+  const [courseTitleInput, setCourseTitleInput] = useState('');
+  const [courseCategoryInput, setCourseCategoryInput] = useState('Kompetensi Teknis & Terapan');
+  const [courseSyllabusInput, setCourseSyllabusInput] = useState('');
+  const [courseFormError, setCourseFormError] = useState('');
   const [materiList, setMateriList] = useState<MasterMateriItem[]>(INITIAL_MATERI_LIST);
   const [showMateriSection, setShowMateriSection] = useState<boolean>(initialFocus === 'materi');
 
@@ -597,6 +613,9 @@ export function AdminBankSoalEditor({
     void loadCompanyDirectory().then((list) => {
       if (!cancelled && list.length > 0) setCompanies(list);
     });
+    void loadCoursesAndAssignments().then(({ courses: remoteCourses }) => {
+      if (!cancelled && remoteCourses.length > 0) setCourses(remoteCourses);
+    });
     void loadMasterScope<MasterMateriItem[]>('materi')
       .then((data) => {
         if (!cancelled && Array.isArray(data?.table) && data.table.length > 0) {
@@ -616,8 +635,7 @@ export function AdminBankSoalEditor({
       if (initialFocus === 'materi') {
         setShowMateriSection(true);
       }
-    } else if (initialCompanyName) {
-      setFilterCompany(initialCompanyName);
+    } else {
       setViewMode('programs');
     }
   }, [initialProgramCode, initialCompanyName, initialFocus]);
@@ -985,8 +1003,13 @@ export function AdminBankSoalEditor({
   };
 
   const selectedProgramObj = useMemo(
-    () => programs.find((p) => p.id === selectedProgramCode),
+    () => programs.find((p) => p.id.toUpperCase() === selectedProgramCode.toUpperCase()),
     [programs, selectedProgramCode]
+  );
+
+  const selectedCourseObj = useMemo(
+    () => courses.find((c) => c.code.toUpperCase() === selectedProgramCode.toUpperCase()),
+    [courses, selectedProgramCode]
   );
 
   const filtered = useMemo(
@@ -1132,34 +1155,104 @@ export function AdminBankSoalEditor({
     return Array.from(items);
   }, [materiList, programs, selectedProgramCode]);
 
-  const programRows = useMemo(
-    () =>
-      programs
-        .map((program) => {
-          const programQuestions = questions.filter(
-            (question) => (question.programCode || programs[0]?.id || 'SE-402') === program.id
-          );
-          const psikotesCount = programQuestions.filter((q) => getQuestionCategory(q) === 'psikotes').length;
-          const kompetensiCount = programQuestions.filter((q) => getQuestionCategory(q) === 'kompetensi').length;
-          const materiCount = materiList.filter(
-            (m) => String(m.code || '').toUpperCase() === program.id.toUpperCase()
-          ).length;
-          return {
-            ...program,
-            total: programQuestions.length,
-            psikotesCount,
-            kompetensiCount,
-            materiCount,
-            published: programQuestions.filter((question) => question.status === 'Published').length,
-            typeCount: new Set(programQuestions.map((question) => question.type)).size
-          };
-        })
-        .filter((row) => {
-          if (!filterCompany || filterCompany === 'ALL') return true;
-          return companyMatchesName(filterCompany, row.companyName) || companyMatchesName(filterCompany, row.title);
-        }),
-    [programs, questions, materiList, filterCompany]
+  const courseCategories = useMemo(
+    () => Array.from(new Set(courses.map((c) => c.category).filter(Boolean))),
+    [courses]
   );
+
+  const openCreateCourseModal = () => {
+    setEditingCourseCode(null);
+    setCourseCodeInput('');
+    setCourseTitleInput('');
+    setCourseCategoryInput('Kompetensi Teknis & Terapan');
+    setCourseSyllabusInput('');
+    setCourseFormError('');
+    setIsCourseModalOpen(true);
+  };
+
+  const openEditCourseModal = (course: CourseItem) => {
+    setEditingCourseCode(course.code);
+    setCourseCodeInput(course.code);
+    setCourseTitleInput(course.title);
+    setCourseCategoryInput(course.category || 'Kompetensi Teknis & Terapan');
+    setCourseSyllabusInput(course.syllabusSummary || '');
+    setCourseFormError('');
+    setIsCourseModalOpen(true);
+  };
+
+  const handleSaveCourseModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalizedCode = courseCodeInput.trim().toUpperCase();
+    const trimmedTitle = courseTitleInput.trim();
+    if (!normalizedCode || !trimmedTitle) {
+      setCourseFormError('Kode course dan nama course wajib diisi.');
+      return;
+    }
+    if (!editingCourseCode && courses.some((c) => c.code.toUpperCase() === normalizedCode)) {
+      setCourseFormError(`Kode course "${normalizedCode}" sudah digunakan.`);
+      return;
+    }
+    const nextItem: CourseItem = {
+      id: normalizedCode,
+      code: normalizedCode,
+      title: trimmedTitle,
+      category: courseCategoryInput.trim() || 'Kompetensi Teknis & Terapan',
+      syllabusSummary: courseSyllabusInput.trim() || `Silabus course ${trimmedTitle}.`,
+      updatedAt: new Date().toISOString().split('T')[0]
+    };
+    const nextCourses = editingCourseCode
+      ? courses.map((c) => (c.code.toUpperCase() === editingCourseCode.toUpperCase() ? { ...c, ...nextItem } : c))
+      : [nextItem, ...courses];
+    setCourses(nextCourses);
+    void saveCourseCatalog(nextCourses);
+    setIsCourseModalOpen(false);
+    showToast(
+      editingCourseCode
+        ? `Course "${nextItem.title}" (${nextItem.code}) berhasil diperbarui.`
+        : `Course baru "${nextItem.title}" (${nextItem.code}) berhasil ditambahkan.`
+    );
+  };
+
+  const handleDeleteCourse = (course: CourseItem) => {
+    if (!window.confirm(`Hapus course "${course.title}" (${course.code}) dari daftar course?`)) return;
+    const nextCourses = courses.filter((c) => c.code.toUpperCase() !== course.code.toUpperCase());
+    setCourses(nextCourses);
+    void saveCourseCatalog(nextCourses);
+    showToast(`Course "${course.title}" (${course.code}) dihapus dari katalog.`);
+  };
+
+  const courseRows = useMemo(() => {
+    const qLower = courseSearch.trim().toLowerCase();
+    return courses
+      .map((course) => {
+        const courseQuestions = questions.filter(
+          (question) => String(question.programCode || 'SE-402').toUpperCase() === course.code.toUpperCase()
+        );
+        const psikotesCount = courseQuestions.filter((q) => getQuestionCategory(q) === 'psikotes').length;
+        const kompetensiCount = courseQuestions.filter((q) => getQuestionCategory(q) === 'kompetensi').length;
+        const materiCount = materiList.filter(
+          (m) => String(m.code || '').toUpperCase() === course.code.toUpperCase()
+        ).length;
+        return {
+          ...course,
+          total: courseQuestions.length,
+          psikotesCount,
+          kompetensiCount,
+          materiCount,
+          published: courseQuestions.filter((question) => question.status === 'Published').length
+        };
+      })
+      .filter((row) => {
+        const matchCategory = courseCategoryFilter === 'ALL' || row.category === courseCategoryFilter;
+        const matchSearch =
+          !qLower ||
+          row.code.toLowerCase().includes(qLower) ||
+          row.title.toLowerCase().includes(qLower) ||
+          row.category.toLowerCase().includes(qLower) ||
+          row.syllabusSummary.toLowerCase().includes(qLower);
+        return matchCategory && matchSearch;
+      });
+  }, [courses, questions, materiList, courseSearch, courseCategoryFilter]);
 
   const handleDownloadQuestionTemplate = async () => {
     const token = localStorage.getItem('adminToken');
@@ -1285,24 +1378,36 @@ export function AdminBankSoalEditor({
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
               {viewMode === 'programs'
-                ? `${programRows.reduce((sum, p) => sum + p.total, 0)} Soal • ${programRows.length} Program`
-                : `${filtered.length} Butir Soal • ${selectedProgramMateri.length} Panduan`}
+                ? `${courseRows.reduce((sum, c) => sum + c.total, 0)} Soal • ${courseRows.length} Course`
+                : `${filtered.length} Butir Soal • ${selectedProgramMateri.length} Materi Silabus`}
             </span>
           </div>
           <h1 className="text-2xl font-bold font-heading text-[#0F172A] tracking-tight mt-1.5">
             {viewMode === 'programs'
-              ? 'Materi & Bank Soal Asesmen'
-              : `Bank Soal - ${selectedProgramCode}`}
+              ? 'Materi & Bank Soal (Course)'
+              : `Course - ${selectedProgramCode}`}
           </h1>
           {viewMode !== 'programs' && (
-            <p className="text-sm text-[#64748B] mt-0.5 truncate" title={selectedProgramObj?.title}>
-              {selectedProgramObj?.title || `Program Asesmen ${selectedProgramCode}`}
-              {selectedProgramObj?.companyName ? ` • ${selectedProgramObj.companyName}` : ''}
+            <p className="text-sm text-[#64748B] mt-0.5 truncate" title={selectedCourseObj?.title || selectedProgramObj?.title}>
+              {selectedCourseObj?.title || selectedProgramObj?.title || `Course ${selectedProgramCode}`}
+              {selectedCourseObj?.category ? ` • ${selectedCourseObj.category}` : ''}
             </p>
           )}
         </div>
 
-        {viewMode !== 'programs' && (
+        {viewMode === 'programs' ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              type="button"
+              variant="primary"
+              onClick={openCreateCourseModal}
+              className="h-10 px-4 rounded-lg"
+              leftIcon={<Plus className="w-4 h-4" />}
+            >
+              Tambah Course
+            </Button>
+          </div>
+        ) : (
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {onBackToPrograms && (
               <Button
@@ -1320,7 +1425,7 @@ export function AdminBankSoalEditor({
               className="h-10 px-4 rounded-lg border-[#E2E8F0] text-[#475569]"
               leftIcon={<ChevronLeft className="w-4 h-4" />}
             >
-              Semua Program
+              Semua Course
             </Button>
           </div>
         )}
@@ -1333,88 +1438,135 @@ export function AdminBankSoalEditor({
         </div>
       )}
 
-      {/* ─── Program Overview ─── */}
+      {/* ─── Course & Silabus Overview ─── */}
       {viewMode === 'programs' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-[#0F172A]">Daftar Program Asesmen</h3>
-              <p className="text-xs text-[#64748B] mt-0.5">Filter berdasarkan Perusahaan (PT) atau pilih program untuk mengelola panduan &amp; soal CAT.</p>
+              <h3 className="text-base font-semibold text-[#0F172A]">Daftar Course &amp; Silabus</h3>
+              <p className="text-xs text-[#64748B] mt-0.5">
+                Setiap course memuat panduan materi silabus dan bank soal CAT yang dapat ditautkan ke berbagai Program Asesmen.
+              </p>
             </div>
-            <div className="w-full sm:w-[240px]">
-              <Select
-                value={filterCompany}
-                onChange={(e) => setFilterCompany(e.target.value)}
-                className="h-10 text-xs font-medium rounded-lg"
-              >
-                <option value="ALL">Semua Perusahaan (PT)</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+              <div className="w-full sm:w-64">
+                <Input
+                  value={courseSearch}
+                  onChange={(e) => setCourseSearch(e.target.value)}
+                  placeholder="Cari kode, nama course, silabus..."
+                  leftIcon={<Search className="w-3.5 h-3.5 text-slate-400" />}
+                  className="h-10 text-xs rounded-lg"
+                />
+              </div>
+              <div className="w-full sm:w-52">
+                <Select
+                  value={courseCategoryFilter}
+                  onChange={(e) => setCourseCategoryFilter(e.target.value)}
+                  className="h-10 text-xs font-medium rounded-lg"
+                >
+                  <option value="ALL">Semua Kategori Course</option>
+                  {courseCategories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </div>
           </div>
           <div className="border border-[#E2E8F0] rounded-xl overflow-x-auto bg-white">
-            <Table className="w-full min-w-[840px]">
+            <Table className="w-full min-w-[860px]">
               <TableHeader className="sticky top-0 z-10 bg-white">
                 <TableRow className="border-b border-[#E2E8F0]">
-                  <TableHead className="w-24 text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Kode</TableHead>
-                  <TableHead className="w-[260px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Program Asesmen</TableHead>
+                  <TableHead className="w-28 text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Kode</TableHead>
+                  <TableHead className="min-w-[280px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Course &amp; Silabus</TableHead>
                   <TableHead className="w-32 text-center text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Materi</TableHead>
-                  <TableHead className="w-44 text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Soal</TableHead>
+                  <TableHead className="w-44 text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Bank Soal</TableHead>
                   <TableHead className="w-28 text-center text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Published</TableHead>
-                  <TableHead className="w-40 text-right text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Aksi</TableHead>
+                  <TableHead className="w-48 text-right text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {programRows.map((program) => (
-                  <TableRow key={program.id} className="h-16 hover:bg-[#F8FAFC] transition-colors">
-                    <TableCell className="font-mono text-xs font-semibold text-[#1E3A8A] whitespace-nowrap">{program.id}</TableCell>
-                    <TableCell className="w-[260px] max-w-[260px]">
-                      <p className="text-sm font-semibold text-[#0F172A] line-clamp-2 leading-snug" title={program.title}>
-                        {program.title}
-                      </p>
-                      <p className="text-xs text-[#64748B] truncate mt-0.5">{program.companyName}</p>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
-                        {program.materiCount} Panduan
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="tabular-nums">
-                        <span className="text-sm font-semibold text-[#0F172A]">{program.total} Soal</span>
-                        <p className="text-xs text-[#64748B] mt-0.5">
-                          Psikotes {program.psikotesCount} • Kompetensi {program.kompetensiCount}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span
-                        className="text-sm font-semibold font-mono text-[#166534] tabular-nums"
-                        title={`${program.published} dari ${program.total} soal terpublikasi`}
-                      >
-                        {program.published}/{program.total}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        onClick={() => {
-                          setSelectedProgramCode(program.id);
-                          setViewMode('table');
-                        }}
-                        className="h-8 px-3 rounded-lg border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC]"
-                      >
-                        Kelola
-                        <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                      </Button>
+                {courseRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10 text-xs text-slate-500">
+                      Belum ada course yang sesuai filter. Klik <strong>+ Tambah Course</strong> untuk membuat course baru.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  courseRows.map((course) => (
+                    <TableRow key={course.code} className="h-16 hover:bg-[#F8FAFC] transition-colors">
+                      <TableCell className="font-mono text-xs font-semibold text-[#1E3A8A] whitespace-nowrap">
+                        {course.code}
+                      </TableCell>
+                      <TableCell className="max-w-[360px]">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-[#0F172A] line-clamp-1" title={course.title}>
+                            {course.title}
+                          </p>
+                        </div>
+                        <p className="text-xs text-[#64748B] line-clamp-1 mt-0.5" title={course.syllabusSummary}>
+                          {course.category} • {course.syllabusSummary}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
+                          {course.materiCount} Materi
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="tabular-nums">
+                          <span className="text-sm font-semibold text-[#0F172A]">{course.total} Soal</span>
+                          <p className="text-xs text-[#64748B] mt-0.5">
+                            Psikotes {course.psikotesCount} • Kompetensi {course.kompetensiCount}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span
+                          className="text-sm font-semibold font-mono text-[#166534] tabular-nums"
+                          title={`${course.published} dari ${course.total} soal terpublikasi`}
+                        >
+                          {course.published}/{course.total}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="inline-flex items-center gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => openEditCourseModal(course)}
+                            className="h-8 px-2.5 rounded-lg border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC]"
+                            title="Edit info course & silabus"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="xs"
+                            onClick={() => {
+                              setSelectedProgramCode(course.code);
+                              setViewMode('table');
+                            }}
+                            className="h-8 px-3 rounded-lg"
+                          >
+                            Kelola
+                            <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => handleDeleteCourse(course)}
+                            className="h-8 px-2.5 rounded-lg border-rose-200 text-rose-600 hover:bg-rose-50"
+                            title="Hapus course"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -2098,6 +2250,70 @@ export function AdminBankSoalEditor({
             </Button>
             <Button variant="primary" size="sm" type="submit" leftIcon={<Save className="w-3.5 h-3.5" />}>
               Simpan Panduan Materi
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─── MODAL TAMBAH / EDIT COURSE & SILABUS ─── */}
+      <Modal
+        isOpen={isCourseModalOpen}
+        onClose={() => setIsCourseModalOpen(false)}
+        title={editingCourseCode ? `Edit Course — ${editingCourseCode}` : 'Tambah Course & Silabus Baru'}
+        description="Course berisi materi silabus dan bank soal CAT yang dapat ditautkan ke Program Asesmen."
+        size="md"
+      >
+        <form onSubmit={handleSaveCourseModal} className="p-2 space-y-3.5 text-xs">
+          {courseFormError && (
+            <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{courseFormError}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input
+              label="Kode Course *"
+              value={courseCodeInput}
+              disabled={Boolean(editingCourseCode)}
+              onChange={(e) => setCourseCodeInput(e.target.value.toUpperCase())}
+              placeholder="Contoh: CRS-BE-01"
+              isMonospace
+              required
+            />
+            <div className="sm:col-span-2">
+              <Input
+                label="Nama Course *"
+                value={courseTitleInput}
+                onChange={(e) => setCourseTitleInput(e.target.value)}
+                placeholder="Contoh: Arsitektur Microservices & Concurrency"
+                required
+              />
+            </div>
+          </div>
+
+          <Input
+            label="Kategori / Bidang Silabus"
+            value={courseCategoryInput}
+            onChange={(e) => setCourseCategoryInput(e.target.value)}
+            placeholder="Contoh: Software Engineering, Data & AI, Finance..."
+          />
+
+          <Textarea
+            label="Ringkasan Silabus Course *"
+            rows={4}
+            value={courseSyllabusInput}
+            onChange={(e) => setCourseSyllabusInput(e.target.value)}
+            placeholder="Jelaskan topik inti, kompetensi yang diuji, dan materi silabus dalam course ini..."
+            required
+          />
+
+          <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+            <Button variant="outline" size="sm" type="button" onClick={() => setIsCourseModalOpen(false)}>
+              Batal
+            </Button>
+            <Button variant="primary" size="sm" type="submit" leftIcon={<Save className="w-3.5 h-3.5" />}>
+              {editingCourseCode ? 'Simpan Perubahan Course' : 'Simpan Course Baru'}
             </Button>
           </div>
         </form>

@@ -41,6 +41,14 @@ import {
   companyMatchesName,
   type CompanyItem
 } from '../services/companyDirectory';
+import {
+  getCachedCourses,
+  getCachedProgramCourses,
+  loadCoursesAndAssignments,
+  saveProgramCoursesMap,
+  resolveProgramCourseCodes,
+  type CourseItem
+} from '../services/courseCatalog';
 import { AdminStatCard, AdminEmptyState } from './admin/AdminStatCard';
 
 interface Job {
@@ -138,6 +146,8 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
   const [jobs, setJobs] = useState<Job[]>([]);
   const [companies, setCompanies] = useState<CompanyItem[]>(INITIAL_COMPANIES);
   const [companyProgramLinks, setCompanyProgramLinks] = useState<Record<string, string[]>>({});
+  const [courses, setCourses] = useState<CourseItem[]>(() => getCachedCourses());
+  const [programCourses, setProgramCourses] = useState<Record<string, string[]>>(() => getCachedProgramCourses());
   const [bankSoalQuestions, setBankSoalQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -147,6 +157,8 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
   // Add Job Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCompanyIds, setNewCompanyIds] = useState<string[]>([]);
+  const [newCourseCodes, setNewCourseCodes] = useState<string[]>([]);
+  const [coursePickerSearch, setCoursePickerSearch] = useState('');
   const [newCode, setNewCode] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -161,6 +173,7 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
   // Edit Job Modal State
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [editCompanyIds, setEditCompanyIds] = useState<string[]>([]);
+  const [editCourseCodes, setEditCourseCodes] = useState<string[]>([]);
   const [editCode, setEditCode] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -186,30 +199,42 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
   const [qTypeFilter, setQTypeFilter] = useState('ALL');
   const [qDiffFilter, setQDiffFilter] = useState('ALL');
 
+  const getTargetCodesForJob = useCallback((job: Job): string[] => {
+    const program = findProgramByTitle(job.title, job.id);
+    const programCode = (job.code || program.id).toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(programCourses, programCode)) {
+      return programCourses[programCode];
+    }
+    const defaultResolved = resolveProgramCourseCodes(programCode, programCourses, courses);
+    return defaultResolved.length > 0 ? defaultResolved : [programCode];
+  }, [programCourses, courses]);
+
   const getBankQuestionCountForJob = useCallback((job: Job) => {
     const program = findProgramByTitle(job.title, job.id);
-    const programCode = (job.code || program.id).toUpperCase();
+    const targetCodes = getTargetCodesForJob(job);
+    const targetSet = new Set(targetCodes.map((c) => c.toUpperCase()));
     const count = bankSoalQuestions.filter(
-      (question) => (question.programCode || 'SE-402').toUpperCase() === programCode
+      (question) => targetSet.has(String(question.programCode || 'SE-402').toUpperCase())
     ).length;
-    if (count > 0 || job.code) return count;
+    if (count > 0 || job.code || Object.prototype.hasOwnProperty.call(programCourses, (job.code || program.id).toUpperCase())) {
+      return count;
+    }
     return program.questions?.length || 0;
-  }, [bankSoalQuestions]);
+  }, [bankSoalQuestions, getTargetCodesForJob, programCourses]);
 
   const getMaterialsForJob = useCallback((job: Job, materiPool?: MasterMateriItem[] | null): MasterMateriItem[] => {
-    const program = findProgramByTitle(job.title, job.id);
-    const programCode = (job.code || program.id).toUpperCase();
+    const targetCodes = getTargetCodesForJob(job);
+    const targetSet = new Set(targetCodes.map((c) => c.toUpperCase()));
 
-    // Ambil langsung dari data menu Materi & Soal (scope 'materi' -> 'table') tanpa dummy data
     const masterList =
       materiPool !== undefined && materiPool !== null
         ? materiPool
         : (serverMateri !== null ? serverMateri : getPersistedMasterMateri());
 
     return masterList.filter(
-      (m) => String(m.code || '').toUpperCase() === programCode
+      (m) => targetSet.has(String(m.code || '').toUpperCase())
     );
-  }, [serverMateri]);
+  }, [serverMateri, getTargetCodesForJob]);
 
   useEffect(() => {
     loadMasterScope<any>('bank-soal')
@@ -300,8 +325,11 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
       // fallback to currently loaded state
     }
 
+    const targetCodes = getTargetCodesForJob(job);
+    const targetSet = new Set(targetCodes.map((c) => c.toUpperCase()));
+
     let programQuestions = latestQuestions
-      .filter((question) => (question.programCode || 'SE-402').toUpperCase() === programCode)
+      .filter((question) => targetSet.has(String(question.programCode || 'SE-402').toUpperCase()))
       .map(mapBankQuestion);
     if (programQuestions.length === 0 && !job.code && program.questions && program.questions.length > 0) {
       programQuestions = program.questions.map((q) => ({ ...q, category: 'kompetensi' as const }));
@@ -436,10 +464,184 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
         }
       })
       .catch(() => undefined);
+    void loadCoursesAndAssignments().then(({ courses: cList, programCourses: pMap }) => {
+      if (!cancelled) {
+        if (cList.length > 0) setCourses(cList);
+        setProgramCourses(pMap);
+      }
+    });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const syncAttachedCoursesToProgram = async (
+    programCodeOrId: string,
+    selectedCourseCodes: string[],
+    jobId?: string
+  ) => {
+    const key = programCodeOrId.trim().toUpperCase();
+    if (!key) return;
+    const normalizedCodes = Array.from(new Set(selectedCourseCodes.map((c) => c.trim().toUpperCase()).filter(Boolean)));
+    const nextMap = { ...programCourses, [key]: normalizedCodes };
+    setProgramCourses(nextMap);
+    await saveProgramCoursesMap(nextMap);
+
+    // Sync materials from selected courses to job-materi override so portal participants see them
+    const materiPool = serverMateri !== null ? serverMateri : getPersistedMasterMateri();
+    const combinedMateri = materiPool.filter((m) => normalizedCodes.includes(String(m.code || '').toUpperCase()));
+    await saveMasterRecord('job-materi', key, combinedMateri).catch(() => undefined);
+    if (jobId && jobId.toUpperCase() !== key) {
+      await saveMasterRecord('job-materi', jobId, combinedMateri).catch(() => undefined);
+    }
+
+    // Sync questions from selected courses into program's CAT bank if program has a Job code
+    const token = localStorage.getItem('adminToken');
+    if (token && normalizedCodes.length > 0) {
+      const combinedQuestions = bankSoalQuestions.filter((q) =>
+        normalizedCodes.includes(String(q.programCode || '').toUpperCase())
+      );
+      if (combinedQuestions.length > 0) {
+        const payload = combinedQuestions.map((question) => {
+          const options = question.options || [];
+          let correctAnswer: unknown = null;
+          if (question.type === 'Pilihan Ganda') {
+            correctAnswer = options.find((opt: any) => opt.isCorrect)?.key ?? null;
+          } else if (question.type === 'Multi-Select') {
+            correctAnswer = options.filter((opt: any) => opt.isCorrect).map((opt: any) => opt.key);
+          } else if (question.type === 'Isian Singkat') {
+            correctAnswer = options[0]?.text || question.explanation || null;
+          } else if (question.type === 'Matching') {
+            correctAnswer = (question.matchingPairs || []).map((pair: any) => ({
+              left: pair.left,
+              correctRight: pair.correctRight || pair.rightOptions?.[0] || ''
+            }));
+          }
+          return {
+            type: question.type,
+            text: question.text,
+            competency: question.competency,
+            difficulty: question.difficulty,
+            options,
+            matchingPairs: question.matchingPairs || [],
+            correctAnswer,
+            points: 1
+          };
+        });
+        await axios
+          .post(
+            `/api/admin/programs/${encodeURIComponent(key)}/questions/sync`,
+            { questions: payload },
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+          .catch(() => undefined);
+      }
+    }
+  };
+
+  const renderCourseChecklist = (
+    selectedCodes: string[],
+    onToggle: (courseCode: string) => void,
+    onSelectAll: () => void,
+    onClear: () => void
+  ) => {
+    const qLower = coursePickerSearch.trim().toLowerCase();
+    const materiPool = serverMateri !== null ? serverMateri : getPersistedMasterMateri();
+    const visibleCourses = courses.filter((c) => {
+      if (!qLower) return true;
+      return (
+        c.code.toLowerCase().includes(qLower) ||
+        c.title.toLowerCase().includes(qLower) ||
+        c.category.toLowerCase().includes(qLower) ||
+        c.syllabusSummary.toLowerCase().includes(qLower)
+      );
+    });
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="block text-sm font-semibold text-slate-800">
+            Course &amp; Silabus Asesmen
+          </label>
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="font-semibold text-primary-navy bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+              {selectedCodes.length} Course dipilih
+            </span>
+            <button
+              type="button"
+              onClick={onSelectAll}
+              className="text-primary-navy font-semibold hover:underline cursor-pointer"
+            >
+              Pilih Semua
+            </button>
+            {selectedCodes.length > 0 && (
+              <button
+                type="button"
+                onClick={onClear}
+                className="text-slate-500 font-semibold hover:underline cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+        <Input
+          value={coursePickerSearch}
+          onChange={(e) => setCoursePickerSearch(e.target.value)}
+          placeholder="Cari kode atau nama course silabus..."
+          leftIcon={<Search className="w-3.5 h-3.5 text-slate-400" />}
+          className="h-9 text-xs rounded-lg"
+        />
+        <div className="max-h-48 overflow-y-auto space-y-1.5 p-2.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+          {visibleCourses.length === 0 ? (
+            <p className="text-[11px] text-slate-500 text-center py-3">
+              Tidak ada course yang cocok. Tambah course baru di menu <strong>Materi &amp; Soal</strong>.
+            </p>
+          ) : (
+            visibleCourses.map((course) => {
+              const codeUpper = course.code.toUpperCase();
+              const checked = selectedCodes.includes(codeUpper);
+              const qCount = bankSoalQuestions.filter(
+                (q) => String(q.programCode || '').toUpperCase() === codeUpper
+              ).length;
+              const mCount = materiPool.filter(
+                (m) => String(m.code || '').toUpperCase() === codeUpper
+              ).length;
+              return (
+                <label
+                  key={codeUpper}
+                  className={`flex items-start gap-2.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-colors ${
+                    checked
+                      ? 'bg-blue-50/80 border-blue-300 text-slate-900'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => onToggle(codeUpper)}
+                    className="mt-0.5"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-mono text-[11px] font-semibold text-primary-navy shrink-0">
+                        [{codeUpper}]
+                      </span>
+                      <span className="text-xs font-semibold text-slate-900 truncate">{course.title}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {course.category} • {mCount} Materi • {qCount} Soal CAT
+                    </p>
+                  </div>
+                </label>
+              );
+            })
+          )}
+        </div>
+        <p className="text-[11px] text-slate-500">
+          Centang course dari katalog <strong>Materi &amp; Soal</strong> yang akan digunakan pada program asesmen ini.
+        </p>
+      </div>
+    );
+  };
 
   const syncCompanyProgramLinks = async (
     linkKey: string,
@@ -586,9 +788,14 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
       if (linkKey && newCompanyIds.length > 0) {
         await syncCompanyProgramLinks(linkKey, newCompanyIds);
       }
+      if (linkKey && newCourseCodes.length > 0) {
+        await syncAttachedCoursesToProgram(linkKey, newCourseCodes, createdJob?.id);
+      }
 
       setShowAddModal(false);
       setNewCompanyIds([]);
+      setNewCourseCodes([]);
+      setCoursePickerSearch('');
       setNewCode('');
       setNewTitle('');
       setNewDescription('');
@@ -619,6 +826,8 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
       .filter((c) => companyMatchesName(c.name, job.title) || (companyProgramLinks[c.id] || []).includes(linkKey))
       .map((c) => c.id);
     setEditCompanyIds(preselectedIds);
+    setEditCourseCodes(resolveProgramCourseCodes(linkKey, programCourses, courses));
+    setCoursePickerSearch('');
     setEditCode(job.code || '');
     setEditTitle(job.title);
     setEditDescription(job.description || '');
@@ -670,6 +879,7 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
       const nextLinkKey = String(nextCode || editingJob.id || '').trim().toUpperCase();
       const prevLinkKey = String(editingJob.code || editingJob.id || '').trim().toUpperCase();
       await syncCompanyProgramLinks(nextLinkKey, editCompanyIds, prevLinkKey);
+      await syncAttachedCoursesToProgram(nextLinkKey, editCourseCodes, editingJob.id);
 
       setEditingJob(null);
       Swal.fire({
@@ -692,17 +902,19 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
     : '';
 
   const editProgramMateriCount = useMemo(() => {
-    if (!editingJob || !resolvedEditProgramCode) return 0;
+    if (!editingJob) return 0;
     const pool = serverMateri !== null ? serverMateri : getPersistedMasterMateri();
-    return pool.filter((m) => String(m.code || '').toUpperCase() === resolvedEditProgramCode).length;
-  }, [editingJob, resolvedEditProgramCode, serverMateri]);
+    const targetSet = new Set(editCourseCodes.map((c) => c.toUpperCase()));
+    return pool.filter((m) => targetSet.has(String(m.code || '').toUpperCase())).length;
+  }, [editingJob, editCourseCodes, serverMateri]);
 
   const editProgramQuestionCount = useMemo(() => {
-    if (!editingJob || !resolvedEditProgramCode) return 0;
+    if (!editingJob) return 0;
+    const targetSet = new Set(editCourseCodes.map((c) => c.toUpperCase()));
     return bankSoalQuestions.filter(
-      (q) => (q.programCode || 'SE-402').toUpperCase() === resolvedEditProgramCode
+      (q) => targetSet.has(String(q.programCode || 'SE-402').toUpperCase())
     ).length;
-  }, [editingJob, resolvedEditProgramCode, bankSoalQuestions]);
+  }, [editingJob, editCourseCodes, bankSoalQuestions]);
 
   // Distribusi tipe soal dinamis sesuai kategori aktif (Psikotes / Uji Kompetensi)
   const detailQuestionCounts = useMemo(() => {
@@ -1216,6 +1428,16 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
           </div>
           <p className="text-[11px] text-slate-500 -mt-2">Rentang tanggal pelaksanaan asesmen. Dapat diubah kapan saja.</p>
 
+          {renderCourseChecklist(
+            newCourseCodes,
+            (courseCode) =>
+              setNewCourseCodes((prev) =>
+                prev.includes(courseCode) ? prev.filter((c) => c !== courseCode) : [...prev, courseCode]
+              ),
+            () => setNewCourseCodes(courses.map((c) => c.code.toUpperCase())),
+            () => setNewCourseCodes([])
+          )}
+
           <div>
             <Select
               label="Status Formasi"
@@ -1357,6 +1579,16 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
                 </div>
                 <p className="text-[11px] text-slate-500 -mt-2">Kosongkan bila jadwal asesmen belum ditentukan.</p>
 
+                {renderCourseChecklist(
+                  editCourseCodes,
+                  (courseCode) =>
+                    setEditCourseCodes((prev) =>
+                      prev.includes(courseCode) ? prev.filter((c) => c !== courseCode) : [...prev, courseCode]
+                    ),
+                  () => setEditCourseCodes(courses.map((c) => c.code.toUpperCase())),
+                  () => setEditCourseCodes([])
+                )}
+
                 <div>
                   <Select
                     label="Status Formasi"
@@ -1373,10 +1605,11 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold text-slate-900">
-                      Materi &amp; Bank Soal Program ({resolvedEditProgramCode})
+                      Ringkasan Course, Materi &amp; Soal ({resolvedEditProgramCode})
                     </p>
                     <p className="text-[11px] text-slate-600 mt-0.5">
-                      Saat ini: <strong className="font-mono text-slate-800">{editProgramMateriCount} Panduan Materi</strong> •{' '}
+                      <strong className="font-mono text-slate-800">{editCourseCodes.length} Course</strong> •{' '}
+                      <strong className="font-mono text-slate-800">{editProgramMateriCount} Materi Silabus</strong> •{' '}
                       <strong className="font-mono text-slate-800">{editProgramQuestionCount} Butir Soal CAT</strong>
                     </p>
                   </div>
@@ -1385,7 +1618,7 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
                     variant="primary"
                     size="sm"
                     onClick={() => {
-                      const targetCode = resolvedEditProgramCode;
+                      const targetCode = editCourseCodes[0] || resolvedEditProgramCode;
                       const firstCompany = companies.find((c) => editCompanyIds.includes(c.id))?.name;
                       setEditingJob(null);
                       if (onOpenMateriAndSoal) {
@@ -1397,7 +1630,7 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
                     leftIcon={<BookOpen className="w-3.5 h-3.5" />}
                     className="shrink-0"
                   >
-                    Tambah Materi &amp; Soal
+                    Kelola Materi &amp; Soal
                   </Button>
                 </div>
 
