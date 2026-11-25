@@ -560,11 +560,11 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label className="block text-sm font-semibold text-slate-800">
-            Course &amp; Silabus Asesmen
+            Silabus Asesmen
           </label>
           <div className="flex items-center gap-2 text-[11px]">
             <span className="font-semibold text-primary-navy bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-              {selectedCodes.length} Course dipilih
+              {selectedCodes.length} Silabus dipilih
             </span>
             <button
               type="button"
@@ -587,14 +587,14 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
         <Input
           value={coursePickerSearch}
           onChange={(e) => setCoursePickerSearch(e.target.value)}
-          placeholder="Cari kode atau nama course silabus..."
+          placeholder="Cari kode atau nama silabus..."
           leftIcon={<Search className="w-3.5 h-3.5 text-slate-400" />}
           className="h-9 text-xs rounded-lg"
         />
         <div className="max-h-48 overflow-y-auto space-y-1.5 p-2.5 bg-slate-50/70 border border-slate-200 rounded-xl">
           {visibleCourses.length === 0 ? (
             <p className="text-[11px] text-slate-500 text-center py-3">
-              Tidak ada course yang cocok. Tambah course baru di menu <strong>Materi &amp; Soal</strong>.
+              Tidak ada silabus yang cocok. Tambah silabus baru di menu <strong>Materi &amp; Soal</strong>.
             </p>
           ) : (
             visibleCourses.map((course) => {
@@ -637,7 +637,7 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
           )}
         </div>
         <p className="text-[11px] text-slate-500">
-          Centang course dari katalog <strong>Materi &amp; Soal</strong> yang akan digunakan pada program asesmen ini.
+          Centang silabus dari katalog <strong>Materi &amp; Soal</strong> yang akan digunakan pada program asesmen ini.
         </p>
       </div>
     );
@@ -1605,11 +1605,11 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold text-slate-900">
-                      Ringkasan Course, Materi &amp; Soal ({resolvedEditProgramCode})
+                      Ringkasan Silabus, Materi &amp; Soal ({resolvedEditProgramCode})
                     </p>
                     <p className="text-[11px] text-slate-600 mt-0.5">
-                      <strong className="font-mono text-slate-800">{editCourseCodes.length} Course</strong> •{' '}
-                      <strong className="font-mono text-slate-800">{editProgramMateriCount} Materi Silabus</strong> •{' '}
+                      <strong className="font-mono text-slate-800">{editCourseCodes.length} Silabus</strong> •{' '}
+                      <strong className="font-mono text-slate-800">{editProgramMateriCount} Materi</strong> •{' '}
                       <strong className="font-mono text-slate-800">{editProgramQuestionCount} Butir Soal CAT</strong>
                     </p>
                   </div>

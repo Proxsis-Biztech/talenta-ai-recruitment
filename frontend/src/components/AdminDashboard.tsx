@@ -1042,7 +1042,7 @@ ${app.interviewResult ? `
     },
     materi: {
       title: materiHubProgramCode && materiHubTab === 'bank-soal' ? `Materi & Soal / ${materiHubProgramCode}` : 'Materi & Soal',
-      subtitle: 'Katalog silabus course, panduan materi belajar, dan bank soal CAT untuk Program Asesmen',
+      subtitle: 'Katalog silabus terpadu, panduan materi belajar, dan bank soal CAT untuk Program Asesmen',
       short: 'Materi & Soal',
       dotColor: 'bg-primary-navy'
     },

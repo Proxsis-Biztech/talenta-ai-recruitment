@@ -1185,11 +1185,11 @@ export function AdminBankSoalEditor({
     const normalizedCode = courseCodeInput.trim().toUpperCase();
     const trimmedTitle = courseTitleInput.trim();
     if (!normalizedCode || !trimmedTitle) {
-      setCourseFormError('Kode course dan nama course wajib diisi.');
+      setCourseFormError('Kode silabus dan nama silabus wajib diisi.');
       return;
     }
     if (!editingCourseCode && courses.some((c) => c.code.toUpperCase() === normalizedCode)) {
-      setCourseFormError(`Kode course "${normalizedCode}" sudah digunakan.`);
+      setCourseFormError(`Kode silabus "${normalizedCode}" sudah digunakan.`);
       return;
     }
     const nextItem: CourseItem = {
@@ -1197,7 +1197,7 @@ export function AdminBankSoalEditor({
       code: normalizedCode,
       title: trimmedTitle,
       category: courseCategoryInput.trim() || 'Kompetensi Teknis & Terapan',
-      syllabusSummary: courseSyllabusInput.trim() || `Silabus course ${trimmedTitle}.`,
+      syllabusSummary: courseSyllabusInput.trim() || `Ringkasan silabus ${trimmedTitle}.`,
       updatedAt: new Date().toISOString().split('T')[0]
     };
     const nextCourses = editingCourseCode
@@ -1208,17 +1208,17 @@ export function AdminBankSoalEditor({
     setIsCourseModalOpen(false);
     showToast(
       editingCourseCode
-        ? `Course "${nextItem.title}" (${nextItem.code}) berhasil diperbarui.`
-        : `Course baru "${nextItem.title}" (${nextItem.code}) berhasil ditambahkan.`
+        ? `Silabus "${nextItem.title}" (${nextItem.code}) berhasil diperbarui.`
+        : `Silabus baru "${nextItem.title}" (${nextItem.code}) berhasil ditambahkan.`
     );
   };
 
   const handleDeleteCourse = (course: CourseItem) => {
-    if (!window.confirm(`Hapus course "${course.title}" (${course.code}) dari daftar course?`)) return;
+    if (!window.confirm(`Hapus silabus "${course.title}" (${course.code}) dari daftar silabus?`)) return;
     const nextCourses = courses.filter((c) => c.code.toUpperCase() !== course.code.toUpperCase());
     setCourses(nextCourses);
     void saveCourseCatalog(nextCourses);
-    showToast(`Course "${course.title}" (${course.code}) dihapus dari katalog.`);
+    showToast(`Silabus "${course.title}" (${course.code}) dihapus dari katalog.`);
   };
 
   const courseRows = useMemo(() => {
@@ -1378,18 +1378,18 @@ export function AdminBankSoalEditor({
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
               {viewMode === 'programs'
-                ? `${courseRows.reduce((sum, c) => sum + c.total, 0)} Soal • ${courseRows.length} Course`
-                : `${filtered.length} Butir Soal • ${selectedProgramMateri.length} Materi Silabus`}
+                ? `${courseRows.reduce((sum, c) => sum + c.total, 0)} Soal • ${courseRows.length} Silabus`
+                : `${filtered.length} Butir Soal • ${selectedProgramMateri.length} Materi`}
             </span>
           </div>
           <h1 className="text-2xl font-bold font-heading text-[#0F172A] tracking-tight mt-1.5">
             {viewMode === 'programs'
-              ? 'Materi & Bank Soal (Course)'
-              : `Course - ${selectedProgramCode}`}
+              ? 'Materi & Bank Soal (Silabus)'
+              : `Silabus - ${selectedProgramCode}`}
           </h1>
           {viewMode !== 'programs' && (
             <p className="text-sm text-[#64748B] mt-0.5 truncate" title={selectedCourseObj?.title || selectedProgramObj?.title}>
-              {selectedCourseObj?.title || selectedProgramObj?.title || `Course ${selectedProgramCode}`}
+              {selectedCourseObj?.title || selectedProgramObj?.title || `Silabus ${selectedProgramCode}`}
               {selectedCourseObj?.category ? ` • ${selectedCourseObj.category}` : ''}
             </p>
           )}
@@ -1404,7 +1404,7 @@ export function AdminBankSoalEditor({
               className="h-10 px-4 rounded-lg"
               leftIcon={<Plus className="w-4 h-4" />}
             >
-              Tambah Course
+              Tambah Silabus
             </Button>
           </div>
         ) : (
@@ -1425,7 +1425,7 @@ export function AdminBankSoalEditor({
               className="h-10 px-4 rounded-lg border-[#E2E8F0] text-[#475569]"
               leftIcon={<ChevronLeft className="w-4 h-4" />}
             >
-              Semua Course
+              Semua Silabus
             </Button>
           </div>
         )}
@@ -1438,14 +1438,14 @@ export function AdminBankSoalEditor({
         </div>
       )}
 
-      {/* ─── Course & Silabus Overview ─── */}
+      {/* ─── Silabus Overview ─── */}
       {viewMode === 'programs' && (
         <div className="space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-[#0F172A]">Daftar Course &amp; Silabus</h3>
+              <h3 className="text-base font-semibold text-[#0F172A]">Daftar Silabus</h3>
               <p className="text-xs text-[#64748B] mt-0.5">
-                Setiap course memuat panduan materi silabus dan bank soal CAT yang dapat ditautkan ke berbagai Program Asesmen.
+                Setiap silabus memuat panduan materi belajar dan bank soal CAT yang dapat ditautkan ke berbagai Program Asesmen.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
@@ -1453,7 +1453,7 @@ export function AdminBankSoalEditor({
                 <Input
                   value={courseSearch}
                   onChange={(e) => setCourseSearch(e.target.value)}
-                  placeholder="Cari kode, nama course, silabus..."
+                  placeholder="Cari kode, nama silabus, ringkasan..."
                   leftIcon={<Search className="w-3.5 h-3.5 text-slate-400" />}
                   className="h-10 text-xs rounded-lg"
                 />
@@ -1464,7 +1464,7 @@ export function AdminBankSoalEditor({
                   onChange={(e) => setCourseCategoryFilter(e.target.value)}
                   className="h-10 text-xs font-medium rounded-lg"
                 >
-                  <option value="ALL">Semua Kategori Course</option>
+                  <option value="ALL">Semua Kategori Silabus</option>
                   {courseCategories.map((cat) => (
                     <option key={cat} value={cat}>
                       {cat}
@@ -1479,7 +1479,7 @@ export function AdminBankSoalEditor({
               <TableHeader className="sticky top-0 z-10 bg-white">
                 <TableRow className="border-b border-[#E2E8F0]">
                   <TableHead className="w-28 text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Kode</TableHead>
-                  <TableHead className="min-w-[280px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Course &amp; Silabus</TableHead>
+                  <TableHead className="min-w-[280px] text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Silabus</TableHead>
                   <TableHead className="w-32 text-center text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Materi</TableHead>
                   <TableHead className="w-44 text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Bank Soal</TableHead>
                   <TableHead className="w-28 text-center text-xs font-semibold uppercase text-[#64748B] whitespace-nowrap">Published</TableHead>
@@ -1490,7 +1490,7 @@ export function AdminBankSoalEditor({
                 {courseRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-10 text-xs text-slate-500">
-                      Belum ada course yang sesuai filter. Klik <strong>+ Tambah Course</strong> untuk membuat course baru.
+                      Belum ada silabus yang sesuai filter. Klik <strong>+ Tambah Silabus</strong> untuk membuat silabus baru.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1537,7 +1537,7 @@ export function AdminBankSoalEditor({
                             size="xs"
                             onClick={() => openEditCourseModal(course)}
                             className="h-8 px-2.5 rounded-lg border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC]"
-                            title="Edit info course & silabus"
+                            title="Edit info silabus"
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
@@ -1558,7 +1558,7 @@ export function AdminBankSoalEditor({
                             size="xs"
                             onClick={() => handleDeleteCourse(course)}
                             className="h-8 px-2.5 rounded-lg border-rose-200 text-rose-600 hover:bg-rose-50"
-                            title="Hapus course"
+                            title="Hapus silabus"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -2255,12 +2255,12 @@ export function AdminBankSoalEditor({
         </form>
       </Modal>
 
-      {/* ─── MODAL TAMBAH / EDIT COURSE & SILABUS ─── */}
+      {/* ─── MODAL TAMBAH / EDIT SILABUS ─── */}
       <Modal
         isOpen={isCourseModalOpen}
         onClose={() => setIsCourseModalOpen(false)}
-        title={editingCourseCode ? `Edit Course — ${editingCourseCode}` : 'Tambah Course & Silabus Baru'}
-        description="Course berisi materi silabus dan bank soal CAT yang dapat ditautkan ke Program Asesmen."
+        title={editingCourseCode ? `Edit Silabus — ${editingCourseCode}` : 'Tambah Silabus Baru'}
+        description="Silabus berisi materi belajar dan bank soal CAT yang dapat ditautkan ke Program Asesmen."
         size="md"
       >
         <form onSubmit={handleSaveCourseModal} className="p-2 space-y-3.5 text-xs">
@@ -2273,17 +2273,17 @@ export function AdminBankSoalEditor({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input
-              label="Kode Course *"
+              label="Kode Silabus *"
               value={courseCodeInput}
               disabled={Boolean(editingCourseCode)}
               onChange={(e) => setCourseCodeInput(e.target.value.toUpperCase())}
-              placeholder="Contoh: CRS-BE-01"
+              placeholder="Contoh: SIL-BE-01"
               isMonospace
               required
             />
             <div className="sm:col-span-2">
               <Input
-                label="Nama Course *"
+                label="Nama Silabus *"
                 value={courseTitleInput}
                 onChange={(e) => setCourseTitleInput(e.target.value)}
                 placeholder="Contoh: Arsitektur Microservices & Concurrency"
@@ -2293,18 +2293,18 @@ export function AdminBankSoalEditor({
           </div>
 
           <Input
-            label="Kategori / Bidang Silabus"
+            label="Kategori / Bidang"
             value={courseCategoryInput}
             onChange={(e) => setCourseCategoryInput(e.target.value)}
             placeholder="Contoh: Software Engineering, Data & AI, Finance..."
           />
 
           <Textarea
-            label="Ringkasan Silabus Course *"
+            label="Ringkasan Materi Silabus *"
             rows={4}
             value={courseSyllabusInput}
             onChange={(e) => setCourseSyllabusInput(e.target.value)}
-            placeholder="Jelaskan topik inti, kompetensi yang diuji, dan materi silabus dalam course ini..."
+            placeholder="Jelaskan topik inti, kompetensi yang diuji, dan materi dalam silabus ini..."
             required
           />
 
@@ -2313,7 +2313,7 @@ export function AdminBankSoalEditor({
               Batal
             </Button>
             <Button variant="primary" size="sm" type="submit" leftIcon={<Save className="w-3.5 h-3.5" />}>
-              {editingCourseCode ? 'Simpan Perubahan Course' : 'Simpan Course Baru'}
+              {editingCourseCode ? 'Simpan Perubahan Silabus' : 'Simpan Silabus Baru'}
             </Button>
           </div>
         </form>
