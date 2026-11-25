@@ -170,13 +170,8 @@ Return ONLY valid JSON with this structure (no markdown formatting):
     // Build a summary string from the evaluation
     const interviewResult = `Skor Akhir: ${overallScore}/100 | Rekomendasi: ${recommendation}\n\n${result.summary || ''}\n\nSkill Matrix:\n${(result.skillMatrix || []).map((s: SkillMatrixItem) => `- ${s.skill}: ${s.score}/100 — ${s.notes}`).join('\n')}`;
 
-    // Check passing threshold from job config
-    // If passing score is set and candidate meets/exceeds it → 'scored'
-    // If passing score is set but candidate is below → 'completed' (HR can review)
-    // If no passing score set → 'scored' anyway
-    const passingThreshold = applicant.job?.interviewPassingScore || aiConfig.passingThreshold;
-    const isPassed = passingThreshold > 0 ? overallScore >= passingThreshold : true;
-    const finalStatus = isPassed ? 'scored' : 'completed';
+    // Evaluasi AI telah selesai untuk wawancara ini; status menjadi 'scored' agar tidak terjebak di antrean Perlu Skoring AI.
+    const finalStatus = 'scored';
 
     const updatedApplicant = await prisma.applicant.update({
       where: { id: applicantId },

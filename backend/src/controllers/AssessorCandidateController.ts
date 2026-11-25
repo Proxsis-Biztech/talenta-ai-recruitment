@@ -4,12 +4,12 @@ import { type AuthRequest } from '../middleware/auth';
 import { isCandidateInAssessorScope, resolveAssessorScopeContext } from '../middleware/tenant';
 import { recordAuditLog, resolveRequestIp } from '../services/auditService';
 import {
-  buildAiCompetenciesFromData,
   deriveUnifiedReviewState,
   getAiReviewRecord,
   isDeterministicCalibrationSample,
   loadAiReviewRecordsMap,
   parseTimestampedTranscript,
+  resolveAiCompetenciesWithTranscript,
   saveAiReviewRecord,
   type AiInterviewReviewRecord
 } from '../services/reviewWorkflowService';
@@ -176,15 +176,17 @@ const serializeCandidate = (
   });
 
   const aiCompetencies =
-    reviewRecord?.aiCompetencies && reviewRecord.aiCompetencies.length > 0
-      ? reviewRecord.aiCompetencies
-      : hasTranscript || applicantData?.interviewResult || user.interviewScore != null
-        ? buildAiCompetenciesFromData({
-            transcript: transcriptText,
-            applicantInterviewResult: applicantData?.interviewResult,
-            overallScore: user.interviewScore ?? applicantData?.interviewScore ?? null
-          })
-        : [];
+    reviewRecord?.aiCompetencies?.length ||
+    hasTranscript ||
+    applicantData?.interviewResult ||
+    user.interviewScore != null
+      ? resolveAiCompetenciesWithTranscript({
+          existing: reviewRecord?.aiCompetencies ?? null,
+          transcript: transcriptText,
+          applicantInterviewResult: applicantData?.interviewResult,
+          overallScore: user.interviewScore ?? applicantData?.interviewScore ?? null
+        })
+      : [];
 
   return {
     id: user.id,

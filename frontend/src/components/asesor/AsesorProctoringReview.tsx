@@ -266,11 +266,11 @@ export default function AsesorProctoringReview() {
 
   return (
     <AsesorLayout activeTab="proctoring">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-1.5">
-            <Badge variant="danger" format="soft" className="uppercase font-semibold text-xs">
-              PROCTORING AUDIT
+            <Badge variant="danger" format="soft" className="uppercase font-semibold text-[11px]">
+              Proctoring Audit
             </Badge>
             <Badge variant="navy" className="text-xs">{`Kandidat: ${selectedCandidate?.name || '-'} (${selectedCandidate?.programCode || '-'})`}</Badge>
             {selectedCandidate && (
@@ -286,11 +286,11 @@ export default function AsesorProctoringReview() {
               </span>
             )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
-            Review Temuan Integritas & Flag Proctoring AI
+          <h1 className="text-xl sm:text-2xl font-bold font-heading text-ink tracking-tight">
+            Review Temuan Integritas &amp; Flag Proctoring AI
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Audit rekaman snapshot kejadian mencurigakan yang ditangkap otomatis oleh mesin OpenCV & Browser Integrity Guard.
+            Audit rekaman snapshot kejadian mencurigakan yang ditangkap otomatis oleh mesin OpenCV &amp; Browser Integrity Guard.
           </p>
           <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <label className="text-xs font-semibold text-slate-700 shrink-0">Pilih Kandidat</label>
@@ -454,8 +454,8 @@ export default function AsesorProctoringReview() {
         {/* ─── Top Split: Integrity Score Gauge + Diagnostic Summary ─── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Integrity Score Gauge (1 col) */}
-          <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs flex flex-col items-center justify-center text-center">
-            <span className="text-xs font-bold text-muted-slate uppercase tracking-wider mb-2">
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col items-center justify-center text-center">
+            <span className="text-[11px] font-semibold text-muted-slate uppercase tracking-wider mb-2">
               Skor Integritas Kandidat
             </span>
             <div className="relative w-36 h-36 flex items-center justify-center">
@@ -490,10 +490,10 @@ export default function AsesorProctoringReview() {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-mono text-3xl font-extrabold text-ink">
+                <span className="font-heading text-3xl font-bold tabular-nums text-ink">
                   {integrityScore == null ? '-' : integrityScore}
                 </span>
-                <span className="text-[10px] text-muted-slate">/ 100</span>
+                <span className="text-[11px] text-muted-slate">/ 100</span>
               </div>
             </div>
             <p
@@ -518,7 +518,7 @@ export default function AsesorProctoringReview() {
           </div>
 
           {/* Quick Metrics (2 cols) */}
-          <div className="md:col-span-2 bg-white rounded-2xl border border-border-slate p-6 shadow-xs flex flex-col justify-between">
+          <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col justify-between">
             <div>
               <h3 className="font-heading font-bold text-base text-ink mb-1">
                 Ringkasan Rekomendasi Integritas AI
@@ -528,17 +528,17 @@ export default function AsesorProctoringReview() {
               </p>
 
               <div className="grid grid-cols-3 gap-3">
-                <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
-                  <p className="text-[11px] text-red-700 font-bold">Severity Tinggi</p>
-                  <p className="font-mono text-xl font-extrabold text-red-900 mt-1">{severityCounts.high} Flag</p>
+                <div className="p-3.5 bg-red-50 border border-red-100 rounded-xl">
+                  <p className="text-[11px] text-red-700 font-semibold">Severity Tinggi</p>
+                  <p className="font-heading text-xl font-bold tabular-nums text-red-900 mt-1">{severityCounts.high} Flag</p>
                 </div>
-                <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
-                  <p className="text-[11px] text-amber-800 font-bold">Severity Sedang</p>
-                  <p className="font-mono text-xl font-extrabold text-amber-900 mt-1">{severityCounts.medium} Flag</p>
+                <div className="p-3.5 bg-amber-50 border border-amber-100 rounded-xl">
+                  <p className="text-[11px] text-amber-800 font-semibold">Severity Sedang</p>
+                  <p className="font-heading text-xl font-bold tabular-nums text-amber-900 mt-1">{severityCounts.medium} Flag</p>
                 </div>
-                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                  <p className="text-[11px] text-slate-600 font-bold">Severity Rendah</p>
-                  <p className="font-mono text-xl font-extrabold text-slate-800 mt-1">{severityCounts.low} Flag</p>
+                <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
+                  <p className="text-[11px] text-slate-600 font-semibold">Severity Rendah</p>
+                  <p className="font-heading text-xl font-bold tabular-nums text-slate-800 mt-1">{severityCounts.low} Flag</p>
                 </div>
               </div>
             </div>

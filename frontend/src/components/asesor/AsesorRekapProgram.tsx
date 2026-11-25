@@ -82,14 +82,24 @@ export default function AsesorRekapProgram() {
     const saved = savedScores[c.candidateCode || c.code] || savedScores[c.code];
     const cal = calibrationByCode[c.candidateCode || c.code] || calibrationByCode[c.code];
     const calStatus = cal?.metrics?.status || null;
-    const interviewScore = saved?.interviewScore ?? c.interviewScore ?? null;
-    const compositeScore =
-      saved?.compositeScore ??
-      c.compositeScore ??
-      (c.catScore != null && interviewScore != null
-        ? calculateCompositeScore(c.catScore, interviewScore)
-        : null);
-    const recommendation = saved?.recommendation ?? c.recommendation ?? null;
+    const stageMeta = resolveCandidateReviewStage(c);
+    const hasAssessorReview =
+      Boolean(saved) ||
+      c.lhaStatus === 'signed' ||
+      ['DIREVIEW', 'FINALISASI', 'TERBIT'].includes(stageMeta.stage);
+
+    const interviewScore = saved?.interviewScore ?? (hasAssessorReview ? c.interviewScore : null);
+    const compositeScore = hasAssessorReview
+      ? saved?.compositeScore ??
+        c.compositeScore ??
+        (c.catScore != null && interviewScore != null
+          ? calculateCompositeScore(c.catScore, interviewScore)
+          : null)
+      : null;
+    const recommendation = hasAssessorReview
+      ? saved?.recommendation ?? c.recommendation ?? null
+      : null;
+
     return {
       id: c.code,
       name: c.name,
@@ -108,7 +118,7 @@ export default function AsesorRekapProgram() {
         : c.signedAt
           ? new Date(c.signedAt).toLocaleDateString('id-ID')
           : null,
-      statusLabel: resolveCandidateReviewStage(c).label,
+      statusLabel: stageMeta.label,
       isSaved: Boolean(saved) || c.lhaStatus === 'signed' || Boolean(recommendation)
     };
   });
@@ -169,10 +179,10 @@ export default function AsesorRekapProgram() {
 
   return (
     <AsesorLayout activeTab="rekap">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold font-heading text-ink tracking-tight">
               Rekapitulasi Penilaian Program Asesmen
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -184,7 +194,7 @@ export default function AsesorRekapProgram() {
             <Button
               variant="outline"
               onClick={handleExportCsv}
-              className="text-xs sm:text-sm py-2 px-3.5 rounded-xl font-bold flex items-center gap-2 cursor-pointer shadow-2xs"
+              className="text-xs sm:text-sm py-2 px-3.5 rounded-xl font-semibold flex items-center gap-2 cursor-pointer shadow-2xs"
             >
               <Download className="w-4 h-4 text-primary-navy" />
               <span>Ekspor Rekap (CSV)</span>
@@ -193,7 +203,7 @@ export default function AsesorRekapProgram() {
         </div>
 
         {/* Filter Bar */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2 flex-1 max-w-md">
             <input
               type="text"
@@ -241,84 +251,109 @@ export default function AsesorRekapProgram() {
         </div>
 
         {/* Table Results */}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>KANDIDAT</TableHead>
-              <TableHead>PT MITRA</TableHead>
-              <TableHead>SKOR CAT (40%)</TableHead>
-              <TableHead>SKOR INTERVIEW (60%)</TableHead>
-              <TableHead>SKOR KOMPOSIT (0-100)</TableHead>
-              <TableHead>KALIBRASI</TableHead>
-              <TableHead>REKOMENDASI</TableHead>
-              <TableHead>TGL VERIFIKASI</TableHead>
-              <TableHead className="text-right">AKSI</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell>
-                  <div>
-                    <p className="font-bold text-ink">{c.name}</p>
-                    <p className="font-mono text-[11px] text-muted-slate">
-                      {c.id} • {c.statusLabel}
-                    </p>
-                  </div>
-                </TableCell>
-                <TableCell className="text-slate-600 font-sans">
-                  {c.pt}
-                  <span className="block text-[11px] text-muted-slate">{c.program}</span>
-                </TableCell>
-                <TableCell className="font-mono font-bold text-slate-700">{c.catScore ?? '—'}</TableCell>
-                <TableCell className="font-mono font-bold text-slate-700">{c.interviewScore ?? '—'}</TableCell>
-                <TableCell className="font-mono text-base font-extrabold text-primary-navy">
-                  {c.compositeScore ?? '—'}
-                </TableCell>
-                <TableCell>
-                  {c.calibrationStatus === 'perlu_kalibrasi' ? (
-                    <Badge variant="danger" format="soft">
-                      Perlu Kalibrasi ({c.secondaryInterviewScore ?? '-'})
-                    </Badge>
-                  ) : c.calibrationStatus === 'selaras' ? (
-                    <Badge variant="success" format="soft">
-                      Selaras ({c.secondaryInterviewScore ?? '-'})
-                    </Badge>
-                  ) : (
-                    <span className="text-[11px] text-slate-400">Penilai Tunggal</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {c.recommendation && c.recommendation !== 'BELUM DINILAI' ? (
-                    <Badge
-                      variant={
-                        c.recommendation === 'LANJUT' ? 'success' :
-                        c.recommendation === 'DIPERTIMBANGKAN' ? 'warning' : 'danger'
-                      }
-                      format="soft"
-                      hasDot
-                    >
-                      {c.recommendation === 'LANJUT' ? 'Lulus (Lanjut)' :
-                       c.recommendation === 'DIPERTIMBANGKAN' ? 'Dipertimbangkan' : 'Tidak Lulus'}
-                    </Badge>
-                  ) : (
-                    <span className="text-xs text-slate-400">Belum dinilai</span>
-                  )}
-                </TableCell>
-                <TableCell className="font-mono text-xs text-slate-500">{c.verifiedDate ?? '—'}</TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => navigate(`/asesor/scoring/${c.id}`)}
-                  >
-                    Detail
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>KANDIDAT</TableHead>
+                  <TableHead>PT MITRA</TableHead>
+                  <TableHead className="text-right">CAT (40%)</TableHead>
+                  <TableHead className="text-right">INTERVIEW (60%)</TableHead>
+                  <TableHead className="text-right">KOMPOSIT</TableHead>
+                  <TableHead>KALIBRASI</TableHead>
+                  <TableHead>REKOMENDASI</TableHead>
+                  <TableHead>TGL VERIFIKASI</TableHead>
+                  <TableHead className="text-right">AKSI</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-10 text-xs text-slate-500">
+                      Tidak ada data rekap kandidat pada filter ini.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-semibold text-sm text-ink">{c.name}</p>
+                          <p className="font-mono text-[11px] text-muted-slate">
+                            {c.id} • {c.statusLabel}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-slate-600 font-sans text-xs">
+                        <span className="font-medium text-ink">{c.pt}</span>
+                        <span className="block text-[11px] text-muted-slate">{c.program}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-sans font-semibold tabular-nums text-xs text-slate-700">
+                        {c.catScore ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-right font-sans font-semibold tabular-nums text-xs text-slate-700">
+                        {c.interviewScore ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-right font-heading text-sm font-bold tabular-nums text-primary-navy">
+                        {c.compositeScore ?? '—'}
+                      </TableCell>
+                      <TableCell>
+                        {c.calibrationStatus === 'perlu_kalibrasi' ? (
+                          <Badge variant="danger" format="soft">
+                            Perlu Kalibrasi ({c.secondaryInterviewScore ?? '-'})
+                          </Badge>
+                        ) : c.calibrationStatus === 'selaras' ? (
+                          <Badge variant="success" format="soft">
+                            Selaras ({c.secondaryInterviewScore ?? '-'})
+                          </Badge>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">Penilai Tunggal</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {c.recommendation && c.recommendation !== 'BELUM DINILAI' ? (
+                          <Badge
+                            variant={
+                              c.recommendation === 'LANJUT'
+                                ? 'success'
+                                : c.recommendation === 'DIPERTIMBANGKAN'
+                                  ? 'warning'
+                                  : 'danger'
+                            }
+                            format="soft"
+                            hasDot
+                          >
+                            {c.recommendation === 'LANJUT'
+                              ? 'Lulus (Lanjut)'
+                              : c.recommendation === 'DIPERTIMBANGKAN'
+                                ? 'Dipertimbangkan'
+                                : 'Tidak Lulus'}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-slate-400">Belum dinilai</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-sans tabular-nums text-xs text-slate-500">
+                        {c.verifiedDate ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => navigate(`/asesor/scoring/${c.id}`)}
+                          className="cursor-pointer"
+                        >
+                          Detail
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
     </AsesorLayout>
   );

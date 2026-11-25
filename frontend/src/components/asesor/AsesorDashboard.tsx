@@ -116,25 +116,25 @@ export default function AsesorDashboard() {
 
   return (
     <AsesorLayout activeTab="dashboard">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8 antialiased">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
         {/* ─── Hero Assessor Header: Asymmetric 8 / 4 Split ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col justify-between">
+          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-xs flex flex-col justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-soft-blue text-primary-navy border border-accent-border text-xs font-bold">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-soft-blue text-primary-navy border border-accent-border text-xs font-semibold">
                   <Scale className="w-3.5 h-3.5 text-blue-accent" />
-                  Dewan Asesor &amp; Kalibrasi LHA (Ava AI-First)
+                  Dewan Asesor &amp; Kalibrasi LHA
                 </span>
-                <span className="font-mono text-xs text-muted-slate bg-exam-bg px-2.5 py-1 rounded-md border border-slate-200">
+                <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200 tabular-nums">
                   Sampel Kalibrasi: {calibrationSampleCount} Sesi
                 </span>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-extrabold font-heading tracking-tight text-ink">
+              <h1 className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-ink">
                 Panel Review Asesor: {activeAsesor.name || 'Asesor'}
               </h1>
-              <p className="text-xs sm:text-sm text-muted-slate mt-2 flex flex-wrap items-center gap-2">
+              <p className="text-xs sm:text-sm text-muted-slate mt-1.5 flex flex-wrap items-center gap-2">
                 <Building2 className="w-4 h-4 text-slate-400" />
                 <span>
                   Instansi PT:{' '}
@@ -161,15 +161,15 @@ export default function AsesorDashboard() {
                   className="text-left p-4 rounded-xl bg-amber-50/80 hover:bg-amber-100/70 border border-amber-200 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
-                      SIAP DIREVIEW ASESOR
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-800">
+                      Siap Direview Asesor
                     </span>
                     <ArrowRight className="w-4 h-4 text-amber-700 group-hover:translate-x-0.5 transition-transform" />
                   </div>
-                  <p className="text-xl font-extrabold font-mono text-amber-950 mt-1">
+                  <p className="font-heading text-lg sm:text-xl font-bold tabular-nums text-amber-950 mt-1">
                     {waitingReviewCount} Sesi Menunggu Review
                   </p>
-                  <p className="text-[11px] text-amber-800 mt-0.5">
+                  <p className="text-xs text-amber-800 mt-0.5">
                     Klik untuk membuka antrean hasil wawancara Ava AI
                   </p>
                 </button>
@@ -180,15 +180,15 @@ export default function AsesorDashboard() {
                   className="text-left p-4 rounded-xl bg-rose-50/70 hover:bg-rose-100/70 border border-rose-200 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800">
-                      ANOMALI / KENDALA TEKNIS
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-800">
+                      Anomali / Kendala Teknis
                     </span>
                     <ArrowRight className="w-4 h-4 text-rose-700 group-hover:translate-x-0.5 transition-transform" />
                   </div>
-                  <p className="text-xl font-extrabold font-mono text-rose-950 mt-1">
+                  <p className="font-heading text-lg sm:text-xl font-bold tabular-nums text-rose-950 mt-1">
                     {needsActionCount} Sesi Perlu Tindakan
                   </p>
-                  <p className="text-[11px] text-rose-800 mt-0.5">
+                  <p className="text-xs text-rose-800 mt-0.5">
                     Mic gagal, koneksi putus, atau risiko proctoring tinggi
                   </p>
                 </button>
@@ -220,11 +220,11 @@ export default function AsesorDashboard() {
           </div>
 
           {/* Sisi Kanan (4 kolom): Sesi Prioritas Berikutnya */}
-          <div className="lg:col-span-4 bg-exam-bg rounded-2xl border border-slate-200 p-6 flex flex-col justify-between shadow-2xs">
+          <div className="lg:col-span-4 bg-slate-50/90 rounded-2xl border border-slate-200/90 p-6 flex flex-col justify-between shadow-xs">
             <div>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-primary-navy bg-white px-2.5 py-0.5 rounded border border-slate-200">
-                  PRIORITAS REVIEW
+                <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-primary-navy bg-white px-2.5 py-0.5 rounded-md border border-slate-200">
+                  Prioritas Review
                 </span>
                 <Badge variant={primaryStageMeta.badgeVariant} format="soft">
                   {primaryStageMeta.label}
@@ -298,14 +298,14 @@ export default function AsesorDashboard() {
 
         {/* ─── Asymmetric 8 / 4 Split: Review Queue & Audit Action Center ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-5">
+          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="font-heading font-extrabold text-lg text-ink">
+                <h2 className="font-heading font-bold text-base sm:text-lg text-ink">
                   Daftar Sesi Review Prioritas
                 </h2>
                 <p className="text-xs text-muted-slate mt-0.5">
-                  Diurutkan otomatis: Perlu Tindakan &rarr; Menunggu Review &rarr; Direview &rarr; Finalisasi &rarr; Terbit
+                  Urutan prioritas: Perlu Tindakan → Menunggu Review → Direview → Finalisasi → Terbit
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -336,7 +336,8 @@ export default function AsesorDashboard() {
               </div>
             </div>
 
-            <Table>
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>KANDIDAT</TableHead>
@@ -401,21 +402,22 @@ export default function AsesorDashboard() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </div>
 
           <div className="lg:col-span-4 space-y-4">
             {/* Card 1: Penilaian & Kalibrasi */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-muted-slate uppercase tracking-wider">
-                  FINALISASI &amp; E-SIGN LHA
+                <span className="text-[11px] font-semibold text-muted-slate uppercase tracking-wider">
+                  Finalisasi &amp; E-Sign LHA
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
                   <ClipboardCheck className="w-4 h-4" />
                 </div>
               </div>
               <div>
-                <p className="font-mono text-2xl font-bold text-ink">{readyToSignCount} Berkas Review</p>
+                <p className="font-heading text-2xl font-bold tabular-nums text-ink">{readyToSignCount} Berkas Review</p>
                 <p className="text-xs text-muted-slate mt-0.5">
                   Direview / siap difinalisasi &amp; tanda tangan elektronik LHA
                 </p>
@@ -432,17 +434,17 @@ export default function AsesorDashboard() {
             </div>
 
             {/* Card 2: AI Proctoring Review */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-muted-slate uppercase tracking-wider">
-                  INBOX FLAG PROCTORING
+                <span className="text-[11px] font-semibold text-muted-slate uppercase tracking-wider">
+                  Inbox Flag Proctoring
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-red-50 text-error-red flex items-center justify-center">
                   <ShieldAlert className="w-4 h-4" />
                 </div>
               </div>
               <div>
-                <p className="font-mono text-2xl font-bold text-ink">{proctoringFindings} Event AI</p>
+                <p className="font-heading text-2xl font-bold tabular-nums text-ink">{proctoringFindings} Event AI</p>
                 <p className="text-xs text-muted-slate mt-0.5">
                   {proctoringCandidateCount} kandidat perlu verifikasi snapshot bukti
                 </p>

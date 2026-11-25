@@ -126,7 +126,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           label: 'Antrean Review',
           path: '/asesor/interview-queue',
           icon: Users,
-          badge: loadingStats ? undefined : `${waitingReviewCandidates.length} Review`
+          badge: loadingStats ? undefined : String(waitingReviewCandidates.length)
         },
         {
           id: 'console',
@@ -140,7 +140,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           label: 'Review Proctoring',
           path: '/asesor/proctoring',
           icon: ShieldAlert,
-          badge: loadingStats ? undefined : `${totalProctoringEvents} Flag`
+          badge: loadingStats ? undefined : String(totalProctoringEvents)
         },
         { id: 'scoring', label: 'Penilaian & LHA', path: '/asesor/scoring', icon: ClipboardCheck, badge: 'E-Sign' },
         { id: 'rekap', label: 'Rekap Program', path: '/asesor/rekap', icon: FileSpreadsheet },
@@ -215,7 +215,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                   alt="RIGHT Assessment Platform"
                   className="h-9 w-auto max-w-[165px] object-contain group-hover:opacity-90 transition-opacity"
                 />
-                <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
+                <span className="text-[10px] font-sans font-bold uppercase tracking-wide bg-amber-50 text-amber-900 px-2 py-0.5 rounded-md border border-amber-200 shrink-0">
                   Asesor
                 </span>
               </div>
@@ -262,7 +262,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                 <p className="text-sm font-bold text-slate-900 truncate leading-tight">
                   {activeAsesor.name}
                 </p>
-                <p className="text-xs text-slate-500 truncate font-mono mt-0.5">
+                <p className="text-xs font-sans text-slate-500 truncate mt-0.5">
                   {activeAsesor.companyName || 'Asesor Evaluator'}
                 </p>
               </div>
@@ -275,7 +275,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           {navGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-1.5">
               {!isCollapsed && (
-                <div className="px-3 pt-1 text-xs font-bold tracking-wider text-slate-400 uppercase font-mono">
+                <div className="px-3 pt-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase font-sans">
                   {group.group}
                 </div>
               )}
@@ -296,15 +296,15 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                       }
                       setMobileDrawerOpen(false);
                     }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all cursor-pointer relative group ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all cursor-pointer relative group ${
                       isActive
-                        ? 'bg-amber-50 text-amber-950 font-bold shadow-2xs border border-amber-200'
+                        ? 'bg-amber-50 text-amber-950 font-semibold shadow-2xs border border-amber-200'
                         : 'text-slate-600 hover:text-ink hover:bg-slate-100'
                     } ${isCollapsed ? 'justify-center px-0' : ''}`}
                     title={isCollapsed ? item.label : undefined}
                   >
                     <Icon
-                      className={`w-4.5 h-4.5 shrink-0 transition-colors ${
+                      className={`w-4 h-4 shrink-0 transition-colors ${
                         isActive ? 'text-amber-700' : 'text-slate-400 group-hover:text-slate-600'
                       }`}
                     />
@@ -314,7 +314,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                         <span className="truncate flex-1 text-left">{item.label}</span>
                         {'badge' in item && item.badge && (
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full font-bold shrink-0 ${
+                            className={`text-[11px] px-2 py-0.5 rounded-full font-semibold tabular-nums shrink-0 ${
                               isActive
                                 ? 'bg-amber-900 text-white'
                                 : 'bg-slate-100 text-slate-600 border border-slate-200'
@@ -435,7 +435,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                     </p>
                     <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
                   </div>
-                  <p className="text-xs text-slate-500 font-mono mt-0.5 truncate max-w-[170px]">
+                  <p className="text-xs font-sans text-slate-500 mt-0.5 truncate max-w-[170px]">
                     {activeAsesor.companyName || 'Asesor Evaluator'}
                   </p>
                 </div>

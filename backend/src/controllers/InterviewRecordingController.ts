@@ -6,10 +6,10 @@ import crypto from 'crypto';
 import { type AuthRequest } from '../middleware/auth';
 import { isCandidateInAssessorScope, resolveAssessorScopeContext } from '../middleware/tenant';
 import {
-  buildAiCompetenciesFromData,
   getAiReviewRecord,
   isDeterministicCalibrationSample,
   parseTimestampedTranscript,
+  resolveAiCompetenciesWithTranscript,
   saveAiReviewRecord
 } from '../services/reviewWorkflowService';
 
@@ -125,13 +125,14 @@ export const saveInterviewTranscript = async (req: AuthRequest, res: Response) =
           ? 'Jumlah respons kandidat pada transkrip sangat minim (< 2 giliran bicara).'
           : null;
 
-    const aiCompetencies =
-      Array.isArray(req.body.aiCompetencies) && req.body.aiCompetencies.length > 0
-        ? req.body.aiCompetencies
-        : buildAiCompetenciesFromData({
-            transcript,
-            overallScore: aiScoreNum
-          });
+    const aiCompetencies = resolveAiCompetenciesWithTranscript({
+      existing:
+        Array.isArray(req.body.aiCompetencies) && req.body.aiCompetencies.length > 0
+          ? req.body.aiCompetencies
+          : null,
+      transcript,
+      overallScore: aiScoreNum
+    });
 
     await saveAiReviewRecord({
       candidateCode: candidateKey,

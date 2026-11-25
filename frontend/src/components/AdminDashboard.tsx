@@ -64,7 +64,7 @@ interface Experience {
 
 export interface CompositeEvaluation {
   compositeScore: number;
-  recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED';
+  recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED' | 'BELUM DINILAI';
   cvContribution: number;
   interviewContribution: number;
   integrityPenalty: number;
@@ -217,6 +217,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [allApplicants, setAllApplicants] = useState<Applicant[]>([]);
+  const [jobsCatalogCount, setJobsCatalogCount] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
@@ -331,11 +332,17 @@ export default function AdminDashboard() {
     try {
       const token = localStorage.getItem('adminToken');
       if (!token) return;
-      const response = await axios.get('/api/admin/applicants', {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { limit: 100 }
-      });
-      setAllApplicants(response.data.data);
+      const [appRes, jobsRes] = await Promise.all([
+        axios.get('/api/admin/applicants', {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { limit: 500 }
+        }),
+        axios.get('/api/jobs', { headers: { Authorization: `Bearer ${token}` } }).catch(() => null)
+      ]);
+      setAllApplicants(appRes.data.data || []);
+      if (Array.isArray(jobsRes?.data?.data)) {
+        setJobsCatalogCount(jobsRes.data.data.length);
+      }
     } catch (error) {
       console.error('Failed to fetch all applicants:', error);
     }
@@ -759,7 +766,8 @@ export default function AdminDashboard() {
       'STRONG HIRE': { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0' },
       'RECOMMENDED HIRE': { bg: '#ecfeff', text: '#0e7490', border: '#a5f3fc' },
       'CONSIDER': { bg: '#fffbeb', text: '#b45309', border: '#fde68a' },
-      'NOT RECOMMENDED': { bg: '#fff1f2', text: '#be123c', border: '#fecdd3' }
+      'NOT RECOMMENDED': { bg: '#fff1f2', text: '#be123c', border: '#fecdd3' },
+      'BELUM DINILAI': { bg: '#f8fafc', text: '#475569', border: '#cbd5e1' }
     };
     const activeBadge = recColors[recommendation] || recColors['CONSIDER'];
 
@@ -905,15 +913,34 @@ ${app.interviewResult ? `
   };
 
   const dashboardApplicants = allApplicants.length > 0 ? allApplicants : applicants;
-  const activeProgramCount = new Set(
-    dashboardApplicants.map((applicant) => applicant.job?.title || applicant.appliedPosition).filter(Boolean)
-  ).size;
+  const activeApplicantTotal = allApplicants.length > 0 ? allApplicants.length : total;
+  const activeProgramCount =
+    jobsCatalogCount ??
+    new Set(
+      dashboardApplicants.map((applicant) => applicant.job?.title || applicant.appliedPosition).filter(Boolean)
+    ).size;
   const completedInterviewCount = dashboardApplicants.filter((applicant) =>
     ['completed', 'scored'].includes(applicant.interviewStatus)
   ).length;
   const pendingReviewCount = dashboardApplicants.filter(
-    (applicant) => applicant.screeningStatus === 'pending' || !applicant.screeningStatus
+    (applicant) =>
+      applicant.interviewStatus === 'completed' &&
+      (applicant.interviewScore == null || applicant.interviewScore === 0)
   ).length;
+  const passRatePercent = useMemo(() => {
+    const evaluated = dashboardApplicants.filter(
+      (a) =>
+        a.compositeEvaluation?.recommendation &&
+        a.compositeEvaluation.recommendation !== 'BELUM DINILAI'
+    );
+    if (evaluated.length === 0) return 0;
+    const passed = evaluated.filter((a) =>
+      ['STRONG HIRE', 'RECOMMENDED HIRE', 'CONSIDER'].includes(
+        a.compositeEvaluation?.recommendation || ''
+      )
+    ).length;
+    return Math.round((passed / evaluated.length) * 100);
+  }, [dashboardApplicants]);
 
   const trendMonths = useMemo(() => {
     const now = new Date();
@@ -1192,7 +1219,7 @@ ${app.interviewResult ? `
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 <AdminStatCard
                   label="Peserta aktif"
-                  value={total}
+                  value={activeApplicantTotal}
                   subtext="Total kandidat terdaftar"
                   badge="Real-time"
                   badgeVariant="info"
@@ -1211,16 +1238,16 @@ ${app.interviewResult ? `
                 <AdminStatCard
                   label="Wawancara selesai"
                   value={completedInterviewCount}
-                  subtext="Sesi telah dinilai asesor"
-                  badge="BARS Scored"
+                  subtext="Total sesi wawancara AI"
+                  badge="Ava AI"
                   badgeVariant="neutral"
                   icon={Brain}
                   loading={loading && applicants.length === 0}
                 />
                 <AdminStatCard
-                  label="Menunggu review"
+                  label="Menunggu skoring"
                   value={pendingReviewCount}
-                  subtext="Perlu verifikasi admin"
+                  subtext="Wawancara belum dinilai AI"
                   badge="Prioritas"
                   badgeVariant="warning"
                   icon={Clock}
@@ -1320,11 +1347,11 @@ ${app.interviewResult ? `
                   <div className="pt-4 mt-3 border-t border-[#E2E8F0] flex flex-wrap items-center gap-5 text-xs text-[#64748B]">
                     <span className="inline-flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB]" />
-                      <span>Sesi terdaftar: <strong className="font-mono text-[#0F172A] tabular-nums">{total}</strong></span>
+                      <span>Sesi terdaftar: <strong className="font-mono text-[#0F172A] tabular-nums">{activeApplicantTotal}</strong></span>
                     </span>
                     <span className="inline-flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-[#16A34A]" />
-                      <span>Tingkat kelulusan: <strong className="font-mono text-[#0F172A] tabular-nums">83%</strong></span>
+                      <span>Tingkat kelulusan: <strong className="font-mono text-[#0F172A] tabular-nums">{passRatePercent}%</strong></span>
                     </span>
                   </div>
                 </div>
@@ -2195,7 +2222,7 @@ ${app.interviewResult ? `
                       <p className="text-[10px] text-slate-500 uppercase font-semibold">Dikumpulkan</p>
                       <p className="text-xs font-semibold text-slate-800 mt-1">
                         {selectedApplicant.examAttempt.submittedAt
-                          ? new Date(selectedApplicant.examAttempt.submittedAt).toLocaleString('id-ID')
+                          ? `${new Date(selectedApplicant.examAttempt.submittedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB`
                           : '-'}
                       </p>
                     </div>

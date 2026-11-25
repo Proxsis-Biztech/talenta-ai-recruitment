@@ -28,6 +28,7 @@ import {
 import {
   getAiReviewRecord,
   isDeterministicCalibrationSample,
+  loadAiReviewRecordsMap,
   saveAiReviewRecord
 } from '../services/reviewWorkflowService';
 
@@ -765,16 +766,28 @@ export const getCalibrationOverview = async (req: AuthRequest, res: Response) =>
   try {
     const tenantId = tenantForRequest(req);
     const allowedCodes = await candidateCodesForTenant(req, tenantId);
-    const [scores, calibrations] = await Promise.all([
+    const [scores, calibrations, reviewMap, sampleUsers] = await Promise.all([
       prisma.assessorScore.findMany({
         where: allowedCodes ? { candidateCode: { in: allowedCodes } } : {},
         include: { assessor: { select: { name: true } } },
         orderBy: { updatedAt: 'desc' }
       }),
-      listCalibrationRecords()
+      listCalibrationRecords(),
+      loadAiReviewRecordsMap(),
+      prisma.portalUser.findMany({
+        where: {
+          role: 'peserta',
+          interviewStatus: { in: ['completed', 'scored'] },
+          ...(allowedCodes ? { candidateCode: { in: allowedCodes } } : {})
+        },
+        select: { candidateCode: true, name: true, assessmentTitle: true },
+        orderBy: { interviewCompletedAt: 'desc' },
+        take: 40
+      })
     ]);
 
     const seenKeys = new Set<string>();
+    const seenCodes = new Set<string>();
     const rows: Array<Record<string, unknown>> = [];
 
     for (const score of scores) {
@@ -787,6 +800,7 @@ export const getCalibrationOverview = async (req: AuthRequest, res: Response) =>
         calibrations.find((c) => c.candidateCode.toUpperCase() === score.candidateCode.toUpperCase()) ||
         null;
       seenKeys.add(`${score.candidateCode.toUpperCase()}::${score.programTitle.toUpperCase()}`);
+      seenCodes.add(score.candidateCode.toUpperCase());
       const primarySerialized = serializeScore(score);
       const metrics = computeCalibrationMetrics(
         {
@@ -813,6 +827,7 @@ export const getCalibrationOverview = async (req: AuthRequest, res: Response) =>
       const key = `${cal.candidateCode.toUpperCase()}::${cal.programTitle.toUpperCase()}`;
       if (seenKeys.has(key)) continue;
       if (allowedCodes && !allowedCodes.includes(cal.candidateCode)) continue;
+      seenCodes.add(cal.candidateCode.toUpperCase());
       const metrics = computeCalibrationMetrics(null, cal.secondary);
       rows.push({
         candidateCode: cal.candidateCode,
@@ -823,6 +838,32 @@ export const getCalibrationOverview = async (req: AuthRequest, res: Response) =>
         secondary: cal.secondary,
         consensus: cal.consensus || null,
         metrics
+      });
+    }
+
+    for (const user of sampleUsers) {
+      const codeKey = String(user.candidateCode || '').toUpperCase();
+      if (!codeKey || seenCodes.has(codeKey)) continue;
+      const reviewRec = reviewMap.get(codeKey);
+      const isSample = reviewRec?.isCalibrationSample ?? isDeterministicCalibrationSample(codeKey);
+      if (!isSample) continue;
+      seenCodes.add(codeKey);
+      rows.push({
+        candidateCode: user.candidateCode || codeKey,
+        candidateName: user.name,
+        programTitle: user.assessmentTitle || 'Program Asesmen',
+        lhaStatus: 'calibration_sample',
+        primary: null,
+        secondary: null,
+        consensus: null,
+        metrics: {
+          status: 'menunggu_penilai_1',
+          maxCompetencyDelta: 0,
+          interviewDelta: 0,
+          compositeDelta: 0,
+          recommendationMatch: true,
+          competencyComparison: []
+        }
       });
     }
 

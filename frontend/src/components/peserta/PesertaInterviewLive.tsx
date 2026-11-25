@@ -116,6 +116,9 @@ export default function PesertaInterviewLive() {
   const speechRecognitionRef = useRef<any>(null);
   const isListeningRef = useRef<boolean>(false);
   const liveTurnHandledRef = useRef(0);
+  const greetingStartedRef = useRef(false);
+  const isSavingInterviewRef = useRef(false);
+  const [isEndingSession, setIsEndingSession] = useState(false);
 
   // Live real-time speech preview & UI simplicity state
   const [liveInterimText, setLiveInterimText] = useState('');
@@ -229,21 +232,22 @@ export default function PesertaInterviewLive() {
     }
   ]);
 
-  // Real-time dialogue messages
-  const [messages, setMessages] = useState<
-    { sender: 'Gemini Live' | 'Kandidat (Anda)' | 'Sistem'; text: string; time: string }[]
-  >(() => [
+  // Real-time dialogue messages + synchronous ref agar transkrip tersimpan selalu mutakhir
+  type DialogueMessage = { sender: 'Gemini Live' | 'Kandidat (Anda)' | 'Sistem'; text: string; time: string };
+  const initialDialogueMessages: DialogueMessage[] = [
     {
       sender: 'Sistem',
-      text: 'Sesi live interview dimulai. Evaluasi berbasis Google Gemini 2.5 Flash Live Multimodal dan Standar BARS aktif.',
-      time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-    },
-    {
-      sender: 'Gemini Live',
-      text: `Halo ${sessionUser.name || 'Farhan Pratama'}, selamat datang di sesi wawancara AI Right untuk ${program.companyName || 'PT Telkom Indonesia Tbk'}. Saya Ava, AI Interviewer Anda (didukung Gemini Live Engine). Mari kita mulai dengan pertanyaan pertama terkait arsitektur sistem.`,
+      text: 'Sesi live interview dimulai. Evaluasi berbasis Google Gemini Live Engine dan Standar BARS aktif. Klik "Mulai Jawab Sekarang" untuk mendengarkan sapaan & Soal #1 dari Ava.',
       time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     }
-  ]);
+  ];
+  const [messages, setMessages] = useState<DialogueMessage[]>(() => initialDialogueMessages);
+  const messagesRef = useRef<DialogueMessage[]>(initialDialogueMessages);
+  const updateMessages = (updater: (prev: DialogueMessage[]) => DialogueMessage[]) => {
+    const next = updater(messagesRef.current);
+    messagesRef.current = next;
+    setMessages(next);
+  };
 
   // Video element ref for real webcam feed
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -695,7 +699,7 @@ export default function PesertaInterviewLive() {
             // Filter out system thinking / markdown meta headers if any
             const cleanText = raw.replace(/\*\*.*?\*\*/g, '').trim();
             if (cleanText) {
-              setMessages((prev) => {
+              updateMessages((prev) => {
                 const last = prev[prev.length - 1];
                 if (last && last.sender === 'Gemini Live') {
                   return [...prev.slice(0, -1), { ...last, text: last.text + ' ' + cleanText }];
@@ -715,7 +719,7 @@ export default function PesertaInterviewLive() {
             markMicAnswerCaptured();
             setUserAnswer((prev) => (prev ? `${prev} ${data.text}` : data.text));
             // Catat suara peserta ke panel transkrip (gabungkan dengan segmen kandidat sebelumnya)
-            setMessages((prev) => {
+            updateMessages((prev) => {
               const last = prev[prev.length - 1];
               if (last && last.sender === 'Kandidat (Anda)') {
                 return [...prev.slice(0, -1), { ...last, text: `${last.text} ${data.text}` }];
@@ -875,15 +879,18 @@ export default function PesertaInterviewLive() {
     }
   };
 
-  // Initial Auto-Greeting from AI Interviewer Ava
+  // Initial Auto-Greeting from AI Interviewer Ava (hanya 1x & konsisten dengan Soal #1 aktual)
   const startInitialGreeting = async () => {
+    if (greetingStartedRef.current) return;
+    greetingStartedRef.current = true;
     setHasStartedInterview(true);
     questionActivatedAtRef.current = Date.now();
     getOrCreateAudioContext();
 
-    const greetingText = `Halo ${sessionUser.name || 'Farhan Pratama'}, saya Ava. Mari mulai wawancara untuk posisi ${program.title}. ${questions[0].question}`;
+    const firstQ = questions[0];
+    const greetingText = `Halo ${sessionUser.name || 'Kandidat'}, saya Ava AI Interviewer untuk ${program.title}. Mari kita mulai dengan Pertanyaan #1 (${firstQ.competency}): ${firstQ.question}`;
 
-    setMessages((prev) => [
+    updateMessages((prev) => [
       ...prev,
       {
         sender: 'Gemini Live',
@@ -892,16 +899,10 @@ export default function PesertaInterviewLive() {
       }
     ]);
 
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ type: 'text', text: greetingText }));
-      setProctorCustomMessage('Ava sedang menyapa. Mikrofon akan aktif setelah Ava selesai berbicara.');
-      return;
-    }
-
     await speakTextWithNeuralVoice(greetingText, () => {
-      setProctorCustomMessage('Ava selesai membacakan pertanyaan. Giliran Anda menjawab. Silakan berbicara...');
-      if (micOn) {
-        handleStartListening();
+      setProctorCustomMessage('Ava selesai membacakan Pertanyaan #1. Giliran Anda menjawab melalui mikrofon atau input teks cadangan.');
+      if (micOnRef.current) {
+        void handleStartListening();
       }
     });
   };
@@ -1330,11 +1331,16 @@ export default function PesertaInterviewLive() {
   const activeQuestion = questions[currentQIndex] || questions[0];
 
   // Submit Answer to LangChain & Gemini Live with BARS Rubrics
-  const submitAnswerTurn = async (answerText: string, options?: { silent?: boolean }) => {
-    if (!micAnswerCapturedRef.current) {
-      const warning = 'Silakan jawab melalui mikrofon terlebih dahulu. Pertanyaan berikutnya baru aktif setelah suara Anda terekam.';
+  const submitAnswerTurn = async (
+    answerText: string,
+    options?: { silent?: boolean; isManualText?: boolean }
+  ) => {
+    const trimmedInput = answerText.trim();
+    if (!options?.isManualText && !micAnswerCapturedRef.current) {
+      const warning =
+        'Silakan jawab melalui mikrofon terlebih dahulu, atau gunakan kolom jawaban teks manual jika mikrofon bermasalah.';
       setProctorCustomMessage(warning);
-      setMessages((prev) => [
+      updateMessages((prev) => [
         ...prev,
         {
           sender: 'Sistem',
@@ -1345,7 +1351,21 @@ export default function PesertaInterviewLive() {
       return;
     }
 
-    const textToSubmit = answerText.trim() || activeQuestion.sampleAnswer || 'Saya telah menjelaskan solusi arsitektur saya secara langsung.';
+    if (options?.isManualText && trimmedInput.length < 2) {
+      setProctorCustomMessage('Mohon isi jawaban teks terlebih dahulu sebelum mengirim.');
+      return;
+    }
+
+    if (options?.isManualText && !firstSpeechAtRef.current) {
+      firstSpeechAtRef.current = Date.now();
+    }
+    if (!hasStartedInterviewRef.current) {
+      hasStartedInterviewRef.current = true;
+      setHasStartedInterview(true);
+    }
+
+    const textToSubmit =
+      trimmedInput || activeQuestion.sampleAnswer || 'Saya telah menjelaskan solusi arsitektur saya secara langsung.';
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
     // Evaluate behavioral timing & reading cadence signals (neutral signals for assessor review)
@@ -1355,14 +1375,14 @@ export default function PesertaInterviewLive() {
       firstResponseAt: firstSpeechAtRef.current,
       submittedAt: Date.now(),
       chunkTimestamps: speechChunkTimesRef.current,
-      wasTypedInput: showManualInput && speechChunkTimesRef.current.length === 0
+      wasTypedInput: Boolean(options?.isManualText) || (showManualInput && speechChunkTimesRef.current.length === 0)
     });
     for (const sig of behaviorSignals) {
       pushProctorEvent(sig, 15000);
     }
 
-    // Append candidate answer to messages (lewati jika suara yang sama sudah tercatat dari transkripsi live)
-    setMessages((prev) => {
+    // Append candidate answer to messages & synchronous ref (lewati jika suara yang sama sudah tercatat dari transkripsi live)
+    updateMessages((prev) => {
       const last = prev[prev.length - 1];
       if (last && last.sender === 'Kandidat (Anda)') {
         const spoken = normalizeTranscript(last.text);
@@ -1380,10 +1400,11 @@ export default function PesertaInterviewLive() {
     });
 
     setUserAnswer('');
+    setChatInput('');
     setLiveInterimText('');
     setIsAiAnalyzing(true);
     setProctorMood('verified');
-    setProctorCustomMessage('LangChain & Gemini sedang menganalisis respon...');
+    setProctorCustomMessage('Ava sedang menganalisis jawaban Anda...');
 
     const activeQ = questions[currentQIndex];
     const nextIdx = currentQIndex + 1;
@@ -1418,7 +1439,7 @@ export default function PesertaInterviewLive() {
         const reply = evalData.conversationalReply;
         // Mode real-time: balasan Ava sudah tercatat dari stream Gemini Live, jangan duplikasi di transkrip
         if (!options?.silent) {
-          setMessages((prev) => [
+          updateMessages((prev) => [
             ...prev,
             {
               sender: 'Gemini Live',
@@ -1468,7 +1489,7 @@ export default function PesertaInterviewLive() {
       const geminiReply = evalData.conversationalReply;
       // Mode real-time: balasan Ava sudah tercatat dari stream Gemini Live, jangan duplikasi di transkrip
       if (!options?.silent) {
-        setMessages((prev) => [
+        updateMessages((prev) => [
           ...prev,
           {
             sender: 'Gemini Live',
@@ -1482,15 +1503,15 @@ export default function PesertaInterviewLive() {
       if (!options?.silent && evalData.audioBase64 && ttsEnabled) {
         playAiAudio(evalData.audioBase64, () => {
           if (nextIdx < updatedQuestions.length) {
-            setProctorCustomMessage(`Pertanyaan #${nextIdx + 1} aktif. Giliran Anda berbicara.`);
-            if (handsFreeMode && micOn) {
+            setProctorCustomMessage(`Pertanyaan #${nextIdx + 1} aktif. Giliran Anda menjawab.`);
+            if (handsFreeMode && micOn && !options?.isManualText) {
               handleStartListening();
             }
           }
         });
       } else if (!options?.silent && ttsEnabled) {
         speakTextWithNeuralVoice(geminiReply, () => {
-          if (nextIdx < updatedQuestions.length && handsFreeMode && micOn) {
+          if (nextIdx < updatedQuestions.length && handsFreeMode && micOn && !options?.isManualText) {
             handleStartListening();
           }
         });
@@ -1498,7 +1519,7 @@ export default function PesertaInterviewLive() {
 
       // If finished all questions, save interview!
       if (nextIdx >= updatedQuestions.length) {
-        saveInterviewResults(updatedQuestions);
+        await saveInterviewResults(updatedQuestions);
       }
     } catch {
       setIsAiAnalyzing(false);
@@ -1515,13 +1536,13 @@ export default function PesertaInterviewLive() {
         resetMicAnswerCaptured();
         nextAiReply = `Terima kasih ${sessionUser.name}. Jawaban Anda telah diterima dan akan diverifikasi asesor. Sekarang mari kita lanjut ke soal #${nextIdx + 1}: ${updatedQuestions[nextIdx].question}`;
       } else {
-        nextAiReply = `Luar biasa, ${sessionUser.name}. Seluruh 4 butir pertanyaan wawancara kompetensi telah selesai dijawab dengan sangat memuaskan.`;
+        nextAiReply = `Terima kasih, ${sessionUser.name}. Seluruh ${updatedQuestions.length} butir pertanyaan wawancara kompetensi telah selesai dijawab dan tersimpan.`;
         setIsCompletedModalOpen(true);
       }
 
       setQuestions(updatedQuestions);
       if (!options?.silent) {
-        setMessages((prev) => [
+        updateMessages((prev) => [
           ...prev,
           {
             sender: 'Gemini Live',
@@ -1533,14 +1554,14 @@ export default function PesertaInterviewLive() {
 
       if (ttsEnabled) {
         speakTextWithNeuralVoice(nextAiReply, () => {
-          if (nextIdx < updatedQuestions.length && micOn) {
+          if (nextIdx < updatedQuestions.length && micOn && !options?.isManualText) {
             handleStartListening();
           }
         });
       }
 
       if (nextIdx >= updatedQuestions.length) {
-        saveInterviewResults(updatedQuestions);
+        await saveInterviewResults(updatedQuestions);
       }
     }
   };
@@ -1573,13 +1594,24 @@ export default function PesertaInterviewLive() {
     }
   };
 
-  // Save Interview Results to Backend
+  // Save Interview Results to Backend (selalu membaca messagesRef.current agar jawaban terakhir ikut tersimpan)
   const saveInterviewResults = async (completedQs: QuestionItem[]) => {
+    if (isSavingInterviewRef.current) return;
+    isSavingInterviewRef.current = true;
     try {
+      // Flush chunk audio terakhir bila MediaRecorder masih aktif
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        } catch {}
+      }
+
+      const currentMessages = messagesRef.current;
       const totalScore = completedQs.reduce((acc, q) => acc + (q.score || 0), 0);
-      const avg = (totalScore / completedQs.length).toFixed(1);
-      const formattedTranscript = messages
-        .map((m) => `[${m.time}] ${m.sender}: ${m.text}`)
+      const avg = (totalScore / Math.max(1, completedQs.length)).toFixed(1);
+      const formattedTranscript = currentMessages
+        .map((m) => `[${m.time}] ${m.sender === 'Gemini Live' ? 'Ava AI' : m.sender}: ${m.text}`)
         .join('\n\n');
 
       await fetch('/api/interview/save', {
@@ -1588,7 +1620,7 @@ export default function PesertaInterviewLive() {
         body: JSON.stringify({
           email: (sessionUser as any).email || sessionUser.username || 'peserta@proxsis.com',
           transcript: formattedTranscript,
-          summary: `Wawancara AI LangChain & BARS selesai dengan skor rata-rata ${avg}/5.0. Kandidat mendemonstrasikan penguasaan kompetensi teknis yang tinggi.`,
+          summary: `Wawancara AI LangChain & BARS selesai dengan skor rata-rata ${avg}/5.0.`,
           score: Number(avg) * 20,
           proctor: [
             { type: 'face_verified', timestamp: new Date().toISOString() },
@@ -1600,7 +1632,7 @@ export default function PesertaInterviewLive() {
       const token = getPortalToken();
       if (token) {
         const durationSec = Math.max(1, Math.round((Date.now() - sessionStartedAtRef.current) / 1000));
-        const candidateMessages = messages.filter((m) =>
+        const candidateMessages = currentMessages.filter((m) =>
           m.sender.toLowerCase().includes('kandidat') || m.sender.toLowerCase().includes('anda')
         );
         const aiScoreVal = Math.round(Number(avg) * 20 * 10) / 10;
@@ -1613,7 +1645,7 @@ export default function PesertaInterviewLive() {
         const aiCompetenciesPayload = barsCompetencyDefs.map((comp, idx) => {
           const qItem = completedQs[idx % Math.max(1, completedQs.length)];
           const msgItem = candidateMessages[idx % Math.max(1, candidateMessages.length)];
-          const rating = qItem?.score ? Math.min(5, Math.max(1, Math.round(qItem.score))) : Math.min(5, Math.max(1, Math.round(Number(avg))));
+          const rating = qItem?.score ? Math.min(5, Math.max(1, Math.round(qItem.score))) : Math.min(5, Math.max(1, Math.round(Number(avg) || 1)));
           return {
             name: comp.name,
             weight: comp.weight,
@@ -1621,7 +1653,7 @@ export default function PesertaInterviewLive() {
             rationale:
               qItem?.aiFeedback ||
               `Skor otomatis Ava AI (${rating}/5) berdasarkan evaluasi fase wawancara "${qItem?.competency || comp.name}".`,
-            quote: msgItem?.text || 'Jawaban kandidat terekam pada sesi wawancara Ava AI.',
+            quote: msgItem?.text || '',
             timestamp: msgItem?.time || '--:--'
           };
         });
@@ -1661,25 +1693,31 @@ export default function PesertaInterviewLive() {
       }
     } catch (e) {
       console.warn('Save interview error:', e);
+    } finally {
+      isSavingInterviewRef.current = false;
     }
   };
 
-  // Chat send inside transcript drawer
-  const handleSendChatMessage = (e: React.FormEvent) => {
+  // Chat send inside transcript drawer — ikut mengevaluasi & membalas via Ava AI saat sesi berjalan
+  const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
+    const text = chatInput.trim();
+    if (!text || isAiAnalyzing) return;
 
-    setMessages((prev) => [
+    if (!isCompletedModalOpen && currentQIndex < questions.length) {
+      setChatInput('');
+      await submitAnswerTurn(text, { isManualText: true, silent: false });
+      return;
+    }
+
+    updateMessages((prev) => [
       ...prev,
       {
         sender: 'Kandidat (Anda)',
-        text: chatInput,
+        text,
         time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
       }
     ]);
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ type: 'text', text: chatInput.trim() }));
-    }
     setChatInput('');
   };
 
@@ -2156,15 +2194,18 @@ export default function PesertaInterviewLive() {
 
               {/* Leave */}
               <button
-                onClick={() => {
-                  void saveInterviewResults(questions);
+                type="button"
+                disabled={isEndingSession}
+                onClick={async () => {
+                  setIsEndingSession(true);
+                  await saveInterviewResults(questions);
                   navigate('/peserta/hasil');
                 }}
-                className="shrink-0 flex items-center gap-2 px-3 sm:px-4 h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] sm:text-xs font-bold shadow-sm transition-colors cursor-pointer"
+                className="shrink-0 flex items-center gap-2 px-3 sm:px-4 h-11 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-[11px] sm:text-xs font-bold shadow-sm transition-colors cursor-pointer"
                 title="Akhiri Sesi Wawancara"
               >
                 <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Akhiri</span>
+                <span className="hidden sm:inline">{isEndingSession ? 'Menyimpan...' : 'Akhiri'}</span>
               </button>
             </div>
           </div>
@@ -2303,11 +2344,11 @@ export default function PesertaInterviewLive() {
                     />
                     <Button
                       variant="primary"
-                      onClick={() => submitAnswerTurn(userAnswer)}
+                      onClick={() => void submitAnswerTurn(userAnswer, { isManualText: true, silent: false })}
                       disabled={!userAnswer.trim() || isAiAnalyzing || isTranscribing}
                       className="w-full py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <span>Kirim Jawaban Teks</span>
+                      <span>{isAiAnalyzing ? 'Menganalisis Jawaban...' : 'Kirim Jawaban Teks'}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Button>
                     {!micAnswerCaptured && (
@@ -2453,12 +2494,18 @@ export default function PesertaInterviewLive() {
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ketik catatan sesi wawancara..."
-                  className="flex-1 bg-slate-50 px-4 py-2.5 rounded-xl text-xs sm:text-sm outline-none text-slate-800 border border-slate-200 focus:border-primary-navy"
+                  disabled={isAiAnalyzing}
+                  placeholder={
+                    isCompletedModalOpen
+                      ? 'Tambahkan catatan penutup sesi...'
+                      : 'Ketik jawaban teks atau respons untuk Ava AI...'
+                  }
+                  className="flex-1 bg-slate-50 px-4 py-2.5 rounded-xl text-xs sm:text-sm outline-none text-slate-800 border border-slate-200 focus:border-primary-navy disabled:opacity-60"
                 />
                 <button
                   type="submit"
-                  className="p-2.5 rounded-xl bg-primary-navy text-white hover:bg-blue-700 cursor-pointer shadow-xs"
+                  disabled={!chatInput.trim() || isAiAnalyzing}
+                  className="p-2.5 rounded-xl bg-primary-navy text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   <Send className="w-4 h-4" />
                 </button>

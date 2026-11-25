@@ -75,6 +75,20 @@ const deriveCorrectAnswer = (question: any): unknown => {
   return options.find((option: any) => option.isCorrect)?.key ?? null;
 };
 
+const normalizeStoredOptions = (rawOptions: unknown) => {
+  if (!Array.isArray(rawOptions)) return [];
+  return rawOptions.map((opt: any, idx: number) => {
+    const key = String(opt?.key ?? String.fromCharCode(65 + idx));
+    const label = String(opt?.label ?? opt?.text ?? opt?.value ?? '');
+    return {
+      ...opt,
+      key,
+      label,
+      text: label
+    };
+  });
+};
+
 const mapQuestion = (question: any, index: number, programCode: string) => ({
   programCode,
   orderNo: index + 1,
@@ -83,7 +97,7 @@ const mapQuestion = (question: any, index: number, programCode: string) => ({
   difficulty: String(question.difficulty || 'Sedang'),
   text: String(question.text || question.question || ''),
   codeSnippet: question.codeSnippet ? String(question.codeSnippet) : null,
-  options: JSON.stringify(question.options || []),
+  options: JSON.stringify(normalizeStoredOptions(question.options)),
   matchingPairs: JSON.stringify(question.matchingPairs || []),
   correctAnswer: (() => {
     const answer = deriveCorrectAnswer(question);

@@ -56,7 +56,7 @@ interface Question {
   difficulty: 'Mudah' | 'Sedang' | 'Sulit';
   text: string;
   codeSnippet?: string;
-  options?: { key: string; label: string }[];
+  options?: { key: string; label?: string; text?: string; value?: string }[];
   matchingPairs?: { left: string; rightOptions: string[] }[];
   attachmentUrl?: string | null;
   attachmentName?: string | null;
@@ -197,6 +197,10 @@ export default function PesertaExamPlayer() {
   const [examReady, setExamReady] = useState(false);
   const [examError, setExamError] = useState('');
   const [isExamLocked, setIsExamLocked] = useState(false);
+  const isExamLockedRef = useRef(false);
+  useEffect(() => {
+    isExamLockedRef.current = isExamLocked;
+  }, [isExamLocked]);
   const [isExpiredStatus, setIsExpiredStatus] = useState(false);
   const [examExpiryPolicy, setExamExpiryPolicy] = useState<'auto_submit' | 'expired'>('auto_submit');
   const [submissionData, setSubmissionData] = useState<{
@@ -433,6 +437,7 @@ export default function PesertaExamPlayer() {
       checkShareScreen: false,
       snapshotIntervalMs: proctoringPreset === 'Ketat' ? 90000 : 180000,
       onViolation: (evt) => {
+        if (isExamLockedRef.current) return;
         setLatestViolation(evt);
         setViolations((prev) => {
           // Keep at most 12 embedded snapshots to stay well below payload limits
@@ -682,9 +687,17 @@ export default function PesertaExamPlayer() {
         integrityScore: response.data.integrityScore,
         submittedAt: response.data.submittedAt
       });
+      // Segera hentikan pengawasan & tutup dialog proctoring sebelum kunci ruang ujian dibuka
+      isExamLockedRef.current = true;
+      proctoringRef.current?.stop();
+      setViolationAlertOpen(false);
+      setLatestViolation(null);
       setIsExamLocked(true);
       setAutoSaveStatus('Jawaban tersimpan di server');
       setSummaryModalOpen(false);
+      if (document.fullscreenElement && document.exitFullscreen) {
+        void document.exitFullscreen().catch(() => {});
+      }
       setSubmitSuccessModalOpen(true);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409 && err.response.data?.status) {
@@ -1331,7 +1344,7 @@ export default function PesertaExamPlayer() {
                           {opt.key}
                         </span>
                         <span className={`flex-1 font-medium leading-relaxed ${optionTextClass} ${isSelected ? 'font-semibold text-primary-navy' : ''}`}>
-                          {opt.label}
+                          {opt.label || (opt as { text?: string; value?: string }).text || (opt as { value?: string }).value || '-'}
                         </span>
                       </button>
                     );
@@ -1375,7 +1388,7 @@ export default function PesertaExamPlayer() {
                           {isSelected ? <Check className="w-4 h-4" /> : opt.key}
                         </div>
                         <span className={`flex-1 font-medium leading-relaxed ${optionTextClass} ${isSelected ? 'font-semibold text-primary-navy' : ''}`}>
-                          {opt.label}
+                          {opt.label || (opt as { text?: string; value?: string }).text || (opt as { value?: string }).value || '-'}
                         </span>
                       </button>
                     );
@@ -1800,7 +1813,7 @@ export default function PesertaExamPlayer() {
           setIsExamLocked(true);
           navigate('/peserta/waiting-room');
         }}
-        title="Ujian CAT 40 Soal Berhasil Dikumpulkan!"
+        title={`Ujian CAT (${totalQuestions} Soal) Berhasil Dikumpulkan!`}
         size="md"
       >
         <div className="space-y-5 text-center p-2">
@@ -1857,7 +1870,7 @@ export default function PesertaExamPlayer() {
 
       {/* ─── MODAL PERINGATAN INTEGRITAS (Friendly, Calm, Reassuring) ─── */}
       <Modal
-        isOpen={violationAlertOpen}
+        isOpen={violationAlertOpen && !isExamLocked && !submitSuccessModalOpen}
         onClose={() => setViolationAlertOpen(false)}
         title="Pemberitahuan Sistem Pengawasan (Proctoring)"
       >

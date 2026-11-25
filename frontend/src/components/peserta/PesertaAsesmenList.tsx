@@ -1118,10 +1118,10 @@ export default function PesertaAsesmenList() {
                       </span>
                       <div className="min-w-0">
                         <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
-                          Sesi Wawancara (Asesor &amp; AI)
+                          Sesi Wawancara Ava AI
                         </h2>
                         <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-500 mt-0.5">
-                          <span>1 sesi • Live Asesor</span>
+                          <span>1 sesi • Pewawancara Ava AI</span>
                           <span>{isInterviewCompleted ? '1/1' : '0/1'} selesai</span>
                           <span className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden inline-block">
                             <span
@@ -1327,7 +1327,7 @@ export default function PesertaAsesmenList() {
                     Asesmen Saya
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-                    Daftar program asesmen resmi yang ditugaskan khusus kepada Anda. Masuk ke ruang asesmen untuk membaca master silabus, mengikuti ujian teknis (CAT &amp; Live Coding), dan sesi wawancara tatap muka bersama asesor.
+                    Daftar program asesmen resmi yang ditugaskan khusus kepada Anda. Masuk ke ruang asesmen untuk membaca master silabus, mengikuti ujian teknis (CAT &amp; Live Coding), dan sesi wawancara interaktif bersama Ava AI.
                   </p>
                 </div>
 

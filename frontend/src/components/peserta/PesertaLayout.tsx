@@ -284,8 +284,8 @@ export function PesertaLayout({ children, activeTab }: PesertaLayoutProps) {
 
   const pageTitleMap: Record<string, string> = {
     '/peserta/device-check': 'Uji Kesiapan Perangkat',
-    '/peserta/waiting-room': 'Ruang Tunggu Asesor',
-    '/peserta/interview': 'Wawancara Live Asesor',
+    '/peserta/waiting-room': 'Persiapan Wawancara AI',
+    '/peserta/interview': 'Wawancara Ava AI',
     '/peserta/hasil': 'Hasil & Nilai Akhir',
     '/peserta/profile': 'Profil Saya',
     '/peserta/asesmen': 'Asesmen Saya',

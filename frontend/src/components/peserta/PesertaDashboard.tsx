@@ -310,14 +310,14 @@ export default function PesertaDashboard() {
       },
       {
         id: 'interview',
-        title: 'Sesi Wawancara Tatap Muka Asesor',
+        title: 'Sesi Wawancara Ava AI',
         subtitle: isInterviewCompleted
-          ? `Selesai • ${interview.assessorName || 'Tim Asesor'}`
+          ? `Selesai • ${interview.assessorName || 'Ava AI & Review Asesor'}`
           : interview.assessorName
-            ? `Asesor: ${interview.assessorName} • ${
-                interview.scheduledAt ? formatDate(interview.scheduledAt) : 'Menunggu Jadwal'
+            ? `Review Asesor: ${interview.assessorName} • ${
+                interview.scheduledAt ? formatDate(interview.scheduledAt) : 'Siap Dimulai'
               }`
-            : 'Sesi tatap muka daring bersama Dewan Asesor',
+            : 'Wawancara interaktif bersama Ava AI (review asesor setelahnya)',
         category: 'Wawancara',
         status: isInterviewCompleted
           ? 'completed'
@@ -502,8 +502,8 @@ export default function PesertaDashboard() {
       if (isFuture(scheduled)) {
         list.push({
           id: 'ev-interview',
-          title: 'Wawancara Panel Asesor',
-          desc: interview.assessorName ? `Asesor: ${interview.assessorName}` : 'Sesi tatap muka daring',
+          title: 'Wawancara Ava AI',
+          desc: interview.assessorName ? `Review Asesor: ${interview.assessorName}` : 'Sesi wawancara AI & review asesor',
           dateLabel: formatDate(scheduled.toISOString()),
           durationLabel: interview.queuePosition ? `Antrean #${interview.queuePosition}` : 'Terjadwal',
           dotColor: 'bg-amber-400',

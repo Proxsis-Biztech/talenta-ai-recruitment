@@ -17,7 +17,7 @@ interface Applicant {
   interviewScore: number | null;
   compositeEvaluation?: {
     compositeScore: number;
-    recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED';
+    recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED' | 'BELUM DINILAI';
   };
 }
 
@@ -29,14 +29,15 @@ export default function AnalyticsView({ applicants }: AnalyticsViewProps) {
   // Aggregate Metrics
   const totalApplicants = applicants.length;
   
+  const hasScoredAi = (a: Applicant) =>
+    a.interviewStatus === 'scored' || (a.interviewScore != null && a.interviewScore > 0);
+
   const interviewedCount = useMemo(() => {
-    return applicants.filter(a => ['completed', 'scored'].includes(a.interviewStatus)).length;
+    return applicants.filter((a) => ['completed', 'scored'].includes(a.interviewStatus)).length;
   }, [applicants]);
 
   const scoredCount = useMemo(() => {
-    return applicants.filter(
-      a => ['completed', 'scored'].includes(a.interviewStatus) || (a.interviewScore != null && a.interviewScore > 0)
-    ).length;
+    return applicants.filter((a) => hasScoredAi(a)).length;
   }, [applicants]);
 
   const strongHireCount = useMemo(() => {

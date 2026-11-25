@@ -13,7 +13,7 @@ import {
   Scale
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
-import { Button, Badge, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
+import { Button, Badge, Modal, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui';
 import {
   fetchAssessorCandidates,
   submitAssessorSessionAction,
@@ -37,6 +37,12 @@ export default function AsesorQueueTable() {
   const [candidates, setCandidates] = useState<AssessorCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionBusyCode, setActionBusyCode] = useState<string | null>(null);
+  const [actionModal, setActionModal] = useState<{
+    code: string;
+    action: 'reschedule' | 'resolve_manual';
+  } | null>(null);
+  const [actionReason, setActionReason] = useState('');
+  const [actionError, setActionError] = useState('');
 
   const loadCandidates = useCallback(() => {
     setLoading(true);
@@ -140,25 +146,35 @@ export default function AsesorQueueTable() {
     });
   }, [enriched, stageFilter, programFilter, dateFilter, accountFilter, search]);
 
-  const handleQuickSessionAction = async (
+  const handleQuickSessionAction = (
     code: string,
     action: 'reschedule' | 'resolve_manual'
   ) => {
-    const promptMsg =
-      action === 'reschedule'
-        ? 'Masukkan alasan penjadwalan ulang wawancara AI (misal: mikrofon tidak terdeteksi):'
-        : 'Masukkan catatan keputusan manual untuk melanjutkan review kandidat:';
-    const reason = window.prompt(promptMsg);
-    if (!reason || reason.trim().length < 5) {
-      if (reason !== null) window.alert('Catatan/alasan minimal 5 karakter.');
+    setActionModal({ code, action });
+    setActionReason('');
+    setActionError('');
+  };
+
+  const handleConfirmQuickAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!actionModal) return;
+    const trimmed = actionReason.trim();
+    if (trimmed.length < 5) {
+      setActionError('Catatan/alasan minimal 5 karakter.');
       return;
     }
-    setActionBusyCode(code);
+    setActionBusyCode(actionModal.code);
+    setActionError('');
     try {
-      await submitAssessorSessionAction(code, { action, reason: reason.trim() });
+      await submitAssessorSessionAction(actionModal.code, {
+        action: actionModal.action,
+        reason: trimmed
+      });
+      setActionModal(null);
+      setActionReason('');
       loadCandidates();
     } catch (err: any) {
-      window.alert(err?.response?.data?.error || 'Gagal memproses tindakan sesi.');
+      setActionError(err?.response?.data?.error || 'Gagal memproses tindakan sesi.');
     } finally {
       setActionBusyCode(null);
     }
@@ -176,18 +192,18 @@ export default function AsesorQueueTable() {
 
   return (
     <AsesorLayout activeTab="queue">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <Badge variant="navy" format="soft" className="text-[11px] font-bold">
-                AVA AI-FIRST WORKFLOW
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+              <Badge variant="navy" format="soft" className="text-[11px] font-semibold">
+                Ava AI-First Workflow
               </Badge>
-              <span className="text-[11px] text-slate-500 font-mono">
-                Selesai Interview AI &rarr; Menunggu Review &rarr; Direview &rarr; Finalisasi &rarr; E-Sign &rarr; Terbit
+              <span className="text-xs text-slate-500 font-sans">
+                Selesai Interview AI → Menunggu Review → Direview → Finalisasi → Terbit
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-ink tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold font-heading text-ink tracking-tight">
               Antrean Review Sesi Wawancara AI
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -290,8 +306,9 @@ export default function AsesorQueueTable() {
         </div>
 
         {/* Table Card */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-xs overflow-x-auto">
-          <Table>
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>KANDIDAT</TableHead>
@@ -389,12 +406,12 @@ export default function AsesorQueueTable() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs whitespace-nowrap">
-                      <span className="font-bold text-emerald-700">
+                    <TableCell className="font-sans text-xs tabular-nums whitespace-nowrap">
+                      <span className="font-semibold text-emerald-700">
                         CAT {candidate.catScore != null ? `${candidate.catScore}` : '-'}
                       </span>
                       <span className="text-slate-300 mx-1">/</span>
-                      <span className="font-bold text-primary-navy">
+                      <span className="font-semibold text-primary-navy">
                         AI {candidate.interviewScore != null ? `${candidate.interviewScore}` : '-'}
                       </span>
                     </TableCell>
@@ -455,8 +472,63 @@ export default function AsesorQueueTable() {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={Boolean(actionModal)}
+        onClose={() => {
+          if (!actionBusyCode) setActionModal(null);
+        }}
+        title={
+          actionModal?.action === 'reschedule'
+            ? 'Jadwalkan Ulang Wawancara AI'
+            : 'Putuskan Manual & Lanjut Review'
+        }
+        size="md"
+      >
+        {actionModal && (
+          <form onSubmit={handleConfirmQuickAction} className="space-y-4">
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {actionModal.action === 'reschedule'
+                ? `Masukkan alasan penjadwalan ulang sesi wawancara AI untuk ${actionModal.code}.`
+                : `Masukkan catatan keputusan manual untuk melanjutkan review kandidat ${actionModal.code}.`}
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-ink mb-1.5">
+                Alasan / Catatan *
+              </label>
+              <textarea
+                rows={3}
+                value={actionReason}
+                onChange={(e) => {
+                  setActionReason(e.target.value);
+                  if (actionError) setActionError('');
+                }}
+                placeholder="Minimal 5 karakter..."
+                className="w-full p-3 rounded-xl border border-slate-200 focus:border-primary-navy text-xs text-ink outline-none"
+                autoFocus
+              />
+              {actionError && <p className="text-xs text-rose-600 mt-1">{actionError}</p>}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={Boolean(actionBusyCode)}
+                onClick={() => setActionModal(null)}
+              >
+                Batal
+              </Button>
+              <Button type="submit" variant="primary" size="sm" disabled={Boolean(actionBusyCode)}>
+                {actionBusyCode ? 'Menyimpan...' : 'Konfirmasi'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </AsesorLayout>
   );
 }

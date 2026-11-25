@@ -12,6 +12,7 @@ import { Dropbox } from 'dropbox';
 import 'isomorphic-fetch';
 import { runCvScreening } from '../services/cvScreeningService';
 import { runInterviewScoring } from '../services/interviewScoringService';
+import { loadAiReviewRecordsMap } from '../services/reviewWorkflowService';
 import { recordAuditLog, getAuditLogs, resolveRequestIp } from '../services/auditService';
 import {
   evaluateInterviewWithLangChain,
@@ -226,9 +227,12 @@ export const getApplicants = async (req: Request, res: Response) => {
         })
       : [];
     const portalByEmail = new Map(portalUsers.map((user) => [user.email, user]));
+    const reviewMap = await loadAiReviewRecordsMap();
 
     const enrichedApplicants = applicants.map(app => {
       const portal = portalByEmail.get(app.email);
+      const codeKey = String(portal?.candidateCode || '').toUpperCase();
+      const reviewRec = codeKey ? reviewMap.get(codeKey) : null;
       const attempt = portal?.examAttempts?.sort((a, b) => {
         const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
         const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
@@ -268,7 +272,9 @@ export const getApplicants = async (req: Request, res: Response) => {
         proctorFlags: mergedFlags,
         candidateCode: portal?.candidateCode || null,
         examAttempt: attempt ? { ...attempt, totalAnswered } : null,
-        compositeEvaluation: computeCompositeEvaluation(app.screeningScore, app.interviewScore, mergedFlags)
+        compositeEvaluation: reviewRec?.needsAction
+          ? computeCompositeEvaluation(app.screeningScore, null, mergedFlags, 'pending')
+          : computeCompositeEvaluation(app.screeningScore, app.interviewScore, mergedFlags, app.interviewStatus)
       };
     });
 
@@ -717,7 +723,7 @@ export const getApplicantRanking = async (req: AuthRequest, res: Response) => {
       try { skillMatrix = a.interviewSkillMatrix ? JSON.parse(a.interviewSkillMatrix) : null; } catch { skillMatrix = null; }
       let phases = null;
       try { phases = a.interviewPhaseScores ? JSON.parse(a.interviewPhaseScores) : null; } catch { phases = null; }
-      const compositeEvaluation = computeCompositeEvaluation(a.screeningScore, a.interviewScore, a.proctorFlags);
+      const compositeEvaluation = computeCompositeEvaluation(a.screeningScore, a.interviewScore, a.proctorFlags, a.interviewStatus);
       return {
         id: a.id,
         fullName: a.fullName,
@@ -752,67 +758,73 @@ export interface CompositeEvaluation {
   interviewContribution: number;
   integrityPenalty: number;
   proctorCount: number;
+  requiresIntegrityReview?: boolean;
   rationale: string;
 }
+
+const BENIGN_PROCTOR_TYPES = new Set(['face_verified', 'PERIODIC_SNAPSHOT', 'VERIFIKASI_BERKALA']);
 
 export function computeCompositeEvaluation(
   screeningScore: number | null | undefined,
   interviewScore: number | null | undefined,
-  proctorFlagsStr: string | null | undefined
+  proctorFlagsStr: string | null | undefined,
+  interviewStatus?: string | null
 ): CompositeEvaluation {
-  const cv = screeningScore ?? 0;
   const interview = interviewScore ?? 0;
 
-  if (interviewScore === null || interviewScore === undefined) {
+  let proctorCount = 0;
+  try {
+    if (proctorFlagsStr) {
+      const parsed = JSON.parse(proctorFlagsStr);
+      if (Array.isArray(parsed)) {
+        proctorCount = parsed.filter((item: any) => !BENIGN_PROCTOR_TYPES.has(String(item?.type || ''))).length;
+      }
+    }
+  } catch {
+    proctorCount = 0;
+  }
+
+  const isNotYetScored =
+    interviewScore === null ||
+    interviewScore === undefined ||
+    (interviewStatus != null && !['scored'].includes(interviewStatus) && interviewScore === 0);
+
+  if (isNotYetScored) {
     return {
       compositeScore: 0,
       recommendation: 'BELUM DINILAI',
       cvContribution: 0,
       interviewContribution: 0,
       integrityPenalty: 0,
-      proctorCount: 0,
-      rationale: 'Belum ada penilaian asesor untuk kandidat ini.'
+      proctorCount,
+      requiresIntegrityReview: proctorCount > 0,
+      rationale: 'Menunggu hasil skoring AI / penilaian asesor untuk kandidat ini.'
     };
   }
-  
-  let proctorCount = 0;
-  try {
-    if (proctorFlagsStr) {
-      const parsed = JSON.parse(proctorFlagsStr);
-      if (Array.isArray(parsed)) proctorCount = parsed.length;
-    }
-  } catch {
-    proctorCount = 0;
-  }
 
-  // Integrity penalty calculation
-  let integrityPenalty = 0;
-  if (proctorCount === 1) integrityPenalty = 4;
-  else if (proctorCount === 2) integrityPenalty = 10;
-  else if (proctorCount >= 3) integrityPenalty = 20;
-
-  let compositeScore = 0;
-  if (interviewScore != null) {
-    compositeScore = Math.max(0, Math.round(interview - integrityPenalty));
-  }
+  // Flag proctoring bersifat pendukung tinjauan manusia & tidak otomatis mengurangi nilai maupun menggagalkan kandidat
+  const integrityPenalty = 0;
+  const compositeScore = Math.max(0, Math.round(interview));
 
   let recommendation: CompositeEvaluation['recommendation'] = 'NOT RECOMMENDED';
   let rationale = '';
 
-  if (compositeScore >= 82 && proctorCount <= 1) {
+  if (compositeScore >= 82) {
     recommendation = 'STRONG HIRE';
-    rationale = 'Kandidat memiliki kualifikasi teknis dan soft skill yang sangat tinggi dengan integritas teruji.';
-  } else if (compositeScore >= 70 && proctorCount <= 2) {
+    rationale = 'Kandidat menunjukkan penguasaan kompetensi teknis dan komunikasi yang sangat tinggi.';
+  } else if (compositeScore >= 70) {
     recommendation = 'RECOMMENDED HIRE';
     rationale = 'Kandidat memenuhi standar kompetensi posisi yang dilamar dan direkomendasikan untuk tahap penawaran.';
   } else if (compositeScore >= 55) {
     recommendation = 'CONSIDER';
-    rationale = 'Kandidat memenuhi kualifikasi dasar namun memerlukan review mendalam dari user atau tes teknis tambahan.';
+    rationale = 'Kandidat memenuhi kualifikasi dasar namun memerlukan review mendalam dari asesor atau tes teknis tambahan.';
   } else {
     recommendation = 'NOT RECOMMENDED';
-    rationale = proctorCount >= 3 
-      ? 'Tidak direkomendasikan karena terdeteksi pelanggaran integritas berulang selama sesi wawancara.'
-      : 'Kandidat belum memenuhi ambang batas kompetensi minimum yang disyaratkan.';
+    rationale = 'Skor kompetensi wawancara belum memenuhi ambang batas minimum yang disyaratkan.';
+  }
+
+  if (proctorCount > 0) {
+    rationale += ` Catatan pengawasan: ${proctorCount} flag proctoring tercatat untuk ditinjau asesor/admin (tidak menggagalkan otomatis).`;
   }
 
   return {
@@ -822,6 +834,7 @@ export function computeCompositeEvaluation(
     interviewContribution: Math.round(interview * 0.50),
     integrityPenalty,
     proctorCount,
+    requiresIntegrityReview: proctorCount > 0,
     rationale
   };
 }
@@ -921,7 +934,7 @@ export const generateDecisionLetter = async (req: Request, res: Response) => {
     const ai = new GoogleGenAI({ apiKey });
 
     const jobTitle = applicant.job?.title || applicant.appliedPosition || 'Posisi Terkait';
-    const compEval = computeCompositeEvaluation(applicant.screeningScore, applicant.interviewScore, applicant.proctorFlags);
+    const compEval = computeCompositeEvaluation(applicant.screeningScore, applicant.interviewScore, applicant.proctorFlags, applicant.interviewStatus);
 
     const prompt = `Anda adalah Direktur HR & Talent Acquisition eksekutif di RIGHT Assessment & Recruitment.
 Tuliskan draft resmi surat keputusan rekrutmen profesional dalam Bahasa Indonesia berbobot analitis tinggi.

@@ -33,7 +33,7 @@ interface Applicant {
   proctorFlags: string | null;
   compositeEvaluation?: {
     compositeScore: number;
-    recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED';
+    recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED' | 'BELUM DINILAI';
   };
 }
 
@@ -83,27 +83,30 @@ export default function PipelineView({
     });
   }, [applicants, deferredSearchQuery, selectedRole]);
 
-  // Stage 1: Interview In Progress / Scheduled
+  const hasCompletedAiScoring = (a: Applicant) =>
+    a.interviewStatus === 'scored' ||
+    (a.interviewScore != null && a.interviewScore > 0) ||
+    Boolean(a.interviewResult && a.interviewResult.includes('Skor Akhir:'));
+
+  // Stage 1: Interview In Progress / Scheduled (eksklusif)
   const stageInterview = useMemo(() => {
-    return filtered.filter(a =>
-      a.interviewStatus === 'in_progress' || a.interviewStatus === 'not_started'
-    );
-  }, [filtered]);
-
-  // Stage 3: Interview Completed (Needs Scoring)
-  const stageNeedsScoring = useMemo(() => {
-    return filtered.filter(a => 
-      a.interviewStatus === 'completed' && (!a.interviewScore || a.interviewScore === 0)
-    );
-  }, [filtered]);
-
-  // Stage 4: Scored / Decision Ready (hanya kandidat yang sudah selesai wawancara atau memiliki skor wawancara nyata)
-  const stageDecisionReady = useMemo(() => {
     return filtered.filter(
-      a =>
-        ['completed', 'scored'].includes(a.interviewStatus) ||
-        (a.interviewScore != null && a.interviewScore > 0)
+      (a) =>
+        !hasCompletedAiScoring(a) &&
+        (a.interviewStatus === 'in_progress' || a.interviewStatus === 'not_started')
     );
+  }, [filtered]);
+
+  // Stage 3: Interview Completed (Needs Scoring — belum ada hasil skoring AI)
+  const stageNeedsScoring = useMemo(() => {
+    return filtered.filter(
+      (a) => a.interviewStatus === 'completed' && !hasCompletedAiScoring(a)
+    );
+  }, [filtered]);
+
+  // Stage 4: Scored / Decision Ready (hanya kandidat yang skoring AI-nya sudah selesai)
+  const stageDecisionReady = useMemo(() => {
+    return filtered.filter((a) => hasCompletedAiScoring(a));
   }, [filtered]);
 
   const getRecommendationVariant = (rec?: string): 'teal' | 'success' | 'warning' | 'danger' | 'neutral' => {
@@ -125,7 +128,10 @@ export default function PipelineView({
     if (!flags) return 0;
     try {
       const parsed = JSON.parse(flags);
-      return Array.isArray(parsed) ? parsed.length : 0;
+      if (!Array.isArray(parsed)) return 0;
+      return parsed.filter(
+        (item: any) => !['face_verified', 'PERIODIC_SNAPSHOT', 'VERIFIKASI_BERKALA'].includes(String(item?.type || ''))
+      ).length;
     } catch {
       return 0;
     }

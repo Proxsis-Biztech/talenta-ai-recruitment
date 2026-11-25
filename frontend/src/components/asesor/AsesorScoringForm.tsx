@@ -17,10 +17,26 @@ import {
   Download,
   Sliders,
   RotateCcw,
-  Scale
+  Scale,
+  Search
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
-import { Button, Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, Modal } from '../ui';
+import {
+  Button,
+  Badge,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  Modal,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell
+} from '../ui';
 import axios from 'axios';
 import {
   calculateCompositeScore,
@@ -62,6 +78,8 @@ export default function AsesorScoringForm() {
   const [candidate, setCandidate] = useState<AssessorCandidate | null>(null);
   const [candidateList, setCandidateList] = useState<AssessorCandidate[]>([]);
   const [candidateLoading, setCandidateLoading] = useState(true);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [pickerLhaFilter, setPickerLhaFilter] = useState<'all' | 'pending' | 'signed'>('all');
   const activeAssessor = getActiveSessionUser();
 
   const [liveConsoleNotes, setLiveConsoleNotes] = useState<Array<{ name: string; score: number; notes: string }>>([]);
@@ -543,15 +561,28 @@ export default function AsesorScoringForm() {
   }
 
   if (!id) {
+    const query = pickerSearch.trim().toLowerCase();
+    const filteredCandidates = candidateList.filter((item) => {
+      if (pickerLhaFilter === 'pending' && item.lhaStatus === 'signed') return false;
+      if (pickerLhaFilter === 'signed' && item.lhaStatus !== 'signed') return false;
+      if (!query) return true;
+      return (
+        item.name.toLowerCase().includes(query) ||
+        item.code.toLowerCase().includes(query) ||
+        item.program.toLowerCase().includes(query) ||
+        (item.lhaNumber || '').toLowerCase().includes(query)
+      );
+    });
+
     return (
       <AsesorLayout activeTab="scoring">
-        <div className="max-w-5xl mx-auto p-6 sm:p-8 space-y-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="font-heading text-2xl font-extrabold text-ink">
-                Pilih Kandidat untuk Penilaian & LHA E-Sign
+              <h1 className="font-heading text-xl sm:text-2xl font-bold tracking-tight text-ink">
+                Pilih Kandidat untuk Penilaian &amp; LHA E-Sign
               </h1>
-              <p className="text-xs text-muted-slate mt-1">
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
                 Daftar kandidat pada tenant Anda. Pilih salah satu untuk membuka lembar BARS dan menerbitkan LHA.
               </p>
             </div>
@@ -560,57 +591,145 @@ export default function AsesorScoringForm() {
             </Button>
           </div>
 
-          {candidateList.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-muted-slate">
-              Belum ada kandidat pada tenant ini.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {candidateList.map((item) => {
-                const signed = item.lhaStatus === 'signed';
-                const stageMeta = resolveCandidateReviewStage(item);
-                const displayComposite =
-                  item.compositeScore ??
-                  (item.catScore != null && item.interviewScore != null
-                    ? calculateCompositeScore(item.catScore, item.interviewScore)
-                    : null);
-                return (
-                  <div
-                    key={item.id}
-                    className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between gap-4 shadow-2xs"
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={pickerSearch}
+                  onChange={(e) => setPickerSearch(e.target.value)}
+                  placeholder="Cari kode, nama kandidat, atau program..."
+                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-primary-navy outline-none"
+                />
+              </div>
+
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-0.5 text-xs font-semibold self-start sm:self-auto">
+                {(
+                  [
+                    { key: 'all', label: `Semua (${candidateList.length})` },
+                    {
+                      key: 'pending',
+                      label: `Belum Terbit (${candidateList.filter((c) => c.lhaStatus !== 'signed').length})`
+                    },
+                    {
+                      key: 'signed',
+                      label: `Terbit LHA (${candidateList.filter((c) => c.lhaStatus === 'signed').length})`
+                    }
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setPickerLhaFilter(tab.key)}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      pickerLhaFilter === tab.key
+                        ? 'bg-primary-navy text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-ink'
+                    }`}
                   >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-primary-navy">{item.code}</span>
-                        <Badge variant={stageMeta.badgeVariant}>
-                          {stageMeta.label}
-                        </Badge>
-                        {item.isCalibrationSample && (
-                          <Badge variant="outline">Sampel Kalibrasi</Badge>
-                        )}
-                        {item.isTestAccount && (
-                          <Badge variant="outline">Akun Uji</Badge>
-                        )}
-                      </div>
-                      <p className="font-bold text-sm text-ink mt-1 truncate">{item.name}</p>
-                      <p className="text-xs text-muted-slate truncate">{item.program}</p>
-                      <p className="text-[11px] font-mono text-slate-500 mt-1">
-                        CAT: {item.catScore ?? '-'} • Komposit: {displayComposite ?? '-'} • {item.lhaNumber || 'Belum Terbit LHA'}
-                      </p>
-                    </div>
-                    <Button
-                      variant={signed ? 'outline' : 'primary'}
-                      size="sm"
-                      onClick={() => navigate(`/asesor/scoring/${item.code}`)}
-                      className="shrink-0 cursor-pointer"
-                    >
-                      {signed ? 'Lihat LHA' : 'Nilai'}
-                    </Button>
-                  </div>
-                );
-              })}
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
+
+            {filteredCandidates.length === 0 ? (
+              <div className="p-10 text-center text-sm text-muted-slate">
+                {candidateList.length === 0
+                  ? 'Belum ada kandidat pada tenant ini.'
+                  : 'Tidak ada kandidat yang cocok dengan filter pencarian.'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12 text-center">#</TableHead>
+                      <TableHead>KANDIDAT</TableHead>
+                      <TableHead>PROGRAM ASESMEN</TableHead>
+                      <TableHead className="text-right">CAT</TableHead>
+                      <TableHead className="text-right">KOMPOSIT</TableHead>
+                      <TableHead>STATUS REVIEW</TableHead>
+                      <TableHead>STATUS LHA</TableHead>
+                      <TableHead className="text-right">AKSI</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredCandidates.map((item, idx) => {
+                      const signed = item.lhaStatus === 'signed';
+                      const stageMeta = resolveCandidateReviewStage(item);
+                      const isReviewed =
+                        signed || ['DIREVIEW', 'FINALISASI', 'TERBIT'].includes(stageMeta.stage);
+                      const displayComposite =
+                        isReviewed && item.compositeScore != null ? item.compositeScore : null;
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell className="text-center font-mono text-xs text-slate-400">
+                            {idx + 1}
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-bold text-sm text-ink">{item.name}</span>
+                                {item.isCalibrationSample && (
+                                  <Badge variant="outline">Sampel Kalibrasi</Badge>
+                                )}
+                                {item.isTestAccount && (
+                                  <Badge variant="outline">Akun Uji</Badge>
+                                )}
+                              </div>
+                              <p className="font-mono text-[11px] text-primary-navy font-semibold">
+                                {item.code}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-700 max-w-[260px]">
+                            <span className="line-clamp-2">{item.program}</span>
+                          </TableCell>
+                          <TableCell className="text-right font-sans tabular-nums text-xs font-semibold text-slate-700 whitespace-nowrap">
+                            {item.catScore != null ? item.catScore : '-'}
+                          </TableCell>
+                          <TableCell className="text-right font-heading tabular-nums text-xs font-bold text-primary-navy whitespace-nowrap">
+                            {displayComposite != null ? displayComposite : '-'}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <Badge variant={stageMeta.badgeVariant} format="soft">
+                              {stageMeta.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {signed ? (
+                              <div className="space-y-0.5">
+                                <Badge variant="success" format="soft">
+                                  Terbit E-Sign
+                                </Badge>
+                                {item.lhaNumber && (
+                                  <p className="font-mono text-[11px] text-slate-500">{item.lhaNumber}</p>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-500">Belum Terbit</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <Button
+                              variant={signed ? 'outline' : 'primary'}
+                              size="xs"
+                              onClick={() => navigate(`/asesor/scoring/${item.code}`)}
+                              className="cursor-pointer"
+                            >
+                              {signed ? 'Lihat LHA' : 'Nilai'}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
         </div>
       </AsesorLayout>
     );
@@ -631,7 +750,7 @@ export default function AsesorScoringForm() {
 
   return (
     <AsesorLayout activeTab="scoring">
-      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 space-y-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
         {/* Navigation Breadcrumb */}
         <button
           onClick={() => navigate('/asesor/interview-queue')}
@@ -653,10 +772,10 @@ export default function AsesorScoringForm() {
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-slate-900 tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 tracking-tight">
                   {candidate!.name}
                 </h1>
-                <Badge variant="navy" className="text-xs sm:text-sm font-bold">
+                <Badge variant="navy" className="text-xs font-semibold">
                   {candidate!.company}
                 </Badge>
               </div>
@@ -668,14 +787,14 @@ export default function AsesorScoringForm() {
 
           <div className="flex items-center gap-3">
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center min-w-[115px]">
-              <span className="text-[10px] text-slate-500 uppercase font-bold">Rubrik BARS (1-5)</span>
-              <p className="font-mono text-xl font-extrabold text-blue-700">
+              <span className="text-[10px] text-slate-500 uppercase font-semibold">Rubrik BARS (1-5)</span>
+              <p className="font-heading tabular-nums text-xl font-bold text-blue-700">
                 {hasAnyCompetencyScore ? `${weightedOverallScore} / 5.0` : 'Belum'}
               </p>
             </div>
             <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-center min-w-[115px]">
-              <span className="text-[10px] text-primary-navy uppercase font-bold">Komposit (0-100)</span>
-              <p className="font-mono text-xl font-extrabold text-primary-navy">
+              <span className="text-[10px] text-primary-navy uppercase font-semibold">Komposit (0-100)</span>
+              <p className="font-heading tabular-nums text-xl font-bold text-primary-navy">
                 {hasAnyCompetencyScore && candidate!.catScore != null
                   ? calculateCompositeScore(
                       candidate!.catScore,
@@ -685,8 +804,8 @@ export default function AsesorScoringForm() {
               </p>
             </div>
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center min-w-[110px]">
-              <span className="text-[10px] text-emerald-800 uppercase font-bold">Akurasi Fakta</span>
-              <p className="font-mono text-xl font-extrabold text-emerald-700">
+              <span className="text-[10px] text-emerald-800 uppercase font-semibold">Akurasi Fakta</span>
+              <p className="font-heading tabular-nums text-xl font-bold text-emerald-700">
                 {factSheetMatched ? `${priorityAccuracy}%` : '—'}
               </p>
             </div>
@@ -705,7 +824,7 @@ export default function AsesorScoringForm() {
                   AI Fact Sheet Matching Assistant (Engine Semantik)
                 </CardTitle>
                 <CardDescription className="text-xs text-slate-600">
-                  Mencocokkan respon tertulis kandidat terhadap 5 fakta kunci skenario kasus PT Anjak
+                  Mencocokkan respon kandidat terhadap indikator fakta kunci skenario kasus program asesmen
                 </CardDescription>
               </div>
             </div>

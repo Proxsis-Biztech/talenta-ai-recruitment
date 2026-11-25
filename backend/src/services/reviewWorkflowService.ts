@@ -80,9 +80,26 @@ export const parseTimestampedTranscript = (raw: string | null | undefined): Tran
     let speaker: TranscriptSegment['speaker'] = 'Kandidat';
     let text = body;
     if (colonIdx > 0 && colonIdx < 35) {
-      const rawSpeaker = body.slice(0, colonIdx).toLowerCase();
+      const rawSpeaker = body.slice(0, colonIdx).toLowerCase().trim();
       text = body.slice(colonIdx + 1).trim();
-      if (rawSpeaker.includes('ava') || rawSpeaker.includes('ai') || rawSpeaker.includes('hr')) {
+      if (
+        rawSpeaker.includes('kandidat') ||
+        rawSpeaker.includes('candidate') ||
+        rawSpeaker.includes('peserta') ||
+        rawSpeaker.includes('(anda)') ||
+        rawSpeaker === 'anda' ||
+        rawSpeaker === 'user'
+      ) {
+        speaker = 'Kandidat';
+      } else if (
+        rawSpeaker.includes('ava') ||
+        rawSpeaker.includes('gemini') ||
+        rawSpeaker.includes('interviewer') ||
+        rawSpeaker.includes('pewawancara') ||
+        rawSpeaker === 'ai' ||
+        rawSpeaker.includes(' ai') ||
+        rawSpeaker.includes('hr')
+      ) {
         speaker = 'Ava AI';
       } else if (rawSpeaker.includes('system') || rawSpeaker.includes('sistem')) {
         speaker = 'Sistem';
@@ -153,7 +170,7 @@ export const buildAiCompetenciesFromData = (params: {
       ? matchedTurn.text.length > 210
         ? `${matchedTurn.text.slice(0, 207)}...`
         : matchedTurn.text
-      : 'Belum ditemukan kutipan jawaban kandidat yang relevan pada transkrip.';
+      : 'Belum ada jawaban kandidat (suara maupun teks) yang terekam pada transkrip.';
 
     return {
       name: comp.name,
@@ -163,9 +180,59 @@ export const buildAiCompetenciesFromData = (params: {
         matchedSkill?.notes ||
         (matchedTurn
           ? `Ava AI menilai penguasaan ${comp.name} pada level ${aiScore}/5 berdasarkan respons kandidat pada sesi wawancara.`
-          : `Skor awal ${aiScore}/5 berdasarkan kelengkapan respons sesi wawancara AI.`),
+          : `Belum ada respons kandidat yang dapat dinilai untuk ${comp.name}.`),
       quote: quoteText,
       timestamp: matchedTurn?.timestamp || '--:--'
+    };
+  });
+};
+
+const PLACEHOLDER_QUOTE_SNIPPETS = [
+  'jawaban kandidat terekam pada sesi wawancara ava ai',
+  'belum ditemukan kutipan jawaban kandidat',
+  'belum ada jawaban kandidat'
+];
+
+export const resolveAiCompetenciesWithTranscript = (params: {
+  existing?: AiCompetencyEvidence[] | null;
+  transcript?: string | null;
+  applicantInterviewResult?: string | null;
+  overallScore?: number | null;
+}): AiCompetencyEvidence[] => {
+  const rebuilt = buildAiCompetenciesFromData({
+    transcript: params.transcript,
+    applicantInterviewResult: params.applicantInterviewResult,
+    overallScore: params.overallScore
+  });
+
+  if (!Array.isArray(params.existing) || params.existing.length === 0) {
+    return rebuilt;
+  }
+
+  const segments = parseTimestampedTranscript(params.transcript);
+  const candidateTurns = segments.filter((s) => s.speaker === 'Kandidat');
+  const avaTexts = new Set(segments.filter((s) => s.speaker === 'Ava AI').map((s) => s.text.toLowerCase()));
+
+  return params.existing.map((item, idx) => {
+    const rawQuote = String(item?.quote || '').trim();
+    const lowerQuote = rawQuote.toLowerCase();
+    const isPlaceholder =
+      !rawQuote ||
+      PLACEHOLDER_QUOTE_SNIPPETS.some((p) => lowerQuote.includes(p)) ||
+      (avaTexts.has(lowerQuote) && candidateTurns.length > 0);
+
+    if (!isPlaceholder) {
+      return item;
+    }
+
+    const replacement = rebuilt[idx] || rebuilt[0];
+    return {
+      ...item,
+      quote: replacement?.quote || rawQuote,
+      timestamp:
+        replacement?.timestamp && replacement.timestamp !== '--:--'
+          ? replacement.timestamp
+          : item.timestamp || '--:--'
     };
   });
 };

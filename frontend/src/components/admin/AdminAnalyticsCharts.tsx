@@ -10,7 +10,7 @@ interface Applicant {
   interviewStatus: string;
   interviewScore: number | null;
   compositeEvaluation?: {
-    recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED';
+    recommendation: 'STRONG HIRE' | 'RECOMMENDED HIRE' | 'CONSIDER' | 'NOT RECOMMENDED' | 'BELUM DINILAI';
   };
 }
 

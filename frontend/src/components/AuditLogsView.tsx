@@ -24,6 +24,24 @@ interface AuditLog {
   status: 'SUCCESS' | 'WARNING' | 'FAILED';
 }
 
+const formatWibTimestamp = (iso: string | null | undefined) => {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return (
+    d.toLocaleString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }) + ' WIB'
+  );
+};
+
 export default function AuditLogsView() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,8 +259,8 @@ export default function AuditLogsView() {
                 onClick={() => setSelectedLog(log)}
                 className="h-16 hover:bg-[#F8FAFC] transition-colors cursor-pointer"
               >
-                <TableCell className="w-[170px] font-mono text-[13px] text-[#475569] whitespace-nowrap tabular-nums">
-                  {log.timestamp ? log.timestamp.replace('T', ' ').slice(0, 19) : '-'}
+                <TableCell className="w-[185px] font-mono text-[12px] text-[#475569] whitespace-nowrap tabular-nums">
+                  {formatWibTimestamp(log.timestamp)}
                 </TableCell>
                 <TableCell className="w-[130px] whitespace-nowrap">
                   <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
@@ -306,7 +324,7 @@ export default function AuditLogsView() {
             <div className="grid grid-cols-2 gap-3 bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
               <div>
                 <p className="text-xs text-[#64748B]">Waktu</p>
-                <p className="font-mono font-semibold text-[#0F172A] mt-0.5">{selectedLog.timestamp?.replace('T', ' ').slice(0, 19) || '-'}</p>
+                <p className="font-mono font-semibold text-[#0F172A] mt-0.5 text-xs">{formatWibTimestamp(selectedLog.timestamp)}</p>
               </div>
               <div>
                 <p className="text-xs text-[#64748B]">Kategori</p>

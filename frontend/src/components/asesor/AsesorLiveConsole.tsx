@@ -17,7 +17,7 @@ import {
   Eye,
   Clock
 } from 'lucide-react';
-import { Button, Badge } from '../ui';
+import { Button, Badge, Modal } from '../ui';
 import { calculateCompositeScore } from '../../services/asesorScoreService';
 import {
   fetchAssessorCandidate,
@@ -121,9 +121,18 @@ export default function AsesorLiveConsole() {
   const [aiOverrideReason, setAiOverrideReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
+  const [noticeBanner, setNoticeBanner] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [sessionModal, setSessionModal] = useState<{
+    action: 'reschedule' | 'resolve_manual' | 'flag_issue';
+    title: string;
+    description: string;
+    placeholder: string;
+  } | null>(null);
+  const [sessionModalReason, setSessionModalReason] = useState('');
+  const [sessionModalError, setSessionModalError] = useState('');
 
-  const loadCandidateDetail = async (targetId: string) => {
-    setCandidateLoading(true);
+  const loadCandidateDetail = async (targetId: string, options?: { silent?: boolean }) => {
+    if (!options?.silent) setCandidateLoading(true);
     try {
       const data = await fetchAssessorCandidate(targetId);
       setCandidate(data);
@@ -138,17 +147,19 @@ export default function AsesorLiveConsole() {
       let loadedFromSaved = false;
       try {
         const saved = await fetchAssessorScoreByCode(data.code, data.program);
-        if (saved && Array.isArray(saved.competencies) && saved.competencies.length > 0) {
+        const rawSavedComps = Array.isArray(saved?.competencies) ? saved.competencies : [];
+        if (rawSavedComps.length > 0) {
           loadedFromSaved = true;
           setRubrics(
             INITIAL_RUBRICS.map((item, idx) => {
               const match =
-                saved.competencies.find((c: any) => c.name === item.name) ||
-                saved.competencies[idx];
+                rawSavedComps.find(
+                  (c: any) => String(c?.name || '').toLowerCase() === item.name.toLowerCase()
+                ) || rawSavedComps[idx];
               if (!match) return item;
               return {
                 ...item,
-                score: typeof match.score === 'number' ? match.score : item.score,
+                score: typeof match.score === 'number' && Number.isFinite(match.score) ? match.score : item.score,
                 notes: typeof match.notes === 'string' ? match.notes : item.notes
               };
             })
@@ -159,16 +170,17 @@ export default function AsesorLiveConsole() {
       }
 
       if (!loadedFromSaved) {
-        if (Array.isArray(data.aiCompetencies) && data.aiCompetencies.length > 0) {
+        const aiList = Array.isArray(data.aiCompetencies) ? data.aiCompetencies : [];
+        if (aiList.length > 0) {
           setRubrics(
             INITIAL_RUBRICS.map((item, idx) => {
               const aiMatch =
-                data.aiCompetencies?.find(
-                  (ai) => ai.name.toLowerCase() === item.name.toLowerCase()
-                ) || data.aiCompetencies?.[idx];
+                aiList.find(
+                  (ai) => String(ai?.name || '').toLowerCase() === item.name.toLowerCase()
+                ) || aiList[idx];
               return {
                 ...item,
-                score: aiMatch ? aiMatch.aiScore : 0,
+                score: aiMatch && typeof aiMatch.aiScore === 'number' ? aiMatch.aiScore : 0,
                 notes: ''
               };
             })
@@ -178,9 +190,9 @@ export default function AsesorLiveConsole() {
         }
       }
     } catch {
-      setCandidate(null);
+      if (!options?.silent) setCandidate(null);
     } finally {
-      setCandidateLoading(false);
+      if (!options?.silent) setCandidateLoading(false);
     }
   };
 
@@ -232,7 +244,8 @@ export default function AsesorLiveConsole() {
   const aiBaselineByName = useMemo(() => {
     const map = new Map<string, number>();
     for (const ai of candidate?.aiCompetencies || []) {
-      map.set(ai.name.toLowerCase(), ai.aiScore);
+      const key = String(ai?.name || '').toLowerCase();
+      if (key && typeof ai?.aiScore === 'number') map.set(key, ai.aiScore);
     }
     return map;
   }, [candidate?.aiCompetencies]);
@@ -253,9 +266,10 @@ export default function AsesorLiveConsole() {
     setRubrics((prev) =>
       prev.map((item, idx) => {
         const ai =
-          candidate.aiCompetencies?.find((a) => a.name.toLowerCase() === item.name.toLowerCase()) ||
-          candidate.aiCompetencies?.[idx];
-        return ai ? { ...item, score: ai.aiScore } : item;
+          candidate.aiCompetencies?.find(
+            (a) => String(a?.name || '').toLowerCase() === item.name.toLowerCase()
+          ) || candidate.aiCompetencies?.[idx];
+        return ai && typeof ai.aiScore === 'number' ? { ...item, score: ai.aiScore } : item;
       })
     );
   };
@@ -276,34 +290,39 @@ export default function AsesorLiveConsole() {
     const list = candidate?.aiCompetencies || [];
     const idx = rubrics.findIndex((r) => r.id === currentRubric.id);
     return (
-      list.find((a) => a.name.toLowerCase() === currentRubric.name.toLowerCase()) ||
+      list.find((a) => String(a?.name || '').toLowerCase() === currentRubric.name.toLowerCase()) ||
       list[idx] ||
       null
     );
   }, [candidate?.aiCompetencies, currentRubric, rubrics]);
 
   const transcriptSegments = useMemo(() => {
-    const segs = candidate?.transcriptSegments || [];
+    const segs = Array.isArray(candidate?.transcriptSegments) ? candidate.transcriptSegments : [];
     const q = transcriptQuery.trim().toLowerCase();
     if (!q) return segs;
     return segs.filter(
       (s) =>
-        s.text.toLowerCase().includes(q) ||
-        s.speaker.toLowerCase().includes(q) ||
-        s.timestamp.toLowerCase().includes(q)
+        String(s?.text || '').toLowerCase().includes(q) ||
+        String(s?.speaker || '').toLowerCase().includes(q) ||
+        String(s?.timestamp || '').toLowerCase().includes(q)
     );
   }, [candidate?.transcriptSegments, transcriptQuery]);
 
   const saveReview = async (finalizeAndRedirect: boolean) => {
     if (!candidate) return;
+    setNoticeBanner(null);
     if (!hasScoredAny) {
-      window.alert('Silakan berikan minimal satu nilai rubrik (skala 1–5) terlebih dahulu.');
+      setNoticeBanner({
+        type: 'error',
+        message: 'Silakan berikan minimal satu nilai rubrik (skala 1–5) terlebih dahulu.'
+      });
       return;
     }
     if (overriddenCompetencies.length > 0 && aiOverrideReason.trim().length < 5) {
-      window.alert(
-        'Anda mengubah skor rekomendasi Ava AI. Wajib mengisi Alasan Perubahan Skor AI minimal 5 karakter untuk pencatatan Log Audit.'
-      );
+      setNoticeBanner({
+        type: 'error',
+        message: 'Anda mengubah skor rekomendasi Ava AI. Wajib mengisi Alasan Perubahan Skor AI minimal 5 karakter untuk pencatatan Log Audit.'
+      });
       return;
     }
 
@@ -344,53 +363,103 @@ export default function AsesorLiveConsole() {
       if (finalizeAndRedirect) {
         navigate(`/asesor/scoring/${candidate.code}`);
       } else {
-        await loadCandidateDetail(candidate.code);
-        window.alert('Review dan catatan skor berhasil disimpan (status: Direview).');
+        await loadCandidateDetail(candidate.code, { silent: true });
+        setNoticeBanner({
+          type: 'success',
+          message: 'Review dan catatan skor berhasil disimpan (status: Direview).'
+        });
       }
     } catch (error) {
-      window.alert(
-        axios.isAxiosError(error)
+      setNoticeBanner({
+        type: 'error',
+        message: axios.isAxiosError(error)
           ? error.response?.data?.error || 'Gagal menyimpan hasil review.'
           : 'Gagal menyimpan hasil review.'
-      );
+      });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSessionAction = async (
-    action: 'reschedule' | 'resolve_manual' | 'flag_issue' | 'toggle_calibration'
-  ) => {
-    if (!candidate) return;
-    let reason = '';
-    if (action !== 'toggle_calibration') {
-      const promptMap = {
-        reschedule: 'Masukkan alasan penjadwalan ulang wawancara AI (contoh: mikrofon kandidat mati):',
-        resolve_manual: 'Masukkan catatan keputusan manual untuk melanjutkan review:',
-        flag_issue: 'Jelaskan kendala teknis / integritas sesi (min. 5 karakter):'
-      };
-      const input = window.prompt(promptMap[action]);
-      if (input === null) return;
-      if (input.trim().length < 5) {
-        window.alert('Catatan/alasan minimal 5 karakter.');
-        return;
+  const openSessionActionModal = (action: 'reschedule' | 'resolve_manual' | 'flag_issue') => {
+    const configMap = {
+      reschedule: {
+        action: 'reschedule' as const,
+        title: 'Jadwalkan Ulang Wawancara Ava AI',
+        description: 'Sesi kandidat akan dikembalikan ke antrean terjadwal agar peserta dapat mengulang wawancara AI.',
+        placeholder: 'Contoh: Mikrofon peserta tidak terdeteksi selama sesi wawancara...'
+      },
+      resolve_manual: {
+        action: 'resolve_manual' as const,
+        title: 'Putuskan Manual & Lanjut Review',
+        description: 'Status "Perlu Tindakan" akan diselesaikan secara manual oleh asesor agar proses review dan penilaian BARS dapat dilanjutkan.',
+        placeholder: 'Contoh: Jawaban teks dan hasil CAT sudah memadai untuk dilanjutkan ke tahap review...'
+      },
+      flag_issue: {
+        action: 'flag_issue' as const,
+        title: 'Tandai Sesi Perlu Tindakan',
+        description: 'Masukkan keterangan kendala teknis atau anomali integritas pada sesi wawancara ini.',
+        placeholder: 'Contoh: Audio terputus di tengah jawaban soal #2...'
       }
-      reason = input.trim();
+    };
+    setSessionModal(configMap[action]);
+    setSessionModalReason('');
+    setSessionModalError('');
+  };
+
+  const handleConfirmSessionAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!candidate || !sessionModal) return;
+    const trimmed = sessionModalReason.trim();
+    if (trimmed.length < 5) {
+      setSessionModalError('Catatan/alasan minimal 5 karakter.');
+      return;
     }
 
+    const actionType = sessionModal.action;
     setActionBusy(true);
+    setSessionModalError('');
     try {
-      await submitAssessorSessionAction(candidate.code, { action, reason });
-      await loadCandidateDetail(candidate.code);
-      if (action === 'reschedule') {
-        window.alert('Sesi dijadwalkan ulang untuk wawancara AI. Status diperbarui.');
+      await submitAssessorSessionAction(candidate.code, { action: actionType, reason: trimmed });
+      setSessionModal(null);
+      setSessionModalReason('');
+      if (actionType === 'reschedule') {
         navigate('/asesor/interview-queue');
+        return;
       }
+      await loadCandidateDetail(candidate.code, { silent: true });
+      setNoticeBanner({
+        type: 'success',
+        message:
+          actionType === 'resolve_manual'
+            ? 'Status "Perlu Tindakan" berhasil diselesaikan secara manual. Anda dapat melanjutkan review BARS.'
+            : 'Sesi berhasil ditandai masuk antrean Perlu Tindakan.'
+      });
     } catch (err: any) {
-      window.alert(err?.response?.data?.error || 'Gagal memproses tindakan sesi.');
+      setSessionModalError(err?.response?.data?.error || 'Gagal memproses tindakan sesi.');
     } finally {
       setActionBusy(false);
     }
+  };
+
+  const handleSessionAction = (
+    action: 'reschedule' | 'resolve_manual' | 'flag_issue' | 'toggle_calibration'
+  ) => {
+    if (!candidate) return;
+    if (action === 'toggle_calibration') {
+      setActionBusy(true);
+      submitAssessorSessionAction(candidate.code, { action, reason: '' })
+        .then(() => loadCandidateDetail(candidate.code, { silent: true }))
+        .catch((err: any) =>
+          setNoticeBanner({
+            type: 'error',
+            message: err?.response?.data?.error || 'Gagal memperbarui status kalibrasi.'
+          })
+        )
+        .finally(() => setActionBusy(false));
+      return;
+    }
+    openSessionActionModal(action);
   };
 
   if (candidateLoading) {
@@ -599,6 +668,26 @@ export default function AsesorLiveConsole() {
       </header>
 
       {/* ─── Main Console Grid: Audio & Transcript Evidence (Left) + AI & BARS Rubric (Right) ─── */}
+      {noticeBanner && (
+        <div
+          className={`mx-4 sm:mx-6 mt-4 px-4 py-3 rounded-xl border text-xs flex items-center justify-between gap-3 ${
+            noticeBanner.type === 'success'
+              ? 'bg-emerald-950/90 border-emerald-700 text-emerald-100'
+              : noticeBanner.type === 'error'
+                ? 'bg-rose-950/90 border-rose-700 text-rose-100'
+                : 'bg-slate-900 border-slate-700 text-slate-200'
+          }`}
+        >
+          <span>{noticeBanner.message}</span>
+          <button
+            type="button"
+            onClick={() => setNoticeBanner(null)}
+            className="text-xs font-bold underline shrink-0 cursor-pointer"
+          >
+            Tutup
+          </button>
+        </div>
+      )}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-6 overflow-hidden">
         {/* ─── Left Column (6 cols): Audio Player + Timestamped Transcript + Issue Controls ─── */}
         <div className="lg:col-span-6 flex flex-col gap-4 bg-slate-900 rounded-2xl border border-slate-800 p-4 sm:p-5 overflow-hidden">
@@ -732,36 +821,36 @@ export default function AsesorLiveConsole() {
         <div className="lg:col-span-6 bg-white text-ink rounded-2xl border border-border-slate flex flex-col overflow-hidden shadow-xs">
           {/* Header Rubrik */}
           <div className="p-5 border-b border-border-slate flex flex-wrap items-center justify-between gap-3 bg-slate-50">
-            <div>
-              <h2 className="font-heading font-extrabold text-base text-ink">
-                Skor Ava AI &amp; Rubrik Penilaian Asesor (BARS 1–5)
-              </h2>
-              <p className="text-xs text-muted-slate">
-                Setujui rekomendasi skor AI atau sesuaikan nilai dengan alasan wajib untuk Log Audit.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {(candidate.aiCompetencies?.length || 0) > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={handleAdoptAllAiScores}
-                  leftIcon={<Sparkles className="w-3.5 h-3.5 text-indigo-600" />}
-                >
-                  Setujui Semua Skor AI
-                </Button>
-              )}
-              <div className="text-right">
-                <span className="text-[10px] text-muted-slate uppercase font-bold block">
-                  Skor Review:
-                </span>
-                <p className="font-mono text-xl font-extrabold text-primary-navy">
-                  {hasScoredAny ? `${totalWeightedScore.toFixed(1)} / 100` : 'Belum Dinilai'}
+              <div>
+                <h2 className="font-heading font-bold text-base text-ink">
+                  Skor Ava AI &amp; Rubrik Penilaian Asesor (BARS 1–5)
+                </h2>
+                <p className="text-xs text-muted-slate mt-0.5">
+                  Setujui rekomendasi skor AI atau sesuaikan nilai dengan alasan wajib untuk Log Audit.
                 </p>
               </div>
-            </div>
+
+              <div className="flex items-center gap-3">
+                {(candidate.aiCompetencies?.length || 0) > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={handleAdoptAllAiScores}
+                    leftIcon={<Sparkles className="w-3.5 h-3.5 text-indigo-600" />}
+                  >
+                    Setujui Semua Skor AI
+                  </Button>
+                )}
+                <div className="text-right">
+                  <span className="text-[10px] text-muted-slate uppercase font-semibold block">
+                    Skor Review:
+                  </span>
+                  <p className="font-heading tabular-nums text-lg sm:text-xl font-bold text-primary-navy">
+                    {hasScoredAny ? `${totalWeightedScore.toFixed(1)} / 100` : 'Belum Dinilai'}
+                  </p>
+                </div>
+              </div>
           </div>
 
           {/* Competency Tabs */}
@@ -956,6 +1045,55 @@ export default function AsesorLiveConsole() {
           </div>
         </div>
       </div>
+
+      {/* Modal Aksi Sesi Non-Blocking */}
+      <Modal
+        isOpen={Boolean(sessionModal)}
+        onClose={() => {
+          if (!actionBusy) setSessionModal(null);
+        }}
+        title={sessionModal?.title || 'Tindakan Sesi'}
+        size="md"
+      >
+        {sessionModal && (
+          <form onSubmit={handleConfirmSessionAction} className="space-y-4">
+            <p className="text-xs text-slate-600 leading-relaxed">{sessionModal.description}</p>
+            <div>
+              <label className="block text-xs font-semibold text-ink mb-1.5">
+                Catatan / Alasan *
+              </label>
+              <textarea
+                rows={3}
+                value={sessionModalReason}
+                onChange={(e) => {
+                  setSessionModalReason(e.target.value);
+                  if (sessionModalError) setSessionModalError('');
+                }}
+                placeholder={sessionModal.placeholder}
+                className="w-full p-3 rounded-xl border border-slate-200 focus:border-primary-navy text-xs text-ink outline-none"
+                autoFocus
+              />
+              {sessionModalError && (
+                <p className="text-xs text-rose-600 mt-1">{sessionModalError}</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={actionBusy}
+                onClick={() => setSessionModal(null)}
+              >
+                Batal
+              </Button>
+              <Button type="submit" variant="primary" size="sm" disabled={actionBusy}>
+                {actionBusy ? 'Menyimpan...' : 'Konfirmasi & Simpan'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

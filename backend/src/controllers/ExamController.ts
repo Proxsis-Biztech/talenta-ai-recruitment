@@ -91,6 +91,20 @@ export const scoreAnswers = (
   return { score, autoGraded, manualReview, competencyScores };
 };
 
+const normalizeQuestionOptions = (raw: string | null | unknown[]) => {
+  const parsed = typeof raw === 'string' ? parseJson<unknown[]>(raw, []) : Array.isArray(raw) ? raw : [];
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map((opt: any, idx: number) => {
+    const fallbackKey = String.fromCharCode(65 + idx);
+    if (typeof opt === 'string') {
+      return { key: fallbackKey, label: opt, text: opt };
+    }
+    const key = String(opt?.key ?? opt?.id ?? fallbackKey);
+    const label = String(opt?.label ?? opt?.text ?? opt?.value ?? '');
+    return { ...opt, key, label, text: label };
+  });
+};
+
 const sanitizeQuestions = (questions: Array<{
   orderNo: number;
   type: string;
@@ -111,7 +125,7 @@ const sanitizeQuestions = (questions: Array<{
     difficulty: question.difficulty,
     text: question.text,
     codeSnippet: question.codeSnippet,
-    options: parseJson(question.options, []),
+    options: normalizeQuestionOptions(question.options),
     matchingPairs: parseJson(question.matchingPairs, []),
     attachmentUrl: question.attachmentUrl || null,
     attachmentName: question.attachmentName || null,
