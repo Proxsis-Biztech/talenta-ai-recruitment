@@ -886,7 +886,7 @@ export const askPesertaFaqChatbot = async (req: AuthRequest, res: Response) => {
           new Set(
             [
               process.env.GEMINI_CHAT_MODEL,
-              aiConfig.cvScreeningModel,
+              aiConfig.chatbotModel,
               'gemini-2.5-flash',
               'gemini-flash-lite-latest',
               'gemini-3.5-flash-lite'

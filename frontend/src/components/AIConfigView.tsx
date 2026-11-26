@@ -14,7 +14,8 @@ import { Select } from './ui/Select';
 
 export interface AIConfiguration {
   liveAudioModel: string;
-  cvScreeningModel: string;
+  chatbotModel: string;
+  humanPhotoValidationModel: string;
   voicePersona: 'Puck' | 'Aoede' | 'Charon' | 'Fenrir' | 'Kore';
   cvWeight: number;
   interviewWeight: number;
@@ -52,7 +53,8 @@ const PROCTORING_BREAKDOWN: Array<{
 
 const DEFAULT_CONFIG: AIConfiguration = {
   liveAudioModel: 'gemini-2.5-flash-native-audio-latest',
-  cvScreeningModel: 'gemini-2.5-flash',
+  chatbotModel: 'gemini-2.5-flash',
+  humanPhotoValidationModel: 'gemini-2.5-flash',
   voicePersona: 'Kore',
   cvWeight: 35,
   interviewWeight: 50,
@@ -311,22 +313,43 @@ export default function AIConfigView() {
 
             <div className="max-w-[400px]">
               <Select
-                label="Model Analisis ATS Resume (CV Screening)"
-                value={config.cvScreeningModel}
-                onChange={(e) => setConfig({ ...config, cvScreeningModel: e.target.value })}
+                label="Model AI Chatbot FAQ & Helpdesk"
+                value={config.chatbotModel}
+                onChange={(e) => setConfig({ ...config, chatbotModel: e.target.value })}
               >
                 <option value="gemini-2.5-flash">
-                  gemini-2.5-flash (Ekstraksi Presisi Tinggi)
+                  gemini-2.5-flash (Seimbang)
                 </option>
                 <option value="gemini-3.5-flash-lite">
-                  gemini-3.5-flash-lite (Inference Cepat)
+                  gemini-3.5-flash-lite (Respons Cepat)
                 </option>
                 <option value="gemini-flash-latest">
                   gemini-flash-latest (Kompatibilitas Standar)
                 </option>
               </Select>
               <p className="text-[13px] text-[#64748B] mt-1.5">
-                Digunakan untuk membedah teks PDF CV, riwayat kerja, kecocokan kompetensi, dan ringkasan penilaian.
+                Digunakan chatbot FAQ peserta/asesor untuk menjawab pertanyaan berbasis pengetahuan platform.
+              </p>
+            </div>
+
+            <div className="max-w-[400px]">
+              <Select
+                label="Model Validasi Foto Profil (Deteksi Manusia)"
+                value={config.humanPhotoValidationModel}
+                onChange={(e) => setConfig({ ...config, humanPhotoValidationModel: e.target.value })}
+              >
+                <option value="gemini-2.5-flash">
+                  gemini-2.5-flash (Vision Presisi Tinggi)
+                </option>
+                <option value="gemini-3.5-flash-lite">
+                  gemini-3.5-flash-lite (Vision Cepat)
+                </option>
+                <option value="gemini-flash-latest">
+                  gemini-flash-latest (Kompatibilitas Standar)
+                </option>
+              </Select>
+              <p className="text-[13px] text-[#64748B] mt-1.5">
+                Memvalidasi foto profil peserta: manusia asli, tepat 1 wajah, bukan spoof, dan komposisi setengah badan.
               </p>
             </div>
 

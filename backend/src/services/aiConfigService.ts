@@ -25,6 +25,8 @@ export interface ProctoringPolicy {
 export interface AiRuntimeConfig {
   liveAudioModel: string;
   cvScreeningModel: string;
+  chatbotModel: string;
+  humanPhotoValidationModel: string;
   interviewScoringModel: string;
   factSheetModel: string;
   transcriptionModel: string;
@@ -42,6 +44,8 @@ export interface AiRuntimeConfig {
 const DEFAULT_CONFIG: AiRuntimeConfig = {
   liveAudioModel: 'gemini-2.5-flash-native-audio-latest',
   cvScreeningModel: 'gemini-2.5-flash',
+  chatbotModel: 'gemini-2.5-flash',
+  humanPhotoValidationModel: 'gemini-2.5-flash',
   interviewScoringModel: 'gemini-2.5-flash',
   factSheetModel: 'gemini-2.5-flash',
   transcriptionModel: 'gemini-flash-lite-latest',

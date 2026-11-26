@@ -208,7 +208,7 @@ export async function verifyHumanFacePhoto(
     candidateModels = [deps.modelOverride];
   } else {
     const aiConfig = await getAiConfig().catch(() => null);
-    const configured = aiConfig?.cvScreeningModel || 'gemini-2.5-flash';
+    const configured = aiConfig?.humanPhotoValidationModel || 'gemini-2.5-flash';
     candidateModels = Array.from(new Set([configured, 'gemini-2.5-flash', 'gemini-flash-lite-latest']));
   }
 
