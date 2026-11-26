@@ -28,7 +28,6 @@ import {
   MessageSquare,
   Bot,
   Scale,
-  Layers,
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -107,7 +106,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'PELAKSANAAN & EVALUASI',
     items: [
       { key: 'peserta', label: 'Peserta & Kandidat', icon: Users },
-      { key: 'org-structure', label: 'Departemen & Kelas', icon: Layers },
       { key: 'pipeline', label: 'Live Interview Asesor', icon: Video },
       { key: 'proctoring', label: 'Monitoring Proctoring', icon: ShieldAlert },
       { key: 'ranking', label: 'Hasil & Peringkat (LHA)', icon: BarChart3 },
