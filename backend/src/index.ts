@@ -104,9 +104,9 @@ app.use((req, res, next) => {
   return corsMiddleware(req, res, next);
 });
 
-// Body parsing with size limits to prevent DoS
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ limit: '1mb', extended: true }));
+// Body parsing with size limits (4mb accommodates verified JPEG portrait snapshots cleanly)
+app.use(express.json({ limit: '4mb' }));
+app.use(express.urlencoded({ limit: '4mb', extended: true }));
 app.use(compression());
 
 // Ensure uploads directory exists

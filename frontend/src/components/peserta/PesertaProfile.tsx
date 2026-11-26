@@ -140,7 +140,7 @@ export default function PesertaProfile() {
     return isAnyCatCompleted();
   }, []);
 
-  const isFaceRegistered = Boolean(savedFacePhoto || portalUser?.faceVerifiedAt);
+  const isFaceRegistered = Boolean(portalUser?.faceVerifiedAt);
 
   const isNameValid = fullName.trim().length >= 2 && !isPlaceholderName(fullName);
   const cleanPhoneDigits = phone.replace(/[\s-]/g, '');
@@ -195,7 +195,7 @@ export default function PesertaProfile() {
             </span>
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Gunakan halaman Live Scan Kamera berlayar lebar dengan garis panduan kepala &amp; setengah badan.
+            Gunakan halaman Live Scan Kamera dengan garis panduan kepala &amp; setengah badan serta verifikasi AI manusia asli.
           </p>
         </div>
         <span
@@ -430,7 +430,7 @@ export default function PesertaProfile() {
       });
 
       if (updatedUser?.profileCompleted) {
-        if (!updatedUser.faceVerifiedAt && !savedFacePhoto) {
+        if (!updatedUser.faceVerifiedAt) {
           setTimeout(() => navigate('/peserta/live-scan'), 450);
         } else if (!updatedUser.deviceCheckCompletedAt) {
           setTimeout(() => navigate('/peserta/device-check'), 500);

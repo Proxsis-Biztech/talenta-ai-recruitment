@@ -9,6 +9,12 @@ import { normalizeCompanyName, resolveAdminTenantId } from '../middleware/tenant
 import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
 import { sendActivationEmail, sendCredentialsEmail, sendPasswordResetEmail } from '../services/mailService';
 import { getLhaVersionMeta } from '../services/lhaGovernanceService';
+import {
+  createFaceVerificationToken,
+  FaceVerificationError,
+  verifyFaceVerificationToken,
+  verifyHumanFacePhoto
+} from '../services/humanFaceVerificationService';
 
 const prisma = new PrismaClient();
 
@@ -471,21 +477,66 @@ export const completeOnboarding = async (req: AuthRequest, res: Response) => {
   }
 };
 
+const handleFaceVerificationFailure = (res: Response, error: unknown, fallbackMessage: string) => {
+  if (error instanceof FaceVerificationError) {
+    return res.status(error.statusCode).json({ verified: false, error: error.message });
+  }
+  console.error(fallbackMessage, error);
+  return res.status(500).json({ verified: false, error: fallbackMessage });
+};
+
+/**
+ * Verifies a captured profile photo using Gemini Vision so only authentic single-human photos pass.
+ */
+export const verifyPortalFacePhoto = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    const verification = await verifyHumanFacePhoto(req.body?.photoDataUrl);
+    if (!verification.approved) {
+      return res.status(422).json({
+        verified: false,
+        error: verification.reason,
+        verification
+      });
+    }
+    const verificationToken = createFaceVerificationToken(req.portalUser.id, verification.imageSha256);
+    return res.json({
+      verified: true,
+      verificationToken,
+      verification
+    });
+  } catch (error) {
+    return handleFaceVerificationFailure(res, error, 'Gagal memverifikasi keaslian foto wajah.');
+  }
+};
+
 export const completeDeviceCheck = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
-    if (!req.body.faceCaptured) {
-      return res.status(400).json({ error: 'Snapshot wajah belum diterima.' });
+    const photoDataUrl = req.body?.photoDataUrl;
+    const verificationToken = req.body?.verificationToken;
+
+    let verification = null;
+    const tokenPreVerified = verifyFaceVerificationToken(verificationToken, req.portalUser.id, photoDataUrl);
+    if (!tokenPreVerified) {
+      verification = await verifyHumanFacePhoto(photoDataUrl);
+      if (!verification.approved) {
+        return res.status(422).json({
+          verified: false,
+          error: verification.reason,
+          verification
+        });
+      }
     }
+
     const user = await prisma.portalUser.update({
       where: { id: req.portalUser.id },
       data: { faceVerifiedAt: new Date() },
       select: userSelect
     });
-    return res.json({ user });
+    return res.json({ user, verified: true, ...(verification ? { verification } : {}) });
   } catch (error) {
-    console.error('Complete device check error:', error);
-    return res.status(500).json({ error: 'Gagal menyimpan verifikasi perangkat.' });
+    return handleFaceVerificationFailure(res, error, 'Gagal menyimpan verifikasi foto identitas.');
   }
 };
 

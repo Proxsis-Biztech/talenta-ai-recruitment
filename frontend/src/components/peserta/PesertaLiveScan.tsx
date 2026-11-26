@@ -9,6 +9,9 @@ import {
   ArrowLeft,
   ArrowRight,
   AlertCircle,
+  Loader2,
+  ScanFace,
+  ShieldAlert,
   ShieldCheck,
   LogOut,
   Sparkles
@@ -21,6 +24,54 @@ import {
   savePortalSession,
   type PortalUser
 } from '../../services/portalAuthService';
+import { isVirtualCameraLabel } from '../../utils/proctoringEngine';
+
+const MAX_CAPTURE_SIDE = 960;
+
+interface AiVerificationState {
+  status: 'idle' | 'checking' | 'verified' | 'rejected' | 'error';
+  message: string;
+  token?: string;
+  faceCount?: number;
+}
+
+function assessCanvasFrameQuality(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  const sampleCanvas = document.createElement('canvas');
+  sampleCanvas.width = 64;
+  sampleCanvas.height = 48;
+  const sCtx = sampleCanvas.getContext('2d');
+  if (!sCtx) return { ok: true };
+
+  sCtx.drawImage(ctx.canvas, 0, 0, width, height, 0, 0, 64, 48);
+  const { data } = sCtx.getImageData(0, 0, 64, 48);
+  const totalPixels = 64 * 48;
+  let sum = 0;
+  let sqSum = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    sum += luma;
+    sqSum += luma * luma;
+  }
+
+  const mean = sum / totalPixels;
+  const variance = Math.max(0, sqSum / totalPixels - mean * mean);
+  const stdDev = Math.sqrt(variance);
+
+  if (mean < 16) {
+    return {
+      ok: false,
+      reason: 'Hasil kamera terlalu gelap atau lensa tertutup. Pastikan pencahayaan ruangan cukup terang.'
+    };
+  }
+  if (stdDev < 5) {
+    return {
+      ok: false,
+      reason: 'Frame kamera tampak kosong atau seragam. Arahkan wajah Anda ke kamera lalu coba lagi.'
+    };
+  }
+  return { ok: true };
+}
 
 const isPlaceholderName = (name?: string | null) => {
   if (!name) return true;
@@ -56,10 +107,15 @@ export default function PesertaLiveScan() {
   const [cameraLoading, setCameraLoading] = useState(true);
   const [cameraError, setCameraError] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(
-    () => localStorage.getItem('candidate_face_photo') || null
+    () => (portalUser?.faceVerifiedAt ? localStorage.getItem('candidate_face_photo') || null : null)
   );
   const [isNewCapture, setIsNewCapture] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [liveFaceCount, setLiveFaceCount] = useState<number | null>(null);
+  const [aiVerification, setAiVerification] = useState<AiVerificationState>({
+    status: 'idle',
+    message: ''
+  });
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -70,6 +126,7 @@ export default function PesertaLiveScan() {
       videoRef.current.srcObject = null;
     }
     setCameraActive(false);
+    setLiveFaceCount(null);
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -77,6 +134,7 @@ export default function PesertaLiveScan() {
     setCameraLoading(true);
     setCameraError('');
     setIsNewCapture(false);
+    setAiVerification({ status: 'idle', message: '' });
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setCameraLoading(false);
@@ -93,6 +151,16 @@ export default function PesertaLiveScan() {
         },
         audio: false
       });
+
+      const primaryTrack = stream.getVideoTracks()[0];
+      if (primaryTrack && isVirtualCameraLabel(primaryTrack.label)) {
+        stream.getTracks().forEach((track) => track.stop());
+        setCameraError(
+          `Kamera virtual (${primaryTrack.label}) terdeteksi. Gunakan kamera fisik perangkat asli agar foto dapat diverifikasi.`
+        );
+        return;
+      }
+
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -116,6 +184,83 @@ export default function PesertaLiveScan() {
     return () => stopCamera();
   }, [startCamera, stopCamera]);
 
+  useEffect(() => {
+    if (!cameraActive || isNewCapture) {
+      setLiveFaceCount(null);
+      return;
+    }
+
+    const Detector = (window as unknown as { FaceDetector?: new (opts?: unknown) => { detect: (img: HTMLVideoElement) => Promise<Array<unknown>> } }).FaceDetector;
+    if (!Detector) return;
+
+    let cancelled = false;
+    const detector = new Detector({ fastMode: true, maxDetectedFaces: 3 });
+
+    const intervalId = window.setInterval(async () => {
+      if (cancelled || !videoRef.current || videoRef.current.readyState < 2) return;
+      try {
+        const faces = await detector.detect(videoRef.current);
+        if (!cancelled) {
+          setLiveFaceCount(faces.length);
+        }
+      } catch {
+        // Browser FaceDetector unsupported or frame not ready
+      }
+    }, 750);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [cameraActive, isNewCapture]);
+
+  const verifyPhotoWithServer = useCallback(async (photoDataUrl: string) => {
+    const token = getPortalToken();
+    if (!token) {
+      setAiVerification({
+        status: 'error',
+        message: 'Sesi login peserta tidak ditemukan. Silakan masuk ulang.'
+      });
+      return;
+    }
+
+    setAiVerification({
+      status: 'checking',
+      message: 'Menganalisis keaslian wajah manusia melalui AI Vision...'
+    });
+
+    try {
+      const response = await axios.post(
+        '/api/portal/verify-face',
+        { photoDataUrl },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data?.verified) {
+        setAiVerification({
+          status: 'verified',
+          message: response.data?.verification?.reason || 'Terverifikasi manusia asli dengan foto setengah badan (1 wajah jelas).',
+          token: response.data?.verificationToken,
+          faceCount: response.data?.verification?.faceCount ?? 1
+        });
+      } else {
+        setAiVerification({
+          status: 'rejected',
+          message: response.data?.error || 'Foto ditolak: manusia asli dengan komposisi setengah badan tidak terdeteksi.',
+          faceCount: response.data?.verification?.faceCount
+        });
+      }
+    } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      const errMsg = axios.isAxiosError(err)
+        ? err.response?.data?.error || 'Verifikasi wajah gagal diproses.'
+        : 'Verifikasi wajah gagal diproses.';
+      setAiVerification({
+        status: status === 422 || status === 400 ? 'rejected' : 'error',
+        message: errMsg
+      });
+    }
+  }, []);
+
   const handleCapturePhoto = () => {
     setCameraError('');
     if (!videoRef.current || videoRef.current.videoWidth === 0) {
@@ -124,8 +269,12 @@ export default function PesertaLiveScan() {
     }
 
     const canvas = canvasRef.current || document.createElement('canvas');
-    const vw = videoRef.current.videoWidth || 1280;
-    const vh = videoRef.current.videoHeight || 960;
+    const rawW = videoRef.current.videoWidth || 1280;
+    const rawH = videoRef.current.videoHeight || 960;
+    const scale = Math.min(1, MAX_CAPTURE_SIDE / Math.max(rawW, rawH));
+    const vw = Math.round(rawW * scale);
+    const vh = Math.round(rawH * scale);
+
     canvas.width = vw;
     canvas.height = vh;
     const ctx = canvas.getContext('2d');
@@ -141,14 +290,22 @@ export default function PesertaLiveScan() {
     ctx.drawImage(videoRef.current, 0, 0, vw, vh);
     ctx.restore();
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    const qualityCheck = assessCanvasFrameQuality(ctx, vw, vh);
+    if (!qualityCheck.ok) {
+      setCameraError(qualityCheck.reason || 'Kualitas gambar kamera tidak memenuhi syarat.');
+      return;
+    }
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
     setPreviewPhoto(dataUrl);
     setIsNewCapture(true);
     stopCamera();
+    void verifyPhotoWithServer(dataUrl);
   };
 
   const handleRetake = () => {
     setIsNewCapture(false);
+    setAiVerification({ status: 'idle', message: '' });
     void startCamera();
   };
 
@@ -158,18 +315,28 @@ export default function PesertaLiveScan() {
       setCameraError('Ambil foto identitas setengah badan terlebih dahulu.');
       return;
     }
+    if (isNewCapture && aiVerification.status !== 'verified') {
+      setCameraError(
+        aiVerification.status === 'checking'
+          ? 'Tunggu hingga proses verifikasi AI wajah manusia selesai.'
+          : aiVerification.message || 'Foto belum lulus verifikasi manusia asli & setengah badan. Ambil ulang foto terlebih dahulu.'
+      );
+      return;
+    }
 
     setSaving(true);
     setCameraError('');
     try {
-      localStorage.setItem('candidate_face_photo', activePhoto);
       const token = getPortalToken();
       let latestUser = getPortalUser();
 
       if (token) {
         const response = await axios.post(
           '/api/portal/device-check',
-          { faceCaptured: true },
+          {
+            photoDataUrl: activePhoto,
+            verificationToken: aiVerification.token
+          },
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (response.data?.user) {
@@ -178,6 +345,8 @@ export default function PesertaLiveScan() {
         }
       }
 
+      // Persist preview in localStorage only after server AI verification succeeds
+      localStorage.setItem('candidate_face_photo', activePhoto);
       window.dispatchEvent(new Event('portal-event-updated'));
 
       if (!hasCompleteBiodata(latestUser)) {
@@ -188,11 +357,13 @@ export default function PesertaLiveScan() {
         navigate('/peserta/profile', { replace: true });
       }
     } catch (err) {
-      setCameraError(
-        axios.isAxiosError(err)
-          ? err.response?.data?.error || 'Gagal menyimpan foto identitas ke server.'
-          : 'Gagal menyimpan foto identitas.'
-      );
+      const errMsg = axios.isAxiosError(err)
+        ? err.response?.data?.error || 'Gagal menyimpan foto identitas ke server.'
+        : 'Gagal menyimpan foto identitas.';
+      setCameraError(errMsg);
+      if (axios.isAxiosError(err) && err.response?.status === 422) {
+        setAiVerification({ status: 'rejected', message: errMsg });
+      }
     } finally {
       setSaving(false);
     }
@@ -411,24 +582,51 @@ export default function PesertaLiveScan() {
                 </svg>
               )}
 
-              {/* Status pill top-left */}
-              <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
+              {/* Status pill top-left + live browser pre-check badge */}
+              <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/65 backdrop-blur-md text-white text-[11px] font-semibold">
                   <span
                     className={`w-2 h-2 rounded-full ${
                       isNewCapture
-                        ? 'bg-emerald-400'
+                        ? aiVerification.status === 'verified'
+                          ? 'bg-emerald-400'
+                          : aiVerification.status === 'rejected' || aiVerification.status === 'error'
+                            ? 'bg-rose-400'
+                            : 'bg-sky-400 animate-pulse'
                         : cameraActive
                           ? 'bg-sky-400 animate-pulse'
                           : 'bg-amber-400'
                     }`}
                   />
                   {isNewCapture
-                    ? 'Hasil Foto Baru Siap Disimpan'
+                    ? aiVerification.status === 'verified'
+                      ? 'Terverifikasi Manusia Asli'
+                      : aiVerification.status === 'checking'
+                        ? 'Memeriksa Keaslian Wajah (AI)...'
+                        : aiVerification.status === 'rejected' || aiVerification.status === 'error'
+                          ? 'Verifikasi Wajah Ditolak — Foto Ulang'
+                          : 'Hasil Foto Baru'
                     : cameraActive
                       ? 'Kamera Live Aktif — Sejajarkan Kepala & Bahu'
                       : 'Pratinjau Foto Tersimpan'}
                 </span>
+
+                {cameraActive && !isNewCapture && liveFaceCount !== null && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] font-bold border ${
+                      liveFaceCount === 1
+                        ? 'bg-emerald-500/85 text-white border-emerald-300/60'
+                        : 'bg-amber-500/85 text-white border-amber-300/60'
+                    }`}
+                  >
+                    <ScanFace className="w-3.5 h-3.5" />
+                    {liveFaceCount === 1
+                      ? '1 Wajah Terdeteksi'
+                      : liveFaceCount === 0
+                        ? 'Wajah Belum Terlihat'
+                        : `${liveFaceCount} Wajah Terdeteksi`}
+                  </span>
+                )}
               </div>
 
               {/* Framing tip bottom center */}
@@ -440,6 +638,51 @@ export default function PesertaLiveScan() {
                 </div>
               )}
             </div>
+
+            {/* AI Vision Human Verification Status Banner */}
+            {isNewCapture && aiVerification.status !== 'idle' && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs flex flex-wrap items-center justify-between gap-2.5 ${
+                  aiVerification.status === 'checking'
+                    ? 'bg-blue-50 border-blue-200 text-blue-900'
+                    : aiVerification.status === 'verified'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}
+              >
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                  {aiVerification.status === 'checking' ? (
+                    <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0 mt-0.5" />
+                  ) : aiVerification.status === 'verified' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="space-y-0.5">
+                    <p className="font-bold">
+                      {aiVerification.status === 'checking'
+                        ? 'Pemeriksaan AI Human Verification'
+                        : aiVerification.status === 'verified'
+                          ? 'Lolos Verifikasi Manusia Asli & Foto Setengah Badan'
+                          : 'Foto Belum Memenuhi Syarat (Manusia Asli & Setengah Badan)'}
+                    </p>
+                    <p className="opacity-90 leading-relaxed">{aiVerification.message}</p>
+                  </div>
+                </div>
+
+                {aiVerification.status === 'error' && previewPhoto && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void verifyPhotoWithServer(previewPhoto)}
+                    className="h-8 px-3 text-xs font-semibold border-rose-300 text-rose-800 hover:bg-rose-100 shrink-0 cursor-pointer"
+                  >
+                    Coba Verifikasi Lagi
+                  </Button>
+                )}
+              </div>
+            )}
 
             {cameraError && (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2">
@@ -486,27 +729,30 @@ export default function PesertaLiveScan() {
                 )}
               </div>
 
-              {previewPhoto && (!cameraActive || isNewCapture) && (
-                <Button
-                  type="button"
-                  variant="primary"
-                  disabled={saving}
-                  onClick={() => void handleSaveAndContinue()}
-                  className="px-5 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm cursor-pointer"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>
-                    {saving
-                      ? 'Menyimpan...'
-                      : !biodataReady
-                        ? 'Simpan Foto & Lengkapi Biodata'
-                        : !portalUser?.deviceCheckCompletedAt
-                          ? 'Simpan Foto & Lanjut Cek Perangkat'
-                          : 'Simpan Foto Identitas'}
-                  </span>
-                  {!saving && <ArrowRight className="w-4 h-4" />}
-                </Button>
-              )}
+              {previewPhoto &&
+                (!cameraActive || isNewCapture) &&
+                ((!isNewCapture && Boolean(portalUser?.faceVerifiedAt)) ||
+                  (aiVerification.status === 'verified' && Boolean(aiVerification.token))) && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    disabled={saving}
+                    onClick={() => void handleSaveAndContinue()}
+                    className="px-5 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>
+                      {saving
+                        ? 'Menyimpan...'
+                        : !biodataReady
+                          ? 'Simpan Foto & Lengkapi Biodata'
+                          : !portalUser?.deviceCheckCompletedAt
+                            ? 'Simpan Foto & Lanjut Cek Perangkat'
+                            : 'Simpan Foto Identitas'}
+                    </span>
+                    {!saving && <ArrowRight className="w-4 h-4" />}
+                  </Button>
+                )}
             </div>
           </div>
 

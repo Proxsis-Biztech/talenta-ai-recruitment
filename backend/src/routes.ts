@@ -23,7 +23,7 @@ const caseFileUpload = multer({
 });
 import { login, me as getCurrentAdmin, getAdmins, createAdmin, updateAdmin, deleteAdmin, setupTwoFactor, enableTwoFactor, disableTwoFactor } from './controllers/AdminController';
 import {
-  loginPortal, registerPeserta, googleLogin, tokenLogin, me as getPortalMe, updateProfile, changePassword, completeOnboarding, completeDeviceCheck, completeDeviceCheckSession, getPortalDashboard,
+  loginPortal, registerPeserta, googleLogin, tokenLogin, me as getPortalMe, updateProfile, changePassword, completeOnboarding, verifyPortalFacePhoto, completeDeviceCheck, completeDeviceCheckSession, getPortalDashboard,
   listPortalUsers, createPortalUser, updatePortalUser, deletePortalUser,
   forgotPassword, resetPassword, refreshPortalSession, logoutPortal, getAssessmentHistory, sendPortalUserCredentials, sendPortalUserActivation,
   getPortalConsent, acceptPortalConsent
@@ -149,6 +149,7 @@ router.get('/portal/auth/me', authenticatePortal, getPortalMe);
 router.put('/portal/profile', authenticatePortal, updateProfile);
 router.put('/portal/password', authenticatePortal, changePassword);
 router.post('/portal/onboarding', authenticatePortal, completeOnboarding);
+router.post('/portal/verify-face', authenticatePortal, verifyPortalFacePhoto);
 router.post('/portal/device-check', authenticatePortal, completeDeviceCheck);
 router.post('/portal/device-check/complete', authenticatePortal, completeDeviceCheckSession);
 router.get('/portal/dashboard', authenticatePortal, getPortalDashboard);
