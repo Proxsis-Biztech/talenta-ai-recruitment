@@ -12,12 +12,18 @@ import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 
+export interface AiProviderRow {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  models: string[];
+  builtin: boolean;
+  hasApiKey: boolean;
+  apiKeyMasked: string;
+}
+
 export interface AIConfiguration {
-  aiProvider: 'google-ai-studio' | 'vertex-ai';
-  aiApiKey: string;
-  aiProjectId: string;
-  aiLocation: string;
-  aiModelCatalog: string[];
   liveAudioModel: string;
   chatbotModel: string;
   humanPhotoValidationModel: string;
@@ -57,17 +63,6 @@ const PROCTORING_BREAKDOWN: Array<{
 ];
 
 const DEFAULT_CONFIG: AIConfiguration = {
-  aiProvider: 'google-ai-studio',
-  aiApiKey: '',
-  aiProjectId: '',
-  aiLocation: 'us-central1',
-  aiModelCatalog: [
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-native-audio-latest',
-    'gemini-flash-latest',
-    'gemini-3.5-flash-lite',
-    'gemini-flash-lite-latest'
-  ],
   liveAudioModel: 'gemini-2.5-flash-native-audio-latest',
   chatbotModel: 'gemini-2.5-flash',
   humanPhotoValidationModel: 'gemini-2.5-flash',
@@ -85,14 +80,19 @@ const DEFAULT_CONFIG: AIConfiguration = {
 export default function AIConfigView() {
   const [config, setConfig] = useState<AIConfiguration>(DEFAULT_CONFIG);
   const [savedConfig, setSavedConfig] = useState<AIConfiguration>(DEFAULT_CONFIG);
+  const [providers, setProviders] = useState<AiProviderRow[]>([]);
+  const [savedProviders, setSavedProviders] = useState<AiProviderRow[]>([]);
+  const [providerTests, setProviderTests] = useState<Record<string, { reachable: boolean; message: string }>>({});
+  const [providerTesting, setProviderTesting] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    loadMasterScope<AIConfiguration>('ai-config')
+    loadMasterScope<AIConfiguration & { aiProviders?: unknown }>('ai-config')
       .then((data) => {
         if (cancelled) return;
         if (data.default) {
-          const merged = { ...DEFAULT_CONFIG, ...data.default };
+          const { aiProviders: _ignored, ...safe } = data.default as unknown as Record<string, unknown>;
+          const merged = { ...DEFAULT_CONFIG, ...(safe as Partial<AIConfiguration>) };
           setConfig(merged);
           setSavedConfig(merged);
         } else {
@@ -107,18 +107,37 @@ export default function AIConfigView() {
     };
   }, []);
 
-  const hasUnsavedChanges = JSON.stringify(config) !== JSON.stringify(savedConfig);
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    axios
+      .get('/api/admin/ai/providers', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        const rows = (res.data?.data || []) as AiProviderRow[];
+        setProviders(rows.map((row) => ({ ...row, apiKey: '' })));
+        setSavedProviders(rows.map((row) => ({ ...row, apiKey: '' })));
+      })
+      .catch(() => undefined);
+  }, []);
 
-  const modelOptions = Array.from(
-    new Set(
-      [
-        ...(config.aiModelCatalog || []),
-        config.liveAudioModel,
-        config.chatbotModel,
-        config.humanPhotoValidationModel
-      ].filter(Boolean)
-    )
+  const hasUnsavedChanges =
+    JSON.stringify(config) !== JSON.stringify(savedConfig) ||
+    JSON.stringify(providers) !== JSON.stringify(savedProviders);
+
+  const providerModelGroups = providers
+    .filter((provider) => provider.builtin || (provider.baseUrl.trim() && (provider.hasApiKey || provider.apiKey.trim())))
+    .map((provider) => ({
+      id: provider.id,
+      name: provider.name,
+      models: provider.models.filter(Boolean)
+    }))
+    .filter((group) => group.models.length > 0);
+
+  const allProviderModels = Array.from(
+    new Set(providerModelGroups.flatMap((group) => group.models))
   );
+  const selectedModels = [config.liveAudioModel, config.chatbotModel, config.humanPhotoValidationModel];
+  const missingSelectedModels = selectedModels.filter((model) => model && !allProviderModels.includes(model));
 
   const [saving, setSaving] = useState(false);
   const [pingLoading, setPingLoading] = useState(false);
@@ -203,12 +222,78 @@ export default function AIConfigView() {
     }
   };
 
+  const updateProvider = (id: string, patch: Partial<AiProviderRow>) => {
+    setProviders((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  };
+
+  const addProvider = () => {
+    setProviders((prev) => [
+      ...prev,
+      {
+        id: `provider-${Date.now()}`,
+        name: 'Provider Baru',
+        baseUrl: '',
+        apiKey: '',
+        models: [],
+        builtin: false,
+        hasApiKey: false,
+        apiKeyMasked: ''
+      }
+    ]);
+  };
+
+  const removeProvider = (id: string) => {
+    setProviders((prev) => prev.filter((item) => item.id !== id || item.builtin));
+  };
+
+  const handleTestProvider = async (provider: AiProviderRow) => {
+    setProviderTesting(provider.id);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await axios.post(
+        '/api/admin/ai/providers/test',
+        {
+          providerId: provider.id,
+          baseUrl: provider.baseUrl,
+          apiKey: provider.apiKey || undefined
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setProviderTests((prev) => ({
+        ...prev,
+        [provider.id]: {
+          reachable: Boolean(res.data?.reachable),
+          message: res.data?.message || 'Uji koneksi selesai.'
+        }
+      }));
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        'Gagal menghubungi provider.';
+      setProviderTests((prev) => ({ ...prev, [provider.id]: { reachable: false, message: msg } }));
+    } finally {
+      setProviderTesting(null);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       const token = localStorage.getItem('adminToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      await saveMasterRecord('ai-config', 'default', config);
+      const providerResponse = await axios.put(
+        '/api/admin/ai/providers',
+        { providers },
+        { headers }
+      );
+      const savedRows = ((providerResponse.data?.data || []) as AiProviderRow[]).map((row) => ({
+        ...row,
+        apiKey: ''
+      }));
+      setProviders(savedRows);
+      setSavedProviders(savedRows);
       await Promise.all([
-        saveMasterRecord('ai-config', 'default', config),
         axios.put(
           '/api/admin/faq-knowledge/mcp-config',
           {
@@ -237,6 +322,29 @@ export default function AIConfigView() {
       setSaving(false);
     }
   };
+
+  const renderModelOptions = () => (
+    <>
+      {providerModelGroups.map((group) => (
+        <optgroup key={group.id} label={group.name}>
+          {group.models.map((model) => (
+            <option key={`${group.id}-${model}`} value={model}>
+              {model}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+      {missingSelectedModels.length > 0 && (
+        <optgroup label="Model tersimpan">
+          {missingSelectedModels.map((model) => (
+            <option key={`saved-${model}`} value={model}>
+              {model}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
 
   const voiceOptions = [
     { id: 'Kore', label: 'Kore (Default)', tone: 'Seimbang, Ramah & Alami', desc: 'Sangat cocok untuk wawancara eksplorasi talenta umum' },
@@ -311,7 +419,7 @@ export default function AIConfigView() {
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="text-sm font-heading font-bold text-ink tracking-tight flex items-center gap-2">
               <Zap className="w-4 h-4 text-primary-navy" />
-              1. Model Fondasi Gemini
+              1. Model Konfigurasi
             </h3>
             <span className="text-xs text-slate-400 font-sans">Google AI Studio</span>
           </div>
@@ -323,11 +431,7 @@ export default function AIConfigView() {
                 value={config.liveAudioModel}
                 onChange={(e) => setConfig({ ...config, liveAudioModel: e.target.value })}
               >
-                {modelOptions.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
+                {renderModelOptions()}
               </Select>
               <p className="text-[13px] text-[#64748B] mt-1.5">
                 Mengontrol streaming audio websocket dua arah antara kandidat dan pewawancara virtual.
@@ -340,11 +444,7 @@ export default function AIConfigView() {
                 value={config.chatbotModel}
                 onChange={(e) => setConfig({ ...config, chatbotModel: e.target.value })}
               >
-                {modelOptions.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
+                {renderModelOptions()}
               </Select>
               <p className="text-[13px] text-[#64748B] mt-1.5">
                 Digunakan chatbot FAQ peserta/asesor untuk menjawab pertanyaan berbasis pengetahuan platform.
@@ -357,11 +457,7 @@ export default function AIConfigView() {
                 value={config.humanPhotoValidationModel}
                 onChange={(e) => setConfig({ ...config, humanPhotoValidationModel: e.target.value })}
               >
-                {modelOptions.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
+                {renderModelOptions()}
               </Select>
               <p className="text-[13px] text-[#64748B] mt-1.5">
                 Memvalidasi foto profil peserta: manusia asli, tepat 1 wajah, bukan spoof, dan komposisi setengah badan.
@@ -721,76 +817,125 @@ export default function AIConfigView() {
             <div>
               <h3 className="text-sm font-bold text-slate-900">AI Provider</h3>
               <p className="text-xs text-slate-500">
-                Tentukan penyedia dan katalog model AI yang dipakai seluruh layanan, termasuk pilihan pada bagian 1.
+                Kelola penyedia AI beserta base URL, API key, dan daftar model. Provider dengan API key valid tampil di bagian 1.
               </p>
             </div>
           </div>
-          <Badge variant={config.aiProvider === 'vertex-ai' ? 'warning' : 'teal'} format="soft">
-            {config.aiProvider === 'vertex-ai' ? 'Vertex AI' : 'Google AI Studio'}
-          </Badge>
+          <Button type="button" variant="secondary" size="sm" onClick={addProvider}>
+            + Tambah Provider
+          </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Select
-            label="Provider AI"
-            value={config.aiProvider}
-            onChange={(e) =>
-              setConfig({ ...config, aiProvider: e.target.value as AIConfiguration['aiProvider'] })
-            }
-          >
-            <option value="google-ai-studio">Google AI Studio (Gemini API Key)</option>
-            <option value="vertex-ai">Google Vertex AI (Google Cloud Project)</option>
-          </Select>
-          <Input
-            label="API Key Override (Opsional)"
-            type="password"
-            value={config.aiApiKey}
-            onChange={(e) => setConfig({ ...config, aiApiKey: e.target.value })}
-            placeholder="Kosongkan untuk memakai GEMINI_API_KEY dari environment"
-          />
+        <div className="space-y-4">
+          {providers.map((provider) => (
+            <div key={provider.id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-slate-900">{provider.name || provider.id}</span>
+                  {provider.builtin ? (
+                    <Badge variant="teal" format="soft">Default • API key hardcoded</Badge>
+                  ) : (
+                    <Badge variant={provider.hasApiKey ? 'teal' : 'warning'} format="soft">
+                      {provider.hasApiKey ? 'API key tersimpan' : 'API key belum diisi'}
+                    </Badge>
+                  )}
+                </div>
+                {!provider.builtin && (
+                  <button
+                    type="button"
+                    onClick={() => removeProvider(provider.id)}
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-700 cursor-pointer"
+                  >
+                    Hapus
+                  </button>
+                )}
+              </div>
+
+              {provider.builtin ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-500 block mb-1">API Key (environment)</span>
+                    <span className="font-mono text-slate-700">{provider.apiKeyMasked || '••••••••'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block mb-1">Model tersedia</span>
+                    <span className="font-mono text-slate-700">{provider.models.join(', ') || '-'}</span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input
+                      label="Nama Provider"
+                      value={provider.name}
+                      onChange={(e) => updateProvider(provider.id, { name: e.target.value })}
+                      placeholder="Contoh: OpenAI"
+                    />
+                    <Input
+                      label="Base URL"
+                      value={provider.baseUrl}
+                      onChange={(e) => updateProvider(provider.id, { baseUrl: e.target.value })}
+                      placeholder="https://api.openai.com/v1"
+                    />
+                  </div>
+                  <Input
+                    label={
+                      provider.hasApiKey
+                        ? `API Key (Tersimpan: ${provider.apiKeyMasked})`
+                        : 'API Key'
+                    }
+                    type="password"
+                    value={provider.apiKey}
+                    onChange={(e) => updateProvider(provider.id, { apiKey: e.target.value })}
+                    placeholder={provider.hasApiKey ? 'Kosongkan jika tidak ingin mengubah key' : 'Masukkan API key provider'}
+                  />
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-[#475569]">
+                      Model (pisahkan dengan koma)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={provider.models.join(', ')}
+                      onChange={(e) =>
+                        updateProvider(provider.id, {
+                          models: e.target.value
+                            .split(/[,\n]/)
+                            .map((item) => item.trim())
+                            .filter(Boolean)
+                        })
+                      }
+                      placeholder="gpt-4o-mini, gpt-4.1"
+                      className="w-full px-3 py-2 text-sm font-mono bg-white border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className={`text-xs font-semibold ${providerTests[provider.id]?.reachable ? 'text-emerald-700' : 'text-slate-500'}`}>
+                      {providerTests[provider.id]?.message || ''}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleTestProvider(provider)}
+                      disabled={providerTesting === provider.id}
+                    >
+                      <Activity className="w-4 h-4 mr-1.5" />
+                      {providerTesting === provider.id ? 'Menguji...' : 'Uji Koneksi'}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+          {providers.length === 0 && (
+            <p className="text-xs text-slate-500">Memuat daftar provider...</p>
+          )}
         </div>
 
-        {config.aiProvider === 'vertex-ai' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Google Cloud Project ID"
-              value={config.aiProjectId}
-              onChange={(e) => setConfig({ ...config, aiProjectId: e.target.value })}
-              placeholder="proyek-vertex-ai-anda"
-            />
-            <Input
-              label="Region / Location"
-              value={config.aiLocation}
-              onChange={(e) => setConfig({ ...config, aiLocation: e.target.value })}
-              placeholder="us-central1"
-            />
-          </div>
-        )}
-
-        <div className="space-y-1.5">
-          <label className="block text-xs font-semibold text-[#475569]">
-            Katalog Model AI (pisahkan dengan koma)
-          </label>
-          <textarea
-            rows={3}
-            value={(config.aiModelCatalog || []).join(', ')}
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                aiModelCatalog: e.target.value
-                  .split(/[,\n]/)
-                  .map((item) => item.trim())
-                  .filter(Boolean)
-              })
-            }
-            placeholder="gemini-2.5-flash, gemini-flash-latest"
-            className="w-full px-3 py-2 text-sm font-mono bg-white border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
-          />
-          <p className="text-[11px] text-slate-500">
-            Daftar ini menjadi pilihan model pada bagian 1 (Live Audio, Chatbot, dan Validasi Foto Profil).
-            Untuk Vertex AI, gunakan ID model yang tersedia di region terpilih.
-          </p>
-        </div>
+        <p className="text-[11px] text-slate-500">
+          API key disimpan di server dan hanya ditampilkan dalam bentuk tersamarkan. Provider non-default
+          muncul sebagai pilihan model di bagian 1 setelah base URL dan API key tersimpan.
+        </p>
       </Card>
       {/* Sticky Save Bar on Unsaved Changes */}
       {hasUnsavedChanges && (

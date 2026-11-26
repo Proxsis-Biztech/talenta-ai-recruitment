@@ -38,6 +38,7 @@ import {
   submitLhaCorrectionRequest, getLhaVersionHistory, listAdminLhaCorrections, reviewAdminLhaCorrection
 } from './controllers/AssessorScoreController';
 import { getProctoringReviews, upsertProctoringReview } from './controllers/ProctoringController';
+import { listAiProviders, saveAiProviders, testAiProvider } from './controllers/AiProviderController';
 import { getInterviewQuestions } from './controllers/InterviewController';
 import {
   listAssessorCandidates,
@@ -349,6 +350,9 @@ router.delete('/admin/users/:id', authenticateToken, requireSuperadmin, deleteAd
 // Superadmin Audit Logs & AI System Diagnostics
 router.get('/admin/audit-logs', authenticateToken, requireSuperadmin, getAuditLogsHandler);
 router.get('/admin/ai/ping', authenticateToken, requireSuperadmin, testAiLatencyHandler);
+router.get('/admin/ai/providers', authenticateToken, requireSuperadmin, listAiProviders);
+router.put('/admin/ai/providers', authenticateToken, requireSuperadmin, saveAiProviders);
+router.post('/admin/ai/providers/test', authenticateToken, requireSuperadmin, testAiProvider);
 
 // Multi-Tenant Billing & Credit Management (BRD BR-BL-11, BR-BL-12, BR-MT-01)
 router.get('/admin/billing/overview', authenticateToken, getBillingOverview);

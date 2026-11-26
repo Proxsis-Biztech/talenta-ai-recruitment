@@ -24,12 +24,22 @@ export interface ProctoringPolicy {
 
 export type AiProviderKey = 'google-ai-studio' | 'vertex-ai';
 
+export interface AiProviderEntry {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  models: string[];
+  builtin: boolean;
+}
+
 export interface AiRuntimeConfig {
   aiProvider: AiProviderKey;
   aiApiKey: string;
   aiProjectId: string;
   aiLocation: string;
   aiModelCatalog: string[];
+  aiProviders: AiProviderEntry[];
   liveAudioModel: string;
   cvScreeningModel: string;
   chatbotModel: string;
@@ -59,6 +69,22 @@ const DEFAULT_CONFIG: AiRuntimeConfig = {
     'gemini-flash-latest',
     'gemini-3.5-flash-lite',
     'gemini-flash-lite-latest'
+  ],
+  aiProviders: [
+    {
+      id: 'gemini',
+      name: 'Google Gemini (Default)',
+      baseUrl: '',
+      apiKey: '',
+      models: [
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-native-audio-latest',
+        'gemini-flash-latest',
+        'gemini-3.5-flash-lite',
+        'gemini-flash-lite-latest'
+      ],
+      builtin: true
+    }
   ],
   liveAudioModel: 'gemini-2.5-flash-native-audio-latest',
   cvScreeningModel: 'gemini-2.5-flash',

@@ -33,7 +33,30 @@ export const putMasterRecord = async (req: AuthRequest, res: Response) => {
   try {
     const scope = String(req.params.scope);
     const key = String(req.params.key);
-    const value = JSON.stringify(req.body.value ?? null);
+    let payload = req.body.value ?? null;
+    if (
+      scope === 'ai-config' &&
+      key === 'default' &&
+      payload &&
+      typeof payload === 'object' &&
+      !Array.isArray(payload) &&
+      !('aiProviders' in (payload as Record<string, unknown>))
+    ) {
+      const existingRecord = await prisma.masterRecord.findUnique({
+        where: { scope_key: { scope, key } }
+      });
+      if (existingRecord?.value) {
+        try {
+          const parsed = JSON.parse(existingRecord.value);
+          if (parsed?.aiProviders) {
+            payload = { ...(payload as Record<string, unknown>), aiProviders: parsed.aiProviders };
+          }
+        } catch {
+          // ignore malformed existing config
+        }
+      }
+    }
+    const value = JSON.stringify(payload);
     const record = await prisma.masterRecord.upsert({
       where: { scope_key: { scope, key } },
       update: { value },
