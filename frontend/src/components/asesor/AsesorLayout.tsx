@@ -227,7 +227,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-page-bg text-ink flex font-sans antialiased overflow-x-hidden">
+    <div id="asesor-root" className="min-h-screen bg-page-bg text-ink flex font-sans antialiased overflow-x-hidden">
       {/* Mobile Overlay Backdrop */}
       {mobileDrawerOpen && (
         <div
@@ -305,7 +305,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           {navGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-1.5">
               {!isCollapsed && (
-                <div className="px-3 pt-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase font-sans">
+                <div className="px-3 pt-1 text-[10px] font-bold tracking-wider text-[#64748B] uppercase font-sans">
                   {group.group}
                 </div>
               )}
@@ -330,7 +330,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                       }
                       setMobileDrawerOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all cursor-pointer relative group ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[14px] font-medium transition-all cursor-pointer relative group ${
                       isActive
                         ? 'bg-amber-50 text-amber-950 font-semibold shadow-2xs border border-amber-200'
                         : 'text-slate-600 hover:text-ink hover:bg-slate-100'
@@ -338,7 +338,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                     title={isCollapsed ? item.label : undefined}
                   >
                     <Icon
-                      className={`w-4 h-4 shrink-0 transition-colors ${
+                      className={`w-[18px] h-[18px] shrink-0 transition-colors ${
                         isActive ? 'text-amber-700' : 'text-slate-400 group-hover:text-slate-600'
                       }`}
                     />
@@ -348,7 +348,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                         <span className="truncate flex-1 text-left">{item.label}</span>
                         {'badge' in item && item.badge && (
                           <span
-                            className={`text-[11px] px-2 py-0.5 rounded-full font-semibold tabular-nums shrink-0 ${
+                            className={`text-[11px] px-2 py-0.5 rounded-full font-semibold font-mono tabular-nums shrink-0 ${
                               isActive
                                 ? 'bg-amber-900 text-white'
                                 : 'bg-slate-100 text-slate-600 border border-slate-200'
@@ -361,7 +361,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                     )}
 
                     {isCollapsed && (
-                      <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="absolute left-full ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs font-medium rounded-md shadow-lg pointer-events-none whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity">
                         {item.label}
                       </span>
                     )}
@@ -377,12 +377,12 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
           <button
             type="button"
             onClick={() => void handleLogout()}
-            className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-muted-slate hover:text-error-red hover:bg-red-50 transition-colors cursor-pointer ${
+            className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[14px] font-semibold text-muted-slate hover:text-error-red hover:bg-red-50 transition-colors cursor-pointer ${
               isCollapsed ? 'justify-center px-0' : ''
             }`}
             title="Keluar dari Akun"
           >
-            <LogOut className="w-4.5 h-4.5" />
+            <LogOut className="w-[18px] h-[18px]" />
             {!isCollapsed && <span>Keluar</span>}
           </button>
         </div>
@@ -416,12 +416,12 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
               </button>
             )}
 
-            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-slate truncate">
-              <span className="font-semibold text-slate-500">Right</span>
-              <span className="text-slate-300">/</span>
-              <span className="text-slate-500">Asesor</span>
-              <span className="text-slate-300">/</span>
-              <span className="font-bold text-ink truncate">{getActiveTitle()}</span>
+            <div className="flex items-center gap-2 text-[14px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis truncate">
+              <span className="font-normal text-[#64748B] shrink-0">Right</span>
+              <span className="text-[#94A3B8] shrink-0">/</span>
+              <span className="font-normal text-[#64748B] shrink-0">Asesor</span>
+              <span className="text-[#94A3B8] shrink-0">/</span>
+              <span className="text-[#0F172A] truncate">{getActiveTitle()}</span>
             </div>
           </div>
 
@@ -484,7 +484,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                 </div>
                 <div className="hidden md:block text-left">
                   <div className="flex items-center gap-1">
-                    <p className="text-xs sm:text-sm font-bold text-slate-900 leading-tight group-hover:text-amber-900 transition-colors">
+                    <p className="text-xs font-bold text-slate-900 leading-tight group-hover:text-amber-900 transition-colors">
                       {activeAsesor.name}
                     </p>
                     <ChevronDown
@@ -493,7 +493,7 @@ export function AsesorLayout({ children, activeTab }: AsesorLayoutProps) {
                       }`}
                     />
                   </div>
-                  <p className="text-xs font-sans text-slate-500 mt-0.5 truncate max-w-[170px]">
+                  <p className="text-[11px] font-sans text-slate-500 mt-0.5 truncate max-w-[170px]">
                     {activeAsesor.companyName || 'Asesor Evaluator'}
                   </p>
                 </div>

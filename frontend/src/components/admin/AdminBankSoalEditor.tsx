@@ -1373,10 +1373,10 @@ export function AdminBankSoalEditor({
 
       {/* ─── GOOGLE FORMS-STYLE QUESTION BUILDER ─── */}
       {(viewMode === 'table' || viewMode === 'editor') && (
-        <div className="rounded-2xl bg-[#F4F6FA] border border-slate-200/80 p-3 sm:p-6">
-          <div className="max-w-4xl mx-auto flex items-start gap-4">
-            {/* Main Centered Google Forms Column */}
-            <div className="flex-1 min-w-0 max-w-3xl space-y-3.5">
+        <div className="rounded-2xl bg-[#F4F6FA] border border-slate-200/80 p-3 sm:p-5">
+          <div className="w-full flex items-start gap-4">
+            {/* Main Wide Google Forms Column */}
+            <div className="flex-1 min-w-0 space-y-3.5">
               {/* Google Forms Title & Category Header Card */}
               <div className="rounded-xl border border-slate-200 border-t-[6px] border-t-[#1E3A8A] bg-white p-5 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -1452,7 +1452,7 @@ export function AdminBankSoalEditor({
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-1 sm:flex-initial justify-end min-w-0">
-                    <div className="relative flex-1 sm:w-44 min-w-[130px]">
+                    <div className="relative flex-1 sm:w-64 min-w-[160px]">
                       <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"

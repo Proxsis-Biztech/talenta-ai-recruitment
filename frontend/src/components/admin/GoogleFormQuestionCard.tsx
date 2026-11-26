@@ -247,7 +247,7 @@ export const GoogleFormQuestionCard = memo(function GoogleFormQuestionCard({
 
         {question.type === 'Isian Singkat' && (
           <div className="pl-5">
-            <div className="max-w-sm border-b border-dashed border-slate-300 pb-1 text-xs text-slate-500">
+            <div className="max-w-2xl border-b border-dashed border-slate-300 pb-1 text-xs text-slate-500">
               {question.options[0]?.text ? (
                 <span>
                   Kunci: <strong className="text-emerald-700">{question.options[0].text}</strong>
@@ -261,7 +261,7 @@ export const GoogleFormQuestionCard = memo(function GoogleFormQuestionCard({
 
         {question.type === 'Esai' && (
           <div className="pl-5">
-            <div className="max-w-md border-b border-dashed border-slate-300 pb-1 text-xs italic text-slate-400">
+            <div className="max-w-2xl border-b border-dashed border-slate-300 pb-1 text-xs italic text-slate-400">
               Teks jawaban panjang (Esai)...
             </div>
           </div>
@@ -485,7 +485,7 @@ export const GoogleFormQuestionCard = memo(function GoogleFormQuestionCard({
           )}
 
           {question.type === 'Isian Singkat' && (
-            <div className="space-y-2 max-w-lg">
+            <div className="space-y-2 max-w-2xl">
               <input
                 type="text"
                 value={question.options[0]?.text || ''}
@@ -504,7 +504,7 @@ export const GoogleFormQuestionCard = memo(function GoogleFormQuestionCard({
           )}
 
           {question.type === 'Esai' && (
-            <div className="space-y-2 max-w-xl">
+            <div className="space-y-2 max-w-3xl">
               <div className="py-2.5 border-b border-dashed border-slate-300 text-sm text-slate-400 italic">
                 Teks jawaban panjang peserta (dinilai secara manual / rubrik oleh asesor)
               </div>

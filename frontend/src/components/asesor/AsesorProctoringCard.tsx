@@ -223,8 +223,8 @@ export function AsesorProctoringCard({
             {hasAlerts ? <ShieldAlert className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
           </div>
           <div>
-            <h3 className="font-heading text-sm sm:text-base font-bold text-ink">{resolvedTitle}</h3>
-            <p className="text-xs text-slate-500 mt-0.5">{resolvedSubtitle}</p>
+            <h3 className="font-heading text-base font-bold text-[#0F172A]">{resolvedTitle}</h3>
+            <p className="text-xs text-[#64748B] mt-0.5">{resolvedSubtitle}</p>
           </div>
         </div>
 

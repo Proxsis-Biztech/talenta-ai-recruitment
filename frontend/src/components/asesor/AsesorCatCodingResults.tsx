@@ -120,13 +120,13 @@ export default function AsesorCatCodingResults() {
 
   return (
     <AsesorLayout activeTab="hasil-cat">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-6 antialiased">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold font-heading text-ink tracking-tight">
+            <h1 className="text-2xl font-bold font-heading text-[#0F172A] tracking-tight">
               Hasil Pengerjaan Soal CAT &amp; Live Coding
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            <p className="text-sm text-[#64748B] mt-0.5">
               Tinjau jawaban butir soal CAT (pilihan ganda, isian, esai), proctoring CAT, serta kode program Live Coding.
             </p>
           </div>
@@ -268,7 +268,7 @@ export default function AsesorCatCodingResults() {
                 {/* Breakdown Kompetensi */}
                 {catDetails && catDetails.competencyScores?.length > 0 && (
                   <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-3">
-                    <h2 className="font-heading text-sm sm:text-base font-bold text-ink">
+                    <h2 className="font-heading text-base font-bold text-[#0F172A]">
                       Capaian per Kompetensi CAT
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -290,7 +290,7 @@ export default function AsesorCatCodingResults() {
                 {/* Daftar Butir Soal & Jawaban */}
                 <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
                   <div className="px-5 py-4 border-b border-slate-100">
-                    <h2 className="font-heading text-sm sm:text-base font-bold text-ink">
+                    <h2 className="font-heading text-base font-bold text-[#0F172A]">
                       Lembar Jawaban Soal CAT Peserta
                     </h2>
                   </div>
@@ -304,10 +304,10 @@ export default function AsesorCatCodingResults() {
                         <TableHeader>
                           <TableRow>
                             <TableHead className="w-12 text-center">#</TableHead>
-                            <TableHead>SOAL &amp; KOMPETENSI</TableHead>
-                            <TableHead>JAWABAN PESERTA</TableHead>
-                            <TableHead>KUNCI / INDIKATOR</TableHead>
-                            <TableHead className="text-right">STATUS</TableHead>
+                            <TableHead>Soal &amp; Kompetensi</TableHead>
+                            <TableHead>Jawaban Peserta</TableHead>
+                            <TableHead>Kunci / Indikator</TableHead>
+                            <TableHead className="text-right">Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>

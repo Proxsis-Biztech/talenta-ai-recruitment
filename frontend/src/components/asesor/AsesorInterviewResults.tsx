@@ -370,13 +370,13 @@ export default function AsesorInterviewResults() {
 
   return (
     <AsesorLayout activeTab="hasil-interview">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-6 antialiased">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold font-heading text-ink tracking-tight">
+            <h1 className="text-2xl font-bold font-heading text-[#0F172A] tracking-tight">
               Hasil Interview &amp; Penilaian BARS (GPA)
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            <p className="text-sm text-[#64748B] mt-0.5">
               Tinjau transkrip percakapan wawancara Ava AI, proctoring interview, dan berikan penilaian rubrik BARS (skala 1–5) → GPA (0.00–4.00).
             </p>
           </div>

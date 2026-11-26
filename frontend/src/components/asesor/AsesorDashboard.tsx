@@ -160,7 +160,7 @@ export default function AsesorDashboard() {
 
   return (
     <AsesorLayout activeTab="dashboard">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-6 antialiased">
         {/* Executive Hero Header */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F172A] via-[#1E3A8A] to-[#172554] text-white p-6 sm:p-7 shadow-sm">
           <div className="absolute -right-12 -top-12 w-56 h-56 rounded-full bg-blue-400/15 blur-2xl pointer-events-none" />
@@ -172,7 +172,7 @@ export default function AsesorDashboard() {
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Konsol Evaluasi Asesor • Rubrik BARS &amp; GPA</span>
               </div>
-              <h1 className="font-heading text-2xl sm:text-[28px] font-bold tracking-tight text-white">
+              <h1 className="font-heading text-2xl font-bold tracking-tight text-white">
                 Selamat Datang, {activeUser?.name || 'Asesor'}
               </h1>
               <p className="text-sm text-blue-100/85 leading-relaxed">
@@ -531,7 +531,7 @@ export default function AsesorDashboard() {
             </div>
           </div>
 
-          <div className="overflow-x-auto [&_th]:px-3.5 [&_td]:px-3.5 [&_th]:whitespace-nowrap">
+          <div className="overflow-x-auto [&_th]:px-3 [&_td]:px-3 [&_th]:whitespace-nowrap">
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50/80">
@@ -542,7 +542,7 @@ export default function AsesorDashboard() {
                   <TableHead>Interview AI</TableHead>
                   <TableHead>Proctoring</TableHead>
                   <TableHead>BARS &amp; GPA</TableHead>
-                  <TableHead className="text-right">Aksi Evaluasi</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

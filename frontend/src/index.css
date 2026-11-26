@@ -337,39 +337,47 @@ html {
   transform: translateY(-50%) translateX(0) !important;
 }
 
-/* Admin readability & breathing room */
-#superadmin-root {
+/* Admin & Asesor unified readability & typography scale */
+#superadmin-root,
+#asesor-root {
+  font-family: var(--font-sans);
   font-size: 15px;
 }
 
-#superadmin-root .text-xs {
+#superadmin-root .text-xs,
+#asesor-root .text-xs {
   font-size: 0.8125rem;
   line-height: 1.4;
 }
 
-#superadmin-root .text-\[10px\] {
+#superadmin-root .text-\[10px\],
+#asesor-root .text-\[10px\] {
   font-size: 0.6875rem;
   line-height: 1.35;
 }
 
-#superadmin-root .text-\[11px\] {
+#superadmin-root .text-\[11px\],
+#asesor-root .text-\[11px\] {
   font-size: 0.75rem;
   line-height: 1.4;
 }
 
-#superadmin-root .text-sm {
+#superadmin-root .text-sm,
+#asesor-root .text-sm {
   font-size: 0.9375rem;
   line-height: 1.5;
 }
 
-#superadmin-root main table th {
+#superadmin-root main table th,
+#asesor-root main table th {
   font-size: 0.75rem;
   letter-spacing: 0.045em;
   padding-top: 1rem;
   padding-bottom: 1rem;
 }
 
-#superadmin-root main table td {
+#superadmin-root main table td,
+#asesor-root main table td {
   font-size: 0.875rem;
   padding-top: 1rem;
   padding-bottom: 1rem;
@@ -503,8 +511,15 @@ html {
 }
 
 #superadmin-root main h1,
-#superadmin-root main h2 {
+#superadmin-root main h2,
+#asesor-root main h1,
+#asesor-root main h2 {
   letter-spacing: -0.02em;
+}
+
+#superadmin-root main h1,
+#asesor-root main h1 {
+  font-family: var(--font-heading);
 }
 
 #superadmin-root main h1 {
@@ -707,8 +722,9 @@ html {
 
 
 
-/* Professional table typography */
-#superadmin-root main table th {
+/* Professional table typography (Admin & Asesor) */
+#superadmin-root main table th,
+#asesor-root main table th {
   text-transform: none;
   font-size: 12px;
   font-weight: 600;
@@ -716,7 +732,8 @@ html {
   color: #667085;
 }
 
-#superadmin-root main table td {
+#superadmin-root main table td,
+#asesor-root main table td {
   color: #344054;
 }
 
@@ -751,13 +768,15 @@ html {
   background-image: none !important;
 }
 
-/* Admin table breathing room */
-#superadmin-root main table th {
+/* Admin & Asesor table breathing room */
+#superadmin-root main table th,
+#asesor-root main table th {
   padding-top: 1.125rem;
   padding-bottom: 1.125rem;
 }
 
-#superadmin-root main table td {
+#superadmin-root main table td,
+#asesor-root main table td {
   padding-top: 1.125rem;
   padding-bottom: 1.125rem;
 }
