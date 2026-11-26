@@ -16,7 +16,7 @@ import {
   Users,
   X
 } from 'lucide-react';
-import { AsesorLayout, resolveAsesorSessionUser } from './AsesorLayout';
+import { AsesorLayout, emitAsesorDataUpdated, resolveAsesorSessionUser } from './AsesorLayout';
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui';
 import {
   fetchAssessorCandidate,
@@ -186,7 +186,7 @@ export default function AsesorFinalSummaryLha() {
           : scoredComps.length > 0
             ? scoredComps.reduce((sum: number, c: any) => sum + (Number(c?.score) || 0), 0) / scoredComps.length
             : 0;
-      const derivedInterviewScore = Math.round((barsAvg / 5) * 100);
+      const derivedInterviewScore = Math.round(barsAvg * 20 * 10) / 10;
       const token = getPortalToken();
       await axios.post(
         '/api/asesor/scores',
@@ -207,6 +207,7 @@ export default function AsesorFinalSummaryLha() {
         },
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
+      emitAsesorDataUpdated();
       setNotice({
         type: 'success',
         message: `LHA resmi untuk ${selected.name} (${selected.code}) berhasil ditandatangani (E-Sign) dan diterbitkan.`
@@ -242,10 +243,19 @@ export default function AsesorFinalSummaryLha() {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch (error: any) {
-      setNotice({
-        type: 'error',
-        message: error?.response?.data?.error || 'LHA PDF belum tersedia atau gagal diunduh.'
-      });
+      let message = 'LHA PDF belum tersedia atau gagal diunduh.';
+      if (error?.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed?.error) message = parsed.error;
+        } catch {
+          // keep fallback
+        }
+      } else if (error?.response?.data?.error) {
+        message = error.response.data.error;
+      }
+      setNotice({ type: 'error', message });
     } finally {
       setDownloadingPdf(false);
     }
@@ -625,8 +635,19 @@ export default function AsesorFinalSummaryLha() {
 
       {/* Modal Preview Penilaian Akhir & Penerbitan LHA (E-Sign) */}
       {(selected || loadingModal) && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-3xl w-full shadow-2xl overflow-hidden my-6">
+        <div
+          onClick={() => {
+            setSelected(null);
+            setSelectedScore(null);
+            setNotice(null);
+            if (id) navigate('/asesor/rekap-lha', { replace: true });
+          }}
+          className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4 overflow-y-auto"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-slate-200 max-w-3xl w-full shadow-2xl overflow-hidden my-6"
+          >
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/70">
               <div>
                 <h3 className="font-heading text-base font-bold text-ink">
@@ -721,14 +742,16 @@ export default function AsesorFinalSummaryLha() {
                     <h4 className="font-heading text-xs font-bold uppercase tracking-wide text-slate-600">
                       Rincian Kompetensi BARS (1–5)
                     </h4>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/asesor/hasil-interview/${selected.code}`)}
-                      className="text-xs font-semibold text-primary-navy hover:underline inline-flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>Ubah Nilai BARS</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
+                    {selected.lhaStatus !== 'signed' && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/asesor/hasil-interview/${selected.code}`)}
+                        className="text-xs font-semibold text-primary-navy hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Ubah Nilai BARS</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                   {Array.isArray(selectedScore?.competencies) && selectedScore.competencies.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -847,7 +870,7 @@ export default function AsesorFinalSummaryLha() {
                       variant="primary"
                       size="sm"
                       onClick={() => void handleSignLha()}
-                      disabled={signing || !(Array.isArray(selectedScore?.competencies) && selectedScore.competencies.length > 0)}
+                      disabled={signing || selected.gpaScore == null || selected.barsAverage == null}
                     >
                       <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
                       {signing ? 'Menerbitkan LHA...' : 'Finalisasi & Terbitkan LHA (E-Sign)'}

@@ -62,6 +62,33 @@ test('isCandidateInAssessorScope allows PT-wide assessor within matching company
   assert.equal(isCandidateInAssessorScope(ctx, null), false);
 });
 
+test('isCandidateInAssessorScope matches same tenantId even when assessor agency companyName differs', () => {
+  const ctx = makeAssessorCtx({
+    tenantId: 'tenant-telkom',
+    companyName: 'Solusi Asesmen Indonesia',
+    normalizedCompany: normalizeCompanyName('Solusi Asesmen Indonesia'),
+    assignedProgramCodes: []
+  });
+
+  assert.equal(
+    isCandidateInAssessorScope(ctx, {
+      tenantId: 'tenant-telkom',
+      companyName: 'PT Telkom Indonesia Tbk',
+      assessmentId: 'SE-402'
+    }),
+    true
+  );
+
+  assert.equal(
+    isCandidateInAssessorScope(ctx, {
+      tenantId: 'tenant-mandiri',
+      companyName: 'PT Bank Mandiri (Persero) Tbk',
+      assessmentId: 'BMRI-DATA-02'
+    }),
+    false
+  );
+});
+
 test('isCandidateInAssessorScope enforces assignedProgramCodes across single, multi, and exam programs', () => {
   const ctx = makeAssessorCtx({ assignedProgramCodes: ['PROG-A', 'PROG-B'] });
 

@@ -469,6 +469,9 @@ export async function bootstrapDatabaseSeed() {
         const updates: any = {};
         if (account.candidateCode && !existing.candidateCode) updates.candidateCode = account.candidateCode;
         if (tenantId && !existing.tenantId) updates.tenantId = tenantId;
+        if (account.role === 'asesor' && account.companyName && existing.companyName === 'Solusi Asesmen Indonesia') {
+          updates.companyName = account.companyName;
+        }
         if (Object.keys(updates).length > 0) {
           await prisma.portalUser.update({ where: { id: existing.id }, data: updates });
         }

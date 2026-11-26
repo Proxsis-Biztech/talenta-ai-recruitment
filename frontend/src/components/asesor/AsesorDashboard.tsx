@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   Award,
-  CheckCircle2,
+  ClipboardCheck,
   ClipboardList,
   Clock,
-  Code2,
+  FileCheck2,
   GraduationCap,
-  ListChecks,
   MessageSquare,
   RefreshCw,
   Search,
@@ -19,7 +18,7 @@ import { AsesorLayout, resolveAsesorSessionUser } from './AsesorLayout';
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui';
 import { fetchAssessorCandidates, type AssessorCandidate } from '../../services/assessorService';
 
-type StageFilter = 'all' | 'complete' | 'in_progress' | 'needs_bars';
+type StageFilter = 'all' | 'complete' | 'in_progress' | 'needs_bars' | 'ready_lha';
 type AudienceFilter = 'all' | 'real' | 'test';
 
 const stageCount = (c: AssessorCandidate) =>
@@ -116,6 +115,8 @@ export default function AsesorDashboard() {
     const pendingBarsList = audienceCandidates.filter(
       (c) => Boolean(c.interviewDone) && (c.gpaScore == null || c.barsAverage == null)
     );
+    const readyLhaList = gradedList.filter((c) => c.lhaStatus !== 'signed');
+    const signedLhaCount = audienceCandidates.filter((c) => c.lhaStatus === 'signed').length;
     const avgGpa =
       gradedList.length > 0
         ? gradedList.reduce((acc, item) => acc + (item.gpaScore || 0), 0) / gradedList.length
@@ -129,6 +130,8 @@ export default function AsesorDashboard() {
       fullComplete,
       barsGraded: gradedList.length,
       pendingBarsList,
+      readyLhaList,
+      signedLhaCount,
       avgGpa
     };
   }, [audienceCandidates]);
@@ -139,6 +142,7 @@ export default function AsesorDashboard() {
       if (stageFilter === 'complete' && stageCount(c) !== 3) return false;
       if (stageFilter === 'in_progress' && stageCount(c) === 3) return false;
       if (stageFilter === 'needs_bars' && (!c.interviewDone || c.gpaScore != null)) return false;
+      if (stageFilter === 'ready_lha' && (c.gpaScore == null || c.lhaStatus === 'signed')) return false;
 
       if (!q) return true;
       return (
@@ -172,7 +176,7 @@ export default function AsesorDashboard() {
                 Selamat Datang, {activeUser?.name || 'Asesor'}
               </h1>
               <p className="text-sm text-blue-100/85 leading-relaxed">
-                Pantau progres pengerjaan Soal CAT, Live Coding, serta evaluasi transkrip wawancara Ava AI dengan standar rubrik BARS (GPA 0.00–4.00).
+                Pantau progres CAT, Live Coding, proctoring, penilaian wawancara Ava AI (BARS → GPA 0.00–4.00), hingga penerbitan LHA resmi dari satu halaman.
               </p>
             </div>
 
@@ -207,34 +211,48 @@ export default function AsesorDashboard() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate('/asesor/tracking')}
-                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-semibold text-white transition-colors cursor-pointer"
-                >
-                  <ListChecks className="w-3.5 h-3.5" />
-                  <span>Tracking Progres</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate('/asesor/hasil-interview')}
+                  onClick={() =>
+                    navigate(
+                      stats.pendingBarsList.length > 0
+                        ? `/asesor/hasil-interview/${stats.pendingBarsList[0].code}`
+                        : stats.readyLhaList.length > 0
+                          ? `/asesor/rekap-lha/${stats.readyLhaList[0].code}`
+                          : '/asesor/hasil-interview'
+                    )
+                  }
                   className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>Nilai Interview BARS</span>
+                  {stats.pendingBarsList.length > 0 ? (
+                    <>
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Nilai Interview BARS</span>
+                    </>
+                  ) : stats.readyLhaList.length > 0 ? (
+                    <>
+                      <ClipboardCheck className="w-3.5 h-3.5" />
+                      <span>Terbitkan LHA ({stats.readyLhaList.length})</span>
+                    </>
+                  ) : (
+                    <>
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Buka Interview &amp; BARS</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 4 Equal-Height Harmonious KPI Cards */}
+        {/* 4 Concise Non-Duplicated KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* Card 1: Total Peserta */}
           <button
             type="button"
             onClick={() => setStageFilter('all')}
             className={`text-left bg-white rounded-2xl border p-5 shadow-2xs transition-all cursor-pointer flex flex-col justify-between ${
-              stageFilter === 'all' && audienceFilter !== 'all'
-                ? 'border-blue-400 ring-2 ring-blue-500/10'
+              stageFilter === 'all'
+                ? 'border-slate-300 shadow-xs'
                 : 'border-slate-200 hover:border-slate-300 hover:shadow-xs'
             }`}
           >
@@ -250,7 +268,7 @@ export default function AsesorDashboard() {
                   {stats.total}
                 </p>
                 <span className="text-xs font-medium text-slate-500">
-                  kandidat ({stats.fullComplete} lengkap 3/3)
+                  ({stats.fullComplete} lengkap 3/3)
                 </span>
               </div>
             </div>
@@ -267,11 +285,15 @@ export default function AsesorDashboard() {
             </div>
           </button>
 
-          {/* Card 2: Soal CAT */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between">
+          {/* Card 2: CAT & Live Coding */}
+          <button
+            type="button"
+            onClick={() => navigate('/asesor/hasil-cat')}
+            className="text-left bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs hover:border-blue-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+          >
             <div>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-500">Selesai Soal CAT</span>
+                <span className="text-xs font-semibold text-slate-500">CAT &amp; Live Coding</span>
                 <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                   <ClipboardList className="w-4 h-4" />
                 </div>
@@ -281,7 +303,7 @@ export default function AsesorDashboard() {
                   {stats.catDone}
                 </p>
                 <span className="text-xs font-medium text-slate-500 tabular-nums">
-                  / {stats.total} peserta
+                  CAT • {stats.codingDone} Coding
                 </span>
               </div>
             </div>
@@ -293,43 +315,12 @@ export default function AsesorDashboard() {
                 />
               </div>
               <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">
-                {pct(stats.catDone, stats.total)}% mengerjakan ujian CAT
+                {pct(stats.catDone, stats.total)}% selesai ujian CAT
               </p>
             </div>
-          </div>
+          </button>
 
-          {/* Card 3: Live Coding */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-500">Selesai Live Coding</span>
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  <Code2 className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="flex items-baseline gap-2 mt-3">
-                <p className="font-heading text-2xl font-bold text-slate-900 tabular-nums">
-                  {stats.codingDone}
-                </p>
-                <span className="text-xs font-medium text-slate-500 tabular-nums">
-                  / {stats.total} peserta
-                </span>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-indigo-600 rounded-full transition-all"
-                  style={{ width: `${pct(stats.codingDone, stats.total)}%` }}
-                />
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">
-                {pct(stats.codingDone, stats.total)}% mengirim solusi kode
-              </p>
-            </div>
-          </div>
-
-          {/* Card 4: Interview AI & BARS */}
+          {/* Card 3: Interview AI & BARS */}
           <button
             type="button"
             onClick={() =>
@@ -344,16 +335,61 @@ export default function AsesorDashboard() {
             <div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-500">Interview AI &amp; BARS</span>
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                   <GraduationCap className="w-4 h-4" />
                 </div>
               </div>
               <div className="flex items-baseline gap-2 mt-3">
                 <p className="font-heading text-2xl font-bold text-slate-900 tabular-nums">
-                  {stats.interviewDone}
+                  {stats.barsGraded}
                 </p>
                 <span className="text-xs font-medium text-slate-500 tabular-nums">
-                  / {stats.total} selesai interview
+                  / {stats.interviewDone} selesai interview
+                </span>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 rounded-full transition-all"
+                  style={{ width: `${pct(stats.barsGraded, Math.max(stats.interviewDone, 1))}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">
+                {stats.pendingBarsList.length > 0
+                  ? `${stats.pendingBarsList.length} interview menunggu nilai BARS`
+                  : 'Semua interview telah dinilai BARS'}
+              </p>
+            </div>
+          </button>
+
+          {/* Card 4: LHA E-Sign */}
+          <button
+            type="button"
+            onClick={() =>
+              stats.readyLhaList.length > 0
+                ? setStageFilter((prev) => (prev === 'ready_lha' ? 'all' : 'ready_lha'))
+                : navigate('/asesor/rekap-lha')
+            }
+            className={`text-left bg-white rounded-2xl border p-5 shadow-2xs transition-all cursor-pointer flex flex-col justify-between ${
+              stageFilter === 'ready_lha'
+                ? 'border-emerald-500 ring-2 ring-emerald-500/15 bg-emerald-50/20'
+                : 'border-slate-200 hover:border-slate-300 hover:shadow-xs'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-500">Penerbitan LHA (E-Sign)</span>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <FileCheck2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2 mt-3">
+                <p className="font-heading text-2xl font-bold text-emerald-700 tabular-nums">
+                  {stats.signedLhaCount}
+                </p>
+                <span className="text-xs font-medium text-slate-500 tabular-nums">
+                  terbit • {stats.readyLhaList.length} siap E-Sign
                 </span>
               </div>
             </div>
@@ -361,189 +397,78 @@ export default function AsesorDashboard() {
               <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all"
-                  style={{ width: `${pct(stats.barsGraded, Math.max(stats.interviewDone, 1))}%` }}
+                  style={{ width: `${pct(stats.signedLhaCount, Math.max(stats.total, 1))}%` }}
                 />
               </div>
               <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">
-                {stats.barsGraded} dinilai BARS • {stats.pendingBarsList.length} menunggu
+                {pct(stats.signedLhaCount, stats.total)}% LHA bertanda tangan digital
               </p>
             </div>
           </button>
         </div>
 
-        {/* Middle Balanced Visual Insights */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
-          {/* Left: Stage Funnel Summary */}
-          <div className="xl:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
-            <div className="flex items-center justify-between mb-4">
+        {/* Compact Priority Action Strip (only rendered when there are pending BARS or Ready LHA tasks) */}
+        {!loading && (stats.pendingBarsList.length > 0 || stats.readyLhaList.length > 0) && (
+          <div className="bg-white rounded-2xl border border-amber-200/90 p-4 sm:p-5 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Award className="w-4 h-4" />
+              </div>
               <div>
                 <h2 className="font-heading text-sm font-bold text-slate-900">
-                  Ringkasan Penyelesaian Tahap Asesmen
+                  Antrean Prioritas Evaluasi
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Perbandingan capaian kandidat dari Soal CAT hingga Penilaian BARS.
+                  {stats.pendingBarsList.length > 0
+                    ? `${stats.pendingBarsList.length} peserta selesai interview menunggu penilaian BARS`
+                    : ''}
+                  {stats.pendingBarsList.length > 0 && stats.readyLhaList.length > 0 ? ' • ' : ''}
+                  {stats.readyLhaList.length > 0
+                    ? `${stats.readyLhaList.length} peserta siap ditandatangani (E-Sign LHA)`
+                    : ''}
                 </p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/asesor/hasil-cat')}>
-                Lihat Detail CAT
-                <ArrowRight className="w-3.5 h-3.5 ml-1" />
-              </Button>
             </div>
 
-            <div className="space-y-3.5">
-              {[
-                {
-                  label: '1. Soal CAT',
-                  count: stats.catDone,
-                  total: stats.total,
-                  barColor: 'bg-blue-600',
-                  badgeBg: 'bg-blue-50 text-blue-700'
-                },
-                {
-                  label: '2. Live Coding',
-                  count: stats.codingDone,
-                  total: stats.total,
-                  barColor: 'bg-indigo-600',
-                  badgeBg: 'bg-indigo-50 text-indigo-700'
-                },
-                {
-                  label: '3. Interview Ava AI',
-                  count: stats.interviewDone,
-                  total: stats.total,
-                  barColor: 'bg-emerald-500',
-                  badgeBg: 'bg-emerald-50 text-emerald-700'
-                },
-                {
-                  label: '4. Penilaian BARS & GPA',
-                  count: stats.barsGraded,
-                  total: stats.total,
-                  barColor: 'bg-amber-500',
-                  badgeBg: 'bg-amber-50 text-amber-800'
-                }
-              ].map((step) => {
-                const percentage = pct(step.count, step.total);
-                return (
-                  <div key={step.label} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-700">{step.label}</span>
-                      <div className="flex items-center gap-2 tabular-nums">
-                        <span className="text-slate-500">
-                          {step.count} dari {step.total} peserta
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${step.badgeBg}`}>
-                          {percentage}%
-                        </span>
-                      </div>
-                    </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${step.barColor}`}
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="flex flex-wrap items-center gap-2">
+              {stats.pendingBarsList.slice(0, 2).map((candidate) => (
+                <Button
+                  key={`bars-${candidate.code}`}
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate(`/asesor/hasil-interview/${candidate.code}`)}
+                  className="text-xs"
+                >
+                  <span>Nilai BARS: {candidate.name}</span>
+                  <ArrowRight className="w-3 h-3 ml-1" />
+                </Button>
+              ))}
+              {stats.readyLhaList.slice(0, 2).map((candidate) => (
+                <Button
+                  key={`lha-${candidate.code}`}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/asesor/rekap-lha/${candidate.code}`)}
+                  className="text-xs"
+                >
+                  <span>E-Sign LHA: {candidate.name}</span>
+                  <ArrowRight className="w-3 h-3 ml-1" />
+                </Button>
+              ))}
             </div>
           </div>
+        )}
 
-          {/* Right: Priority Queue for BARS Grading */}
-          <div className="xl:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <Award className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h2 className="font-heading text-sm font-bold text-slate-900">
-                      Antrean Penilaian BARS
-                    </h2>
-                    <p className="text-[11px] text-slate-500">
-                      Interview selesai yang menunggu nilai rubrik BARS
-                    </p>
-                  </div>
-                </div>
-                {stats.pendingBarsList.length > 0 && (
-                  <Badge variant="warning" format="soft">
-                    {stats.pendingBarsList.length} Menunggu
-                  </Badge>
-                )}
-              </div>
-
-              {loading ? (
-                <div className="py-8 text-center text-xs text-slate-400">Memuat antrean...</div>
-              ) : stats.pendingBarsList.length === 0 ? (
-                <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-bold text-emerald-950">
-                      Semua Interview Telah Dinilai
-                    </p>
-                    <p className="text-[11px] text-emerald-800 mt-0.5">
-                      Seluruh peserta yang menyelesaikan wawancara Ava AI sudah memiliki nilai BARS dan GPA.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2.5 mt-2">
-                  {stats.pendingBarsList.slice(0, 3).map((candidate) => (
-                    <div
-                      key={candidate.code}
-                      className="p-3 rounded-xl border border-slate-200/90 bg-slate-50/70 hover:bg-amber-50/40 hover:border-amber-200 transition-colors flex items-center justify-between gap-3"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-900 font-heading font-bold text-xs flex items-center justify-center shrink-0">
-                          {getInitials(candidate.name)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-900 truncate">
-                            {candidate.name}
-                          </p>
-                          <p className="text-[11px] text-slate-500 truncate">
-                            <span className="font-mono">{candidate.code}</span> • {candidate.program}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => navigate(`/asesor/hasil-interview/${candidate.code}`)}
-                        className="shrink-0 text-[11px]"
-                      >
-                        Nilai BARS
-                        <ArrowRight className="w-3 h-3 ml-1" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="pt-3 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Skala Konversi: BARS 1–5 → GPA 0.00–4.00</span>
-              <button
-                type="button"
-                onClick={() => navigate('/asesor/hasil-interview')}
-                className="font-semibold text-blue-700 hover:text-blue-900 cursor-pointer"
-              >
-                Buka Semua →
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Participant Progress Table */}
+        {/* Unified Tracking Progres Peserta Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-          {/* Unified Toolbar */}
           <div className="p-4 sm:p-5 border-b border-slate-200 space-y-3">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               <div>
                 <h2 className="font-heading text-base font-bold text-slate-900">
-                  Progres Pengerjaan Tiap Peserta
+                  Tracking Progres Pengerjaan Peserta
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Pantau capaian tahap Soal CAT, Live Coding, Interview AI, dan nilai BARS / GPA per kandidat.
+                  Pantau capaian CAT, Live Coding, Interview AI, integritas proctoring, nilai BARS/GPA, dan status LHA per peserta.
                 </p>
               </div>
 
@@ -587,7 +512,8 @@ export default function AsesorDashboard() {
                 ['all', `Semua (${stats.total})`],
                 ['complete', `Selesai 3/3 (${stats.fullComplete})`],
                 ['in_progress', 'Belum Lengkap'],
-                ['needs_bars', `Perlu Nilai BARS (${stats.pendingBarsList.length})`]
+                ['needs_bars', `Perlu Nilai BARS (${stats.pendingBarsList.length})`],
+                ['ready_lha', `Siap E-Sign (${stats.readyLhaList.length})`]
               ] as const).map(([key, label]) => (
                 <button
                   key={key}
@@ -614,26 +540,29 @@ export default function AsesorDashboard() {
                   <TableHead>Soal CAT</TableHead>
                   <TableHead>Live Coding</TableHead>
                   <TableHead>Interview AI</TableHead>
+                  <TableHead>Proctoring</TableHead>
                   <TableHead>BARS &amp; GPA</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
+                  <TableHead className="text-right">Aksi Evaluasi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-sm text-slate-500">
+                    <TableCell colSpan={8} className="text-center py-12 text-sm text-slate-500">
                       Memuat data progres peserta...
                     </TableCell>
                   </TableRow>
                 ) : filteredCandidates.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-sm text-slate-500">
+                    <TableCell colSpan={8} className="text-center py-12 text-sm text-slate-500">
                       Tidak ada peserta yang cocok dengan filter saat ini.
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredCandidates.map((c) => {
                     const doneStages = stageCount(c);
+                    const isSigned = c.lhaStatus === 'signed';
+                    const hasBars = c.gpaScore != null && c.barsAverage != null;
                     return (
                       <TableRow key={c.code} className="hover:bg-slate-50/70 transition-colors">
                         <TableCell>
@@ -694,7 +623,7 @@ export default function AsesorDashboard() {
                             status={c.catStatus || 'belum'}
                             sublabel={
                               c.catStatus === 'selesai' && c.catScore != null
-                                ? `Skor ${Math.round(c.catScore)}/100${c.integrityScore != null ? ` • Int. ${Math.round(c.integrityScore)}%` : ''}`
+                                ? `Skor ${Math.round(c.catScore)}/100`
                                 : c.catAnsweredCount != null && c.catTotalQuestions
                                   ? `${c.catAnsweredCount}/${c.catTotalQuestions} soal`
                                   : null
@@ -716,37 +645,52 @@ export default function AsesorDashboard() {
                         <TableCell className="whitespace-nowrap">
                           <StageCell
                             status={c.interviewDone ? 'selesai' : 'belum'}
-                            sublabel={
-                              (c.proctoringFlagCount ?? 0) > 0
-                                ? `⚠ ${c.proctoringFlagCount} Flag Proctoring`
-                                : c.interviewDone
-                                  ? 'Transkrip & Proctoring siap'
-                                  : null
-                            }
+                            sublabel={c.interviewDone ? 'Transkrip siap' : null}
                           />
                         </TableCell>
 
+                        <TableCell className="whitespace-nowrap text-xs">
+                          {(c.proctoringFlagCount ?? 0) > 0 ? (
+                            <Badge variant="warning" format="soft" hasDot>
+                              {c.proctoringFlagCount} Flag
+                            </Badge>
+                          ) : c.integrityScore != null ? (
+                            <Badge variant="success" format="soft">
+                              {Math.round(c.integrityScore)}% Aman
+                            </Badge>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </TableCell>
+
                         <TableCell className="whitespace-nowrap">
-                          {c.gpaScore != null && c.barsAverage != null ? (
-                            <div className="tabular-nums whitespace-nowrap">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold whitespace-nowrap">
-                                GPA {c.gpaScore.toFixed(2)}
-                              </span>
-                              <p className="text-[11px] text-slate-500 mt-1 whitespace-nowrap">
-                                BARS {c.barsAverage.toFixed(2)} / 5
+                          {hasBars ? (
+                            <div className="tabular-nums whitespace-nowrap space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                                  GPA {c.gpaScore!.toFixed(2)}
+                                </span>
+                                {isSigned && (
+                                  <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                                    LHA
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500">
+                                BARS {c.barsAverage!.toFixed(2)} / 5
                               </p>
                             </div>
                           ) : c.interviewDone ? (
                             <button
                               type="button"
                               onClick={() => navigate(`/asesor/hasil-interview/${c.code}`)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold transition-colors cursor-pointer"
                             >
                               <Clock className="w-3 h-3 shrink-0" />
                               <span>Nilai BARS</span>
                             </button>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 text-xs text-slate-400">
                               <Clock className="w-3.5 h-3.5 shrink-0" />
                               <span>Belum Dinilai</span>
                             </span>
@@ -757,24 +701,32 @@ export default function AsesorDashboard() {
                           <div className="inline-flex items-center justify-end gap-1">
                             <button
                               type="button"
-                              onClick={() => navigate(`/asesor/tracking/${c.code}`)}
-                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
-                            >
-                              Tracking
-                            </button>
-                            <button
-                              type="button"
                               onClick={() => navigate(`/asesor/hasil-cat/${c.code}`)}
-                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer"
                             >
                               CAT
                             </button>
                             <button
                               type="button"
                               onClick={() => navigate(`/asesor/hasil-interview/${c.code}`)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs whitespace-nowrap"
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                                c.interviewDone && !hasBars
+                                  ? 'bg-[#1E3A8A] hover:bg-[#172554] text-white shadow-2xs'
+                                  : 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                              }`}
                             >
-                              <span>Interview</span>
+                              <span>BARS</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/asesor/rekap-lha/${c.code}`)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                                hasBars && !isSigned
+                                  ? 'bg-[#1E3A8A] hover:bg-[#172554] text-white shadow-2xs'
+                                  : 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                              }`}
+                            >
+                              <span>LHA</span>
                               <ArrowRight className="w-3 h-3 shrink-0" />
                             </button>
                           </div>

@@ -98,17 +98,17 @@ const matchesCompanyScope = (
   const candCompanyId = candidate.companyId?.trim().toUpperCase() || null;
   const candTenantId = candidate.tenantId || null;
 
-  // When both carry a company/PT name, enforce exact normalized PT match.
+  // When both carry an authoritative tenantId, enforce exact tenant match first.
+  if (assessorCtx.tenantId && candTenantId) {
+    return assessorCtx.tenantId === candTenantId;
+  }
+  // Fall back to exact normalized PT/company name when tenantId is missing on either side.
   if (assessorCtx.normalizedCompany && candNormCompany) {
     return assessorCtx.normalizedCompany === candNormCompany;
   }
   // Fall back to companyId if both provide one.
   if (assessorCtx.companyId && candCompanyId) {
     return assessorCtx.companyId === candCompanyId;
-  }
-  // Fall back to tenantId equality when company metadata is missing on either side.
-  if (assessorCtx.tenantId && candTenantId) {
-    return assessorCtx.tenantId === candTenantId;
   }
   // If assessor is bound to any PT/tenant and candidate lacks matching metadata, deny access.
   if (assessorCtx.tenantId || assessorCtx.normalizedCompany || assessorCtx.companyId) {

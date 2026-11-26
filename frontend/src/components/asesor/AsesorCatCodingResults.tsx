@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { AsesorLayout } from './AsesorLayout';
 import { AsesorProctoringCard } from './AsesorProctoringCard';
-import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui';
+import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui';
 import {
   fetchAssessorCandidate,
   fetchAssessorCandidates,
@@ -45,6 +45,10 @@ export default function AsesorCatCodingResults() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [activeTab, setActiveTab] = useState<'cat' | 'coding'>(initialTab);
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    setActiveTab(searchParams.get('tab') === 'coding' ? 'coding' : 'cat');
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,29 +109,47 @@ export default function AsesorCatCodingResults() {
     );
   }, [candidates, search]);
 
+  const selectorOptions = useMemo(() => {
+    if (!selected) return filteredCandidates;
+    const exists = filteredCandidates.some((c) => c.code === selected.code);
+    return exists ? filteredCandidates : [selected, ...filteredCandidates];
+  }, [filteredCandidates, selected]);
+
   const catDetails = selected?.catDetails;
   const coding = selected?.liveCodingSubmission;
 
   return (
     <AsesorLayout activeTab="hasil-cat">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold font-heading text-ink tracking-tight">
               Hasil Pengerjaan Soal CAT &amp; Live Coding
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Tinjau jawaban butir soal CAT (pilihan ganda, isian, esai) serta kode program yang dikumpulkan peserta pada Live Coding.
+              Tinjau jawaban butir soal CAT (pilihan ganda, isian, esai), proctoring CAT, serta kode program Live Coding.
             </p>
           </div>
           {selected && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/asesor/tracking/${selected.code}`)}
-            >
-              Lihat Tracking Progres
-            </Button>
+            <div className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs self-start shrink-0 whitespace-nowrap overflow-x-auto max-w-full">
+              <span className="px-2.5 py-1.5 rounded-lg bg-primary-navy text-white text-xs font-semibold">
+                1. CAT &amp; Coding
+              </span>
+              <button
+                type="button"
+                onClick={() => navigate(`/asesor/hasil-interview/${selected.code}`)}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-ink transition-colors cursor-pointer"
+              >
+                2. Interview &amp; BARS →
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/asesor/rekap-lha/${selected.code}`)}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-ink transition-colors cursor-pointer"
+              >
+                3. Rekap &amp; LHA
+              </button>
+            </div>
           )}
         </div>
 
@@ -149,13 +171,13 @@ export default function AsesorCatCodingResults() {
               onChange={(e) => {
                 if (e.target.value) navigate(`/asesor/hasil-cat/${e.target.value}`);
               }}
-              disabled={loadingList || filteredCandidates.length === 0}
+              disabled={loadingList || selectorOptions.length === 0}
               className="w-full px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-ink focus:outline-none focus:border-primary-navy"
             >
-              {filteredCandidates.length === 0 ? (
+              {selectorOptions.length === 0 ? (
                 <option value="">Tidak ada peserta ditemukan</option>
               ) : (
-                filteredCandidates.map((c) => (
+                selectorOptions.map((c) => (
                   <option key={c.code} value={c.code}>
                     {c.name} ({c.code}) — CAT: {c.catStatus === 'selesai' ? `${c.catScore ?? 0}/100` : 'Belum'} • Coding: {c.liveCodingStatus === 'selesai' ? `${c.liveCodingScore ?? 0}/100` : 'Belum'}
                   </option>

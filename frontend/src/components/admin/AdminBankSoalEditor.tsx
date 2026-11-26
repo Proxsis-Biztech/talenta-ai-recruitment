@@ -51,6 +51,7 @@ import {
   ASSESSMENT_LEVELS,
   type MasterMateriItem
 } from './AdminMasterMateriTree';
+import { GoogleFormQuestionCard } from './GoogleFormQuestionCard';
 import {
   Button,
   Badge,
@@ -252,7 +253,10 @@ const syncProgramQuestions = async (programCode: string, allQuestions: BankQuest
       options,
       matchingPairs: (question as any).matchingPairs || [],
       correctAnswer,
-      points: 1
+      points: 1,
+      attachmentUrl: question.attachmentUrl || null,
+      attachmentName: question.attachmentName || null,
+      attachmentMime: question.attachmentMime || null
     };
   });
   await axios.post(
@@ -284,266 +288,7 @@ const getQuestionCategory = (question: Pick<BankQuestion, 'category'>): Question
   question.category === 'psikotes' ? 'psikotes' : 'kompetensi';
 
 const createQuestionId = (category: QuestionCategory): string =>
-  `${category === 'psikotes' ? 'PSI' : 'SOAL'}-${Math.floor(400 + Math.random() * 500)}`;
-
-
-const QuestionFormFields = memo(function QuestionFormFields({
-  question,
-  onChange,
-  onPatch,
-  onSave,
-  onCancel,
-  onUploadAttachment,
-  onUploadAttachmentForQuestion,
-  onRemoveAttachment,
-  onRemoveAttachmentById,
-  onDelete,
-  onDeleteById,
-  headerLabel,
-  competencySuggestions = []
-}: {
-  question: BankQuestion;
-  onChange?: (patch: Partial<BankQuestion>) => void;
-  onPatch?: (id: string, patch: Partial<BankQuestion>) => void;
-  onSave: () => void;
-  onCancel?: () => void;
-  onUploadAttachment?: (file: File) => void;
-  onUploadAttachmentForQuestion?: (question: BankQuestion, file: File) => void;
-  onRemoveAttachment?: () => void;
-  onRemoveAttachmentById?: (id: string) => void;
-  onDelete?: () => void;
-  onDeleteById?: (id: string) => void;
-  headerLabel: string;
-  competencySuggestions?: string[];
-}) {
-  const applyPatch = (patch: Partial<BankQuestion>) => {
-    if (onPatch) {
-      onPatch(question.id, patch);
-    } else {
-      onChange?.(patch);
-    }
-  };
-
-  return (
-    <div className="space-y-4 text-xs">
-      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-        <span className="font-bold text-ink text-sm">{headerLabel}</span>
-        <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-bold">
-          ID: {question.id}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div>
-          <Select
-            label="Tipe Soal"
-            value={question.type}
-            onChange={(e) => applyPatch({ type: e.target.value as BankQuestion['type'] })}
-            className="h-11 rounded-xl font-semibold"
-          >
-            <option value="Pilihan Ganda">Pilihan Ganda</option>
-            <option value="Multi-Select">Multi-Select</option>
-            <option value="Isian Singkat">Isian Singkat</option>
-            <option value="Esai">Esai</option>
-            <option value="Matching">Matching</option>
-          </Select>
-        </div>
-        <div>
-          <Select
-            label="Tingkat Kesulitan"
-            value={question.difficulty}
-            onChange={(e) => applyPatch({ difficulty: e.target.value as BankQuestion['difficulty'] })}
-            className="h-11 rounded-xl font-semibold"
-          >
-            <option value="Mudah">Mudah</option>
-            <option value="Sedang">Sedang</option>
-            <option value="Sulit">Sulit</option>
-          </Select>
-        </div>
-        <div>
-          <Select
-            label="Status Butir"
-            value={question.status}
-            onChange={(e) => applyPatch({ status: e.target.value as BankQuestion['status'] })}
-            className="h-11 rounded-xl font-semibold"
-          >
-            <option value="Published">Published</option>
-            <option value="Review">Review</option>
-            <option value="Draft">Draft</option>
-            <option value="Retired">Retired</option>
-          </Select>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Input
-          label="Kompetensi / Topik (mengacu Master Materi)"
-          value={question.competency || ''}
-          onChange={(e) => applyPatch({ competency: e.target.value })}
-          placeholder="Contoh: System Architecture, Credit Risk Analytics, atau pilih dari Master Materi di bawah..."
-          className="h-10 rounded-xl"
-        />
-        {competencySuggestions.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-slate-500 font-medium">Dari Master Materi:</span>
-            {competencySuggestions.slice(0, 6).map((comp) => {
-              const active = (question.competency || '').trim().toLowerCase() === comp.toLowerCase();
-              return (
-                <button
-                  key={comp}
-                  type="button"
-                  onClick={() => applyPatch({ competency: comp })}
-                  className={`px-2 py-0.5 rounded-full text-[11px] border transition-colors cursor-pointer ${
-                    active
-                      ? 'bg-primary-navy text-white border-primary-navy font-semibold'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-primary-navy/50 hover:bg-soft-blue'
-                  }`}
-                >
-                  {comp}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <Textarea
-          label="Teks Pertanyaan (Studi Kasus / Soal):"
-          rows={4}
-          value={question.text}
-          onChange={(e) => applyPatch({ text: e.target.value })}
-          placeholder="Tuliskan butir soal secara lengkap..."
-          className="rounded-xl text-xs leading-relaxed"
-        />
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <label className="block font-bold text-ink flex items-center gap-1.5">
-            <Paperclip className="w-3.5 h-3.5 text-primary-navy" />
-            Lampiran butir soal (PDF/DOCX/gambar)
-          </label>
-          <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700 cursor-pointer hover:bg-slate-100">
-            <Upload className="w-3 h-3" />
-            Unggah
-            <input
-              type="file"
-              className="hidden"
-              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) {
-                  if (onUploadAttachmentForQuestion) onUploadAttachmentForQuestion(question, file);
-                  else if (onUploadAttachment) onUploadAttachment(file);
-                }
-                event.target.value = '';
-              }}
-            />
-          </label>
-        </div>
-        {question.attachmentUrl ? (
-          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-700">
-            <a href={question.attachmentUrl} target="_blank" rel="noreferrer" className="truncate hover:underline">
-              {question.attachmentName || question.attachmentUrl}
-            </a>
-            <button
-              type="button"
-              onClick={() => (onRemoveAttachmentById ? onRemoveAttachmentById(question.id) : onRemoveAttachment?.())}
-              className="text-rose-600 hover:text-rose-700 cursor-pointer"
-            >
-              <Trash2 className="w-3 h-3" />
-            </button>
-          </div>
-        ) : (
-          <p className="text-[11px] text-slate-500">
-            Lampiran ditampilkan pada panel split-view peserta.
-          </p>
-        )}
-      </div>
-
-      {(question.type === 'Pilihan Ganda' || question.type === 'Multi-Select') && (
-        <div className="space-y-2">
-          <label className="block font-bold text-ink">
-            Opsi Pilihan Jawaban &amp; Kunci Benar (Klik huruf untuk set kunci):
-          </label>
-          {question.options.map((opt, oIdx) => (
-            <div key={opt.key} className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const newOpts =
-                    question.type === 'Pilihan Ganda'
-                      ? question.options.map((o, i) => ({ ...o, isCorrect: i === oIdx }))
-                      : question.options.map((o, i) =>
-                          i === oIdx ? { ...o, isCorrect: !o.isCorrect } : o
-                        );
-                  applyPatch({ options: newOpts });
-                }}
-                className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 cursor-pointer ${
-                  opt.isCorrect ? 'bg-success-green text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}
-                title="Klik untuk set kunci benar"
-              >
-                {opt.key}
-              </button>
-              <input
-                type="text"
-                value={opt.text}
-                onChange={(e) => {
-                  const newOpts = question.options.map((o, i) =>
-                    i === oIdx ? { ...o, text: e.target.value } : o
-                  );
-                  applyPatch({ options: newOpts });
-                }}
-                className="flex-1 px-3 py-2 rounded-lg border border-border-slate text-xs outline-none"
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div>
-        <label className="block font-bold text-ink mb-1">Kunci &amp; Pembahasan Soal:</label>
-        <textarea
-          rows={2}
-          value={question.explanation}
-          onChange={(e) => applyPatch({ explanation: e.target.value })}
-          placeholder="Penjelasan teknis kenapa opsi tersebut benar..."
-          className="w-full p-2.5 rounded-lg border border-border-slate focus:border-primary-navy text-xs outline-none leading-relaxed"
-        />
-      </div>
-
-      <div className="pt-2 flex flex-wrap justify-end gap-2 border-t border-slate-100">
-        {(onDeleteById || onDelete) && (
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => (onDeleteById ? onDeleteById(question.id) : onDelete?.())}
-            className="flex items-center gap-1.5 cursor-pointer mr-auto"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Hapus Soal</span>
-          </Button>
-        )}
-        {onCancel && (
-          <Button variant="outline" size="sm" onClick={onCancel}>
-            Batal
-          </Button>
-        )}
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onSave}
-          className="flex items-center gap-1.5 cursor-pointer shadow-xs"
-        >
-          <Save className="w-3.5 h-3.5" />
-          <span>Simpan Butir Soal</span>
-        </Button>
-      </div>
-    </div>
-  );
-});
+  `${category === 'psikotes' ? 'PSI' : 'SOAL'}-${Math.floor(400 + Math.random() * 500)}-${Date.now().toString().slice(-3)}`;
 
 export interface AdminBankSoalEditorProps {
   initialProgramCode?: string;
@@ -727,7 +472,10 @@ export function AdminBankSoalEditor({
   }, [programs]);
 
   const [activeQuestion, setActiveQuestion] = useState<BankQuestion>(questions[0]);
-  const [isEditingExisting, setIsEditingExisting] = useState(true);
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [autoFocusCardId, setAutoFocusCardId] = useState<string | null>(null);
+  const [questionSearch, setQuestionSearch] = useState('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Success Notification banner
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -744,20 +492,10 @@ export function AdminBankSoalEditor({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const scrollToEditor = () => {
+  const scrollToCard = (cardId: string) => {
     window.setTimeout(() => {
-      document.getElementById('question-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 80);
-  };
-
-  const handleEdit = (q: BankQuestion) => {
-    setActiveQuestion({
-      ...JSON.parse(JSON.stringify(q)),
-      category: getQuestionCategory(q)
-    });
-    setIsEditingExisting(true);
-    setViewMode('editor');
-    scrollToEditor();
+      document.getElementById(`gf-card-${cardId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 60);
   };
 
   const handleCreateNew = (
@@ -779,49 +517,114 @@ export function AdminBankSoalEditor({
       difficulty: 'Sedang',
       status: 'Published',
       pValue: 0.5,
-      distractorStats: [
-        { label: 'A (Kunci)', pct: 50 },
-        { label: 'B', pct: 20 },
-        { label: 'C', pct: 15 },
-        { label: 'D', pct: 15 }
-      ],
+      distractorStats: [],
       options: [
-        { key: 'A', text: 'Opsi Jawaban Benar (Kunci)', isCorrect: true },
-        { key: 'B', text: 'Distraktor 1', isCorrect: false },
-        { key: 'C', text: 'Distraktor 2', isCorrect: false },
-        { key: 'D', text: 'Distraktor 3', isCorrect: false }
+        { key: 'A', text: '', isCorrect: true },
+        { key: 'B', text: '', isCorrect: false },
+        { key: 'C', text: '', isCorrect: false },
+        { key: 'D', text: '', isCorrect: false }
       ],
-      explanation: 'Pembahasan kunci jawaban terstandar.'
+      explanation: ''
     };
-    setActiveQuestion(newQ);
-    setIsEditingExisting(false);
-    setViewMode('editor');
-    scrollToEditor();
+    setQuestions((prev) => {
+      if (activeCardId) {
+        const idx = prev.findIndex((item) => item.id === activeCardId);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy.splice(idx + 1, 0, newQ);
+          return copy;
+        }
+      }
+      return [...prev, newQ];
+    });
+    setActiveCategory(targetCategory);
+    setQuestionSearch('');
+    setActiveCardId(newQ.id);
+    setAutoFocusCardId(newQ.id);
+    setHasUnsavedChanges(true);
+    setViewMode('table');
+    scrollToCard(newQ.id);
   };
 
-  const handleStats = (q: BankQuestion) => {
-    setActiveQuestion(q);
-    setViewMode('stats');
-  };
+  const handleDuplicateQuestion = useCallback(
+    (source: BankQuestion) => {
+      const cat = getQuestionCategory(source);
+      const clone: BankQuestion = {
+        ...JSON.parse(JSON.stringify(source)),
+        id: createQuestionId(cat),
+        category: cat,
+        attachmentUrl: null,
+        attachmentName: null,
+        attachmentMime: null
+      };
+      setQuestions((prev) => {
+        const idx = prev.findIndex((item) => item.id === source.id);
+        const next = [...prev];
+        if (idx >= 0) next.splice(idx + 1, 0, clone);
+        else next.push(clone);
+        void saveMasterRecord('bank-soal', 'questions', next);
+        void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
+        return next;
+      });
+      setActiveCardId(clone.id);
+      setAutoFocusCardId(clone.id);
+      setHasUnsavedChanges(false);
+      showToast('Soal berhasil diduplikasi.');
+      scrollToCard(clone.id);
+    },
+    [selectedProgramCode]
+  );
+
+  const handleMoveQuestion = useCallback(
+    (id: string, direction: 'up' | 'down') => {
+      setQuestions((prev) => {
+        const visibleIndices: number[] = [];
+        prev.forEach((item, idx) => {
+          const itemProgram = item.programCode || programs[0]?.id || 'SE-402';
+          if (itemProgram === selectedProgramCode && getQuestionCategory(item) === activeCategory) {
+            visibleIndices.push(idx);
+          }
+        });
+        const pos = visibleIndices.findIndex((idx) => prev[idx].id === id);
+        if (pos < 0) return prev;
+        const swapPos = direction === 'up' ? pos - 1 : pos + 1;
+        if (swapPos < 0 || swapPos >= visibleIndices.length) return prev;
+        const fromIdx = visibleIndices[pos];
+        const toIdx = visibleIndices[swapPos];
+        const next = [...prev];
+        [next[fromIdx], next[toIdx]] = [next[toIdx], next[fromIdx]];
+        void saveMasterRecord('bank-soal', 'questions', next);
+        void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
+        return next;
+      });
+      setHasUnsavedChanges(false);
+      showToast('Urutan soal diperbarui.');
+    },
+    [programs, selectedProgramCode, activeCategory]
+  );
 
   const handleDeleteQuestion = useCallback((id: string) => {
-    if (window.confirm(`Yakin ingin menghapus butir soal ${id} dari repositori?`)) {
+    if (window.confirm(`Yakin ingin menghapus butir soal ${id}?`)) {
       setQuestions((prev) => {
         const next = prev.filter((q) => q.id !== id);
         void saveMasterRecord('bank-soal', 'questions', next);
         void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
         return next;
       });
-      showToast(`Butir soal ${id} berhasil dihapus dan disinkronkan ke bank ujian.`);
+      setActiveCardId((curr) => (curr === id ? null : curr));
+      setHasUnsavedChanges(false);
+      showToast(`Butir soal ${id} berhasil dihapus.`);
     }
   }, [selectedProgramCode]);
 
   const handleInlineFieldChange = useCallback((id: string, patch: Partial<BankQuestion>) => {
     setQuestions((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    setHasUnsavedChanges(true);
   }, []);
 
   const commitQuestions = useCallback((next: BankQuestion[]) => {
     setQuestions(next);
+    setHasUnsavedChanges(false);
     void saveMasterRecord('bank-soal', 'questions', next);
     void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
     showToast('Perubahan soal tersimpan dan disinkronkan.');
@@ -829,12 +632,21 @@ export function AdminBankSoalEditor({
 
   const handleInlineCommit = useCallback(() => {
     setQuestions((prev) => {
-      void saveMasterRecord('bank-soal', 'questions', prev);
-      void syncProgramQuestions(selectedProgramCode, prev).catch(() => undefined);
-      return prev;
+      const hasBlankActive = activeCardId
+        ? prev.some((q) => q.id === activeCardId && !q.text.trim())
+        : false;
+      if (hasBlankActive) {
+        showToast('Tulis teks pertanyaan terlebih dahulu sebelum menyimpan.');
+        return prev;
+      }
+      const cleaned = prev.filter((q) => q.text.trim().length > 0 || q.id !== activeCardId);
+      void saveMasterRecord('bank-soal', 'questions', cleaned);
+      void syncProgramQuestions(selectedProgramCode, cleaned).catch(() => undefined);
+      setHasUnsavedChanges(false);
+      showToast('Soal tersimpan dan disinkronkan ke lembar ujian.');
+      return cleaned;
     });
-    showToast('Perubahan soal tersimpan dan disinkronkan.');
-  }, [selectedProgramCode]);
+  }, [selectedProgramCode, activeCardId]);
 
   const handleInlineRemoveAttachment = useCallback((id: string) => {
     setQuestions((prev) => {
@@ -847,7 +659,8 @@ export function AdminBankSoalEditor({
       void syncProgramQuestions(selectedProgramCode, next).catch(() => undefined);
       return next;
     });
-    showToast('Perubahan soal tersimpan dan disinkronkan.');
+    setHasUnsavedChanges(false);
+    showToast('Lampiran soal dihapus.');
   }, [selectedProgramCode]);
 
   const handleInlineAttachmentUpload = useCallback(async (question: BankQuestion, file: File) => {
@@ -858,6 +671,8 @@ export function AdminBankSoalEditor({
     );
     const orderNo = programQuestions.findIndex((item) => item.id === question.id) + 1;
     if (orderNo <= 0) return;
+    // Ensure question row exists on backend before attaching file
+    await syncProgramQuestions(selectedProgramCode, questions).catch(() => undefined);
     const formData = new FormData();
     formData.append('file', file);
     formData.append('programCode', selectedProgramCode);
@@ -888,31 +703,6 @@ export function AdminBankSoalEditor({
       );
     }
   }, [questions, programs, selectedProgramCode, commitQuestions]);
-
-  const handleSaveQuestion = () => {
-    if (!activeQuestion.text.trim()) {
-      alert('Teks pertanyaan tidak boleh kosong.');
-      return;
-    }
-
-    const normalizedActive: BankQuestion = {
-      ...activeQuestion,
-      category: getQuestionCategory(activeQuestion)
-    };
-    let nextQuestions: BankQuestion[];
-    if (isEditingExisting) {
-      nextQuestions = questions.map((q) => (q.id === normalizedActive.id ? normalizedActive : q));
-    } else {
-      nextQuestions = [normalizedActive, ...questions];
-    }
-
-    setQuestions(nextQuestions);
-    setActiveCategory(getQuestionCategory(normalizedActive));
-    void saveMasterRecord('bank-soal', 'questions', nextQuestions);
-    void syncProgramQuestions(normalizedActive.programCode || selectedProgramCode, nextQuestions).catch(() => undefined);
-    showToast(`Butir soal ${normalizedActive.id} tersimpan dan disinkronkan ke lembar ujian.`);
-    setViewMode('table');
-  };
 
   // Fact Sheet handlers
   const handleSaveFactSheet = () => {
@@ -1012,10 +802,18 @@ export function AdminBankSoalEditor({
     [courses, selectedProgramCode]
   );
 
-  const filtered = useMemo(
-    () => programQuestionsForSelected.filter((q) => getQuestionCategory(q) === activeCategory),
-    [programQuestionsForSelected, activeCategory]
-  );
+  const filtered = useMemo(() => {
+    const byCat = programQuestionsForSelected.filter((q) => getQuestionCategory(q) === activeCategory);
+    const qLower = questionSearch.trim().toLowerCase();
+    if (!qLower) return byCat;
+    return byCat.filter(
+      (q) =>
+        q.text.toLowerCase().includes(qLower) ||
+        q.competency.toLowerCase().includes(qLower) ||
+        q.id.toLowerCase().includes(qLower) ||
+        q.type.toLowerCase().includes(qLower)
+    );
+  }, [programQuestionsForSelected, activeCategory, questionSearch]);
 
   const typeCounts = useMemo(
     () =>
@@ -1573,317 +1371,341 @@ export function AdminBankSoalEditor({
         </div>
       )}
 
-      {/* ─── TAB 1: Tabel Soal ─── */}
+      {/* ─── GOOGLE FORMS-STYLE QUESTION BUILDER ─── */}
       {(viewMode === 'table' || viewMode === 'editor') && (
-        <div className="space-y-4">
-          {/* ─── Panduan Materi Asesmen ─── */}
-          <div id="panduan-materi-section" className="rounded-xl border border-[#E2E8F0] bg-white p-5 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-[#1E3A8A] shrink-0" />
-                  <h3 className="text-base font-semibold text-[#0F172A]">Panduan Materi</h3>
-                  <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
-                    {selectedProgramMateri.length} Panduan
-                  </span>
+        <div className="rounded-2xl bg-[#F4F6FA] border border-slate-200/80 p-3 sm:p-6">
+          <div className="max-w-4xl mx-auto flex items-start gap-4">
+            {/* Main Centered Google Forms Column */}
+            <div className="flex-1 min-w-0 max-w-3xl space-y-3.5">
+              {/* Google Forms Title & Category Header Card */}
+              <div className="rounded-xl border border-slate-200 border-t-[6px] border-t-[#1E3A8A] bg-white p-5 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="font-heading text-lg sm:text-xl font-bold text-[#0F172A] leading-snug">
+                      {selectedCourseObj?.title || selectedProgramObj?.title || `Silabus ${selectedProgramCode}`}
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Klik kartu soal mana saja untuk mengedit, atau tekan <strong>+ Tambah Soal</strong> untuk membuat butir baru.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {hasUnsavedChanges && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleInlineCommit}
+                        leftIcon={<Save className="w-3.5 h-3.5" />}
+                        className="h-9 px-3 rounded-lg border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-semibold"
+                      >
+                        Simpan Semua
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleCreateNew('Pilihan Ganda', activeCategory)}
+                      leftIcon={<Plus className="w-4 h-4" />}
+                      className="h-9 px-3.5 rounded-lg text-xs font-semibold"
+                    >
+                      Tambah Soal
+                    </Button>
+                  </div>
                 </div>
-                <p className="text-xs text-[#64748B] mt-0.5">
-                  Panduan belajar, kisi-kisi kompetensi, dan rubrik penilaian untuk peserta sebelum ujian.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<Plus className="w-4 h-4" />}
-                  onClick={openCreateMateriModal}
-                  className="h-9 px-3 rounded-lg border-[#E2E8F0] text-[#475569]"
-                >
-                  Tambah Panduan
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setShowMateriSection((prev) => !prev)}
-                  title={showMateriSection ? 'Sembunyikan Panduan Materi' : 'Tampilkan Panduan Materi'}
-                  aria-label="Toggle Panduan Materi"
-                  className="w-8 h-8 rounded-lg border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] flex items-center justify-center cursor-pointer"
-                >
-                  {showMateriSection ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
 
-            {showMateriSection && (
-              selectedProgramMateri.length === 0 ? (
-                <div className="p-6 text-center rounded-xl border border-dashed border-[#E2E8F0] bg-[#F8FAFC] text-xs text-[#64748B]">
-                  Belum ada panduan materi untuk program ini. Klik <strong>Tambah Panduan</strong> untuk menambahkan.
+                {/* Compact Category Tabs + Search + Quick Tools */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+                  <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-semibold shrink-0 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveCategory('psikotes');
+                        setActiveCardId(null);
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                        activeCategory === 'psikotes'
+                          ? 'bg-white text-[#1E3A8A] shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Brain className="w-3.5 h-3.5 shrink-0" />
+                      <span>Psikotes</span>
+                      <span className="font-mono text-[11px] opacity-75">({categoryCounts.psikotes})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveCategory('kompetensi');
+                        setActiveCardId(null);
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                        activeCategory === 'kompetensi'
+                          ? 'bg-white text-[#1E3A8A] shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <CheckSquare className="w-3.5 h-3.5 shrink-0" />
+                      <span>Kompetensi</span>
+                      <span className="font-mono text-[11px] opacity-75">({categoryCounts.kompetensi})</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-1 sm:flex-initial justify-end min-w-0">
+                    <div className="relative flex-1 sm:w-44 min-w-[130px]">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={questionSearch}
+                        onChange={(e) => setQuestionSearch(e.target.value)}
+                        placeholder="Cari soal..."
+                        className="w-full h-9 pl-8 pr-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#1E3A8A] text-xs outline-none"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowMateriSection((prev) => !prev)}
+                      className={`inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
+                        showMateriSection
+                          ? 'border-[#1E3A8A] bg-blue-50 text-[#1E3A8A]'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                      title="Kelola Panduan Materi Belajar"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                      <span>Materi ({selectedProgramMateri.length})</span>
+                    </button>
+
+                    <label
+                      className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 whitespace-nowrap cursor-pointer shrink-0"
+                      title="Import soal massal dari Excel"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-[#1E3A8A] shrink-0" />
+                      <span>{questionImporting ? 'Impor...' : 'Import'}</span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept=".xlsx,.xls,.csv"
+                        disabled={questionImporting}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void handleImportQuestions(file);
+                          event.target.value = '';
+                        }}
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadQuestionTemplate()}
+                      title="Unduh Template Excel"
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 cursor-pointer shrink-0"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {questionImportMessage && (
+                  <p className="text-xs text-[#475569] bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                    {questionImportMessage}
+                  </p>
+                )}
+              </div>
+
+              {/* Collapsible Panduan Materi Panel (only opens when clicked) */}
+              {showMateriSection && (
+                <div id="panduan-materi-section" className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-[#1E3A8A]" />
+                        <span>Panduan Materi Belajar ({selectedProgramMateri.length})</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Kisi-kisi kompetensi dan bahan persiapan peserta sebelum mengerjakan asesmen.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<Plus className="w-3.5 h-3.5" />}
+                      onClick={openCreateMateriModal}
+                      className="h-8 px-3 rounded-lg text-xs"
+                    >
+                      Tambah Panduan
+                    </Button>
+                  </div>
+
+                  {selectedProgramMateri.length === 0 ? (
+                    <div className="p-5 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-500">
+                      Belum ada panduan materi. Klik <strong>Tambah Panduan</strong> untuk menambahkan.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {selectedProgramMateri.map((mat) => (
+                        <div
+                          key={mat.id}
+                          className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1.5 flex flex-col justify-between"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">
+                                {mat.type}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditMateriModal(mat)}
+                                  className="p-1 rounded-lg text-slate-500 hover:text-[#1E3A8A] hover:bg-white cursor-pointer"
+                                  title="Edit Panduan"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMateriItem(mat)}
+                                  className="p-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-white cursor-pointer"
+                                  title="Hapus Panduan"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                            <p className="font-semibold text-xs sm:text-sm text-[#0F172A] leading-snug">{mat.title}</p>
+                            <p className="text-xs text-slate-500 line-clamp-2">{mat.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Google Forms Question Card List */}
+              {filtered.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center space-y-3">
+                  <p className="text-sm font-semibold text-slate-700">
+                    {questionSearch.trim()
+                      ? 'Tidak ada soal yang cocok dengan pencarian.'
+                      : `Belum ada soal pada kategori ${activeCategory === 'psikotes' ? 'Psikotes' : 'Uji Kompetensi'}.`}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Mulai susun soal satu per satu dengan cepat seperti Google Forms, atau impor dari file Excel.
+                  </p>
+                  <div className="pt-1">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleCreateNew('Pilihan Ganda', activeCategory)}
+                      leftIcon={<Plus className="w-4 h-4" />}
+                    >
+                      Buat Soal Pertama
+                    </Button>
+                  </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                  {selectedProgramMateri.map((mat) => (
-                    <div
-                      key={mat.id}
-                      className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-2 flex flex-col justify-between"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569]">
-                              {mat.type}
-                            </span>
-                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                              (mat.status || 'Aktif') === 'Aktif' ? 'bg-[#DCFCE7] text-[#166534]' : 'bg-[#F1F5F9] text-[#475569]'
-                            }`}>
-                              {mat.status || 'Aktif'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => openEditMateriModal(mat)}
-                              className="p-1.5 rounded-lg text-[#64748B] hover:text-[#1E3A8A] hover:bg-white cursor-pointer"
-                              title="Edit Panduan"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteMateriItem(mat)}
-                              className="p-1.5 rounded-lg text-[#64748B] hover:text-[#DC2626] hover:bg-white cursor-pointer"
-                              title="Hapus Panduan"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                        <p className="font-semibold text-sm text-[#0F172A] leading-snug">{mat.title}</p>
-                        <p className="text-xs text-[#64748B]">
-                          {mat.category}
-                          {mat.competency ? ` • ${mat.competency}` : ''}
-                        </p>
-                        <p className="text-xs text-[#475569] line-clamp-2 leading-relaxed">{mat.content}</p>
-                      </div>
-                      {mat.rubric && (
-                        <div className="pt-2 border-t border-[#E2E8F0] text-xs text-[#64748B] line-clamp-1">
-                          <span className="font-semibold text-[#475569]">Rubrik:</span> {mat.rubric}
-                        </div>
-                      )}
-                    </div>
+                <div className="space-y-3">
+                  {filtered.map((q, index) => (
+                    <GoogleFormQuestionCard
+                      key={q.id}
+                      question={q}
+                      index={index}
+                      totalCount={filtered.length}
+                      isActive={activeCardId === q.id}
+                      autoFocusTitle={autoFocusCardId === q.id}
+                      competencySuggestions={competencySuggestions}
+                      onActivate={() => {
+                        setActiveCardId(q.id);
+                        setAutoFocusCardId(null);
+                      }}
+                      onPatch={handleInlineFieldChange}
+                      onSave={handleInlineCommit}
+                      onDuplicate={handleDuplicateQuestion}
+                      onDelete={handleDeleteQuestion}
+                      onMove={handleMoveQuestion}
+                      onUploadAttachment={(questionObj, file) =>
+                        void handleInlineAttachmentUpload(questionObj, file)
+                      }
+                      onRemoveAttachment={handleInlineRemoveAttachment}
+                    />
                   ))}
                 </div>
-              )
-            )}
-          </div>
+              )}
 
-          {/* Kategori Soal Switcher: Soal Psikotes vs Uji Kompetensi */}
-          <div className="rounded-xl border border-[#E2E8F0] bg-white p-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory('psikotes');
-                }}
-                className={`flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors cursor-pointer ${
-                  activeCategory === 'psikotes'
-                    ? 'border-2 border-[#1E3A8A] bg-[#EEF2FF]'
-                    : 'border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                      activeCategory === 'psikotes'
-                        ? 'bg-[#1E3A8A] text-white'
-                        : 'bg-[#EEF2FF] text-[#1E3A8A]'
-                    }`}
-                  >
-                    <Brain className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#0F172A]">Soal Psikotes</p>
-                    <p className="text-xs text-[#64748B] truncate">
-                      Penalaran logis, numerik, verbal &amp; kepribadian
-                    </p>
-                  </div>
-                </div>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-[#F1F5F9] text-[#475569] shrink-0">
-                  {categoryCounts.psikotes} Soal
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory('kompetensi');
-                }}
-                className={`flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors cursor-pointer ${
-                  activeCategory === 'kompetensi'
-                    ? 'border-2 border-[#1E3A8A] bg-[#EEF2FF]'
-                    : 'border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                      activeCategory === 'kompetensi'
-                        ? 'bg-[#1E3A8A] text-white'
-                        : 'bg-[#EEF2FF] text-[#1E3A8A]'
-                    }`}
-                  >
-                    <CheckSquare className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#0F172A]">Uji Kompetensi</p>
-                    <p className="text-xs text-[#64748B] truncate">
-                      Teknis, studi kasus, arsitektur &amp; materi program
-                    </p>
-                  </div>
-                </div>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-[#F1F5F9] text-[#475569] shrink-0">
-                  {categoryCounts.kompetensi} Soal
-                </span>
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-[#E2E8F0] bg-white p-5 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-[#1E3A8A]" />
-                  Import Soal dari Excel
-                </h3>
-                <p className="text-xs text-[#64748B] mt-0.5">
-                  Unduh template, isi soal berbagai tipe (PG, multi-select, isian, esai, matching), lalu unggah untuk kategori{' '}
-                  <strong>{activeCategory === 'psikotes' ? 'Soal Psikotes' : 'Uji Kompetensi'}</strong>.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  onClick={() => void handleDownloadQuestionTemplate()}
-                  className="h-10 px-3.5 rounded-lg border-[#E2E8F0] text-[#475569] whitespace-nowrap"
+              {/* Bottom Quick-Add Card Trigger */}
+              {filtered.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleCreateNew('Pilihan Ganda', activeCategory)}
+                  className="w-full py-3.5 rounded-xl border-2 border-dashed border-slate-300 hover:border-[#1E3A8A] bg-white/70 hover:bg-white text-xs sm:text-sm font-semibold text-slate-600 hover:text-[#1E3A8A] flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
-                  <Download className="w-4 h-4 mr-1.5" />
-                  Unduh Template
-                </Button>
-                <label className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-sm font-semibold text-white cursor-pointer whitespace-nowrap">
-                  <Upload className="w-4 h-4" />
-                  {questionImporting ? 'Mengimpor...' : 'Import Excel'}
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".xlsx,.xls,.csv"
-                    disabled={questionImporting}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void handleImportQuestions(file);
-                      event.target.value = '';
-                    }}
-                  />
-                </label>
-              </div>
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah Soal Baru</span>
+                </button>
+              )}
             </div>
-            {questionImportMessage && (
-              <p className="text-xs text-[#475569] bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 py-2">
-                {questionImportMessage}
-              </p>
-            )}
-          </div>
 
-          <div className="space-y-3">
-            {filtered.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-xs text-slate-500">
-                Belum ada soal untuk filter ini. Gunakan tombol Tambah Soal Baru di bawah daftar.
-              </div>
-            ) : filtered.map((q, index) => (
-              <div key={q.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="w-8 h-8 rounded-lg bg-primary-navy text-white flex items-center justify-center font-mono font-bold text-xs">{index + 1}</span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-900 text-white shadow-2xs">
-                      <span className="text-slate-400 font-normal">ID Soal:</span>
-                      <span>{q.id}</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-primary-navy border border-blue-200 shadow-2xs">
-                      <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      <span>Sumber: <strong className="text-blue-950 font-bold">Master Bank Soal CAT [{selectedProgramCode || 'Umum'}]</strong></span>
-                    </span>
-                    <Badge variant="navy" format="soft">{q.type}</Badge>
-                    <Badge variant={q.difficulty === 'Sulit' ? 'danger' : q.difficulty === 'Sedang' ? 'warning' : 'success'} format="soft">{q.difficulty}</Badge>
-                    <Badge variant={q.status === 'Published' ? 'success' : q.status === 'Review' ? 'warning' : 'neutral'} format="soft">{q.status}</Badge>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/80 text-slate-600">
-                  <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                    <Database className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    Sumber Bank Soal CAT:
-                  </span>
-                  <span className="text-blue-950 font-semibold">Master Bank Soal CAT [{selectedProgramCode || 'Umum'}]</span>
-                  <span className="text-slate-300">•</span>
-                  <span className="font-semibold text-slate-700">ID Soal:</span>
-                  <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300">{q.id}</span>
-                </div>
-                <QuestionFormFields
-                  question={q}
-                  onPatch={handleInlineFieldChange}
-                  onSave={handleInlineCommit}
-                  onUploadAttachmentForQuestion={handleInlineAttachmentUpload}
-                  onRemoveAttachmentById={handleInlineRemoveAttachment}
-                  onDeleteById={handleDeleteQuestion}
-                  headerLabel={`Detail Soal #${index + 1}`}
-                  competencySuggestions={competencySuggestions}
+            {/* Iconic Google Forms Floating Side Toolbar (Desktop) */}
+            <aside className="hidden lg:flex flex-col gap-1.5 sticky top-24 bg-white rounded-xl border border-slate-200 shadow-sm p-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleCreateNew('Pilihan Ganda', activeCategory)}
+                title="Tambah Soal Baru"
+                className="w-10 h-10 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleInlineCommit}
+                title="Simpan Semua Perubahan"
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors cursor-pointer relative ${
+                  hasUnsavedChanges
+                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Save className="w-4.5 h-4.5" />
+                {hasUnsavedChanges && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500" />
+                )}
+              </button>
+              <div className="h-px bg-slate-200 my-0.5" />
+              <label
+                title="Import Soal dari Excel"
+                className="w-10 h-10 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4.5 h-4.5" />
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".xlsx,.xls,.csv"
+                  disabled={questionImporting}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void handleImportQuestions(file);
+                    event.target.value = '';
+                  }}
                 />
-              </div>
-            ))}
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowMateriSection((prev) => !prev)}
+                title="Tampilkan / Sembunyikan Panduan Materi"
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                  showMateriSection
+                    ? 'bg-blue-50 text-[#1E3A8A]'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <BookOpen className="w-4.5 h-4.5" />
+              </button>
+            </aside>
           </div>
-
-          <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-100">
-            <p className="text-[11px] text-slate-500">
-              Tambah satu butir soal, lalu atur detailnya pada form di bawah tanpa berpindah halaman.
-            </p>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => handleCreateNew('Pilihan Ganda', activeCategory)}
-              className="text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Tambah Soal Baru</span>
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* ─── TAB 2: Soal Editor (inline di halaman yang sama) ─── */}
-      {viewMode === 'editor' && (
-        <div id="question-editor" className="scroll-mt-24 max-w-3xl">
-          <QuestionFormFields
-            question={activeQuestion}
-            onChange={(patch) => setActiveQuestion((prev) => ({ ...prev, ...patch }))}
-            onSave={handleSaveQuestion}
-            onCancel={() => setViewMode('table')}
-            onUploadAttachment={(file) => void handleQuestionAttachmentUpload(file)}
-            onRemoveAttachment={() =>
-              setActiveQuestion((prev) => ({
-                ...prev,
-                attachmentUrl: null,
-                attachmentName: null,
-                attachmentMime: null
-              }))
-            }
-            onDelete={
-              isEditingExisting
-                ? () => {
-                    handleDeleteQuestion(activeQuestion.id);
-                    setViewMode('table');
-                  }
-                : undefined
-            }
-            headerLabel={isEditingExisting ? `Edit Soal: ${activeQuestion.id}` : 'Tambah Butir Soal Baru'}
-            competencySuggestions={competencySuggestions}
-          />
         </div>
       )}
 

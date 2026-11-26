@@ -6,11 +6,12 @@ import {
   Clock,
   FileAudio,
   GraduationCap,
+  Lock,
   MessageSquare,
   Save,
   Search
 } from 'lucide-react';
-import { AsesorLayout } from './AsesorLayout';
+import { AsesorLayout, emitAsesorDataUpdated } from './AsesorLayout';
 import { AsesorProctoringCard } from './AsesorProctoringCard';
 import { Badge, Button } from '../ui';
 import {
@@ -244,6 +245,14 @@ export default function AsesorInterviewResults() {
     );
   }, [candidates, search]);
 
+  const selectorOptions = useMemo(() => {
+    if (!selected) return filteredCandidates;
+    const exists = filteredCandidates.some((c) => c.code === selected.code);
+    return exists ? filteredCandidates : [selected, ...filteredCandidates];
+  }, [filteredCandidates, selected]);
+
+  const isLhaSigned = selected?.lhaStatus === 'signed';
+
   // Filter hanya percakapan wawancara (Ava AI & Kandidat)
   const dialogueSegments = useMemo(() => {
     const raw = Array.isArray(selected?.transcriptSegments) ? selected.transcriptSegments : [];
@@ -275,6 +284,7 @@ export default function AsesorInterviewResults() {
   const activeRubric = rubrics.find((r) => r.id === activeCompId) || rubrics[0];
 
   const handleSelectScore = (compId: string, val: number) => {
+    if (isLhaSigned) return;
     setRubrics((prev) => {
       const next = prev.map((r) => (r.id === compId ? { ...r, score: val } : r));
       const totalWeight = next.reduce((s, r) => s + r.weight, 0);
@@ -288,6 +298,13 @@ export default function AsesorInterviewResults() {
   const handleSaveBarsGpa = async () => {
     if (!selected) return;
     setNotice(null);
+    if (isLhaSigned) {
+      setNotice({
+        type: 'error',
+        message: 'LHA untuk kandidat ini sudah ditandatangani (E-Sign) sehingga nilai BARS terkunci.'
+      });
+      return;
+    }
     if (!hasAnyScore || barsAverage == null || gpaScore == null) {
       setNotice({
         type: 'error',
@@ -319,7 +336,7 @@ export default function AsesorInterviewResults() {
           compositeScore: interviewScore100,
           recommendation,
           notes: assessorNotes.trim() || `Penilaian BARS ${barsAverage.toFixed(2)}/5.00 (GPA ${gpaScore.toFixed(2)}/4.00)`,
-          status: 'signed',
+          status: 'draft',
           finalized: true,
           evaluationMode: 'bars_gpa'
         },
@@ -330,13 +347,14 @@ export default function AsesorInterviewResults() {
       setCandidates((prev) =>
         prev.map((c) =>
           c.code === selected.code
-            ? { ...c, barsAverage, gpaScore, recommendation }
+            ? { ...c, barsAverage, gpaScore, recommendation, lhaStatus: c.lhaStatus || 'draft' }
             : c
         )
       );
+      emitAsesorDataUpdated();
       setNotice({
         type: 'success',
-        message: `Penilaian BARS (${barsAverage.toFixed(2)}/5.00) & GPA (${gpaScore.toFixed(2)}/4.00) berhasil disimpan.`
+        message: `Penilaian BARS (${barsAverage.toFixed(2)}/5.00) & GPA (${gpaScore.toFixed(2)}/4.00) berhasil disimpan. Lanjutkan ke menu Rekap & LHA untuk E-Sign resmi.`
       });
     } catch (err) {
       setNotice({
@@ -353,23 +371,35 @@ export default function AsesorInterviewResults() {
   return (
     <AsesorLayout activeTab="hasil-interview">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-7 sm:py-8 space-y-6 antialiased">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold font-heading text-ink tracking-tight">
               Hasil Interview &amp; Penilaian BARS (GPA)
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Tinjau transkrip percakapan wawancara Ava AI dan berikan penilaian rubrik BARS (skala 1–5) yang dikonversi ke GPA (0.00–4.00).
+              Tinjau transkrip percakapan wawancara Ava AI, proctoring interview, dan berikan penilaian rubrik BARS (skala 1–5) → GPA (0.00–4.00).
             </p>
           </div>
           {selected && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/asesor/tracking/${selected.code}`)}
-            >
-              Lihat Tracking Progres
-            </Button>
+            <div className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs self-start shrink-0 whitespace-nowrap overflow-x-auto max-w-full">
+              <button
+                type="button"
+                onClick={() => navigate(`/asesor/hasil-cat/${selected.code}`)}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-ink transition-colors cursor-pointer"
+              >
+                1. CAT &amp; Coding
+              </button>
+              <span className="px-2.5 py-1.5 rounded-lg bg-primary-navy text-white text-xs font-semibold">
+                2. Interview &amp; BARS
+              </span>
+              <button
+                type="button"
+                onClick={() => navigate(`/asesor/rekap-lha/${selected.code}`)}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-ink transition-colors cursor-pointer"
+              >
+                3. Rekap &amp; LHA →
+              </button>
+            </div>
           )}
         </div>
 
@@ -391,16 +421,17 @@ export default function AsesorInterviewResults() {
               onChange={(e) => {
                 if (e.target.value) navigate(`/asesor/hasil-interview/${e.target.value}`);
               }}
-              disabled={loadingList || filteredCandidates.length === 0}
+              disabled={loadingList || selectorOptions.length === 0}
               className="w-full px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-ink focus:outline-none focus:border-primary-navy"
             >
-              {filteredCandidates.length === 0 ? (
+              {selectorOptions.length === 0 ? (
                 <option value="">Tidak ada peserta ditemukan</option>
               ) : (
-                filteredCandidates.map((c) => (
+                selectorOptions.map((c) => (
                   <option key={c.code} value={c.code}>
                     {c.name} ({c.code}) — {c.interviewDone ? 'Sudah Interview' : 'Belum Interview'}
                     {c.gpaScore != null ? ` • GPA ${c.gpaScore.toFixed(2)}/4.00` : ''}
+                    {c.lhaStatus === 'signed' ? ' • LHA Terbit' : ''}
                   </option>
                 ))
               )}
@@ -594,6 +625,25 @@ export default function AsesorInterviewResults() {
 
               {/* Detail Rubrik Aktif */}
               <div className="p-5 space-y-4">
+                {isLhaSigned && (
+                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-900">
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span>
+                        <strong>LHA Sudah Terbit ({selected.lhaNumber || 'E-Sign'}):</strong> Nilai BARS &amp; GPA telah terkunci secara resmi.
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => navigate(`/asesor/rekap-lha/${selected.code}`)}
+                    >
+                      Lihat &amp; Unduh LHA
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-heading text-sm sm:text-base font-bold text-ink">
                     {activeRubric.name}
@@ -608,8 +658,11 @@ export default function AsesorInterviewResults() {
                       <button
                         key={val}
                         type="button"
+                        disabled={isLhaSigned}
                         onClick={() => handleSelectScore(activeRubric.id, val)}
-                        className={`w-full text-left p-3 rounded-xl border transition-all flex items-start gap-3 cursor-pointer ${
+                        className={`w-full text-left p-3 rounded-xl border transition-all flex items-start gap-3 ${
+                          isLhaSigned ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'
+                        } ${
                           isSelected
                             ? 'bg-soft-blue border-primary-navy ring-1 ring-primary-navy text-primary-navy'
                             : 'bg-white border-slate-200 hover:bg-slate-50 text-ink'
@@ -649,6 +702,7 @@ export default function AsesorInterviewResults() {
                   </label>
                   <textarea
                     rows={2}
+                    disabled={isLhaSigned}
                     value={activeRubric.notes}
                     onChange={(e) =>
                       setRubrics((prev) =>
@@ -656,7 +710,7 @@ export default function AsesorInterviewResults() {
                       )
                     }
                     placeholder="Catatan observasi jawaban kandidat..."
-                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:border-primary-navy text-xs outline-none"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:border-primary-navy text-xs outline-none disabled:bg-slate-50 disabled:text-slate-500"
                   />
                 </div>
 
@@ -683,8 +737,11 @@ export default function AsesorInterviewResults() {
                       <button
                         key={opt.key}
                         type="button"
+                        disabled={isLhaSigned}
                         onClick={() => setRecommendation(opt.key)}
-                        className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
+                        className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-colors ${
+                          isLhaSigned ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
+                        } ${
                           recommendation === opt.key
                             ? 'bg-primary-navy text-white border-primary-navy'
                             : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -701,10 +758,11 @@ export default function AsesorInterviewResults() {
                     </label>
                     <textarea
                       rows={2}
+                      disabled={isLhaSigned}
                       value={assessorNotes}
                       onChange={(e) => setAssessorNotes(e.target.value)}
                       placeholder="Ringkasan catatan wawancara untuk hasil GPA peserta..."
-                      className="w-full p-2.5 rounded-xl border border-slate-200 bg-white focus:border-primary-navy text-xs outline-none"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 bg-white focus:border-primary-navy text-xs outline-none disabled:bg-slate-100 disabled:text-slate-500"
                     />
                   </div>
                 </div>
@@ -718,22 +776,24 @@ export default function AsesorInterviewResults() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant={isLhaSigned ? 'primary' : 'outline'}
                     size="sm"
                     onClick={() => navigate(`/asesor/rekap-lha/${selected.code}`)}
                   >
-                    Rekap &amp; Terbitkan LHA →
+                    {isLhaSigned ? 'Lihat & Unduh LHA →' : 'Rekap & Terbitkan LHA →'}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="sm"
-                    disabled={saving}
-                    onClick={handleSaveBarsGpa}
-                    leftIcon={<Save className="w-3.5 h-3.5" />}
-                  >
-                    {saving ? 'Menyimpan...' : 'Simpan Penilaian BARS & GPA'}
-                  </Button>
+                  {!isLhaSigned && (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      disabled={saving}
+                      onClick={handleSaveBarsGpa}
+                      leftIcon={<Save className="w-3.5 h-3.5" />}
+                    >
+                      {saving ? 'Menyimpan...' : 'Simpan Penilaian BARS & GPA'}
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

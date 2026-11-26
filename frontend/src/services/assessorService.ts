@@ -243,3 +243,17 @@ export const fetchRecordingAudioBlobUrl = async (recordingId: string): Promise<s
   });
   return URL.createObjectURL(response.data);
 };
+
+export const updateAssessorProctoringReview = async (
+  candidateCode: string,
+  eventId: string,
+  status: 'valid' | 'false_positive',
+  notes?: string
+) => {
+  const response = await axios.put(
+    `/api/asesor/proctoring/${encodeURIComponent(candidateCode)}/${encodeURIComponent(eventId)}`,
+    { status, notes },
+    { headers: authHeaders() }
+  );
+  return response.data?.data;
+};

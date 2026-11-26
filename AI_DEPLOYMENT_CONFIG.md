@@ -7,7 +7,7 @@
 GITHUB_TOKEN="ghp_PLACEHOLDER_TOKEN_MASUKKAN_DISINI"
 
 # 2. Masukkan Coolify API Token Anda:
-COOLIFY_TOKEN="12|PLACEHOLDER_COOLIFY_TOKEN_DISINI"
+COOLIFY_TOKEN="22|1wlIUWZVXgwi1V4j4ZDFnNj9KJF9yrhkBEeuKZLuf3e6744b"
 
 # 3. URL Repository GitHub (OPSIONAL - Boleh dikosongkan):
 # - Jika KOSONG: AI akan otomatis mengambil link dari prompt chat Anda (misal: "deploy https://github.com/..."),

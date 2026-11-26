@@ -546,11 +546,21 @@ export const downloadLhaPdf = async (req: AuthRequest, res: Response) => {
     if (!score) return res.status(404).json({ error: 'LHA bertanda tangan belum tersedia.' });
 
     const candidatePortalUser = await prisma.portalUser.findFirst({
-      where: { candidateCode },
+      where: {
+        role: 'peserta',
+        OR: [{ candidateCode }, { id: candidateCode }]
+      },
       select: {
+        id: true,
+        candidateCode: true,
         companyId: true,
         companyName: true,
-        tenant: { select: { code: true, name: true } }
+        tenant: { select: { code: true, name: true } },
+        examAttempts: {
+          orderBy: { submittedAt: 'desc' },
+          take: 1,
+          select: { score: true, integrityScore: true, status: true }
+        }
       }
     });
     const reportTpl = await findReportTemplateForCompany([
@@ -560,8 +570,23 @@ export const downloadLhaPdf = async (req: AuthRequest, res: Response) => {
       candidatePortalUser?.companyName
     ]);
 
+    const liveCodingRow = candidatePortalUser
+      ? await prisma.masterRecord.findFirst({
+          where: {
+            scope: 'live-coding-submissions',
+            OR: [
+              { key: { startsWith: `${candidatePortalUser.id}::` } },
+              ...(candidatePortalUser.candidateCode ? [{ value: { contains: candidatePortalUser.candidateCode } }] : [])
+            ]
+          }
+        })
+      : null;
+    const liveCodingData = liveCodingRow ? parseJson<{ score?: number; passedTests?: number; totalTests?: number } | null>(liveCodingRow.value, null) : null;
+    const latestExam = candidatePortalUser?.examAttempts?.[0] || null;
+
     const versionMeta = await getLhaVersionMeta(score.candidateCode, score.programTitle);
     const competencies = parseJson<Array<Record<string, unknown>>>(score.competencies, []);
+    const { barsAverage, gpaScore } = computeBarsAndGpa(competencies);
     const blocks: PdfBlock[] = [
       { type: 'heading', text: reportTpl?.headerTitle || 'LAPORAN HASIL ASESMEN (LHA)' },
       ...(reportTpl?.introText ? [{ type: 'text' as const, text: reportTpl.introText }, { type: 'spacer' as const, height: 4 }] : []),
@@ -578,25 +603,39 @@ export const downloadLhaPdf = async (req: AuthRequest, res: Response) => {
       { type: 'rule' },
       ...(reportTpl?.showCompetencyTable !== false
         ? [
-            { type: 'heading' as const, text: 'Skor Kompetensi', size: 11 },
+            { type: 'heading' as const, text: 'Rincian Penilaian Rubrik BARS (Skala 1-5)', size: 11 },
             {
               type: 'table' as const,
-              columns: ['Kompetensi', 'Rating', 'Catatan'],
-              widths: [0.42, 0.14, 0.44],
+              columns: ['Kompetensi', 'Skor BARS', 'Catatan'],
+              widths: [0.42, 0.16, 0.42],
               rows: competencies.length
                 ? competencies.map((item) => [
                     String(item.name || item.competency || item.label || '-'),
-                    String(item.rating ?? item.score ?? '-'),
+                    `${String(item.rating ?? item.score ?? '-')} / 5`,
                     String(item.note || item.notes || item.evidence || '-')
                   ])
                 : [['Belum ada rincian kompetensi', '-', '-']]
             }
           ]
         : []),
-      ...(reportTpl?.showInterviewScore !== false
-        ? [{ type: 'kv' as const, label: 'Skor Wawancara', value: String(score.interviewScore) }]
+      ...(latestExam?.score != null
+        ? [{ type: 'kv' as const, label: 'Skor Soal CAT', value: `${Math.round(latestExam.score)} / 100` }]
         : []),
-      { type: 'kv', label: 'Skor Komposit', value: String(score.compositeScore) },
+      ...(liveCodingData?.score != null
+        ? [{ type: 'kv' as const, label: 'Skor Live Coding', value: `${Math.round(liveCodingData.score)} / 100` }]
+        : []),
+      ...(barsAverage != null
+        ? [{ type: 'kv' as const, label: 'Rata-rata BARS', value: `${barsAverage.toFixed(2)} / 5.00` }]
+        : []),
+      ...(gpaScore != null
+        ? [{ type: 'kv' as const, label: 'Skor GPA', value: `${gpaScore.toFixed(2)} / 4.00` }]
+        : []),
+      ...(latestExam?.integrityScore != null
+        ? [{ type: 'kv' as const, label: 'Integritas Proctoring', value: `${Math.round(latestExam.integrityScore)}%` }]
+        : []),
+      ...(reportTpl?.showInterviewScore !== false
+        ? [{ type: 'kv' as const, label: 'Skor Wawancara (Skala 100)', value: String(score.interviewScore) }]
+        : []),
       { type: 'kv', label: 'Rekomendasi Asesor', value: score.recommendation },
       ...(reportTpl?.showAssessorNotes !== false
         ? [
