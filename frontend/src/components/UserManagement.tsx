@@ -417,6 +417,16 @@ export default function UserManagement() {
       setPesertaFormError('Pilih minimal satu jenis asesmen untuk peserta.');
       return;
     }
+    if (!editingPesertaId) {
+      const loginInput = pesertaFormUsername.trim().toLowerCase();
+      const duplicate = [...pesertaList, ...asesorList].some(
+        (user) => String(user.username || '').trim().toLowerCase() === loginInput
+      );
+      if (duplicate) {
+        setPesertaFormError('Email/username sudah digunakan akun lain. Gunakan email berbeda.');
+        return;
+      }
+    }
 
     try {
       const token = localStorage.getItem('adminToken');

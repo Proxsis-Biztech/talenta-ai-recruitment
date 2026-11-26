@@ -151,7 +151,9 @@ export const importPortalUsers = async (req: AuthRequest, res: Response) => {
     );
 
     const existingEmails = new Set(
-      (await prisma.portalUser.findMany({ select: { email: true } })).map((user) => user.email)
+      (await prisma.portalUser.findMany({ select: { email: true } })).map((user) =>
+        String(user.email || '').trim().toLowerCase()
+      )
     );
 
     const errors: Array<{ row: number; email: string; message: string }> = [];

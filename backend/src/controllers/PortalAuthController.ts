@@ -32,6 +32,27 @@ const usernameSchema = z
   .regex(/^[a-zA-Z0-9._-]+$/, 'Username hanya boleh berisi huruf, angka, titik (.), garis bawah (_), atau strip (-).')
   .toLowerCase();
 const isSyntheticLocalEmail = (email: string): boolean => email.endsWith('@username.local');
+
+const findIdentityConflict = async (
+  email: string,
+  username: string | null,
+  excludeId?: string
+) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedUsername = username ? username.trim().toLowerCase() : null;
+  return prisma.portalUser.findFirst({
+    where: {
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+      OR: [
+        { email: { equals: normalizedEmail, mode: 'insensitive' as const } },
+        ...(normalizedUsername
+          ? [{ username: { equals: normalizedUsername, mode: 'insensitive' as const } }]
+          : [])
+      ]
+    },
+    select: { id: true, email: true, username: true }
+  });
+};
 const passwordSchema = z.string().min(8, 'Kata sandi minimal 8 karakter');
 
 const userSelect = {
@@ -149,8 +170,8 @@ export const loginPortal = async (req: AuthRequest, res: Response) => {
     const user = await prisma.portalUser.findFirst({
       where: {
         OR: [
-          { email: identifier.toLowerCase() },
-          { username: identifier }
+          { email: { equals: identifier, mode: 'insensitive' as const } },
+          { username: { equals: identifier.toLowerCase(), mode: 'insensitive' as const } }
         ]
       }
     });
@@ -194,7 +215,9 @@ export const googleLogin = async (req: AuthRequest, res: Response) => {
     }
 
     const email = String(tokenInfo.email || '').toLowerCase();
-    const user = await prisma.portalUser.findUnique({ where: { email } });
+    const user = await prisma.portalUser.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' as const } }
+    });
     if (!user) {
       return res.status(404).json({ error: 'Email Google ini belum terdaftar. Gunakan email undangan atau daftar program baru.' });
     }
@@ -225,7 +248,9 @@ export const registerPeserta = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Nama lengkap wajib diisi.' });
     }
 
-    const existing = await prisma.portalUser.findUnique({ where: { email } });
+    const existing = await prisma.portalUser.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' as const } }
+    });
     if (existing) {
       return res.status(409).json({ error: 'Email ini sudah terdaftar. Silakan masuk menggunakan akun Anda.' });
     }
@@ -262,6 +287,9 @@ export const registerPeserta = async (req: AuthRequest, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.issues[0]?.message || 'Data pendaftaran tidak valid.' });
     }
+    if (typeof error === 'object' && error && (error as { code?: string }).code === 'P2002') {
+      return res.status(409).json({ error: 'Email ini sudah terdaftar. Silakan masuk menggunakan akun Anda.' });
+    }
     console.error('Portal register error:', error);
     return res.status(500).json({ error: 'Terjadi kesalahan pada server.' });
   }
@@ -294,7 +322,9 @@ export const tokenLogin = async (req: AuthRequest, res: Response) => {
     });
 
     const email = req.body.email ? emailSchema.parse(req.body.email) : null;
-    let user = email ? await prisma.portalUser.findUnique({ where: { email } }) : null;
+    let user = email
+      ? await prisma.portalUser.findFirst({ where: { email: { equals: email, mode: 'insensitive' as const } } })
+      : null;
 
     if (!user) {
       const generatedEmail = email || `token-${programCode.toLowerCase()}-${Date.now()}@talenta.local`;
@@ -898,17 +928,15 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
       ? crypto.randomBytes(32).toString('hex')
       : passwordSchema.parse(rawPassword);
 
-    const existing = await prisma.portalUser.findFirst({
-      where: {
-        OR: [
-          { email },
-          ...(username ? [{ username }] : [])
-        ]
-      }
-    });
+    const existing = await findIdentityConflict(email, username);
     if (existing) {
+      const emailTaken = existing.email.toLowerCase() === email.toLowerCase();
       return res.status(409).json({
-        error: isSyntheticLocalEmail(email) ? 'Username sudah digunakan.' : 'Email atau username sudah digunakan.'
+        error: emailTaken
+          ? 'Email sudah digunakan akun lain. Gunakan email berbeda.'
+          : isSyntheticLocalEmail(email)
+            ? 'Username sudah digunakan.'
+            : 'Email atau username sudah digunakan.'
       });
     }
 
@@ -1000,6 +1028,9 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.issues[0]?.message || 'Data tidak valid.' });
     }
+    if (typeof error === 'object' && error && (error as { code?: string }).code === 'P2002') {
+      return res.status(409).json({ error: 'Email atau username sudah digunakan akun lain.' });
+    }
     console.error('Create portal user error:', error);
     return res.status(500).json({ error: 'Gagal membuat pengguna portal.' });
   }
@@ -1036,18 +1067,15 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
           nextUsername = usernameSchema.parse(rawLogin);
           nextEmail = `${nextUsername}@username.local`;
         }
-        const conflict = await prisma.portalUser.findFirst({
-          where: {
-            id: { not: id },
-            OR: [
-              { email: nextEmail },
-              ...(nextUsername ? [{ username: nextUsername }] : [])
-            ]
-          }
-        });
+        const conflict = await findIdentityConflict(nextEmail, nextUsername, id);
         if (conflict) {
+          const emailTaken = conflict.email.toLowerCase() === nextEmail.toLowerCase();
           return res.status(409).json({
-            error: isSyntheticLocalEmail(nextEmail) ? 'Username sudah digunakan.' : 'Email atau username sudah digunakan.'
+            error: emailTaken
+              ? 'Email sudah digunakan akun lain. Gunakan email berbeda.'
+              : isSyntheticLocalEmail(nextEmail)
+                ? 'Username sudah digunakan.'
+                : 'Email atau username sudah digunakan.'
           });
         }
         data.email = nextEmail;
@@ -1082,15 +1110,15 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
       const newEmail = String(data.email);
       const appConflict = await prisma.applicant.findFirst({
         where: {
-          email: { equals: newEmail, mode: 'insensitive' },
-          NOT: { email: { equals: existing.email, mode: 'insensitive' } }
+          email: { equals: newEmail, mode: 'insensitive' as const },
+          NOT: { email: { equals: existing.email, mode: 'insensitive' as const } }
         }
       });
       if (appConflict) {
         return res.status(409).json({ error: 'Email sudah digunakan pada data pelamar lain.' });
       }
       await prisma.applicant.updateMany({
-        where: { email: { equals: existing.email, mode: 'insensitive' } },
+        where: { email: { equals: existing.email, mode: 'insensitive' as const } },
         data: { email: newEmail }
       });
     }
@@ -1103,6 +1131,9 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.issues[0]?.message || 'Data tidak valid.' });
+    }
+    if (typeof error === 'object' && error && (error as { code?: string }).code === 'P2002') {
+      return res.status(409).json({ error: 'Email atau username sudah digunakan akun lain.' });
     }
     console.error('Update portal user error:', error);
     return res.status(500).json({ error: 'Gagal memperbarui pengguna portal.' });
@@ -1126,7 +1157,7 @@ export const deletePortalUser = async (req: AuthRequest, res: Response) => {
       }
       if (existing.role === 'peserta') {
         const linkedApplicants = await tx.applicant.findMany({
-          where: { email: { equals: existing.email, mode: 'insensitive' } },
+          where: { email: { equals: existing.email, mode: 'insensitive' as const } },
           select: { id: true }
         });
         for (const app of linkedApplicants) {
@@ -1145,7 +1176,9 @@ export const deletePortalUser = async (req: AuthRequest, res: Response) => {
 export const forgotPassword = async (req: AuthRequest, res: Response) => {
   try {
     const email = emailSchema.parse(req.body.email);
-    const user = await prisma.portalUser.findUnique({ where: { email } });
+    const user = await prisma.portalUser.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' as const } }
+    });
     const generic = {
       message: 'Jika email terdaftar, tautan pengaturan ulang kata sandi telah dikirim. Periksa kotak masuk Anda.'
     };
