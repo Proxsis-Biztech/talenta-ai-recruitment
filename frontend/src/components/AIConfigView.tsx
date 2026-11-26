@@ -4,7 +4,7 @@ import { loadMasterScope, saveMasterRecord, deleteMasterRecord } from '../servic
 import Swal from 'sweetalert2';
 import { 
   Cpu, Sliders, Volume2, ShieldCheck, Zap, Activity,
-  Save, RotateCcw, CheckCircle, Radio, Clock, AlertCircle
+  Save, RotateCcw, CheckCircle, Radio, Clock, AlertCircle, Check, X
 } from 'lucide-react';
 import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
@@ -25,6 +25,30 @@ export interface AIConfiguration {
   blockVirtualBackground: boolean;
   examExpiryPolicy: 'auto_submit' | 'expired';
 }
+
+type ProctoringFeatureValue = string | boolean;
+
+const PROCTORING_BREAKDOWN: Array<{
+  label: string;
+  ringan: ProctoringFeatureValue;
+  sedang: ProctoringFeatureValue;
+  ketat: ProctoringFeatureValue;
+}> = [
+  { label: 'Batas pelanggaran sebelum eskalasi', ringan: '15x', sedang: '10x', ketat: '10x' },
+  { label: 'Auto-submit saat batas terlampaui', ringan: false, sedang: false, ketat: false },
+  { label: 'Wajib fullscreen (lockdown)', ringan: false, sedang: true, ketat: true },
+  { label: 'Blokir shortcut & context menu', ringan: false, sedang: true, ketat: true },
+  { label: 'Blokir copy-paste', ringan: false, sedang: true, ketat: true },
+  { label: 'Deteksi wajah (face presence)', ringan: false, sedang: true, ketat: true },
+  { label: 'Deteksi wajah ganda', ringan: false, sedang: true, ketat: true },
+  { label: 'Deteksi arah pandang (eye tracking)', ringan: false, sedang: false, ketat: true },
+  { label: 'Deteksi objek terlarang', ringan: false, sedang: false, ketat: true },
+  { label: 'Deteksi audio / suara latar', ringan: false, sedang: true, ketat: true },
+  { label: 'Deteksi multi-monitor', ringan: false, sedang: false, ketat: true },
+  { label: 'Larangan virtual background', ringan: false, sedang: 'Mengikuti toggle', ketat: 'Mengikuti toggle' },
+  { label: 'Berbagi layar wajib', ringan: false, sedang: false, ketat: true },
+  { label: 'Interval snapshot berkala', ringan: '3 menit', sedang: '2 menit', ketat: '90 detik' }
+];
 
 const DEFAULT_CONFIG: AIConfiguration = {
   liveAudioModel: 'gemini-2.5-flash-native-audio-latest',
@@ -530,10 +554,10 @@ export default function AIConfigView() {
           >
             <div className="flex items-center justify-between mb-2">
               <span className="font-semibold text-xs text-[#0F172A]">Ringan (Permisif)</span>
-              <span className="text-[11px] bg-[#F1F5F9] text-[#475569] font-semibold px-2.5 py-0.5 rounded-full">Toleransi 5x</span>
+              <span className="text-[11px] bg-[#F1F5F9] text-[#475569] font-semibold px-2.5 py-0.5 rounded-full">Toleransi 15x</span>
             </div>
             <p className="text-xs text-[#64748B] leading-relaxed">
-              Kamera &amp; mic aktif berkala. Toleransi 5x perpindahan tab, tanpa penguncian fullscreen mutlak. Cocok untuk simulasi atau asesmen internal informal.
+              Kamera tetap aktif, tanpa deteksi wajah/audio dan tanpa penguncian fullscreen. Toleransi 15x pelanggaran, cocok untuk simulasi atau asesmen internal informal.
             </p>
           </div>
 
@@ -551,7 +575,7 @@ export default function AIConfigView() {
               <span className="text-[11px] bg-[#E0F2FE] text-[#075985] font-semibold px-2.5 py-0.5 rounded-full">Rekomendasi</span>
             </div>
             <p className="text-xs text-[#64748B] leading-relaxed">
-              Deteksi tab-switching (maks 3x toleransi), deteksi wajah ganda, audio background, dan alert waktu-nyata ke dewan asesor.
+              Fullscreen wajib, blokir shortcut/copy-paste, deteksi wajah &amp; audio, serta snapshot berkala tiap 2 menit. Toleransi 10x pelanggaran.
             </p>
           </div>
 
@@ -566,11 +590,68 @@ export default function AIConfigView() {
           >
             <div className="flex items-center justify-between mb-2">
               <span className="font-semibold text-xs text-[#0F172A]">Ketat (High-Stakes)</span>
-              <span className="text-[11px] bg-[#FEE2E2] text-[#991B1B] font-semibold px-2.5 py-0.5 rounded-full">0 Toleransi</span>
+              <span className="text-[11px] bg-[#FEE2E2] text-[#991B1B] font-semibold px-2.5 py-0.5 rounded-full">Pengawasan Penuh</span>
             </div>
             <p className="text-xs text-[#64748B] leading-relaxed">
-              Fullscreen lockdown seketika, snapshot berkala 30 detik, deteksi eye tracking, larangan keras virtual background, dan audit trail instan ke LHA.
+              Fullscreen lockdown, deteksi eye tracking &amp; objek, multi-monitor, berbagi layar, serta snapshot tiap 90 detik. Toleransi 10x pelanggaran.
             </p>
+          </div>
+        </div>
+
+        {/* Breakdown per Preset */}
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <span className="text-xs font-bold text-slate-900">Breakdown Fitur per Preset Proctoring</span>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Perbandingan kontrol yang dijalankan ProctoringEngine pada perangkat peserta.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-white text-slate-500">
+                  <th className="text-left font-semibold px-4 py-2.5 border-b border-slate-100">Kontrol</th>
+                  {(['ringan', 'sedang', 'ketat'] as const).map((preset) => (
+                    <th
+                      key={preset}
+                      className={`text-center font-semibold px-3 py-2.5 border-b border-slate-100 capitalize ${
+                        config.proctoringPreset === preset ? 'text-[#1E3A8A] bg-[#EEF2FF]' : ''
+                      }`}
+                    >
+                      {preset}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {PROCTORING_BREAKDOWN.map((row) => (
+                  <tr key={row.label} className="border-b border-slate-50 last:border-0">
+                    <td className="px-4 py-2 text-slate-600">{row.label}</td>
+                    {(['ringan', 'sedang', 'ketat'] as const).map((preset) => {
+                      const value = row[preset];
+                      return (
+                        <td
+                          key={preset}
+                          className={`text-center px-3 py-2 ${
+                            config.proctoringPreset === preset ? 'bg-[#F5F7FF]' : ''
+                          }`}
+                        >
+                          {typeof value === 'boolean' ? (
+                            value ? (
+                              <Check className="w-4 h-4 text-emerald-600 mx-auto" />
+                            ) : (
+                              <X className="w-4 h-4 text-slate-300 mx-auto" />
+                            )
+                          ) : (
+                            <span className="font-medium text-slate-700">{value}</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 

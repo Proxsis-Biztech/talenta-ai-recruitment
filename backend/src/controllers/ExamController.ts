@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { deductQuotaForExam } from '../services/billingQuotaService';
-import { getAiConfig } from '../services/aiConfigService';
+import { getAiConfig, resolveProctoringPolicy } from '../services/aiConfigService';
 import {
   loadCourseLabelMap,
   loadProgramCourseCodes,
@@ -43,6 +43,12 @@ const gradeMatching = (answer: unknown, key: unknown): number => {
   if (pairs.length === 0) return 0;
   const correct = pairs.filter((pair) => submitted[pair.left] === pair.correctRight).length;
   return correct / pairs.length;
+};
+
+export const getPortalProctoringPolicy = async (req: AuthRequest, res: Response) => {
+  if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+  const config = await getAiConfig();
+  return res.json({ policy: resolveProctoringPolicy(config) });
 };
 
 export const scoreAnswers = (

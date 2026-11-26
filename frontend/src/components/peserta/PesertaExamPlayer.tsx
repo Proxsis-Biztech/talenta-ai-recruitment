@@ -66,6 +66,24 @@ interface Question {
   attachmentMime?: string | null;
 }
 
+interface ProctoringPolicy {
+  preset: 'ringan' | 'sedang' | 'ketat';
+  maxViolations: number;
+  autoSubmitOnMaxViolations: boolean;
+  enforceFullscreen: boolean;
+  blockShortcuts: boolean;
+  blockContextMenu: boolean;
+  blockCopyPaste: boolean;
+  detectFace: boolean;
+  detectGaze: boolean;
+  detectObject: boolean;
+  detectAudio: boolean;
+  blockMultiMonitor: boolean;
+  forbidVirtualBg: boolean;
+  checkShareScreen: boolean;
+  snapshotIntervalMs: number;
+}
+
 interface CaseFile {
   name: string;
   url: string;
@@ -380,12 +398,26 @@ export default function PesertaExamPlayer() {
   const unansweredCount = totalQuestions - answeredCount;
   const progressPercent = Math.round((answeredCount / totalQuestions) * 100);
 
-  // Determine strictness per exam type (Principle #4: strict on timed CAT, light on untimed/take-home)
-  const proctoringPreset: ProctoringPreset = useMemo(() => {
-    const mins = activeProgram.durationMinutes || 0;
-    if (mins > 0 && mins <= 180) return 'Ketat';
-    return 'Ringan';
-  }, [activeProgram.durationMinutes]);
+  const [proctoringPolicy, setProctoringPolicy] = useState<ProctoringPolicy | null>(null);
+
+  useEffect(() => {
+    const token = getPortalToken();
+    if (!token) return;
+    axios
+      .get('/api/portal/proctoring-policy', { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => {
+        if (response.data?.policy) setProctoringPolicy(response.data.policy as ProctoringPolicy);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  // Kebijakan proctoring mengikuti preset yang diaktifkan admin/superadmin.
+  const proctoringPreset: ProctoringPreset =
+    proctoringPolicy?.preset === 'ringan'
+      ? 'Ringan'
+      : proctoringPolicy?.preset === 'ketat'
+        ? 'Ketat'
+        : 'Sedang';
 
   const captureScreenFrame = useCallback((): string | null => {
     const video = screenVideoRef.current;
@@ -446,18 +478,20 @@ export default function PesertaExamPlayer() {
 
     const engine = new ProctoringEngine({
       preset: proctoringPreset,
-      maxViolations: 10,
-      autoSubmitOnMaxViolations: false,
-      enforceFullscreen: proctoringPreset !== 'Ringan',
-      blockShortcuts: proctoringPreset !== 'Ringan',
-      blockContextMenu: proctoringPreset !== 'Ringan',
-      blockCopyPaste: proctoringPreset !== 'Ringan',
-      detectFace: proctoringPreset !== 'Ringan',
-      detectAudio: proctoringPreset !== 'Ringan',
-      blockMultiMonitor: proctoringPreset === 'Ketat',
-      forbidVirtualBg: proctoringPreset !== 'Ringan',
-      checkShareScreen: false,
-      snapshotIntervalMs: proctoringPreset === 'Ketat' ? 90000 : 180000,
+      maxViolations: proctoringPolicy?.maxViolations ?? 10,
+      autoSubmitOnMaxViolations: proctoringPolicy?.autoSubmitOnMaxViolations ?? false,
+      enforceFullscreen: proctoringPolicy?.enforceFullscreen ?? proctoringPreset !== 'Ringan',
+      blockShortcuts: proctoringPolicy?.blockShortcuts ?? proctoringPreset !== 'Ringan',
+      blockContextMenu: proctoringPolicy?.blockContextMenu ?? proctoringPreset !== 'Ringan',
+      blockCopyPaste: proctoringPolicy?.blockCopyPaste ?? proctoringPreset !== 'Ringan',
+      detectFace: proctoringPolicy?.detectFace ?? proctoringPreset !== 'Ringan',
+      detectGaze: proctoringPolicy?.detectGaze ?? proctoringPreset === 'Ketat',
+      detectObject: proctoringPolicy?.detectObject ?? proctoringPreset === 'Ketat',
+      detectAudio: proctoringPolicy?.detectAudio ?? proctoringPreset !== 'Ringan',
+      blockMultiMonitor: proctoringPolicy?.blockMultiMonitor ?? proctoringPreset === 'Ketat',
+      forbidVirtualBg: proctoringPolicy?.forbidVirtualBg ?? proctoringPreset !== 'Ringan',
+      checkShareScreen: proctoringPolicy?.checkShareScreen ?? proctoringPreset === 'Ketat',
+      snapshotIntervalMs: proctoringPolicy?.snapshotIntervalMs ?? (proctoringPreset === 'Ketat' ? 90000 : 180000),
       onViolation: (evt) => {
         if (isExamLockedRef.current) return;
         setLatestViolation(evt);
@@ -493,7 +527,7 @@ export default function PesertaExamPlayer() {
     return () => {
       engine.stop();
     };
-  }, [navigate, isExamLocked, proctoringPreset, captureScreenFrame]);
+  }, [navigate, isExamLocked, proctoringPreset, proctoringPolicy, captureScreenFrame]);
 
   // Auto-enter Fullscreen when taking CAT exam
   useEffect(() => {
@@ -1023,7 +1057,7 @@ export default function PesertaExamPlayer() {
       {!isExamLocked && (
         <CameraProctorTile
           floating
-          captureAudio={proctoringPreset !== 'Ringan'}
+          captureAudio={proctoringPolicy?.detectAudio ?? proctoringPreset !== 'Ringan'}
           captureRef={webcamCaptureRef}
           onStreamReady={(stream) => {
             proctoringRef.current?.startAudioMonitor(stream);
@@ -1173,7 +1207,7 @@ export default function PesertaExamPlayer() {
             </button>
           </div>
 
-          {proctoringPreset === 'Ketat' && (
+          {(proctoringPolicy?.checkShareScreen ?? proctoringPreset === 'Ketat') && (
             <button
               type="button"
               onClick={() => void enableScreenCapture()}

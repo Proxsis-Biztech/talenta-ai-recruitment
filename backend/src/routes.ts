@@ -31,7 +31,7 @@ import {
 import { createInterviewSessionToken } from './controllers/ApplicantController';
 import { getActiveJobs, getAdminJobs, createJob, updateJob, deleteJob } from './controllers/JobController';
 import { getBillingOverview, requestTopUpQuota, approveInvoice, verifyLhaPublic, downloadInvoicePdf } from './controllers/BillingController';
-import { startExam, saveAnswers, submitExam, getExamResult, submitLiveCoding, getMyLiveCoding } from './controllers/ExamController';
+import { startExam, saveAnswers, submitExam, getExamResult, submitLiveCoding, getMyLiveCoding, getPortalProctoringPolicy } from './controllers/ExamController';
 import {
   upsertAssessorScore, listAssessorScores, getAssessorScore, getSignedLha, downloadLhaPdf, downloadMyPortalLhaPdf,
   upsertSecondaryScore, getCalibrationOverview, getCandidateCalibration, finalizeCalibrationConsensus,
@@ -150,6 +150,7 @@ router.put('/portal/profile', authenticatePortal, updateProfile);
 router.put('/portal/password', authenticatePortal, changePassword);
 router.post('/portal/onboarding', authenticatePortal, completeOnboarding);
 router.post('/portal/verify-face', authenticatePortal, verifyPortalFacePhoto);
+router.get('/portal/proctoring-policy', authenticatePortal, getPortalProctoringPolicy);
 router.post('/portal/device-check', authenticatePortal, completeDeviceCheck);
 router.post('/portal/device-check/complete', authenticatePortal, completeDeviceCheckSession);
 router.get('/portal/dashboard', authenticatePortal, getPortalDashboard);
