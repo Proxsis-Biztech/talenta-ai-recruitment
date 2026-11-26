@@ -2,6 +2,8 @@
 
 export interface QuestionItem {
   id: number;
+  sectionCode?: string;
+  sectionLabel?: string;
   questionCode?: string;
   sourceBank?: string;
   type: 'single' | 'multi' | 'short' | 'essay' | 'matching';

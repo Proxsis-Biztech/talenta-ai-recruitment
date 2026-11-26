@@ -52,6 +52,8 @@ import { getProgramById, type AssessmentProgram } from '../../services/assessmen
 // Mock 40 questions covering realistic IT & Engineering competencies for CAT mode
 interface Question {
   id: number;
+  sectionCode?: string;
+  sectionLabel?: string;
   type: 'single' | 'multi' | 'short' | 'essay' | 'matching';
   competency: string;
   difficulty: 'Mudah' | 'Sedang' | 'Sulit';
@@ -338,7 +340,26 @@ export default function PesertaExamPlayer() {
   };
 
   const totalQuestions = questions.length;
+  const sections = useMemo(() => {
+    const grouped: Array<{ code: string; label: string; indices: number[] }> = [];
+    questions.forEach((question, index) => {
+      const code = question.sectionCode || '';
+      const label = question.sectionLabel || code || 'Soal Ujian';
+      const last = grouped[grouped.length - 1];
+      if (!last || last.code !== code) {
+        grouped.push({ code, label, indices: [index] });
+      } else {
+        last.indices.push(index);
+      }
+    });
+    return grouped;
+  }, [questions]);
   const currentQ = questions[currentIdx] || questions[0];
+  const currentSection = sections.find((section) => section.indices.includes(currentIdx));
+  const currentSectionNumber = currentSection
+    ? currentSection.indices.indexOf(currentIdx) + 1
+    : currentIdx + 1;
+  const currentSectionTotal = currentSection ? currentSection.indices.length : totalQuestions;
   const docPanelOpen =
     docPanelState?.questionId === currentQ?.id
       ? docPanelState.open
@@ -1193,7 +1214,7 @@ export default function PesertaExamPlayer() {
             className="lg:hidden p-2 text-primary-navy bg-blue-50 rounded-xl border border-blue-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
           >
             <ListFilter className="w-4 h-4" />
-            <span>Soal ({answeredCount}/40)</span>
+            <span>Soal ({answeredCount}/{totalQuestions})</span>
           </button>
 
           {/* Primary Submit Button */}
@@ -1246,9 +1267,14 @@ export default function PesertaExamPlayer() {
             <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/80 shadow-xs">
               <div className="flex items-center gap-2.5">
                 <span className="font-mono text-sm font-extrabold text-white bg-primary-navy px-3 py-1 rounded-xl shadow-xs">
-                  SOAL #{currentQ.id}
+                  SOAL #{currentSectionNumber}
                 </span>
-                <span className="text-xs text-slate-400 font-mono">/ 40 Butir</span>
+                <span className="text-xs text-slate-400 font-mono">/ {currentSectionTotal} Butir</span>
+                {currentSection && currentSection.code && (
+                  <Badge variant="navy" className="text-xs font-semibold">
+                    {currentSection.label}
+                  </Badge>
+                )}
                 <Badge variant="navy" className="text-xs font-semibold">
                   {currentQ.competency}
                 </Badge>
@@ -1595,7 +1621,7 @@ export default function PesertaExamPlayer() {
                   : 'text-slate-600 hover:text-ink'
               }`}
             >
-              Semua (40)
+              Semua ({totalQuestions})
             </button>
             <button
               onClick={() => setNavFilter('unanswered')}
@@ -1619,45 +1645,61 @@ export default function PesertaExamPlayer() {
             </button>
           </div>
 
-          {/* 40 Questions Grid (5 Columns, 8 Rows) */}
-          <div className="flex-1 overflow-y-auto pr-1">
-            <div className="grid grid-cols-5 gap-2.5">
-              {filteredIndices.map((idx) => {
-                const qNum = idx + 1;
-                const isCurrent = currentIdx === idx;
-                const isAnswered = isQuestionAnswered(qNum);
-                const isDoubt = !!markedDoubt[qNum];
+          {/* Grouped Questions Grid per Kode/Bagian Soal */}
+          <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+            {sections.map((section) => {
+              const sectionIndices = section.indices.filter((idx) => filteredIndices.includes(idx));
+              if (sectionIndices.length === 0) return null;
+              return (
+                <div key={`${section.code}-${section.indices[0]}`} className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+                      {section.label}
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-slate-400 shrink-0">
+                      {section.indices.length} Soal
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2.5">
+                    {sectionIndices.map((idx) => {
+                      const sectionNumber = section.indices.indexOf(idx) + 1;
+                      const isCurrent = currentIdx === idx;
+                      const isAnswered = isQuestionAnswered(idx + 1);
+                      const isDoubt = !!markedDoubt[idx + 1];
 
-                let boxClass = 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300';
+                      let boxClass = 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300';
 
-                if (isAnswered) {
-                  boxClass = 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold';
-                }
-                if (isDoubt) {
-                  boxClass = 'bg-amber-100 text-amber-900 border-amber-400 font-bold';
-                }
-                if (isCurrent) {
-                  boxClass += ' ring-2 ring-primary-navy ring-offset-2 border-primary-navy';
-                }
+                      if (isAnswered) {
+                        boxClass = 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold';
+                      }
+                      if (isDoubt) {
+                        boxClass = 'bg-amber-100 text-amber-900 border-amber-400 font-bold';
+                      }
+                      if (isCurrent) {
+                        boxClass += ' ring-2 ring-primary-navy ring-offset-2 border-primary-navy';
+                      }
 
-                return (
-                  <button
-                    key={qNum}
-                    type="button"
-                    onClick={() => {
-                      setCurrentIdx(idx);
-                      if (showMobileNav) setShowMobileNav(false);
-                    }}
-                    className={`h-10 rounded-xl border text-xs font-mono font-bold transition-all relative flex items-center justify-center cursor-pointer shadow-2xs ${boxClass}`}
-                  >
-                    <span>{qNum}</span>
-                    {isDoubt && (
-                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setCurrentIdx(idx);
+                            if (showMobileNav) setShowMobileNav(false);
+                          }}
+                          className={`h-10 rounded-xl border text-xs font-mono font-bold transition-all relative flex items-center justify-center cursor-pointer shadow-2xs ${boxClass}`}
+                        >
+                          <span>{sectionNumber}</span>
+                          {isDoubt && (
+                            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Legend Explanation */}

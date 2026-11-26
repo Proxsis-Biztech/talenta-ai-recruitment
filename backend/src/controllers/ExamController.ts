@@ -2,7 +2,11 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { deductQuotaForExam } from '../services/billingQuotaService';
 import { getAiConfig } from '../services/aiConfigService';
-import { loadProgramCourseCodes, normalizeProgramCode } from '../services/programCourseService';
+import {
+  loadCourseLabelMap,
+  loadProgramCourseCodes,
+  normalizeProgramCode
+} from '../services/programCourseService';
 import { type AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
@@ -118,9 +122,13 @@ const sanitizeQuestions = (questions: Array<{
   attachmentUrl?: string | null;
   attachmentName?: string | null;
   attachmentMime?: string | null;
+  sectionCode?: string;
+  sectionLabel?: string;
 }>) =>
   questions.map((question) => ({
     id: question.orderNo,
+    sectionCode: question.sectionCode || '',
+    sectionLabel: question.sectionLabel || question.sectionCode || '',
     type: question.type,
     competency: question.competency,
     difficulty: question.difficulty,
@@ -222,6 +230,7 @@ const loadProgram = async (programCode: string) => {
   // sequentially so answer keys stay unique across banks.
   const courseCodes = await loadProgramCourseCodes(code);
   const codeOrder = new Map(courseCodes.map((item, index) => [item, index]));
+  const courseLabels = await loadCourseLabelMap();
   const rows = await prisma.programQuestion.findMany({
     where: { programCode: { in: courseCodes } }
   });
@@ -231,7 +240,15 @@ const loadProgram = async (programCode: string) => {
       const bOrder = codeOrder.get(normalizeProgramCode(b.programCode)) ?? courseCodes.length;
       return aOrder - bOrder || a.orderNo - b.orderNo;
     })
-    .map((question, index) => ({ ...question, orderNo: index + 1 }));
+    .map((question, index) => {
+      const sectionCode = normalizeProgramCode(question.programCode);
+      return {
+        ...question,
+        orderNo: index + 1,
+        sectionCode,
+        sectionLabel: courseLabels[sectionCode] || sectionCode
+      };
+    });
 
   return { code, job, questions };
 };

@@ -9,7 +9,11 @@ import { normalizeCompanyName, resolveAdminTenantId } from '../middleware/tenant
 import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
 import { sendActivationEmail, sendCredentialsEmail, sendPasswordResetEmail } from '../services/mailService';
 import { getLhaVersionMeta } from '../services/lhaGovernanceService';
-import { loadProgramCourseMap, normalizeProgramCode } from '../services/programCourseService';
+import {
+  loadCourseLabelMap,
+  loadProgramCourseMap,
+  normalizeProgramCode
+} from '../services/programCourseService';
 import {
   createFaceVerificationToken,
   FaceVerificationError,
@@ -580,6 +584,7 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
       : [];
     const job = jobs.find((item) => item.code === programCode) || jobs[0] || null;
     const courseMap = await loadProgramCourseMap();
+    const courseLabels = await loadCourseLabelMap();
     const questionCountRows = await prisma.programQuestion.groupBy({
       by: ['programCode'],
       _count: { _all: true }
@@ -594,6 +599,18 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
       let total = 0;
       for (const item of codes) total += questionCountByCode.get(item) || 0;
       return total;
+    };
+    const resolveQuestionSections = (code: string | null | undefined) => {
+      const key = normalizeProgramCode(code);
+      if (!key) return [];
+      const codes = Array.from(new Set<string>([key, ...(courseMap[key] || [])]));
+      return codes
+        .map((item) => ({
+          code: item,
+          label: courseLabels[item] || item,
+          count: questionCountByCode.get(item) || 0
+        }))
+        .filter((section) => section.count > 0);
     };
     const allAttempts = await prisma.examAttempt.findMany({
       where: { userId: user.id },
@@ -686,6 +703,7 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
         passingScore: item.interviewPassingScore || 70,
         status: item.status,
         questionCount: resolveQuestionCount(item.code),
+        questionSections: resolveQuestionSections(item.code),
         assessmentDate: item.assessmentDate,
         assessmentEndDate: item.assessmentEndDate
       })),

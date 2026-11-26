@@ -195,6 +195,7 @@ export default function PesertaAsesmenList() {
     durationMinutes?: number;
     passingScore?: number;
     questionCount?: number;
+    questionSections?: Array<{ code: string; label: string; count: number }>;
     assessmentDate?: string | null;
     assessmentEndDate?: string | null;
   }>>([]);
@@ -645,6 +646,11 @@ export default function PesertaAsesmenList() {
     return programs[0];
   }, [selectedProgramId, programs]);
 
+  const catSections = useMemo(() => {
+    const serverProgram = serverPrograms.find((item) => item.code === activeProgramCode);
+    return serverProgram?.questionSections || [];
+  }, [serverPrograms, activeProgramCode]);
+
   const handleSelectProgram = (programId: string) => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('id');
@@ -1088,6 +1094,20 @@ export default function PesertaAsesmenList() {
                               <span>{currentProgram.duration}</span>
                               <span>Passing Grade: {currentProgram.passingScore}/100</span>
                             </div>
+                            {catSections.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                {catSections.map((section) => (
+                                  <span
+                                    key={section.code}
+                                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-100 text-[10px] font-semibold text-[#0F275C]"
+                                  >
+                                    <span className="font-mono">{section.code}</span>
+                                    <span className="text-slate-500 truncate max-w-[160px]">{section.label}</span>
+                                    <span className="text-slate-400">• {section.count} soal</span>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
 

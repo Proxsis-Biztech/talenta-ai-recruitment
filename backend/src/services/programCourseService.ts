@@ -42,3 +42,25 @@ export async function loadProgramCourseCodes(programCode: string): Promise<strin
   for (const item of map[code] || []) codes.add(item);
   return Array.from(codes);
 }
+export async function loadCourseLabelMap(): Promise<Record<string, string>> {
+  const record = await prisma.masterRecord.findUnique({
+    where: { scope_key: { scope: 'courses', key: 'catalog' } }
+  });
+  if (!record?.value) return {};
+
+  try {
+    const parsed = JSON.parse(record.value);
+    if (!Array.isArray(parsed)) return {};
+    const labels: Record<string, string> = {};
+    for (const item of parsed as Array<Record<string, unknown>>) {
+      const label = String(item?.title ?? item?.name ?? '').trim();
+      for (const rawCode of [item?.code, item?.id]) {
+        const code = normalizeProgramCode(rawCode);
+        if (code && label) labels[code] = label;
+      }
+    }
+    return labels;
+  } catch {
+    return {};
+  }
+}
