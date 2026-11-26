@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '../middleware/auth';
-import { getAiConfig } from './aiConfigService';
+import { createAiClient, getAiConfig } from './aiConfigService';
 
 export interface HumanPhotoAnalysis {
   isHuman: boolean;
@@ -185,15 +185,16 @@ function parseJsonResponseText(rawText: string | undefined): HumanPhotoAnalysis 
 }
 
 async function createDefaultVisionClient(): Promise<VisionModelClient> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  try {
+    return (await createAiClient()) as unknown as VisionModelClient;
+  } catch (error) {
     throw new FaceVerificationError(
-      'Layanan AI verifikasi wajah belum dikonfigurasi di server (GEMINI_API_KEY tidak tersedia).',
+      error instanceof Error
+        ? error.message
+        : 'Layanan AI verifikasi wajah belum dikonfigurasi di server.',
       503
     );
   }
-  const { GoogleGenAI } = await import('@google/genai');
-  return new GoogleGenAI({ apiKey }) as unknown as VisionModelClient;
 }
 
 export async function verifyHumanFacePhoto(

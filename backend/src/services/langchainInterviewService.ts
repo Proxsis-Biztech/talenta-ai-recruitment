@@ -5,7 +5,7 @@ import { EdgeTTS } from 'node-edge-tts';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { getAiConfig } from './aiConfigService';
+import { createAiClient, getAiConfig } from './aiConfigService';
 
 export interface BarsEvaluationResult {
   score: number;
@@ -120,7 +120,6 @@ export async function transcribeInterviewAudio(
   audioBuffer: Buffer,
   mimeType: string = 'audio/webm'
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
   const openaiApiKey = process.env.OPENAI_API_KEY;
 
   // 1. Try OpenAI Whisper API if key is available
@@ -151,12 +150,7 @@ export async function transcribeInterviewAudio(
   }
 
   // 2. High-precision Audio Transcription via Gemini Multimodal Audio
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY belum tersedia untuk transkripsi audio.');
-  }
-
-  const { GoogleGenAI } = await import('@google/genai');
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = await createAiClient();
   const aiConfig = await getAiConfig();
   const modelName = aiConfig.transcriptionModel || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 
@@ -212,11 +206,6 @@ export async function evaluateInterviewWithLangChain(params: {
     totalQuestions,
     generateVoice = true
   } = params;
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY belum dikonfigurasi.');
-  }
 
   // 1. Instant Fast-Path for Greetings, Mic Checks, Repeat Requests, or Silence
   const intent = checkConversationalIntent(candidateAnswer);
@@ -338,7 +327,7 @@ Kembalikan HANYA format JSON valid berikut (tanpa blok markdown):
   for (const mName of modelsToTry) {
     try {
       const model = new ChatGoogleGenerativeAI({
-        apiKey,
+        apiKey: aiConfig.aiApiKey || process.env.GEMINI_API_KEY || '',
         model: mName,
         temperature: 0.2,
         maxOutputTokens: 600

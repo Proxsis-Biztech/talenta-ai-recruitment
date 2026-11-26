@@ -7,7 +7,7 @@ import mammoth from 'mammoth';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from 'docx';
 import { type AuthRequest } from '../middleware/auth';
 import { openSseStream, publish, publishToUser } from '../services/realtimeService';
-import { getAiConfig } from '../services/aiConfigService';
+import { createAiClient, getAiConfig } from '../services/aiConfigService';
 
 const prisma = new PrismaClient();
 const FAQ_UPLOAD_DIR = path.join(__dirname, '../../uploads/faq-knowledge');
@@ -876,11 +876,10 @@ export const askPesertaFaqChatbot = async (req: AuthRequest, res: Response) => {
       })
       .filter((t: { role: 'user' | 'model'; parts: Array<{ text: string }> } | null): t is { role: 'user' | 'model'; parts: Array<{ text: string }> } => Boolean(t));
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (apiKey) {
-      try {
-        const { GoogleGenAI } = await import('@google/genai');
-        const ai = new GoogleGenAI({ apiKey });
+    let aiProviderAvailable = false;
+    try {
+        const ai = await createAiClient();
+        aiProviderAvailable = true;
         const aiConfig = await getAiConfig();
         const candidateModels = Array.from(
           new Set(
@@ -961,9 +960,8 @@ Pedoman Jawaban:
       } catch (aiErr) {
         console.warn('Gemini chatbot AI call failed, falling back to FAQ retrieval:', aiErr);
       }
-    }
 
-    // Fallback when GEMINI_API_KEY is absent or Gemini API temporarily fails
+    // Fallback when AI provider is unavailable or the API call temporarily fails
     if (rag.matched && rag.bestChunk) {
       return res.json({
         matched: true,
@@ -982,8 +980,8 @@ Pedoman Jawaban:
       matched: false,
       aiPowered: false,
       confidence: rag.confidence,
-      reply: !apiKey
-        ? 'GEMINI_API_KEY belum terkonfigurasi di server, sehingga Asisten AI belum dapat menjawab pertanyaan bebas. Silakan klik tombol "Hubungkan ke Chat Helpdesk" agar tim Pengawas/Admin dapat membantu Anda langsung.'
+      reply: !aiProviderAvailable
+        ? 'AI provider belum terkonfigurasi di server, sehingga Asisten AI belum dapat menjawab pertanyaan bebas. Silakan klik tombol "Hubungkan ke Chat Helpdesk" agar tim Pengawas/Admin dapat membantu Anda langsung.'
         : 'Maaf, Asisten AI sedang mengalami kendala koneksi sementara. Silakan coba lagi atau klik tombol "Hubungkan ke Chat Helpdesk" untuk bantuan langsung dari tim Pengawas/Admin.',
       matchedQuestion: null,
       category: null,

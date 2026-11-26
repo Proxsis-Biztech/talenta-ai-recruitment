@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
 import { google } from 'googleapis';
-import { getAiConfig } from './aiConfigService';
+import { createAiClient, getAiConfig } from './aiConfigService';
 
 const prisma = new PrismaClient();
 
@@ -48,16 +48,10 @@ export async function runCvScreening(applicantId: string): Promise<any> {
     throw new Error("Pelamar tidak ditemukan");
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY belum dikonfigurasi di .env");
-  }
-
   try {
     const pdfBuffer = await getCvBuffer(applicant);
     const aiConfig = await getAiConfig();
-    const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = await createAiClient();
     
     const experiencesStr = applicant.experiences.map((exp: any) => 
       `- ${exp.position} di ${exp.companyName} (${exp.startDate.toISOString().split('T')[0]} s/d ${exp.endDate ? exp.endDate.toISOString().split('T')[0] : 'Sekarang'})`

@@ -22,7 +22,14 @@ export interface ProctoringPolicy {
   snapshotIntervalMs: number;
 }
 
+export type AiProviderKey = 'google-ai-studio' | 'vertex-ai';
+
 export interface AiRuntimeConfig {
+  aiProvider: AiProviderKey;
+  aiApiKey: string;
+  aiProjectId: string;
+  aiLocation: string;
+  aiModelCatalog: string[];
   liveAudioModel: string;
   cvScreeningModel: string;
   chatbotModel: string;
@@ -42,6 +49,17 @@ export interface AiRuntimeConfig {
 }
 
 const DEFAULT_CONFIG: AiRuntimeConfig = {
+  aiProvider: 'google-ai-studio',
+  aiApiKey: '',
+  aiProjectId: '',
+  aiLocation: 'us-central1',
+  aiModelCatalog: [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-native-audio-latest',
+    'gemini-flash-latest',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest'
+  ],
   liveAudioModel: 'gemini-2.5-flash-native-audio-latest',
   cvScreeningModel: 'gemini-2.5-flash',
   chatbotModel: 'gemini-2.5-flash',
@@ -82,6 +100,28 @@ export async function getAiConfig(): Promise<AiRuntimeConfig> {
 
 export function invalidateAiConfigCache() {
   cached = null;
+}
+
+export async function createAiClient() {
+  const config = await getAiConfig();
+  const { GoogleGenAI } = await import('@google/genai');
+
+  if (config.aiProvider === 'vertex-ai') {
+    if (!config.aiProjectId) {
+      throw new Error('Project ID Vertex AI belum dikonfigurasi pada menu AI Provider.');
+    }
+    return new GoogleGenAI({
+      vertexai: true,
+      project: config.aiProjectId,
+      location: config.aiLocation || 'us-central1'
+    });
+  }
+
+  const apiKey = config.aiApiKey || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('API key AI provider belum dikonfigurasi.');
+  }
+  return new GoogleGenAI({ apiKey });
 }
 
 const PROCTORING_PRESETS: Record<ProctoringPresetKey, Omit<ProctoringPolicy, 'preset' | 'forbidVirtualBg'>> = {

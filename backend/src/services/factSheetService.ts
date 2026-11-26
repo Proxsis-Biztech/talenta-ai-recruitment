@@ -1,4 +1,4 @@
-import { getAiConfig } from './aiConfigService';
+import { createAiClient, getAiConfig } from './aiConfigService';
 
 export interface FactSheetItem {
   id: string;
@@ -80,12 +80,8 @@ export async function runFactSheetMatching(
   submission: InBasketSubmission,
   factSheet: FactSheetItem[] = DEFAULT_CIMB_FACT_SHEET
 ): Promise<FactSheetEvaluationResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (apiKey) {
-    try {
-      const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey });
+  try {
+      const ai = await createAiClient();
       const aiConfig = await getAiConfig();
       const prompt = `Anda adalah Lead Assessor psikologi industri dan manajerial dari Solusi Asesmen Indonesia (SAI) & Proxsis Talent Force.
 Tugas Anda adalah mengevaluasi respon studi kasus (In-Basket Assessment) kandidat berdasarkan daftar Fakta Kunci (Fact Sheet) skenario bisnis.
@@ -160,7 +156,6 @@ KEMBALIKAN HANYA JSON VALID DENGAN FORMAT BERIKUT (TANPA MARKDOWN FENCE MAUPUN T
     } catch (e) {
       console.warn('Fallback to local rule-based Fact Sheet Matching:', e);
     }
-  }
 
   // Fallback high-accuracy rule-based scoring (in line with Herbert Simon Bounded Rationality framework)
   const fullText = `${submission.problemIdentification} ${submission.priorityMatrix} ${submission.solutionStrategy} ${submission.costEfficiency}`.toLowerCase();

@@ -10,6 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import { Dropbox } from 'dropbox';
 import 'isomorphic-fetch';
+import { createAiClient } from '../services/aiConfigService';
 import { runCvScreening } from '../services/cvScreeningService';
 import { runInterviewScoring } from '../services/interviewScoringService';
 import { loadAiReviewRecordsMap } from '../services/reviewWorkflowService';
@@ -1239,13 +1240,7 @@ export const generateDecisionLetter = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Data pelamar tidak ditemukan' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY belum dikonfigurasi di backend' });
-    }
-
-    const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = await createAiClient();
 
     const jobTitle = applicant.job?.title || applicant.appliedPosition || 'Posisi Terkait';
     const compEval = computeCompositeEvaluation(applicant.screeningScore, applicant.interviewScore, applicant.proctorFlags, applicant.interviewStatus);
@@ -1357,17 +1352,7 @@ export const getAuditLogsHandler = async (req: Request, res: Response) => {
 export const testAiLatencyHandler = async (req: Request, res: Response) => {
   const start = Date.now();
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(503).json({
-        status: 'degraded',
-        error: 'GEMINI_API_KEY belum dikonfigurasi',
-        latencyMs: Date.now() - start,
-        timestamp: new Date().toISOString()
-      });
-    }
-    const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = await createAiClient();
     await ai.models.generateContent({
       model: process.env.GEMINI_HEALTH_MODEL || 'gemini-2.5-flash',
       contents: 'Ping connectivity test. Return healthy.'
@@ -1405,11 +1390,6 @@ export const evaluateInterviewTurn = async (req: Request, res: Response) => {
       generateVoice = true
     } = req.body;
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY belum dikonfigurasi di backend' });
-    }
-
     try {
       // 1. Evaluate with LangChain & Standardized BARS Rubrics
       const langChainResult = await evaluateInterviewWithLangChain({
@@ -1428,8 +1408,7 @@ export const evaluateInterviewTurn = async (req: Request, res: Response) => {
       console.warn('LangChain evaluation fallback to Gemini direct:', langchainErr);
 
       // Graceful fallback to direct GoogleGenAI if LangChain has a transient error
-      const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = await createAiClient();
       const prompt = `Anda adalah Asesor AI profesional berstandar BARS untuk wawancara teknis di Right.
 Kandidat: ${candidateName || 'Kandidat'}
 Kompetensi: ${competency || 'Kompetensi Teknis'}

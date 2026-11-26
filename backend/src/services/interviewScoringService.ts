@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { getAiConfig } from './aiConfigService';
+import { createAiClient, getAiConfig } from './aiConfigService';
 
 const prisma = new PrismaClient();
 
@@ -31,14 +31,8 @@ export async function runInterviewScoring(applicantId: string): Promise<any> {
     throw new Error('Belum ada transkrip wawancara untuk dinilai');
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY belum dikonfigurasi di .env');
-  }
-
   try {
-    const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = await createAiClient();
     const aiConfig = await getAiConfig();
 
     const jobTitle = applicant.job?.title || applicant.appliedPosition || 'General';

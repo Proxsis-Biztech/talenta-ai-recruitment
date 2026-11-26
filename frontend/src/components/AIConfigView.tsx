@@ -13,6 +13,11 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 
 export interface AIConfiguration {
+  aiProvider: 'google-ai-studio' | 'vertex-ai';
+  aiApiKey: string;
+  aiProjectId: string;
+  aiLocation: string;
+  aiModelCatalog: string[];
   liveAudioModel: string;
   chatbotModel: string;
   humanPhotoValidationModel: string;
@@ -52,6 +57,17 @@ const PROCTORING_BREAKDOWN: Array<{
 ];
 
 const DEFAULT_CONFIG: AIConfiguration = {
+  aiProvider: 'google-ai-studio',
+  aiApiKey: '',
+  aiProjectId: '',
+  aiLocation: 'us-central1',
+  aiModelCatalog: [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-native-audio-latest',
+    'gemini-flash-latest',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest'
+  ],
   liveAudioModel: 'gemini-2.5-flash-native-audio-latest',
   chatbotModel: 'gemini-2.5-flash',
   humanPhotoValidationModel: 'gemini-2.5-flash',
@@ -92,6 +108,17 @@ export default function AIConfigView() {
   }, []);
 
   const hasUnsavedChanges = JSON.stringify(config) !== JSON.stringify(savedConfig);
+
+  const modelOptions = Array.from(
+    new Set(
+      [
+        ...(config.aiModelCatalog || []),
+        config.liveAudioModel,
+        config.chatbotModel,
+        config.humanPhotoValidationModel
+      ].filter(Boolean)
+    )
+  );
 
   const [saving, setSaving] = useState(false);
   const [pingLoading, setPingLoading] = useState(false);
@@ -296,15 +323,11 @@ export default function AIConfigView() {
                 value={config.liveAudioModel}
                 onChange={(e) => setConfig({ ...config, liveAudioModel: e.target.value })}
               >
-                <option value="gemini-2.5-flash-native-audio-latest">
-                  gemini-2.5-flash-native-audio-latest (Native Audio)
-                </option>
-                <option value="gemini-2.5-flash">
-                  gemini-2.5-flash (Standard Multimodal)
-                </option>
-                <option value="gemini-3.5-flash-lite">
-                  gemini-3.5-flash-lite (Ultra Low Latency)
-                </option>
+                {modelOptions.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
               </Select>
               <p className="text-[13px] text-[#64748B] mt-1.5">
                 Mengontrol streaming audio websocket dua arah antara kandidat dan pewawancara virtual.
@@ -317,15 +340,11 @@ export default function AIConfigView() {
                 value={config.chatbotModel}
                 onChange={(e) => setConfig({ ...config, chatbotModel: e.target.value })}
               >
-                <option value="gemini-2.5-flash">
-                  gemini-2.5-flash (Seimbang)
-                </option>
-                <option value="gemini-3.5-flash-lite">
-                  gemini-3.5-flash-lite (Respons Cepat)
-                </option>
-                <option value="gemini-flash-latest">
-                  gemini-flash-latest (Kompatibilitas Standar)
-                </option>
+                {modelOptions.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
               </Select>
               <p className="text-[13px] text-[#64748B] mt-1.5">
                 Digunakan chatbot FAQ peserta/asesor untuk menjawab pertanyaan berbasis pengetahuan platform.
@@ -338,15 +357,11 @@ export default function AIConfigView() {
                 value={config.humanPhotoValidationModel}
                 onChange={(e) => setConfig({ ...config, humanPhotoValidationModel: e.target.value })}
               >
-                <option value="gemini-2.5-flash">
-                  gemini-2.5-flash (Vision Presisi Tinggi)
-                </option>
-                <option value="gemini-3.5-flash-lite">
-                  gemini-3.5-flash-lite (Vision Cepat)
-                </option>
-                <option value="gemini-flash-latest">
-                  gemini-flash-latest (Kompatibilitas Standar)
-                </option>
+                {modelOptions.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
               </Select>
               <p className="text-[13px] text-[#64748B] mt-1.5">
                 Memvalidasi foto profil peserta: manusia asli, tepat 1 wajah, bukan spoof, dan komposisi setengah badan.
@@ -693,6 +708,88 @@ export default function AIConfigView() {
             <Activity className="w-4 h-4 mr-1.5" />
             {mcpTestLoading ? 'Menguji Koneksi...' : 'Uji Koneksi MCP'}
           </Button>
+        </div>
+      </Card>
+
+      {/* AI Provider Configuration */}
+      <Card className="p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-soft-blue text-primary-navy">
+              <Cpu className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">AI Provider</h3>
+              <p className="text-xs text-slate-500">
+                Tentukan penyedia dan katalog model AI yang dipakai seluruh layanan, termasuk pilihan pada bagian 1.
+              </p>
+            </div>
+          </div>
+          <Badge variant={config.aiProvider === 'vertex-ai' ? 'warning' : 'teal'} format="soft">
+            {config.aiProvider === 'vertex-ai' ? 'Vertex AI' : 'Google AI Studio'}
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Select
+            label="Provider AI"
+            value={config.aiProvider}
+            onChange={(e) =>
+              setConfig({ ...config, aiProvider: e.target.value as AIConfiguration['aiProvider'] })
+            }
+          >
+            <option value="google-ai-studio">Google AI Studio (Gemini API Key)</option>
+            <option value="vertex-ai">Google Vertex AI (Google Cloud Project)</option>
+          </Select>
+          <Input
+            label="API Key Override (Opsional)"
+            type="password"
+            value={config.aiApiKey}
+            onChange={(e) => setConfig({ ...config, aiApiKey: e.target.value })}
+            placeholder="Kosongkan untuk memakai GEMINI_API_KEY dari environment"
+          />
+        </div>
+
+        {config.aiProvider === 'vertex-ai' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Google Cloud Project ID"
+              value={config.aiProjectId}
+              onChange={(e) => setConfig({ ...config, aiProjectId: e.target.value })}
+              placeholder="proyek-vertex-ai-anda"
+            />
+            <Input
+              label="Region / Location"
+              value={config.aiLocation}
+              onChange={(e) => setConfig({ ...config, aiLocation: e.target.value })}
+              placeholder="us-central1"
+            />
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <label className="block text-xs font-semibold text-[#475569]">
+            Katalog Model AI (pisahkan dengan koma)
+          </label>
+          <textarea
+            rows={3}
+            value={(config.aiModelCatalog || []).join(', ')}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                aiModelCatalog: e.target.value
+                  .split(/[,\n]/)
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+              })
+            }
+            placeholder="gemini-2.5-flash, gemini-flash-latest"
+            className="w-full px-3 py-2 text-sm font-mono bg-white border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-navy/20 focus:border-primary-navy"
+          />
+          <p className="text-[11px] text-slate-500">
+            Daftar ini menjadi pilihan model pada bagian 1 (Live Audio, Chatbot, dan Validasi Foto Profil).
+            Untuk Vertex AI, gunakan ID model yang tersedia di region terpilih.
+          </p>
         </div>
       </Card>
       {/* Sticky Save Bar on Unsaved Changes */}
