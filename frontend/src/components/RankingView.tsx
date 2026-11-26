@@ -33,6 +33,7 @@ export interface CompositeEvaluation {
 
 interface RankedApplicant {
   id: string;
+  candidateCode?: string | null;
   fullName: string;
   email: string;
   jobTitle: string;
@@ -41,6 +42,9 @@ interface RankedApplicant {
   interviewScore: number | null;
   interviewStatus: string;
   interviewResult: string | null;
+  assessorRecommendation?: string | null;
+  lhaStatus?: string | null;
+  lhaNumber?: string | null;
   interviewTranscript: string | null;
   skillMatrix: SkillItem[] | null;
   phases: PhaseItem[] | null;
@@ -50,7 +54,23 @@ interface RankedApplicant {
   compositeEvaluation?: CompositeEvaluation;
 }
 
-const getRecommendation = (result: string | null): { label: string; cls: string } => {
+const getRecommendation = (
+  result: string | null,
+  assessorRecommendation?: string | null
+): { label: string; cls: string } => {
+  const direct = String(assessorRecommendation || '').trim().toUpperCase();
+  const asesorMatch = result?.match(/Rekomendasi asesor:\s*(\w+)/i)?.[1]?.toUpperCase();
+  const effectiveAsesor = direct || asesorMatch;
+  if (effectiveAsesor === 'LANJUT') {
+    return { label: 'Direkomendasikan (Lanjut)', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' };
+  }
+  if (effectiveAsesor === 'DIPERTIMBANGKAN') {
+    return { label: 'Pertimbangkan', cls: 'bg-amber-50 text-amber-700 ring-amber-200' };
+  }
+  if (effectiveAsesor === 'TIDAK') {
+    return { label: 'Tidak Direkomendasikan', cls: 'bg-rose-50 text-rose-700 ring-rose-200' };
+  }
+
   const m = result?.match(/Rekomendasi:\s*(\w+)/);
   switch (m ? m[1] : null) {
     case 'strong_accept':
@@ -178,7 +198,7 @@ export default function RankingView() {
     if (applicants.length === 0) return;
     const headers = ['Rank', 'Nama', 'Email', 'Posisi', 'Pendidikan', 'Universitas', 'Skor Wawancara AI', 'Rekomendasi', 'Passing Score', 'Status Kelulusan'];
     const rows = filteredApplicants.map((app, idx) => {
-      const rec = getRecommendation(app.interviewResult).label;
+      const rec = getRecommendation(app.interviewResult, app.assessorRecommendation).label;
       const isPassed = app.passingScore != null && app.interviewScore != null
         ? (app.interviewScore >= app.passingScore ? 'Lolos' : 'Tidak Lolos')
         : 'N/A';
@@ -250,7 +270,7 @@ export default function RankingView() {
       </div>`;
     }
 
-    const rec = getRecommendation(app.interviewResult).label;
+    const rec = getRecommendation(app.interviewResult, app.assessorRecommendation).label;
 
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) return;
@@ -397,7 +417,7 @@ ${app.interviewTranscript ? `<div class="banner"><h2>Transkrip Percakapan</h2><d
               </tr>
             ) : (
               filteredApplicants.map((app, idx) => {
-                const rec = getRecommendation(app.interviewResult);
+                const rec = getRecommendation(app.interviewResult, app.assessorRecommendation);
                 const flagged = app.proctorFlags?.flagged || (app.proctorFlags?.violations?.length ?? 0) > 0;
                 const isPassed = app.passingScore != null && app.interviewScore != null
                   ? app.interviewScore >= app.passingScore
@@ -480,24 +500,31 @@ ${app.interviewTranscript ? `<div class="banner"><h2>Transkrip Percakapan</h2><d
 
                     {/* Rekomendasi AI 180px */}
                     <td className="w-[180px] px-4">
-                      {app.compositeEvaluation ? (
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${
-                            app.compositeEvaluation.recommendation === 'STRONG HIRE' ||
-                            app.compositeEvaluation.recommendation === 'RECOMMENDED HIRE'
-                              ? 'bg-[#DCFCE7] text-[#166534]'
-                              : app.compositeEvaluation.recommendation === 'CONSIDER'
-                                ? 'bg-[#FEF3C7] text-[#92400E]'
-                                : 'bg-[#FEE2E2] text-[#991B1B]'
-                          }`}
-                        >
-                          {app.compositeEvaluation.recommendation} ({app.compositeEvaluation.compositeScore})
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569] whitespace-nowrap">
-                          {rec.label}
-                        </span>
-                      )}
+                      <div className="space-y-1">
+                        {app.compositeEvaluation ? (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${
+                              app.compositeEvaluation.recommendation === 'STRONG HIRE' ||
+                              app.compositeEvaluation.recommendation === 'RECOMMENDED HIRE'
+                                ? 'bg-[#DCFCE7] text-[#166534]'
+                                : app.compositeEvaluation.recommendation === 'CONSIDER'
+                                  ? 'bg-[#FEF3C7] text-[#92400E]'
+                                  : 'bg-[#FEE2E2] text-[#991B1B]'
+                            }`}
+                          >
+                            {app.compositeEvaluation.recommendation} ({app.compositeEvaluation.compositeScore})
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[#F1F5F9] text-[#475569] whitespace-nowrap">
+                            {rec.label}
+                          </span>
+                        )}
+                        {app.lhaNumber && (
+                          <div className="text-[10px] font-mono text-primary-navy truncate" title={app.lhaNumber}>
+                            {app.lhaNumber}
+                          </div>
+                        )}
+                      </div>
                     </td>
 
                     {/* Aksi 96px */}
@@ -726,7 +753,7 @@ ${app.interviewTranscript ? `<div class="banner"><h2>Transkrip Percakapan</h2><d
               {/* Radar charts grid */}
               <div className={`grid gap-6 ${selected.length === 3 ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
                 {selected.map((app) => {
-                  const rec = getRecommendation(app.interviewResult);
+                  const rec = getRecommendation(app.interviewResult, app.assessorRecommendation);
                   return (
                     <div key={app.id} className="bg-slate-50/70 rounded-lg border border-slate-200 p-5 text-center flex flex-col items-center">
                       <div className="w-10 h-10 rounded-md bg-white border border-slate-200 flex items-center justify-center text-slate-800 font-mono font-bold text-base shadow-xs mb-2">

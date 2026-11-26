@@ -1,8 +1,15 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { type AuthRequest } from '../middleware/auth';
-import { isCandidateInAssessorScope, resolveAssessorScopeContext } from '../middleware/tenant';
+import {
+  extractProgramCodes,
+  isCandidateInAssessorScope,
+  normalizeCompanyName,
+  resolveAdminTenantId,
+  resolveAssessorScopeContext
+} from '../middleware/tenant';
 import { recordAuditLog, resolveRequestIp } from '../services/auditService';
+import { publish, publishToUser } from '../services/realtimeService';
 import {
   deriveUnifiedReviewState,
   getAiReviewRecord,
@@ -35,6 +42,7 @@ const candidateSelect = {
   tenantId: true,
   tenant: { select: { name: true } },
   assessmentId: true,
+  assessmentIds: true,
   assessmentTitle: true,
   interviewStatus: true,
   interviewScheduledAt: true,
@@ -379,7 +387,14 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
       where: {
         role: 'peserta',
         status: 'Aktif',
-        ...(programCode ? { assessmentId: programCode } : {}),
+        ...(programCode
+          ? {
+              OR: [
+                { assessmentId: programCode },
+                { assessmentIds: { contains: programCode } }
+              ]
+            }
+          : {}),
         ...(search
           ? {
               OR: [
@@ -397,7 +412,11 @@ export const listAssessorCandidates = async (req: AuthRequest, res: Response) =>
       select: candidateSelect
     });
 
-    const users = allUsers.filter((u) => isCandidateInAssessorScope(scopeCtx, u));
+    const users = allUsers.filter((u) => {
+      if (!isCandidateInAssessorScope(scopeCtx, u)) return false;
+      if (programCode && !extractProgramCodes(u).includes(programCode)) return false;
+      return true;
+    });
 
     const userIds = users.map((u) => u.id).filter(Boolean);
     const codes = users
@@ -798,9 +817,11 @@ export const getAssessorCandidateProctoring = async (req: AuthRequest, res: Resp
         tenantId: true,
         companyId: true,
         companyName: true,
+        assessmentId: true,
+        assessmentIds: true,
         tenant: { select: { name: true } },
         examAttempts: {
-          select: { violations: true, submittedAt: true, programCode: true, integrityScore: true }
+          select: { programCode: true, violations: true, submittedAt: true, integrityScore: true }
         }
       }
     });
@@ -929,12 +950,13 @@ export const listAllAssessorProctoringEvents = async (req: AuthRequest, res: Res
         email: true,
         candidateCode: true,
         assessmentId: true,
+        assessmentIds: true,
         tenantId: true,
         companyId: true,
         companyName: true,
         tenant: { select: { name: true } },
         examAttempts: {
-          select: { violations: true, submittedAt: true, integrityScore: true }
+          select: { programCode: true, violations: true, submittedAt: true, integrityScore: true }
         }
       }
     });
@@ -944,7 +966,14 @@ export const listAllAssessorProctoringEvents = async (req: AuthRequest, res: Res
     const candidateKeys = users.map((u) => u.candidateCode || u.id).filter(Boolean);
     const [applicants, reviews] = await Promise.all([
       emails.length > 0
-        ? prisma.applicant.findMany({ where: { email: { in: emails } }, select: { email: true, proctorFlags: true } })
+        ? prisma.applicant.findMany({
+            where: {
+              OR: Array.from(new Set(emails.map((e) => e.toLowerCase().trim()))).map((email) => ({
+                email: { equals: email, mode: 'insensitive' as const }
+              }))
+            },
+            select: { email: true, proctorFlags: true }
+          })
         : Promise.resolve([]),
       candidateKeys.length > 0
         ? prisma.proctoringReview.findMany({ where: { candidateCode: { in: candidateKeys } } })
@@ -1036,6 +1065,8 @@ export const handleAssessorSessionAction = async (req: AuthRequest, res: Respons
         tenantId: true,
         companyId: true,
         companyName: true,
+        assessmentId: true,
+        assessmentIds: true,
         tenant: { select: { name: true } }
       }
     });
@@ -1149,5 +1180,268 @@ export const handleAssessorSessionAction = async (req: AuthRequest, res: Respons
   } catch (error) {
     console.error('Assessor session action error:', error);
     return res.status(500).json({ error: 'Gagal memproses tindakan sesi.' });
+  }
+};
+
+export const listAdminLiveSessions = async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveAdminTenantId(req);
+    const tenant = tenantId
+      ? await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } })
+      : null;
+    const normTarget = normalizeCompanyName(tenant?.name);
+
+    const [pesertaAll, asesorAll, scoreRows, liveCodingRows] = await Promise.all([
+      prisma.portalUser.findMany({
+        where: { role: 'peserta', status: 'Aktif' },
+        orderBy: [
+          { interviewStatus: 'asc' },
+          { interviewScheduledAt: { sort: 'asc', nulls: 'last' } },
+          { createdAt: 'desc' }
+        ],
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          candidateCode: true,
+          companyId: true,
+          companyName: true,
+          tenantId: true,
+          tenant: { select: { name: true } },
+          assessmentId: true,
+          assessmentIds: true,
+          assessmentTitle: true,
+          interviewStatus: true,
+          interviewScheduledAt: true,
+          interviewCalledAt: true,
+          interviewEnteredAt: true,
+          interviewCompletedAt: true,
+          interviewScore: true,
+          assessorName: true,
+          examAttempts: {
+            select: { programCode: true, status: true, score: true, integrityScore: true, submittedAt: true }
+          }
+        }
+      }),
+      prisma.portalUser.findMany({
+        where: { role: 'asesor' },
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          username: true,
+          specialization: true,
+          companyId: true,
+          companyName: true,
+          tenantId: true,
+          tenant: { select: { name: true } },
+          assessmentId: true,
+          assessmentIds: true,
+          assessmentTitle: true,
+          status: true
+        }
+      }),
+      prisma.assessorScore.findMany({
+        orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }],
+        include: { assessor: { select: { id: true, name: true } } }
+      }),
+      prisma.masterRecord.findMany({ where: { scope: 'live-coding-submissions' } })
+    ]);
+
+    const matchesTenant = (u: { tenantId?: string | null; companyName?: string | null; tenant?: { name?: string | null } | null }) => {
+      if (!tenantId) return true;
+      if (u.tenantId === tenantId) return true;
+      const uNorm = normalizeCompanyName(u.companyName || u.tenant?.name);
+      return Boolean(normTarget && uNorm && normTarget === uNorm);
+    };
+
+    const pesertaList = pesertaAll.filter(matchesTenant);
+    const asesorList = asesorAll.filter(matchesTenant);
+
+    const scoreByCode = new Map<string, (typeof scoreRows)[number]>();
+    for (const s of scoreRows) {
+      if (!scoreByCode.has(s.candidateCode)) scoreByCode.set(s.candidateCode, s);
+    }
+
+    const liveCodingByUser = new Map<string, LiveCodingMeta>();
+    for (const row of liveCodingRows) {
+      const parsed = parseJson<LiveCodingMeta | null>(row.value, null);
+      if (parsed?.userId) {
+        const prev = liveCodingByUser.get(parsed.userId);
+        if (!prev || new Date(parsed.submittedAt).getTime() > new Date(prev.submittedAt).getTime()) {
+          liveCodingByUser.set(parsed.userId, parsed);
+        }
+      }
+    }
+
+    const sessions = pesertaList.map((u) => {
+      const code = u.candidateCode || u.id.slice(0, 8);
+      const attempt = latestAttempt(u.examAttempts || [], u.assessmentId);
+      const score = scoreByCode.get(code) || scoreByCode.get(u.id) || null;
+      const lc = liveCodingByUser.get(u.id) || null;
+      const programCodes = extractProgramCodes(u);
+      const matchedAssessors = asesorList.filter((a) => {
+        const aNorm = normalizeCompanyName(a.companyName || a.tenant?.name);
+        const uNorm = normalizeCompanyName(u.companyName || u.tenant?.name);
+        const sameCompany =
+          (a.tenantId && u.tenantId && a.tenantId === u.tenantId) ||
+          (aNorm && uNorm && aNorm === uNorm);
+        if (!sameCompany) return false;
+        const aProgs = extractProgramCodes(a);
+        return aProgs.length === 0 || programCodes.some((p) => aProgs.includes(p));
+      });
+      return {
+        userId: u.id,
+        candidateCode: code,
+        name: u.name,
+        email: u.email,
+        companyName: u.companyName || u.tenant?.name || '-',
+        programCode: u.assessmentId || programCodes[0] || '-',
+        programCodes,
+        programTitle: u.assessmentTitle || u.assessmentId || '-',
+        interviewStatus: u.interviewStatus || 'not_started',
+        interviewScheduledAt: u.interviewScheduledAt,
+        interviewCalledAt: u.interviewCalledAt,
+        interviewEnteredAt: u.interviewEnteredAt,
+        interviewCompletedAt: u.interviewCompletedAt,
+        assessorName: score?.assessor?.name || u.assessorName || matchedAssessors[0]?.name || null,
+        assignedAssessors: matchedAssessors.map((a) => ({ id: a.id, name: a.name })),
+        catStatus: attempt && (['submitted', 'graded', 'completed'].includes(attempt.status) || attempt.submittedAt) ? 'selesai' : attempt ? 'sedang' : 'belum',
+        catScore: attempt?.score ?? null,
+        liveCodingStatus: lc ? (lc.completed ? 'selesai' : 'sedang') : 'belum',
+        lhaStatus: score?.status || null,
+        compositeScore: score?.compositeScore ?? u.interviewScore ?? null,
+        recommendation: score?.recommendation || null
+      };
+    });
+
+    const trainers = asesorList.map((a) => {
+      const aProgs = extractProgramCodes(a);
+      const aNorm = normalizeCompanyName(a.companyName || a.tenant?.name);
+      const scopedSessions = sessions.filter((s) => {
+        const sNorm = normalizeCompanyName(s.companyName);
+        const sameCo = aNorm && sNorm ? aNorm === sNorm : true;
+        if (!sameCo) return false;
+        return aProgs.length === 0 || s.programCodes.some((p) => aProgs.includes(p));
+      });
+      const scoredByTrainer = scoreRows.filter((sr) => sr.assessorId === a.id);
+      return {
+        id: a.id,
+        name: a.name,
+        email: a.email,
+        username: a.username,
+        specialization: a.specialization || 'Asesor Kompetensi',
+        companyName: a.companyName || a.tenant?.name || '-',
+        assignedPrograms: aProgs,
+        status: a.status,
+        candidatePoolCount: scopedSessions.length,
+        waitingCount: scopedSessions.filter((s) => ['scheduled', 'waiting', 'called'].includes(s.interviewStatus)).length,
+        inProgressCount: scopedSessions.filter((s) => s.interviewStatus === 'in_progress').length,
+        scoredCount: scoredByTrainer.filter((s) => s.status === 'signed').length,
+        draftCount: scoredByTrainer.filter((s) => s.status !== 'signed').length
+      };
+    });
+
+    return res.json({
+      data: {
+        sessions,
+        trainers,
+        summary: {
+          totalCandidates: sessions.length,
+          inProgress: sessions.filter((s) => s.interviewStatus === 'in_progress').length,
+          waitingOrCalled: sessions.filter((s) => ['scheduled', 'waiting', 'called'].includes(s.interviewStatus)).length,
+          completedOrScored: sessions.filter((s) => ['completed', 'scored'].includes(s.interviewStatus) || s.lhaStatus === 'signed').length,
+          activeTrainers: trainers.filter((t) => t.status === 'Aktif').length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('List admin live sessions error:', error);
+    return res.status(500).json({ error: 'Gagal memuat pemantauan sesi wawancara asesor.' });
+  }
+};
+
+export const adminManageLiveSession = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = String(req.params.userId || '').trim();
+    const action = String(req.body.action || '').trim();
+    const assessorName = req.body.assessorName ? String(req.body.assessorName).trim() : null;
+    if (!['close', 'requeue', 'assign_assessor'].includes(action)) {
+      return res.status(400).json({ error: 'Aksi manajemen sesi tidak valid.' });
+    }
+
+    const user = await prisma.portalUser.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, candidateCode: true, assessmentId: true, tenantId: true }
+    });
+    if (!user) return res.status(404).json({ error: 'Peserta tidak ditemukan.' });
+
+    const tenantId = resolveAdminTenantId(req);
+    if (tenantId && user.tenantId && user.tenantId !== tenantId) {
+      return res.status(403).json({ error: 'Peserta bukan milik tenant ini.' });
+    }
+
+    let updateData: Record<string, unknown> = {};
+    if (action === 'close') {
+      updateData = {
+        interviewStatus: 'completed',
+        interviewCompletedAt: new Date()
+      };
+    } else if (action === 'requeue') {
+      updateData = {
+        interviewStatus: 'scheduled',
+        interviewScheduledAt: new Date(),
+        interviewCalledAt: null,
+        interviewEnteredAt: null,
+        interviewCompletedAt: null
+      };
+    } else if (action === 'assign_assessor') {
+      updateData = {
+        assessorName: assessorName || null
+      };
+    }
+
+    const updated = await prisma.portalUser.update({
+      where: { id: user.id },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        candidateCode: true,
+        assessmentId: true,
+        interviewStatus: true,
+        assessorName: true,
+        interviewScheduledAt: true
+      }
+    });
+
+    if (user.assessmentId) {
+      publish(`queue:${user.assessmentId}`, 'queue-update', {
+        at: new Date().toISOString(),
+        candidateCode: user.candidateCode,
+        action
+      });
+    }
+    publishToUser(user.id, action === 'requeue' ? 'requeued' : 'session-updated', {
+      at: new Date().toISOString(),
+      interviewStatus: updated.interviewStatus,
+      assessorName: updated.assessorName
+    });
+
+    recordAuditLog({
+      actor: req.user?.username || 'superadmin',
+      action: `ADMIN_LIVE_SESSION_${action.toUpperCase()}`,
+      category: 'DATA_MUTATION',
+      ip: resolveRequestIp(req),
+      target: user.candidateCode || user.id,
+      details: `Superadmin melakukan aksi '${action}' untuk ${user.name}${assessorName ? ` (Trainer: ${assessorName})` : ''}`,
+      status: 'SUCCESS'
+    });
+
+    return res.json({ data: updated });
+  } catch (error) {
+    console.error('Admin manage live session error:', error);
+    return res.status(500).json({ error: 'Gagal memperbarui status sesi wawancara.' });
   }
 };

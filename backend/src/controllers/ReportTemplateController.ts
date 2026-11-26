@@ -294,8 +294,8 @@ export const downloadApplicantLhaPdf = async (req: AuthRequest, res: Response) =
     });
     if (!applicant) return res.status(404).json({ error: 'Data kandidat tidak ditemukan.' });
 
-    const portalUser = await prisma.portalUser.findUnique({
-      where: { email: applicant.email },
+    const portalUser = await prisma.portalUser.findFirst({
+      where: { email: { equals: applicant.email, mode: 'insensitive' } },
       include: { tenant: true }
     });
 

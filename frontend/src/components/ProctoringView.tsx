@@ -31,6 +31,19 @@ interface Applicant {
   interviewScore: number | null;
   interviewTranscript: string | null;
   proctorFlags: string | null;
+  proctoringSummary?: {
+    totalEvents: number;
+    validCount: number;
+    falsePositiveCount: number;
+    pendingCount: number;
+  } | null;
+  examAttempt?: {
+    programCode?: string;
+    status?: string;
+    score?: number | null;
+    integrityScore?: number | null;
+    submittedAt?: string | null;
+  } | null;
   createdAt: string;
 }
 
@@ -40,39 +53,65 @@ interface ProctoringViewProps {
 }
 
 interface ProctorViolationEvent {
+  eventId?: string;
+  source?: 'exam' | 'interview';
   type: string;
   timestamp?: string;
   time?: string;
   message?: string;
+  reviewStatus?: 'valid' | 'false_positive' | 'pending' | 'info';
+  assessorNotes?: string;
 }
+
+const isBenignEvent = (type?: string) =>
+  ['face_verified', 'PERIODIC_SNAPSHOT', 'VERIFIKASI_BERKALA'].includes(String(type || ''));
 
 export default function ProctoringView({ applicants, onViewApplicant }: ProctoringViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
-  const [filterRisk, setFilterRisk] = useState<'ALL' | 'CLEAN' | 'WARNING' | 'HIGH_RISK' | 'UNINTERVIEWED'>('ALL');
+  const [filterRisk, setFilterRisk] = useState<'ALL' | 'CLEAN' | 'WARNING' | 'HIGH_RISK' | 'REVIEWED' | 'UNINTERVIEWED'>('ALL');
   const [inspectingApplicant, setInspectingApplicant] = useState<Applicant | null>(null);
 
-  // Parse proctor flags
-  const parseFlags = (flags: string | null): ProctorViolationEvent[] => {
+  // Parse proctor flags (excluding benign periodic face check snapshots from violations)
+  const parseFlags = (flags: string | null, includeBenign = false): ProctorViolationEvent[] => {
     if (!flags) return [];
     try {
       const parsed = JSON.parse(flags);
-      return Array.isArray(parsed) ? parsed : [];
+      const arr: ProctorViolationEvent[] = Array.isArray(parsed)
+        ? parsed
+        : parsed && typeof parsed === 'object' && Array.isArray(parsed.violations)
+          ? parsed.violations
+          : [];
+      return includeBenign ? arr : arr.filter((ev) => !isBenignEvent(ev?.type));
     } catch {
       return [];
     }
   };
 
-  // Helper to check if interview was actually completed/scored
-  const isInterviewDone = (applicant: Applicant): boolean => {
-    return applicant.interviewStatus === 'completed' || 
-           applicant.interviewStatus === 'scored' || 
-           (applicant.interviewScore !== null && applicant.interviewScore !== undefined && applicant.interviewScore > 0);
+  // Helper to check if candidate has completed CAT exam or interview session
+  const isSessionActiveOrDone = (applicant: Applicant): boolean => {
+    return (
+      applicant.interviewStatus === 'completed' ||
+      applicant.interviewStatus === 'scored' ||
+      applicant.interviewStatus === 'in_progress' ||
+      Boolean(applicant.examAttempt) ||
+      Boolean(applicant.interviewTranscript && applicant.interviewTranscript.length > 0) ||
+      (applicant.interviewScore !== null && applicant.interviewScore !== undefined && applicant.interviewScore > 0)
+    );
   };
 
-  // Interview sessions list
+  const isInterviewDone = (applicant: Applicant): boolean => {
+    return (
+      applicant.interviewStatus === 'completed' ||
+      applicant.interviewStatus === 'scored' ||
+      ['submitted', 'graded', 'completed'].includes(String(applicant.examAttempt?.status || '')) ||
+      (applicant.interviewScore !== null && applicant.interviewScore !== undefined && applicant.interviewScore > 0)
+    );
+  };
+
+  // Monitored sessions list (includes CAT exam + Interview sessions)
   const interviewSessions = useMemo(() => {
-    return applicants.filter(a => a.interviewStatus === 'completed' || a.interviewStatus === 'in_progress' || (a.interviewTranscript && a.interviewTranscript.length > 0));
+    return applicants.filter((a) => isSessionActiveOrDone(a));
   }, [applicants]);
 
   // Telemetry Metrics
@@ -85,7 +124,7 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
     interviewSessions.forEach(a => {
       if (!isInterviewDone(a)) return;
       completedCount++;
-      const flags = parseFlags(a.proctorFlags);
+      const flags = parseFlags(a.proctorFlags).filter((f) => f.reviewStatus !== 'false_positive');
       totalViolations += flags.length;
       if (flags.length === 0) cleanSessions++;
       if (flags.length >= 3) highRiskSessions++;
@@ -107,16 +146,21 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
     const q = deferredSearchQuery.toLowerCase();
     return interviewSessions.filter(a => {
       const isDone = isInterviewDone(a);
-      const flags = parseFlags(a.proctorFlags);
+      const rawFlags = parseFlags(a.proctorFlags);
+      const effectiveFlags = rawFlags.filter((f) => f.reviewStatus !== 'false_positive');
+      const hasTrainerReview = rawFlags.some(
+        (f) => f.reviewStatus === 'valid' || f.reviewStatus === 'false_positive'
+      );
       const matchesSearch =
         !q ||
         a.fullName.toLowerCase().includes(q) ||
         (a.job?.title || a.appliedPosition).toLowerCase().includes(q);
       
       let matchesRisk = true;
-      if (filterRisk === 'CLEAN') matchesRisk = isDone && flags.length === 0;
-      if (filterRisk === 'WARNING') matchesRisk = isDone && flags.length >= 1 && flags.length <= 2;
-      if (filterRisk === 'HIGH_RISK') matchesRisk = isDone && flags.length >= 3;
+      if (filterRisk === 'CLEAN') matchesRisk = isDone && effectiveFlags.length === 0;
+      if (filterRisk === 'WARNING') matchesRisk = isDone && effectiveFlags.length >= 1 && effectiveFlags.length <= 2;
+      if (filterRisk === 'HIGH_RISK') matchesRisk = isDone && effectiveFlags.length >= 3;
+      if (filterRisk === 'REVIEWED') matchesRisk = hasTrainerReview;
       if (filterRisk === 'UNINTERVIEWED') matchesRisk = !isDone;
 
       return matchesSearch && matchesRisk;
@@ -254,10 +298,17 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
             </button>
             <button
               type="button"
+              onClick={() => setFilterRisk('REVIEWED')}
+              className={`h-8 px-3 rounded-md transition-colors cursor-pointer ${filterRisk === 'REVIEWED' ? 'bg-[#1E3A8A] text-white font-semibold' : 'text-[#475569] hover:text-[#0F172A]'}`}
+            >
+              Direview Trainer
+            </button>
+            <button
+              type="button"
               onClick={() => setFilterRisk('UNINTERVIEWED')}
               className={`h-8 px-3 rounded-md transition-colors cursor-pointer ${filterRisk === 'UNINTERVIEWED' ? 'bg-[#1E3A8A] text-white font-semibold' : 'text-[#475569] hover:text-[#0F172A]'}`}
             >
-              Belum Wawancara
+              Belum Selesai
             </button>
           </div>
         </div>
@@ -299,7 +350,10 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
           ) : (
             filteredSessions.map(session => {
               const isDone = isInterviewDone(session);
-              const flags = parseFlags(session.proctorFlags);
+              const allNonBenignFlags = parseFlags(session.proctorFlags);
+              const flags = allNonBenignFlags.filter((f) => f.reviewStatus !== 'false_positive');
+              const validReviews = allNonBenignFlags.filter((f) => f.reviewStatus === 'valid').length;
+              const falsePosReviews = allNonBenignFlags.filter((f) => f.reviewStatus === 'false_positive').length;
               const statusClass = !isDone
                 ? 'bg-[#F1F5F9] text-[#475569]'
                 : flags.length === 0
@@ -308,7 +362,7 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
                     ? 'bg-[#FEE2E2] text-[#991B1B]'
                     : 'bg-[#FEF3C7] text-[#92400E]';
               const badgeLabel = !isDone
-                ? 'Belum Wawancara'
+                ? 'Belum Selesai'
                 : flags.length === 0
                   ? 'Integritas Bersih'
                   : flags.length >= 3
@@ -324,36 +378,57 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
                     <div className="text-xs text-[#64748B] font-sans line-clamp-2 mt-0.5" title={session.job?.title || session.appliedPosition}>
                       {session.job?.title || session.appliedPosition}
                     </div>
+                    {session.examAttempt?.integrityScore != null && (
+                      <div className="text-[11px] font-mono text-[#1E3A8A] mt-0.5">
+                        Integritas CAT: {session.examAttempt.integrityScore}/100
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="w-[150px]">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${statusClass}`}>
-                      {badgeLabel}
-                    </span>
+                    <div className="space-y-1">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${statusClass}`}>
+                        {badgeLabel}
+                      </span>
+                      {(validReviews > 0 || falsePosReviews > 0) && (
+                        <div className="text-[10px] text-slate-600 font-medium">
+                          Trainer: {validReviews} valid • {falsePosReviews} false+
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="w-[90px] text-center font-semibold font-mono text-sm text-[#0F172A] tabular-nums">
                     {!isDone ? <span className="text-[#64748B] font-normal">-</span> : flags.length}
                   </TableCell>
                   <TableCell className="font-sans text-xs text-[#475569]">
                     {!isDone ? (
-                      <span className="text-[#64748B]">Belum melaksanakan sesi wawancara</span>
-                    ) : flags.length === 0 ? (
-                      <span className="text-[#166534] font-medium">Kandidat fokus penuh selama wawancara</span>
+                      <span className="text-[#64748B]">Sesi CAT / wawancara sedang berjalan</span>
+                    ) : allNonBenignFlags.length === 0 ? (
+                      <span className="text-[#166534] font-medium">Kandidat fokus penuh selama asesmen</span>
                     ) : (
                       <div className="flex flex-wrap gap-1.5">
-                        {flags.slice(0, 2).map((f, i) => (
+                        {allNonBenignFlags.slice(0, 2).map((f, i) => (
                           <span
                             key={i}
-                            className="inline-flex items-center gap-1 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] px-2 py-0.5 text-xs text-[#0F172A]"
+                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${
+                              f.reviewStatus === 'false_positive'
+                                ? 'bg-slate-50 border-slate-200 text-slate-400 line-through'
+                                : f.reviewStatus === 'valid'
+                                  ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                  : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#0F172A]'
+                            }`}
                           >
+                            <span className="text-[10px] font-mono uppercase text-slate-400">
+                              {f.source === 'exam' ? 'CAT' : 'INT'}
+                            </span>
                             <span>{formatIncidentLabel(f.type)}</span>
                             {f.timestamp && (
                               <span className="font-mono text-[#64748B]">• {f.timestamp.slice(11, 19)}</span>
                             )}
                           </span>
                         ))}
-                        {flags.length > 2 && (
+                        {allNonBenignFlags.length > 2 && (
                           <span className="text-xs text-[#64748B] font-mono self-center">
-                            +{flags.length - 2} lainnya
+                            +{allNonBenignFlags.length - 2} lainnya
                           </span>
                         )}
                       </div>
@@ -447,18 +522,47 @@ export default function ProctoringView({ applicants, onViewApplicant }: Proctori
                     </div>
                   ) : parseFlags(inspectingApplicant.proctorFlags).length === 0 ? (
                     <div className="py-4 text-center text-xs text-slate-400 font-sans">
-                      Sesi 100% patuh, tidak ada insiden tercatat.
+                      Sesi 100% patuh, tidak ada insiden pelanggaran tercatat.
                     </div>
                   ) : (
                     parseFlags(inspectingApplicant.proctorFlags).map((ev, idx) => (
-                      <div key={idx} className="p-2.5 text-xs flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                          <span className="font-medium text-slate-800 font-sans">{ev.type}</span>
+                      <div key={idx} className="p-2.5 text-xs space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">
+                              {ev.source === 'exam' ? 'Ujian CAT' : 'Wawancara'}
+                            </span>
+                            <span className="font-medium text-slate-800 font-sans truncate">
+                              {formatIncidentLabel(ev.type)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {ev.reviewStatus === 'valid' && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                                Valid (Trainer)
+                              </span>
+                            )}
+                            {ev.reviewStatus === 'false_positive' && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                False Positive
+                              </span>
+                            )}
+                            {(!ev.reviewStatus || ev.reviewStatus === 'pending') && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                Pending Review
+                              </span>
+                            )}
+                            <span className="text-[11px] font-mono text-slate-400">
+                              {ev.timestamp || ev.time || '-'}
+                            </span>
+                          </div>
                         </div>
-                        <span className="text-[11px] font-mono text-slate-400">
-                          {ev.timestamp || ev.time || 'Waktu tidak tercatat'}
-                        </span>
+                        {ev.assessorNotes && (
+                          <p className="text-[11px] text-slate-500 pl-5 italic">
+                            Catatan Trainer: {ev.assessorNotes}
+                          </p>
+                        )}
                       </div>
                     ))
                   )}

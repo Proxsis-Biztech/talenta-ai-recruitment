@@ -83,7 +83,15 @@ export function AdminCompanyMatrix({
   const [companies, setCompanies] = useState<CompanyItem[]>(INITIAL_COMPANIES);
   const [allJobs, setAllJobs] = useState<any[]>([]);
   const [allApplicants, setAllApplicants] = useState<any[]>([]);
+  const [allPortalPeserta, setAllPortalPeserta] = useState<any[]>([]);
+  const [billingTenants, setBillingTenants] = useState<Array<{ id: string; code: string; name: string; usedQuota?: number; availableQuota?: number }>>([]);
   const [detailPt, setDetailPt] = useState<CompanyItem | null>(null);
+  const [editingPt, setEditingPt] = useState<CompanyItem | null>(null);
+  const [editPtName, setEditPtName] = useState('');
+  const [editPtIndustry, setEditPtIndustry] = useState('');
+  const [editPtPic, setEditPtPic] = useState('');
+  const [editPtQuotaMax, setEditPtQuotaMax] = useState(500);
+  const [editPtContract, setEditPtContract] = useState('');
   const [hiddenCatalogCodes, setHiddenCatalogCodes] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(HIDDEN_CATALOG_STORAGE_KEY);
@@ -330,12 +338,23 @@ export function AdminCompanyMatrix({
     const token = localStorage.getItem('adminToken');
     const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
     try {
-      const [jobsResponse, applicantsResponse] = await Promise.all([
+      const [jobsResponse, applicantsResponse, portalUsersResponse, billingResponse] = await Promise.all([
         axios.get('/api/admin/jobs', { params: { limit: 200 }, headers }),
-        axios.get('/api/admin/applicants', { params: { limit: 200 }, headers })
+        axios.get('/api/admin/applicants', { params: { limit: 500 }, headers }),
+        axios.get('/api/admin/portal-users', { params: { role: 'peserta' }, headers }).catch(() => ({ data: { data: [] } })),
+        axios.get('/api/admin/billing/overview', { headers }).catch(() => ({ data: { data: null } }))
       ]);
       setAllJobs(Array.isArray(jobsResponse.data?.data) ? jobsResponse.data.data : []);
       setAllApplicants(Array.isArray(applicantsResponse.data?.data) ? applicantsResponse.data.data : []);
+      setAllPortalPeserta(Array.isArray(portalUsersResponse.data?.data) ? portalUsersResponse.data.data : []);
+      const bData = billingResponse.data?.data;
+      if (bData) {
+        const list = Array.isArray(bData.allTenants) ? [...bData.allTenants] : [];
+        if (bData.activeTenant && !list.some((t: any) => t.id === bData.activeTenant.id)) {
+          list.push(bData.activeTenant);
+        }
+        setBillingTenants(list);
+      }
     } catch {
       // keep existing state on transient reload error
     }
@@ -347,17 +366,29 @@ export function AdminCompanyMatrix({
       const token = localStorage.getItem('adminToken');
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       try {
-        const [jobsResponse, applicantsResponse] = await Promise.all([
+        const [jobsResponse, applicantsResponse, portalUsersResponse, billingResponse] = await Promise.all([
           axios.get('/api/admin/jobs', { params: { limit: 200 }, headers }),
-          axios.get('/api/admin/applicants', { params: { limit: 200 }, headers })
+          axios.get('/api/admin/applicants', { params: { limit: 500 }, headers }),
+          axios.get('/api/admin/portal-users', { params: { role: 'peserta' }, headers }).catch(() => ({ data: { data: [] } })),
+          axios.get('/api/admin/billing/overview', { headers }).catch(() => ({ data: { data: null } }))
         ]);
         if (cancelled) return;
         setAllJobs(Array.isArray(jobsResponse.data?.data) ? jobsResponse.data.data : []);
         setAllApplicants(Array.isArray(applicantsResponse.data?.data) ? applicantsResponse.data.data : []);
+        setAllPortalPeserta(Array.isArray(portalUsersResponse.data?.data) ? portalUsersResponse.data.data : []);
+        const bData = billingResponse.data?.data;
+        if (bData) {
+          const list = Array.isArray(bData.allTenants) ? [...bData.allTenants] : [];
+          if (bData.activeTenant && !list.some((t: any) => t.id === bData.activeTenant.id)) {
+            list.push(bData.activeTenant);
+          }
+          setBillingTenants(list);
+        }
       } catch {
         if (!cancelled) {
           setAllJobs([]);
           setAllApplicants([]);
+          setAllPortalPeserta([]);
         }
       }
     };
@@ -398,12 +429,49 @@ export function AdminCompanyMatrix({
     setPtModalNotice(null);
   };
 
+  const parseCodeList = (rawIds: unknown, fallbackId?: unknown): string[] => {
+    const codes = new Set<string>();
+    const add = (val: unknown) => {
+      const clean = String(val || '').trim().toUpperCase();
+      if (clean && clean !== '-') codes.add(clean);
+    };
+    if (fallbackId) add(fallbackId);
+    if (Array.isArray(rawIds)) {
+      rawIds.forEach(add);
+    } else if (typeof rawIds === 'string' && rawIds.trim()) {
+      try {
+        const parsed = JSON.parse(rawIds);
+        if (Array.isArray(parsed)) parsed.forEach(add);
+        else add(rawIds);
+      } catch {
+        rawIds.split(',').forEach(add);
+      }
+    }
+    return Array.from(codes);
+  };
+
+  const applicantMatchesProgram = (applicant: any, jobCode: string, jobTitle: string, jobId?: string): boolean => {
+    const codeUpper = String(jobCode || '').trim().toUpperCase();
+    const titleLower = String(jobTitle || '').trim().toLowerCase();
+    if (jobId && applicant.jobId === jobId) return true;
+    if (titleLower && (String(applicant.job?.title || '').toLowerCase() === titleLower || String(applicant.appliedPosition || '').toLowerCase() === titleLower)) {
+      return true;
+    }
+    if (codeUpper && codeUpper !== '-') {
+      const appCodes = parseCodeList(
+        applicant.portalAssessmentIds,
+        applicant.portalAssessmentId || applicant.job?.code || applicant.examAttempt?.programCode
+      );
+      if (appCodes.includes(codeUpper)) return true;
+    }
+    return false;
+  };
+
   const buildJobRow = (job: any, isExplicitLink = false): PtProgramRow => {
     const code = String(job.code || '').toUpperCase();
     const linkKey = String(job.code || job.id || job.title || '').trim().toUpperCase();
-    const relatedApplicants = allApplicants.filter(
-      (applicant: any) =>
-        applicant.jobId === job.id || applicant.job?.title === job.title || applicant.appliedPosition === job.title
+    const relatedApplicants = allApplicants.filter((applicant: any) =>
+      applicantMatchesProgram(applicant, code, job.title, job.id)
     );
     const cat = catalogPrograms.find(
       (p) => (code && p.id.toUpperCase() === code) || p.title.toLowerCase() === String(job.title || '').toLowerCase()
@@ -428,6 +496,9 @@ export function AdminCompanyMatrix({
 
   const buildCatalogRow = (prog: AssessmentProgram, isExplicitLink = false): PtProgramRow => {
     const linkKey = prog.id.toUpperCase();
+    const relatedApplicants = allApplicants.filter((applicant: any) =>
+      applicantMatchesProgram(applicant, prog.id, prog.title)
+    );
     return {
       key: `catalog:${linkKey}`,
       linkKey,
@@ -438,7 +509,7 @@ export function AdminCompanyMatrix({
       durationMinutes: prog.durationMinutes,
       passingScore: prog.passingScore,
       totalQuestions: prog.totalQuestions,
-      applicantCount: 0,
+      applicantCount: relatedApplicants.length,
       status: 'Katalog Program',
       source: 'catalog',
       isExplicitLink
@@ -597,17 +668,17 @@ export function AdminCompanyMatrix({
     const matched = getProgramsForCompany(selectedPt);
     if (matched.length > 0) {
       const rows = matched.map((prog) => {
-        const related = allApplicants.filter(
-          (applicant: any) =>
-            applicant.job?.title === prog.title ||
-            applicant.appliedPosition === prog.title ||
-            (applicant.job?.code && applicant.job.code === prog.code)
+        const related = allApplicants.filter((applicant: any) =>
+          applicantMatchesProgram(applicant, prog.code, prog.title, prog.jobId)
         );
         const interviewed = related.filter((applicant: any) =>
-          ['completed', 'scored'].includes(applicant.interviewStatus)
+          ['completed', 'scored'].includes(applicant.interviewStatus) ||
+          ['submitted', 'graded'].includes(applicant.examAttempt?.status)
         ).length;
         const passed = related.filter(
-          (applicant: any) => Number(applicant.interviewScore || 0) >= prog.passingScore
+          (applicant: any) =>
+            Number(applicant.interviewScore ?? applicant.examAttempt?.score ?? 0) >= prog.passingScore &&
+            (applicant.interviewScore != null || applicant.examAttempt?.score != null)
         ).length;
         return {
           program: `${prog.code !== '-' ? `[${prog.code}] ` : ''}${prog.title}`,
@@ -615,7 +686,7 @@ export function AdminCompanyMatrix({
           tahapBerkas: related.length,
           tahapInterview: interviewed,
           statusLulus: passed,
-          statusGagal: Math.max(0, related.length - passed)
+          statusGagal: Math.max(0, related.filter((a: any) => a.interviewScore != null || a.examAttempt?.score != null).length - passed)
         };
       });
       setMatrixData(rows);
@@ -647,19 +718,126 @@ export function AdminCompanyMatrix({
     setMatrixData(fallbackRows);
   }, [selectedPtId, companies, allJobs, allApplicants, catalogPrograms, programLinks, hiddenCatalogCodes]);
 
-  const handleAddCompany = (e: React.FormEvent) => {
+  const companyStatsMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        programCount: number;
+        liveParticipants: number;
+        completedAssessments: number;
+        billingUsed: number;
+        effectiveUsed: number;
+        pct: number;
+        pctLabel: string;
+        barWidth: number;
+      }
+    >();
+
+    for (const c of companies) {
+      const matchedPrograms = getProgramsForCompany(c);
+      const programCodesSet = new Set(
+        matchedPrograms.map((p) => String(p.code || '').trim().toUpperCase()).filter((v) => v && v !== '-')
+      );
+      const programTitlesSet = new Set(
+        matchedPrograms.map((p) => String(p.title || '').trim().toLowerCase()).filter(Boolean)
+      );
+
+      const seenKeys = new Set<string>();
+      const completedKeys = new Set<string>();
+
+      const recordParticipant = (key: string, completed: boolean) => {
+        if (!key) return;
+        seenKeys.add(key);
+        if (completed) completedKeys.add(key);
+      };
+
+      for (const pu of allPortalPeserta) {
+        const key = String(pu.email || pu.id || '').toLowerCase().trim();
+        const codes = parseCodeList(pu.assessmentIds, pu.assessmentId);
+        const matchesCompany =
+          (pu.companyId && String(pu.companyId).toUpperCase() === c.id.toUpperCase()) ||
+          companyMatchesName(c.name, pu.companyName);
+        const matchesProg =
+          codes.some((code) => programCodesSet.has(code)) ||
+          (pu.assessmentTitle && programTitlesSet.has(String(pu.assessmentTitle).toLowerCase()));
+        if (matchesCompany || matchesProg) {
+          const isDone = ['completed', 'scored'].includes(String(pu.interviewStatus || '').toLowerCase()) || pu.interviewScore != null;
+          recordParticipant(key, isDone);
+        }
+      }
+
+      for (const app of allApplicants) {
+        const key = String(app.email || app.id || '').toLowerCase().trim();
+        const codes = parseCodeList(
+          app.portalAssessmentIds,
+          app.portalAssessmentId || app.job?.code || app.examAttempt?.programCode
+        );
+        const matchesCompany =
+          (app.portalCompanyId && String(app.portalCompanyId).toUpperCase() === c.id.toUpperCase()) ||
+          companyMatchesName(c.name, app.portalCompanyName) ||
+          companyMatchesName(c.name, app.job?.title?.match(/\(([^)]+)\)\s*$/)?.[1]);
+        const matchesProg =
+          codes.some((code) => programCodesSet.has(code)) ||
+          (app.job?.title && programTitlesSet.has(String(app.job.title).toLowerCase())) ||
+          (app.appliedPosition && programTitlesSet.has(String(app.appliedPosition).toLowerCase()));
+        if (matchesCompany || matchesProg) {
+          const isDone =
+            ['completed', 'scored'].includes(String(app.interviewStatus || '').toLowerCase()) ||
+            ['submitted', 'graded'].includes(String(app.examAttempt?.status || '').toLowerCase()) ||
+            app.lhaStatus === 'signed';
+          recordParticipant(key, isDone);
+        }
+      }
+
+      const matchedBilling = billingTenants.find(
+        (bt) =>
+          companyMatchesName(c.name, bt.name) ||
+          String(bt.code || '').toUpperCase() === c.id.toUpperCase()
+      );
+      const billingUsed = Number(matchedBilling?.usedQuota || 0);
+      const liveParticipants = seenKeys.size;
+      const liveUsed = Math.max(liveParticipants, billingUsed);
+      const effectiveUsed = Math.max(Number(c.quotaUsed || 0), liveUsed);
+      const quotaMax = Math.max(1, Number(c.quotaMax || 500));
+      const rawPct = (effectiveUsed / quotaMax) * 100;
+      const pct = Math.min(100, Math.round(rawPct));
+      const pctLabel = effectiveUsed > 0 && rawPct < 1 ? '<1%' : `${pct}%`;
+      const barWidth = effectiveUsed > 0 ? Math.max(2, Math.min(100, rawPct)) : 0;
+
+      map.set(c.id, {
+        programCount: matchedPrograms.length,
+        liveParticipants,
+        completedAssessments: completedKeys.size,
+        billingUsed,
+        effectiveUsed,
+        pct,
+        pctLabel,
+        barWidth
+      });
+    }
+
+    return map;
+  }, [companies, allPortalPeserta, allApplicants, billingTenants, allJobs, catalogPrograms, programLinks, hiddenCatalogCodes]);
+
+  const handleAddCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ptName.trim()) return;
 
+    const maxNum = companies.reduce((max, item) => {
+      const m = item.id.match(/PT-(\d+)/i);
+      return m ? Math.max(max, Number(m[1])) : max;
+    }, companies.length);
+    const nextCode = `PT-${String(maxNum + 1).padStart(2, '0')}`;
+
     const newCompany: CompanyItem = {
-      id: `PT-0${companies.length + 1}`,
+      id: nextCode,
       name: ptName.trim(),
       industry: ptIndustry.trim() || 'Korporasi & Institusi',
       pic: ptPic.trim() || 'HR Business Partner',
       quotaMax: Number(ptQuota) || 500,
       quotaUsed: 0,
       contractPeriod: ptContract || '2026 - 2027',
-      activeProgramsCount: 1
+      activeProgramsCount: 0
     };
 
     const next = [...companies, newCompany];
@@ -667,11 +845,65 @@ export function AdminCompanyMatrix({
     setSelectedPtId(newCompany.id);
     void saveMasterRecord('company', 'matrix', next);
 
+    const token = localStorage.getItem('adminToken');
+    if (token) {
+      await axios
+        .post(
+          '/api/admin/tenants',
+          { name: newCompany.name, code: newCompany.id, industry: newCompany.industry },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        .catch(() => undefined);
+    }
+
     setIsAddModalOpen(false);
     setPtName('');
     setPtIndustry('');
     setPtPic('');
-    showToast(`PT Mitra "${newCompany.name}" berhasil didaftarkan ke sistem!`);
+    showToast(`PT Mitra "${newCompany.name}" berhasil didaftarkan & disinkronkan ke tenant!`);
+  };
+
+  const openEditCompanyModal = (company: CompanyItem) => {
+    setEditingPt(company);
+    setEditPtName(company.name);
+    setEditPtIndustry(company.industry);
+    setEditPtPic(company.pic);
+    setEditPtQuotaMax(company.quotaMax || 500);
+    setEditPtContract(company.contractPeriod || 'Jan 2026 - Des 2026');
+  };
+
+  const handleSaveEditCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPt || !editPtName.trim()) return;
+    const next = companies.map((item) =>
+      item.id === editingPt.id
+        ? {
+            ...item,
+            name: editPtName.trim(),
+            industry: editPtIndustry.trim() || item.industry,
+            pic: editPtPic.trim() || item.pic,
+            quotaMax: Math.max(1, Number(editPtQuotaMax) || 500),
+            contractPeriod: editPtContract.trim() || item.contractPeriod
+          }
+        : item
+    );
+    setCompanies(next);
+    const updatedItem = next.find((item) => item.id === editingPt.id) || null;
+    if (detailPt?.id === editingPt.id && updatedItem) setDetailPt(updatedItem);
+    void saveMasterRecord('company', 'matrix', next);
+
+    const token = localStorage.getItem('adminToken');
+    if (token && updatedItem) {
+      await axios
+        .post(
+          '/api/admin/tenants',
+          { name: updatedItem.name, code: updatedItem.id, industry: updatedItem.industry },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        .catch(() => undefined);
+    }
+    setEditingPt(null);
+    showToast(`Data & kuota ${editPtName.trim()} berhasil diperbarui.`);
   };
 
   const handleExportMatrixCSV = () => {
@@ -742,9 +974,17 @@ export function AdminCompanyMatrix({
       {/* ─── PT Grid: Clickable Card per PT ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         {companies.map((c) => {
-          const pct = Math.min(100, Math.round((c.quotaUsed / (c.quotaMax || 1)) * 100));
-          const matchedPrograms = getProgramsForCompany(c);
-          const programCount = matchedPrograms.length;
+          const stats = companyStatsMap.get(c.id) || {
+            programCount: getProgramsForCompany(c).length,
+            liveParticipants: 0,
+            completedAssessments: 0,
+            billingUsed: 0,
+            effectiveUsed: c.quotaUsed || 0,
+            pct: Math.min(100, Math.round(((c.quotaUsed || 0) / (c.quotaMax || 1)) * 100)),
+            pctLabel: `${Math.min(100, Math.round(((c.quotaUsed || 0) / (c.quotaMax || 1)) * 100))}%`,
+            barWidth: Math.min(100, Math.round(((c.quotaUsed || 0) / (c.quotaMax || 1)) * 100))
+          };
+          const programCount = stats.programCount;
 
           return (
             <div
@@ -797,14 +1037,18 @@ export function AdminCompanyMatrix({
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-[#64748B]">Kuota Asesmen</span>
                     <span className="font-mono font-semibold text-[#0F172A] tabular-nums">
-                      {c.quotaUsed} / {c.quotaMax} ({pct}%)
+                      {stats.effectiveUsed} / {c.quotaMax} ({stats.pctLabel})
                     </span>
                   </div>
                   <div className="w-full bg-[#E2E8F0] rounded-full h-2 overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${pct >= 90 ? 'bg-[#DC2626]' : 'bg-[#2563EB]'}`}
-                      style={{ width: `${pct}%` }}
+                      className={`h-full rounded-full transition-all duration-500 ${stats.pct >= 90 ? 'bg-[#DC2626]' : 'bg-[#2563EB]'}`}
+                      style={{ width: `${stats.barWidth}%` }}
                     />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-[#64748B] pt-0.5">
+                    <span>{stats.liveParticipants} peserta terdaftar</span>
+                    <span className="font-mono">{stats.completedAssessments} selesai</span>
                   </div>
                 </div>
               </div>
@@ -1163,7 +1407,12 @@ export function AdminCompanyMatrix({
       >
         {detailPt && (() => {
           const programs = getProgramsForCompany(detailPt);
-          const pct = Math.round((detailPt.quotaUsed / detailPt.quotaMax) * 100);
+          const stats = companyStatsMap.get(detailPt.id) || {
+            effectiveUsed: detailPt.quotaUsed || 0,
+            pctLabel: `${Math.round(((detailPt.quotaUsed || 0) / (detailPt.quotaMax || 1)) * 100)}%`,
+            liveParticipants: 0,
+            completedAssessments: 0
+          };
           return (
             <div className="p-2 space-y-5 text-xs max-h-[75vh] overflow-y-auto">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1176,14 +1425,28 @@ export function AdminCompanyMatrix({
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[11px] text-slate-500 block">Kuota Terpakai</span>
                   <span className="font-mono font-bold text-primary-navy block mt-0.5">
-                    {detailPt.quotaUsed} / {detailPt.quotaMax} ({pct}%)
+                    {stats.effectiveUsed} / {detailPt.quotaMax} ({stats.pctLabel})
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    {stats.liveParticipants} peserta terdaftar • {stats.completedAssessments} selesai
                   </span>
                 </div>
-                <div className="p-3.5 rounded-xl bg-soft-blue border border-accent-border">
-                  <span className="text-[11px] text-primary-navy block font-semibold">Total Program Asesmen</span>
-                  <span className="font-mono font-extrabold text-primary-navy text-sm block mt-0.5">
-                    {programs.length} Program Terdaftar
-                  </span>
+                <div className="p-3.5 rounded-xl bg-soft-blue border border-accent-border flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[11px] text-primary-navy block font-semibold">Total Program Asesmen</span>
+                    <span className="font-mono font-extrabold text-primary-navy text-sm block mt-0.5">
+                      {programs.length} Program Terdaftar
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    className="bg-white"
+                    onClick={() => openEditCompanyModal(detailPt)}
+                  >
+                    Edit PT
+                  </Button>
                 </div>
               </div>
 
@@ -1573,6 +1836,77 @@ export function AdminCompanyMatrix({
             </div>
           );
         })()}
+      </Modal>
+      {/* ─── MODAL EDIT PT MITRA ─── */}
+      <Modal
+        isOpen={Boolean(editingPt)}
+        onClose={() => setEditingPt(null)}
+        title={editingPt ? `Edit Data & Kuota — ${editingPt.name}` : 'Edit PT'}
+        size="md"
+      >
+        <form onSubmit={handleSaveEditCompany} className="p-4 space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Nama Perusahaan (PT)</label>
+            <input
+              type="text"
+              value={editPtName}
+              onChange={(e) => setEditPtName(e.target.value)}
+              required
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs outline-none focus:border-primary-navy"
+            />
+          </div>
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Bidang Industri</label>
+            <input
+              type="text"
+              value={editPtIndustry}
+              onChange={(e) => setEditPtIndustry(e.target.value)}
+              required
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs outline-none focus:border-primary-navy"
+            />
+          </div>
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">PIC Resmi Perusahaan</label>
+            <input
+              type="text"
+              value={editPtPic}
+              onChange={(e) => setEditPtPic(e.target.value)}
+              required
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs outline-none focus:border-primary-navy"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Alokasi Kuota Maksimum</label>
+              <input
+                type="number"
+                value={editPtQuotaMax}
+                onChange={(e) => setEditPtQuotaMax(Number(e.target.value))}
+                min={1}
+                required
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-mono font-bold"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Periode Kontrak</label>
+              <input
+                type="text"
+                value={editPtContract}
+                onChange={(e) => setEditPtContract(e.target.value)}
+                required
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+              />
+            </div>
+          </div>
+          <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+            <Button variant="outline" size="sm" type="button" onClick={() => setEditingPt(null)}>
+              Batal
+            </Button>
+            <Button variant="primary" size="sm" type="submit">
+              Simpan Perubahan
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

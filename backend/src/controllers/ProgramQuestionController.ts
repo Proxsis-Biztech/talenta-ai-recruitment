@@ -5,6 +5,7 @@ import path from 'path';
 import crypto from 'crypto';
 import * as XLSX from 'xlsx';
 import { type AuthRequest } from '../middleware/auth';
+import { normalizeCompanyName, resolveAdminTenantId } from '../middleware/tenant';
 
 const prisma = new PrismaClient();
 const CASE_DIR = path.join(__dirname, '../../uploads/case-files');
@@ -173,11 +174,23 @@ export const publishProgram = async (req: AuthRequest, res: Response) => {
     if (!title) return res.status(400).json({ error: 'Nama program wajib diisi.' });
 
     const existing = await prisma.job.findUnique({ where: { code: programCode } });
+    const headerTenantId = resolveAdminTenantId(req);
+    let resolvedTenantId: string | null = existing?.tenantId || headerTenantId || (req.body.tenantId ? String(req.body.tenantId) : null);
+    if (!resolvedTenantId) {
+      const parenMatch = title.match(/\(([^)]+)\)\s*$/)?.[1];
+      const companyHint = String(req.body.companyName || parenMatch || '').trim();
+      if (companyHint) {
+        const allTenants = await prisma.tenant.findMany({ select: { id: true, name: true } });
+        const normHint = normalizeCompanyName(companyHint);
+        resolvedTenantId = allTenants.find((t) => normalizeCompanyName(t.name) === normHint)?.id || null;
+      }
+    }
     const data = {
       code: programCode,
       title,
       description,
       status,
+      ...(resolvedTenantId ? { tenantId: resolvedTenantId } : {}),
       interviewDuration: Number.isFinite(durationMinutes) ? durationMinutes : 90,
       interviewPassingScore: Number.isFinite(passingScore) ? passingScore : 70,
       ...(assessmentDate ? { assessmentDate } : {}),

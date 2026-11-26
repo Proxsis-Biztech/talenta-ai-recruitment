@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { type AuthRequest } from '../middleware/auth';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '../middleware/auth';
-import { resolveAdminTenantId } from '../middleware/tenant';
+import { resolveAdminTenantId, normalizeCompanyName } from '../middleware/tenant';
 import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -151,6 +151,48 @@ export const submitApplication = async (req: Request, res: Response) => {
   }
 };
 
+const extractRawProctorEvents = (raw: string | null | undefined): any[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.violations)) {
+      return parsed.violations;
+    }
+    return [];
+  } catch {
+    return [];
+  }
+};
+
+const isBenignProctorType = (type: unknown): boolean =>
+  ['face_verified', 'PERIODIC_SNAPSHOT', 'VERIFIKASI_BERKALA'].includes(String(type || ''));
+
+const resolveTenantScopeEmails = async (tenantId: string | null): Promise<string[] | null> => {
+  if (!tenantId) return null;
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+  const normTarget = normalizeCompanyName(tenant?.name);
+  const users = await prisma.portalUser.findMany({
+    where: {
+      role: 'peserta',
+      OR: [
+        { tenantId },
+        ...(tenant?.name ? [{ companyName: tenant.name }] : []),
+        ...(normTarget ? [{ tenantId: null }] : [])
+      ]
+    },
+    select: { email: true, tenantId: true, companyName: true }
+  });
+  return users
+    .filter(
+      (u) =>
+        u.tenantId === tenantId ||
+        (normTarget && normalizeCompanyName(u.companyName) === normTarget)
+    )
+    .map((u) => u.email)
+    .filter(Boolean);
+};
+
 export const getApplicants = async (req: Request, res: Response) => {
   try {
     const portalUserRecords = await prisma.portalUser.findMany({ where: { role: 'peserta' }, select: { id: true } });
@@ -167,17 +209,32 @@ export const getApplicants = async (req: Request, res: Response) => {
     const skip = (page - 1) * limit;
 
     const tenantId = resolveAdminTenantId(req);
+    const tenantEmails = await resolveTenantScopeEmails(tenantId);
     const whereClause: any = {};
+    const andConditions: any[] = [];
     if (tenantId) {
-      whereClause.job = { tenantId };
+      andConditions.push({
+        OR: [
+          { job: { tenantId } },
+          ...(tenantEmails && tenantEmails.length > 0
+            ? tenantEmails.map((em) => ({ email: { equals: em, mode: 'insensitive' as const } }))
+            : [])
+        ]
+      });
     }
 
     if (search && search.trim() !== "") {
-      whereClause.OR = [
-        { fullName: { contains: search } },
-        { email: { contains: search } },
-        { major: { contains: search } }
-      ];
+      andConditions.push({
+        OR: [
+          { fullName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { major: { contains: search, mode: 'insensitive' } }
+        ]
+      });
+    }
+
+    if (andConditions.length > 0) {
+      whereClause.AND = andConditions;
     }
 
     if (filterEdu) {
@@ -200,14 +257,18 @@ export const getApplicants = async (req: Request, res: Response) => {
     ]);
 
     const emails = applicants.map((app) => app.email).filter(Boolean);
+    const uniqueLowerEmails = Array.from(new Set(emails.map((e) => e.toLowerCase().trim())));
     const [portalUsers, liveCodingRows] = await Promise.all([
-      emails.length
+      uniqueLowerEmails.length
         ? prisma.portalUser.findMany({
-            where: { email: { in: emails } },
+            where: {
+              OR: uniqueLowerEmails.map((em) => ({ email: { equals: em, mode: 'insensitive' as const } }))
+            },
             select: {
               id: true,
               email: true,
               candidateCode: true,
+              companyId: true,
               companyName: true,
               assessmentId: true,
               assessmentIds: true,
@@ -230,15 +291,30 @@ export const getApplicants = async (req: Request, res: Response) => {
         : Promise.resolve([]),
       prisma.masterRecord.findMany({ where: { scope: 'live-coding-submissions' } })
     ]);
-    const portalCodes = portalUsers
-      .map((u) => u.candidateCode || u.id.slice(0, 8))
-      .filter(Boolean);
-    const scoreRows = portalCodes.length
-      ? await prisma.assessorScore.findMany({
-          where: { candidateCode: { in: portalCodes } },
-          orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
-        })
-      : [];
+    const portalCodes = Array.from(
+      new Set(
+        portalUsers
+          .flatMap((u) => [u.candidateCode, u.id, u.id.slice(0, 8)])
+          .filter((v): v is string => Boolean(v))
+      )
+    );
+    const [scoreRows, proctoringReviews] = await Promise.all([
+      portalCodes.length
+        ? prisma.assessorScore.findMany({
+            where: { candidateCode: { in: portalCodes } },
+            orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
+          })
+        : Promise.resolve([]),
+      portalCodes.length
+        ? prisma.proctoringReview.findMany({
+            where: { candidateCode: { in: portalCodes } }
+          })
+        : Promise.resolve([])
+    ]);
+    const reviewByCandidateEvent = new Map<string, (typeof proctoringReviews)[number]>();
+    for (const rev of proctoringReviews) {
+      reviewByCandidateEvent.set(`${rev.candidateCode}:${rev.eventId}`, rev);
+    }
     const scoreByCode = new Map<string, (typeof scoreRows)[number]>();
     for (const s of scoreRows) {
       if (!scoreByCode.has(s.candidateCode)) scoreByCode.set(s.candidateCode, s);
@@ -256,14 +332,20 @@ export const getApplicants = async (req: Request, res: Response) => {
         // ignore malformed record
       }
     }
-    const portalByEmail = new Map(portalUsers.map((user) => [user.email, user]));
+    const portalByEmail = new Map(portalUsers.map((user) => [user.email.toLowerCase().trim(), user]));
     const reviewMap = await loadAiReviewRecordsMap();
 
     const enrichedApplicants = applicants.map(app => {
-      const portal = portalByEmail.get(app.email);
+      const portal = portalByEmail.get(app.email.toLowerCase().trim());
       const codeKey = String(portal?.candidateCode || '').toUpperCase();
       const reviewRec = codeKey ? reviewMap.get(codeKey) : null;
-      const assessorScore = portal ? scoreByCode.get(portal.candidateCode || portal.id.slice(0, 8)) : null;
+      const candidateReviewKey = portal?.candidateCode || portal?.id || '';
+      const assessorScore = portal
+        ? scoreByCode.get(portal.candidateCode || '') ||
+          scoreByCode.get(portal.id) ||
+          scoreByCode.get(portal.id.slice(0, 8)) ||
+          null
+        : null;
       const liveCoding = portal ? liveCodingByUser.get(portal.id) : null;
       let barsAverage: number | null = null;
       let gpaScore: number | null = null;
@@ -291,16 +373,45 @@ export const getApplicants = async (req: Request, res: Response) => {
         const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
         return bTime - aTime;
       })[0];
-      let mergedFlags = app.proctorFlags;
-      if (attempt?.violations) {
-        try {
-          const existing = JSON.parse(app.proctorFlags || '[]');
-          const examFlags = JSON.parse(attempt.violations || '[]');
-          mergedFlags = JSON.stringify([...existing, ...examFlags]);
-        } catch {
-          mergedFlags = attempt.violations;
-        }
-      }
+
+      const examEvents = extractRawProctorEvents(attempt?.violations).map((ev, idx) => {
+        const eventId = `EXAM-${idx + 1}`;
+        const rev =
+          reviewByCandidateEvent.get(`${candidateReviewKey}:${eventId}`) ||
+          (portal?.id ? reviewByCandidateEvent.get(`${portal.id}:${eventId}`) : undefined);
+        const benign = isBenignProctorType(ev?.type);
+        return {
+          ...ev,
+          eventId,
+          source: 'exam',
+          reviewStatus: rev?.status || (benign ? 'info' : 'pending'),
+          assessorNotes: rev?.notes || ''
+        };
+      });
+      const interviewEvents = extractRawProctorEvents(app.proctorFlags).map((ev, idx) => {
+        const eventId = `INT-${idx + 1}`;
+        const rev =
+          reviewByCandidateEvent.get(`${candidateReviewKey}:${eventId}`) ||
+          (portal?.id ? reviewByCandidateEvent.get(`${portal.id}:${eventId}`) : undefined);
+        const benign = isBenignProctorType(ev?.type);
+        return {
+          ...ev,
+          eventId,
+          source: 'interview',
+          reviewStatus: rev?.status || (benign ? 'info' : 'pending'),
+          assessorNotes: rev?.notes || ''
+        };
+      });
+      const combinedEvents = [...examEvents, ...interviewEvents];
+      const mergedFlags = combinedEvents.length > 0 ? JSON.stringify(combinedEvents) : app.proctorFlags;
+      const nonBenignEvents = combinedEvents.filter((ev) => !isBenignProctorType(ev?.type));
+      const proctoringSummary = {
+        totalEvents: nonBenignEvents.length,
+        validCount: nonBenignEvents.filter((ev) => ev.reviewStatus === 'valid').length,
+        falsePositiveCount: nonBenignEvents.filter((ev) => ev.reviewStatus === 'false_positive').length,
+        pendingCount: nonBenignEvents.filter((ev) => ev.reviewStatus === 'pending').length
+      };
+
       let totalAnswered = 0;
       if (attempt?.answers) {
         try {
@@ -318,11 +429,13 @@ export const getApplicants = async (req: Request, res: Response) => {
       return {
         ...app,
         appliedPosition: portal?.assessmentTitle || app.job?.title || app.appliedPosition,
+        portalCompanyId: portal?.companyId || null,
         portalCompanyName: portal?.companyName || null,
         portalAssessmentId: portal?.assessmentId || null,
         portalAssessmentIds: portal?.assessmentIds || null,
         portalAssessmentTitle: portal?.assessmentTitle || null,
         proctorFlags: mergedFlags,
+        proctoringSummary,
         candidateCode: portal?.candidateCode || null,
         barsAverage,
         gpaScore,
@@ -460,23 +573,93 @@ export const updateApplicant = async (req: Request, res: Response) => {
     const id = req.params.id as string;
     const { fullName, phone, email, address, gender, education, university, major, gpa, placeOfBirth, dateOfBirth, appliedPosition, jobId } = req.body;
 
-    const applicant = await prisma.applicant.update({
-      where: { id },
-      data: {
-        fullName,
-        phone,
-        email,
-        address,
-        gender,
-        education,
-        university: university || null,
-        major: major || null,
-        gpa: gpa ? parseFloat(gpa) : null,
-        placeOfBirth,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-        appliedPosition,
-        jobId: jobId || null
+    const existingApplicant = await prisma.applicant.findUnique({ where: { id } });
+    if (!existingApplicant) {
+      return res.status(404).json({ error: 'Data pelamar tidak ditemukan' });
+    }
+
+    const nextEmail = email ? String(email).trim().toLowerCase() : existingApplicant.email;
+    const linkedPortal = await prisma.portalUser.findFirst({
+      where: {
+        role: 'peserta',
+        email: { equals: existingApplicant.email, mode: 'insensitive' }
       }
+    });
+
+    if (nextEmail.toLowerCase() !== existingApplicant.email.toLowerCase()) {
+      const emailConflict = await prisma.applicant.findFirst({
+        where: { id: { not: id }, email: { equals: nextEmail, mode: 'insensitive' } }
+      });
+      if (emailConflict) {
+        return res.status(409).json({ error: 'Email sudah digunakan oleh pelamar lain.' });
+      }
+      if (linkedPortal) {
+        const portalConflict = await prisma.portalUser.findFirst({
+          where: { id: { not: linkedPortal.id }, email: { equals: nextEmail, mode: 'insensitive' } }
+        });
+        if (portalConflict) {
+          return res.status(409).json({ error: 'Email sudah digunakan oleh akun portal lain.' });
+        }
+      }
+    }
+
+    const linkedJob = jobId
+      ? await prisma.job.findUnique({ where: { id: String(jobId) }, select: { id: true, code: true, title: true, tenantId: true } })
+      : null;
+
+    const applicant = await prisma.$transaction(async (tx) => {
+      const updatedApp = await tx.applicant.update({
+        where: { id },
+        data: {
+          fullName,
+          phone,
+          email: nextEmail,
+          address,
+          gender,
+          education,
+          university: university || null,
+          major: major || null,
+          gpa: gpa ? parseFloat(gpa) : null,
+          placeOfBirth,
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+          appliedPosition: linkedJob?.title || appliedPosition,
+          jobId: jobId || null
+        }
+      });
+
+      if (linkedPortal) {
+        const currentIds: string[] = (() => {
+          try {
+            const parsed = JSON.parse(linkedPortal.assessmentIds || '[]');
+            return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+          } catch {
+            return linkedPortal.assessmentId ? [linkedPortal.assessmentId] : [];
+          }
+        })();
+        if (linkedJob?.code && !currentIds.includes(linkedJob.code)) {
+          currentIds.unshift(linkedJob.code);
+        }
+        await tx.portalUser.update({
+          where: { id: linkedPortal.id },
+          data: {
+            name: fullName || linkedPortal.name,
+            email: nextEmail,
+            phone: phone !== undefined ? (phone || null) : linkedPortal.phone,
+            education: education || linkedPortal.education,
+            university: university !== undefined ? (university || null) : linkedPortal.university,
+            city: address !== undefined ? (address || null) : linkedPortal.city,
+            assessmentTitle: linkedJob?.title || appliedPosition || linkedPortal.assessmentTitle,
+            ...(linkedJob?.code
+              ? {
+                  assessmentId: linkedJob.code,
+                  assessmentIds: JSON.stringify(currentIds)
+                }
+              : {}),
+            ...(linkedJob?.tenantId ? { tenantId: linkedJob.tenantId } : {})
+          }
+        });
+      }
+      return updatedApp;
     });
 
     res.json({ message: "Data pelamar berhasil diperbarui", data: applicant });
@@ -788,34 +971,83 @@ export const getApplicantRanking = async (req: AuthRequest, res: Response) => {
   try {
     const jobId = (req.query.jobId as string) || null;
     const tenantId = resolveAdminTenantId(req);
+    const tenantEmails = await resolveTenantScopeEmails(tenantId);
+
+    const andConditions: any[] = [{ interviewScore: { not: null } }];
+    if (tenantId) {
+      andConditions.push({
+        OR: [
+          { job: { tenantId } },
+          ...(tenantEmails && tenantEmails.length > 0
+            ? tenantEmails.map((em) => ({ email: { equals: em, mode: 'insensitive' as const } }))
+            : [])
+        ]
+      });
+    }
+    if (jobId) {
+      andConditions.push({ jobId });
+    }
 
     const applicants = await prisma.applicant.findMany({
-      where: {
-        interviewScore: { not: null },
-        ...(tenantId ? { job: { tenantId } } : {}),
-        ...(jobId ? { jobId } : {})
-      },
+      where: { AND: andConditions },
       orderBy: { interviewScore: 'desc' },
       include: { job: { select: { title: true, interviewPassingScore: true } } },
       take: 100
     });
+
+    const emails = Array.from(new Set(applicants.map((a) => a.email.toLowerCase().trim()).filter(Boolean)));
+    const portalUsers = emails.length
+      ? await prisma.portalUser.findMany({
+          where: {
+            OR: emails.map((em) => ({ email: { equals: em, mode: 'insensitive' as const } }))
+          },
+          select: { id: true, email: true, candidateCode: true, assessmentTitle: true }
+        })
+      : [];
+    const portalByEmail = new Map(portalUsers.map((u) => [u.email.toLowerCase().trim(), u]));
+    const scoreKeys = Array.from(
+      new Set(
+        portalUsers.flatMap((u) => [u.candidateCode, u.id, u.id.slice(0, 8)]).filter((v): v is string => Boolean(v))
+      )
+    );
+    const scores = scoreKeys.length
+      ? await prisma.assessorScore.findMany({
+          where: { candidateCode: { in: scoreKeys } },
+          orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }]
+        })
+      : [];
+    const scoreByCode = new Map<string, (typeof scores)[number]>();
+    for (const s of scores) {
+      if (!scoreByCode.has(s.candidateCode)) scoreByCode.set(s.candidateCode, s);
+    }
 
     const rows = applicants.map((a: any) => {
       let skillMatrix = null;
       try { skillMatrix = a.interviewSkillMatrix ? JSON.parse(a.interviewSkillMatrix) : null; } catch { skillMatrix = null; }
       let phases = null;
       try { phases = a.interviewPhaseScores ? JSON.parse(a.interviewPhaseScores) : null; } catch { phases = null; }
+      const portal = portalByEmail.get(a.email.toLowerCase().trim());
+      const assessorScore = portal
+        ? scoreByCode.get(portal.candidateCode || '') ||
+          scoreByCode.get(portal.id) ||
+          scoreByCode.get(portal.id.slice(0, 8)) ||
+          null
+        : null;
       const compositeEvaluation = computeCompositeEvaluation(a.screeningScore, a.interviewScore, a.proctorFlags, a.interviewStatus);
       return {
         id: a.id,
+        candidateCode: portal?.candidateCode || null,
         fullName: a.fullName,
         email: a.email,
-        jobTitle: a.job?.title || a.appliedPosition || 'General',
+        jobTitle: portal?.assessmentTitle || a.job?.title || a.appliedPosition || 'General',
         passingScore: a.job?.interviewPassingScore ?? null,
         screeningScore: a.screeningScore,
         interviewScore: a.interviewScore,
         interviewStatus: a.interviewStatus,
         interviewResult: a.interviewResult,
+        assessorRecommendation: assessorScore?.recommendation || null,
+        lhaStatus: assessorScore?.status || null,
+        lhaNumber: assessorScore?.lhaNumber || null,
         interviewTranscript: a.interviewTranscript,
         skillMatrix,
         phases,

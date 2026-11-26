@@ -23,6 +23,8 @@ const verifyAssessorCandidateAccess = async (
       tenantId: true,
       companyId: true,
       companyName: true,
+      assessmentId: true,
+      assessmentIds: true,
       tenant: { select: { name: true } }
     }
   });

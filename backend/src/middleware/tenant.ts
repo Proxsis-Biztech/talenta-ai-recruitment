@@ -27,6 +27,9 @@ export interface ScopeIdentity {
   companyId?: string | null;
   companyName?: string | null;
   tenant?: { name?: string | null } | null;
+  assessmentId?: string | null;
+  assessmentIds?: string | null;
+  examAttempts?: Array<{ programCode?: string | null }> | null;
 }
 
 export interface ResolvedScopeContext {
@@ -34,7 +37,38 @@ export interface ResolvedScopeContext {
   companyId: string | null;
   companyName: string | null;
   normalizedCompany: string;
+  assignedProgramCodes: string[];
 }
+
+export const extractProgramCodes = (source: {
+  assessmentId?: string | null;
+  assessmentIds?: string | null;
+  examAttempts?: Array<{ programCode?: string | null }> | null;
+} | null | undefined): string[] => {
+  if (!source) return [];
+  const codes = new Set<string>();
+  const addCode = (val: unknown) => {
+    const clean = String(val || '').trim().toUpperCase();
+    if (clean) codes.add(clean);
+  };
+  if (source.assessmentId) addCode(source.assessmentId);
+  if (source.assessmentIds) {
+    try {
+      const parsed = JSON.parse(source.assessmentIds);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(addCode);
+      } else if (typeof parsed === 'string') {
+        parsed.split(',').forEach(addCode);
+      }
+    } catch {
+      String(source.assessmentIds).split(',').forEach(addCode);
+    }
+  }
+  if (Array.isArray(source.examAttempts)) {
+    source.examAttempts.forEach((a) => addCode(a?.programCode));
+  }
+  return Array.from(codes);
+};
 
 export const resolveAssessorScopeContext = async (
   portalUser: NonNullable<AuthRequest['portalUser']>,
@@ -51,15 +85,15 @@ export const resolveAssessorScopeContext = async (
     tenantId,
     companyId,
     companyName,
-    normalizedCompany: normalizeCompanyName(companyName)
+    normalizedCompany: normalizeCompanyName(companyName),
+    assignedProgramCodes: extractProgramCodes(portalUser)
   };
 };
 
-export const isCandidateInAssessorScope = (
+const matchesCompanyScope = (
   assessorCtx: ResolvedScopeContext,
-  candidate: ScopeIdentity | null | undefined
+  candidate: ScopeIdentity
 ): boolean => {
-  if (!candidate) return false;
   const candNormCompany = normalizeCompanyName(candidate.companyName || candidate.tenant?.name);
   const candCompanyId = candidate.companyId?.trim().toUpperCase() || null;
   const candTenantId = candidate.tenantId || null;
@@ -81,4 +115,21 @@ export const isCandidateInAssessorScope = (
     return false;
   }
   return !candTenantId && !candNormCompany && !candCompanyId;
+};
+
+export const isCandidateInAssessorScope = (
+  assessorCtx: ResolvedScopeContext,
+  candidate: ScopeIdentity | null | undefined
+): boolean => {
+  if (!candidate) return false;
+  if (!matchesCompanyScope(assessorCtx, candidate)) return false;
+
+  // When the assessor/trainer has specific assigned assessment programs, restrict candidates to those programs.
+  if (assessorCtx.assignedProgramCodes.length > 0) {
+    const candidatePrograms = extractProgramCodes(candidate);
+    if (candidatePrograms.length === 0) return false;
+    return candidatePrograms.some((code) => assessorCtx.assignedProgramCodes.includes(code));
+  }
+
+  return true;
 };

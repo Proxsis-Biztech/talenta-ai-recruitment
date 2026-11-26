@@ -574,7 +574,10 @@ export const getPortalDashboard = async (req: AuthRequest, res: Response) => {
     if (programCode) {
       const queue = await prisma.portalUser.findMany({
         where: {
-          assessmentId: programCode,
+          OR: [
+            { assessmentId: programCode },
+            { assessmentIds: { contains: programCode } }
+          ],
           role: 'peserta',
           status: 'Aktif',
           interviewStatus: { in: ['scheduled', 'waiting', 'called'] }
@@ -822,10 +825,15 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const headerTenantId = resolveAdminTenantId(req);
     const resolvedTenantId =
-      resolveAdminTenantId(req) ||
-      (await resolveTenantIdForCompanyName(req.body.companyName)) ||
-      (req.body.tenantId ? String(req.body.tenantId) : null);
+      req.user?.role === 'superadmin'
+        ? (await resolveTenantIdForCompanyName(req.body.companyName)) ||
+          (req.body.tenantId ? String(req.body.tenantId) : null) ||
+          headerTenantId
+        : headerTenantId ||
+          (await resolveTenantIdForCompanyName(req.body.companyName)) ||
+          (req.body.tenantId ? String(req.body.tenantId) : null);
 
     const user = await prisma.portalUser.create({
       data: {
@@ -975,12 +983,29 @@ export const updatePortalUser = async (req: AuthRequest, res: Response) => {
       data.interviewScheduledAt = rawDate ? new Date(rawDate) : null;
     }
     if (req.body.role && ['peserta', 'asesor'].includes(req.body.role)) data.role = req.body.role;
-    if (!tenantId && req.body.companyName !== undefined) {
+    if ((req.user?.role === 'superadmin' || !tenantId) && req.body.companyName !== undefined) {
       const nextTenantId = await resolveTenantIdForCompanyName(req.body.companyName ? String(req.body.companyName) : null);
       if (nextTenantId) data.tenantId = nextTenantId;
     }
     if (req.body.password) {
       data.password = await bcrypt.hash(passwordSchema.parse(req.body.password), 10);
+    }
+
+    if (data.email && String(data.email).toLowerCase() !== existing.email.toLowerCase() && existing.role === 'peserta') {
+      const newEmail = String(data.email);
+      const appConflict = await prisma.applicant.findFirst({
+        where: {
+          email: { equals: newEmail, mode: 'insensitive' },
+          NOT: { email: { equals: existing.email, mode: 'insensitive' } }
+        }
+      });
+      if (appConflict) {
+        return res.status(409).json({ error: 'Email sudah digunakan pada data pelamar lain.' });
+      }
+      await prisma.applicant.updateMany({
+        where: { email: { equals: existing.email, mode: 'insensitive' } },
+        data: { email: newEmail }
+      });
     }
 
     const user = await prisma.portalUser.update({ where: { id }, data, select: userSelect });

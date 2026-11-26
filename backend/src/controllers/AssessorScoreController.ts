@@ -104,6 +104,8 @@ const candidateCodesForTenant = async (req: AuthRequest, tenantId: string | null
         tenantId: true,
         companyId: true,
         companyName: true,
+        assessmentId: true,
+        assessmentIds: true,
         tenant: { select: { name: true } }
       }
     });
@@ -188,8 +190,10 @@ const syncCandidateFinalScores = async (params: {
         interviewCompletedAt: new Date()
       }
     });
+    const { ensureApplicantForPortalUser } = await import('../services/portalApplicantSync.js');
+    await ensureApplicantForPortalUser(candidateUser.id);
     await prisma.applicant.updateMany({
-      where: { email: candidateUser.email },
+      where: { email: { equals: candidateUser.email, mode: 'insensitive' } },
       data: {
         interviewScore: Math.round(params.compositeScore),
         interviewStatus: 'scored',

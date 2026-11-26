@@ -25,10 +25,13 @@ import { AdminCSVImportWizard } from './admin/AdminCSVImportWizard';
 import { AdminVerticalTimeline } from './admin/AdminVerticalTimeline';
 import { AdminMateriSoalHub } from './admin/AdminMateriSoalHub';
 import { AdminCompanyMatrix } from './admin/AdminCompanyMatrix';
+import AdminOrgStructure from './admin/AdminOrgStructure';
+import AdminLiveInterviewMonitor from './admin/AdminLiveInterviewMonitor';
 import AdminSecurityCard from './admin/AdminSecurityCard';
 import AdminFaqHelpdesk from './AdminFaqHelpdesk';
 import AdminLhaGovernanceView from './admin/AdminLhaGovernanceView';
 import { DEFAULT_ASSESSMENT_PROGRAMS } from '../services/assessmentCatalog';
+import { INITIAL_COMPANIES, loadCompanyDirectory, type CompanyItem } from '../services/companyDirectory';
 import Swal from 'sweetalert2';
 import { SuperadminLayout, type AdminMenuKey } from './SuperadminLayout';
 import {
@@ -242,12 +245,15 @@ export default function AdminDashboard() {
     const menu = new URLSearchParams(window.location.search).get('menu');
     if (menu === 'bank-soal') return 'materi';
     const allowed: AdminMenuKey[] = [
-      'dashboard', 'peserta', 'pipeline', 'jobs', 'ranking', 'lha-governance', 'proctoring', 'users',
+      'dashboard', 'peserta', 'org-structure', 'pipeline', 'jobs', 'ranking', 'lha-governance', 'proctoring', 'users',
       'ai-config', 'audit-logs', 'analytics', 'materi', 'perusahaan',
       'faq-helpdesk', 'chatbot-faq', 'helpdesk-internal', 'help'
     ];
     return menu && allowed.includes(menu as AdminMenuKey) ? (menu as AdminMenuKey) : 'dashboard';
   });
+  const [companyDirectory, setCompanyDirectory] = useState<CompanyItem[]>(INITIAL_COMPANIES);
+  const [programCatalogList, setProgramCatalogList] = useState<Array<{ id: string; code?: string | null; title: string }>>([]);
+  const [pipelineTab, setPipelineTab] = useState<'live' | 'kanban'>('live');
 
   useEffect(() => {
     if (activeMenu !== 'materi' && activeMenu !== 'bank-soal') {
@@ -337,11 +343,12 @@ export default function AdminDashboard() {
           headers: { Authorization: `Bearer ${token}` },
           params: { limit: 500 }
         }),
-        axios.get('/api/jobs', { headers: { Authorization: `Bearer ${token}` } }).catch(() => null)
+        axios.get('/api/admin/jobs', { headers: { Authorization: `Bearer ${token}` }, params: { limit: 200 } }).catch(() => null)
       ]);
       setAllApplicants(appRes.data.data || []);
       if (Array.isArray(jobsRes?.data?.data)) {
         setJobsCatalogCount(jobsRes.data.data.length);
+        setProgramCatalogList(jobsRes.data.data);
       }
     } catch (error) {
       console.error('Failed to fetch all applicants:', error);
@@ -355,6 +362,9 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     void fetchAllApplicants();
+    void loadCompanyDirectory().then((list) => {
+      if (list.length > 0) setCompanyDirectory(list);
+    });
   }, [fetchAllApplicants]);
 
   useEffect(() => {
@@ -451,7 +461,7 @@ export default function AdminDashboard() {
       });
       Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data pelamar berhasil diperbarui', timer: 2000, showConfirmButton: false });
       setEditingApplicant(null);
-      fetchApplicants();
+      await Promise.all([fetchApplicants(), fetchAllApplicants()]);
     } catch {
       Swal.fire({ icon: 'error', title: 'Gagal', text: 'Gagal memperbarui data pelamar' });
     } finally {
@@ -1055,6 +1065,12 @@ ${app.interviewResult ? `
       short: 'Peserta',
       dotColor: 'bg-blue-accent'
     },
+    'org-structure': {
+      title: 'Departemen & Kelas',
+      subtitle: 'Kelola hierarki departemen, kelas asesmen, penugasan trainer/asesor, dan anggota peserta',
+      short: 'Kelas & Org',
+      dotColor: 'bg-primary-navy'
+    },
     pipeline: {
       title: 'Live Interview Asesor',
       subtitle: 'Jadwal wawancara langsung, transkrip real-time, dan monitor ruang ujian',
@@ -1464,11 +1480,16 @@ ${app.interviewResult ? `
                     className="h-10 rounded-lg text-sm font-medium"
                   >
                     <option value="">Semua PT</option>
-                    <option value="Telkom">PT Telkom Indonesia Tbk</option>
-                    <option value="Mandiri">Bank Mandiri Tbk</option>
-                    <option value="CIMB">Bank CIMB Niaga Tbk</option>
-                    <option value="Astra">Astra International Tbk</option>
-                    <option value="Pertamina">Pertamina Hulu Energi</option>
+                    {Array.from(
+                      new Set([
+                        ...companyDirectory.map((c) => c.name),
+                        ...allApplicants.map((a) => getCompanyForApplicant(a)).filter((v) => v && v !== '-')
+                      ])
+                    ).map((ptName) => (
+                      <option key={ptName} value={ptName}>
+                        {ptName}
+                      </option>
+                    ))}
                   </Select>
                 </div>
 
@@ -1479,9 +1500,15 @@ ${app.interviewResult ? `
                     className="h-10 rounded-lg text-sm font-medium"
                   >
                     <option value="">Semua Program</option>
-                    {DEFAULT_ASSESSMENT_PROGRAMS.map((prog) => (
-                      <option key={prog.id} value={prog.title}>
-                        {prog.title}
+                    {Array.from(
+                      new Set([
+                        ...programCatalogList.map((p) => p.title),
+                        ...DEFAULT_ASSESSMENT_PROGRAMS.map((prog) => prog.title),
+                        ...allApplicants.map((a) => getProgramForApplicant(a)).filter((v) => v && v !== '-')
+                      ])
+                    ).map((progTitle) => (
+                      <option key={progTitle} value={progTitle}>
+                        {progTitle}
                       </option>
                     ))}
                   </Select>
@@ -1880,16 +1907,49 @@ ${app.interviewResult ? `
             )}
           </Card>
         </div>
-      ) : activeMenu === 'pipeline' ? (
+      ) : activeMenu === 'org-structure' ? (
             <div className="animate-fade-in">
-              <PipelineView 
-                applicants={allApplicants.length > 0 ? (allApplicants as any) : (applicants as any)}
-                onViewApplicant={(app: any) => setSelectedApplicant(app)}
-                onScoreInterview={handleScoreInterview}
-                onOpenDecision={(app: any) => openDecisionModal(app)}
-                onRefresh={fetchAllApplicants}
-                scoringLoading={scoringLoading}
-              />
+              <AdminOrgStructure />
+            </div>
+      ) : activeMenu === 'pipeline' ? (
+            <div className="animate-fade-in space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3.5 rounded-xl border border-border-slate">
+                <span className="text-sm font-semibold text-ink">
+                  Mode Pemantauan Wawancara &amp; Pipeline
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant={pipelineTab === 'live' ? 'primary' : 'outline'}
+                    size="sm"
+                    onClick={() => setPipelineTab('live')}
+                    className="text-xs flex items-center gap-1.5"
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    <span>Live Monitor &amp; Antrean Asesor</span>
+                  </Button>
+                  <Button
+                    variant={pipelineTab === 'kanban' ? 'primary' : 'outline'}
+                    size="sm"
+                    onClick={() => setPipelineTab('kanban')}
+                    className="text-xs flex items-center gap-1.5"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Pipeline AI &amp; Keputusan</span>
+                  </Button>
+                </div>
+              </div>
+              {pipelineTab === 'live' ? (
+                <AdminLiveInterviewMonitor />
+              ) : (
+                <PipelineView 
+                  applicants={allApplicants.length > 0 ? (allApplicants as any) : (applicants as any)}
+                  onViewApplicant={(app: any) => setSelectedApplicant(app)}
+                  onScoreInterview={handleScoreInterview}
+                  onOpenDecision={(app: any) => openDecisionModal(app)}
+                  onRefresh={fetchAllApplicants}
+                  scoringLoading={scoringLoading}
+                />
+              )}
             </div>
           ) : activeMenu === 'jobs' ? (
             <div className="animate-fade-in space-y-4">

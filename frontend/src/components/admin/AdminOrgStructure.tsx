@@ -28,8 +28,18 @@ interface ClassGroup {
   programCode: string | null;
   description: string | null;
   capacity: number | null;
+  ownerId?: string | null;
+  owner?: { id: string; name: string; email: string; specialization?: string | null } | null;
   memberCount: number;
   program?: { code: string; title: string } | null;
+}
+
+interface TrainerOption {
+  id: string;
+  name: string;
+  email: string;
+  companyName?: string | null;
+  specialization?: string | null;
 }
 
 interface Member {
@@ -57,6 +67,7 @@ export default function AdminOrgStructure() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [programs, setPrograms] = useState<Array<{ code: string; title: string }>>([]);
+  const [trainers, setTrainers] = useState<TrainerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
 
@@ -66,6 +77,7 @@ export default function AdminOrgStructure() {
   const [className, setClassName] = useState('');
   const [classProgram, setClassProgram] = useState('');
   const [classCapacity, setClassCapacity] = useState('');
+  const [classOwnerId, setClassOwnerId] = useState('');
 
   const [activeClass, setActiveClass] = useState<ClassGroup | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -80,13 +92,15 @@ export default function AdminOrgStructure() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [deptRes, classRes, jobRes] = await Promise.all([
+      const [deptRes, classRes, jobRes, trainerRes] = await Promise.all([
         axios.get('/api/admin/departments', { headers: authHeaders() }),
         axios.get('/api/admin/classes', { headers: authHeaders() }),
-        axios.get('/api/admin/jobs', { headers: authHeaders() })
+        axios.get('/api/admin/jobs', { headers: authHeaders() }),
+        axios.get('/api/admin/portal-users', { params: { role: 'asesor' }, headers: authHeaders() }).catch(() => ({ data: { data: [] } }))
       ]);
       setDepartments(deptRes.data?.data || []);
       setClasses(classRes.data?.data || []);
+      setTrainers(trainerRes.data?.data || []);
       const jobs = jobRes.data?.data || [];
       setPrograms(
         jobs
@@ -144,13 +158,15 @@ export default function AdminOrgStructure() {
         {
           name: className.trim(),
           programCode: classProgram || null,
-          capacity: classCapacity ? Number(classCapacity) : null
+          capacity: classCapacity ? Number(classCapacity) : null,
+          ownerId: classOwnerId || null
         },
         { headers: authHeaders() }
       );
       setClassName('');
       setClassCapacity('');
-      notify('ok', 'Kelas dibuat.');
+      setClassOwnerId('');
+      notify('ok', 'Kelas dibuat dan disinkronkan.');
       void loadAll();
     } catch (error) {
       notify('error', axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal membuat kelas.' : 'Gagal membuat kelas.');
@@ -205,6 +221,24 @@ export default function AdminOrgStructure() {
       notify('ok', 'Peserta ditambahkan ke kelas.');
     } catch (error) {
       notify('error', axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal menambah anggota.' : 'Gagal menambah anggota.');
+    }
+  };
+
+  const assignClassTrainer = async (classId: string, ownerId: string) => {
+    try {
+      const response = await axios.put(
+        `/api/admin/classes/${classId}`,
+        { ownerId: ownerId || null },
+        { headers: authHeaders() }
+      );
+      const updated = response.data?.data;
+      setClasses((prev) => prev.map((c) => (c.id === classId ? { ...c, ...updated } : c)));
+      if (activeClass?.id === classId && updated) {
+        setActiveClass((prev) => (prev ? { ...prev, ...updated } : prev));
+      }
+      notify('ok', 'Trainer / Asesor kelas diperbarui.');
+    } catch (error) {
+      notify('error', axios.isAxiosError(error) ? error.response?.data?.error || 'Gagal memperbarui trainer kelas.' : 'Gagal memperbarui trainer kelas.');
     }
   };
 
@@ -337,13 +371,21 @@ export default function AdminOrgStructure() {
                 <Layers className="w-4 h-4 text-primary-navy" />
                 Kelas Asesmen
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Input value={className} onChange={(event) => setClassName(event.target.value)} placeholder="Nama kelas" />
                 <Select value={classProgram} onChange={(event) => setClassProgram(event.target.value)}>
                   <option value="">Tanpa program</option>
                   {programs.map((program) => (
                     <option key={program.code} value={program.code}>
                       {program.code} — {program.title}
+                    </option>
+                  ))}
+                </Select>
+                <Select value={classOwnerId} onChange={(event) => setClassOwnerId(event.target.value)}>
+                  <option value="">Pilih Trainer / Asesor (opsional)</option>
+                  {trainers.map((trainer) => (
+                    <option key={trainer.id} value={trainer.id}>
+                      {trainer.name} {trainer.companyName ? `(${trainer.companyName})` : ''}
                     </option>
                   ))}
                 </Select>
@@ -387,6 +429,9 @@ export default function AdminOrgStructure() {
                         {group.program?.title || group.programCode || 'Tanpa program'} • {group.memberCount} anggota
                         {group.capacity ? ` / ${group.capacity}` : ''}
                       </p>
+                      <p className="text-[11px] text-primary-navy font-medium truncate mt-0.5">
+                        Trainer: {group.owner?.name || 'Belum ditugaskan'}
+                      </p>
                     </button>
                     <Badge variant="default" className="text-[10px]">
                       {group.memberCount} peserta
@@ -411,9 +456,26 @@ export default function AdminOrgStructure() {
               {activeClass ? `Anggota: ${activeClass.name}` : 'Pilih kelas'}
             </h3>
             {!activeClass ? (
-              <p className="text-xs text-slate-500">Pilih salah satu kelas untuk mengelola anggotanya.</p>
+              <p className="text-xs text-slate-500">Pilih salah satu kelas untuk mengelola trainer &amp; anggotanya.</p>
             ) : (
               <>
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-semibold text-slate-600">
+                    Trainer / Asesor Penanggung Jawab
+                  </label>
+                  <Select
+                    value={activeClass.ownerId || activeClass.owner?.id || ''}
+                    onChange={(event) => void assignClassTrainer(activeClass.id, event.target.value)}
+                    className="h-9 text-xs"
+                  >
+                    <option value="">Belum ada trainer</option>
+                    {trainers.map((trainer) => (
+                      <option key={trainer.id} value={trainer.id}>
+                        {trainer.name} {trainer.companyName ? `(${trainer.companyName})` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input

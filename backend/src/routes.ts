@@ -44,12 +44,14 @@ import {
   getAssessorCandidate,
   getAssessorCandidateProctoring,
   listAllAssessorProctoringEvents,
-  handleAssessorSessionAction
+  handleAssessorSessionAction,
+  listAdminLiveSessions,
+  adminManageLiveSession
 } from './controllers/AssessorCandidateController';
 import { getWaitingRoomStatus, completeAndCallNext, streamWaitingRoom } from './controllers/InterviewQueueController';
 import { getPortalMaterials } from './controllers/PortalMaterialController';
 import { getMasterScope, putMasterRecord, deleteMasterRecord } from './controllers/MasterDataController';
-import { listTenants } from './controllers/TenantController';
+import { listTenants, createOrSyncTenant } from './controllers/TenantController';
 import {
   getReportTemplate,
   saveReportTemplate,
@@ -232,6 +234,9 @@ router.post('/admin/access-codes', authenticateToken, createAccessCode);
 router.put('/admin/access-codes/:code', authenticateToken, updateAccessCode);
 
 router.get('/admin/tenants', authenticateToken, listTenants);
+router.post('/admin/tenants', authenticateToken, requireSuperadmin, createOrSyncTenant);
+router.get('/admin/live-sessions', authenticateToken, listAdminLiveSessions);
+router.post('/admin/live-sessions/:userId/action', authenticateToken, adminManageLiveSession);
 router.get('/admin/report-templates/:companyKey', authenticateToken, getReportTemplate);
 router.get('/admin/report-templates/:companyKey/preview-pdf', authenticateToken, previewReportTemplatePdf);
 router.get('/admin/applicants/:id/lha-pdf', authenticateToken, downloadApplicantLhaPdf);

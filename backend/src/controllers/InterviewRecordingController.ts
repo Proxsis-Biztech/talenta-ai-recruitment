@@ -188,6 +188,8 @@ export const listCandidateRecordings = async (req: AuthRequest, res: Response) =
         tenantId: true,
         companyId: true,
         companyName: true,
+        assessmentId: true,
+        assessmentIds: true,
         tenant: { select: { name: true } }
       }
     });
@@ -229,6 +231,8 @@ export const downloadRecording = async (req: AuthRequest, res: Response) => {
           tenantId: true,
           companyId: true,
           companyName: true,
+          assessmentId: true,
+          assessmentIds: true,
           tenant: { select: { name: true } }
         }
       });

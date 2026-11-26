@@ -211,6 +211,7 @@ export const completeAndCallNext = async (req: AuthRequest, res: Response) => {
           id: true,
           name: true,
           assessmentId: true,
+          assessmentIds: true,
           tenantId: true,
           companyId: true,
           companyName: true,
@@ -266,6 +267,8 @@ export const completeAndCallNext = async (req: AuthRequest, res: Response) => {
           tenantId: true,
           companyId: true,
           companyName: true,
+          assessmentId: true,
+          assessmentIds: true,
           tenant: { select: { name: true } }
         }
       });
@@ -290,6 +293,8 @@ export const completeAndCallNext = async (req: AuthRequest, res: Response) => {
           tenantId: true,
           companyId: true,
           companyName: true,
+          assessmentId: true,
+          assessmentIds: true,
           tenant: { select: { name: true } }
         }
       });

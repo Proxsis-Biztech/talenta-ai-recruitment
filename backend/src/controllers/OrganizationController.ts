@@ -158,6 +158,7 @@ export const listClassGroups = async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' },
       include: {
         program: { select: { code: true, title: true } },
+        owner: { select: { id: true, name: true, email: true, role: true, specialization: true } },
         _count: { select: { members: true } }
       }
     });
@@ -175,23 +176,41 @@ export const listClassGroups = async (req: AuthRequest, res: Response) => {
 
 export const createClassGroup = async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = tenantScope(req);
+    let tenantId = tenantScope(req);
     const name = String(req.body.name || '').trim();
     if (name.length < 2) return res.status(400).json({ error: 'Nama kelas minimal 2 karakter.' });
     const programCode = req.body.programCode ? String(req.body.programCode).toUpperCase() : null;
+    const ownerId = req.body.ownerId ? String(req.body.ownerId).trim() : null;
 
+    let programTenantId: string | null = null;
     if (programCode) {
-      const program = await prisma.job.findFirst({ where: { code: programCode } });
+      const program = await prisma.job.findFirst({ where: { code: programCode }, select: { id: true, tenantId: true } });
       if (!program) return res.status(404).json({ error: 'Program asesmen tidak ditemukan.' });
+      programTenantId = program.tenantId || null;
+    }
+
+    if (ownerId) {
+      const owner = await prisma.portalUser.findUnique({ where: { id: ownerId }, select: { id: true, role: true, tenantId: true } });
+      if (!owner || owner.role !== 'asesor') {
+        return res.status(400).json({ error: 'Trainer/Asesor penanggung jawab tidak valid.' });
+      }
+      if (!tenantId && !programTenantId && owner.tenantId) {
+        tenantId = owner.tenantId;
+      }
     }
 
     const group = await prisma.classGroup.create({
       data: {
         name,
-        tenantId,
+        tenantId: tenantId || programTenantId,
         programCode,
+        ownerId,
         description: req.body.description ? String(req.body.description) : null,
-        capacity: Number.isFinite(Number(req.body.capacity)) ? Number(req.body.capacity) : null
+        capacity: Number.isFinite(Number(req.body.capacity)) && Number(req.body.capacity) > 0 ? Number(req.body.capacity) : null
+      },
+      include: {
+        program: { select: { code: true, title: true } },
+        owner: { select: { id: true, name: true, email: true, role: true, specialization: true } }
       }
     });
     return res.status(201).json({ data: group });
@@ -214,10 +233,27 @@ export const updateClassGroup = async (req: AuthRequest, res: Response) => {
     const data: Record<string, unknown> = {};
     if (req.body.name !== undefined) data.name = String(req.body.name).trim();
     if (req.body.description !== undefined) data.description = req.body.description ? String(req.body.description) : null;
-    if (req.body.capacity !== undefined) data.capacity = Number.isFinite(Number(req.body.capacity)) ? Number(req.body.capacity) : null;
+    if (req.body.capacity !== undefined) data.capacity = Number.isFinite(Number(req.body.capacity)) && Number(req.body.capacity) > 0 ? Number(req.body.capacity) : null;
     if (req.body.programCode !== undefined) data.programCode = req.body.programCode ? String(req.body.programCode).toUpperCase() : null;
+    if (req.body.ownerId !== undefined) {
+      const nextOwnerId = req.body.ownerId ? String(req.body.ownerId).trim() : null;
+      if (nextOwnerId) {
+        const owner = await prisma.portalUser.findUnique({ where: { id: nextOwnerId }, select: { id: true, role: true } });
+        if (!owner || owner.role !== 'asesor') {
+          return res.status(400).json({ error: 'Trainer/Asesor penanggung jawab tidak valid.' });
+        }
+      }
+      data.ownerId = nextOwnerId;
+    }
 
-    const group = await prisma.classGroup.update({ where: { id }, data });
+    const group = await prisma.classGroup.update({
+      where: { id },
+      data,
+      include: {
+        program: { select: { code: true, title: true } },
+        owner: { select: { id: true, name: true, email: true, role: true, specialization: true } }
+      }
+    });
     return res.json({ data: group });
   } catch (error) {
     console.error('Update class group error:', error);
@@ -297,6 +333,7 @@ export const addClassMembers = async (req: AuthRequest, res: Response) => {
       skipDuplicates: true
     });
 
+    const { ensureApplicantForPortalUser } = await import('../services/portalApplicantSync.js');
     if (group.programCode) {
       for (const user of users) {
         const record = await prisma.portalUser.findUnique({ where: { id: user.id }, select: { assessmentIds: true } });
@@ -318,6 +355,7 @@ export const addClassMembers = async (req: AuthRequest, res: Response) => {
               assessmentTitle: group.program?.title || undefined
             }
           });
+          await ensureApplicantForPortalUser(user.id);
         }
       }
     }
@@ -414,11 +452,35 @@ export const assignUserClasses = async (req: AuthRequest, res: Response) => {
 export const listMyClasses = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.portalUser) return res.status(401).json({ error: 'Sesi tidak valid.' });
+    if (req.portalUser.role === 'asesor') {
+      const ownedClasses = await prisma.classGroup.findMany({
+        where: { ownerId: req.portalUser.id },
+        include: {
+          program: { select: { code: true, title: true } },
+          _count: { select: { members: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      return res.json({
+        data: ownedClasses.map((cls) => ({
+          id: cls.id,
+          name: cls.name,
+          programCode: cls.programCode,
+          programTitle: cls.program?.title || null,
+          memberCount: cls._count.members,
+          capacity: cls.capacity,
+          role: 'trainer'
+        }))
+      });
+    }
     const memberships = await prisma.classMember.findMany({
       where: { userId: req.portalUser.id },
       include: {
         class: {
-          include: { program: { select: { code: true, title: true } } }
+          include: {
+            program: { select: { code: true, title: true } },
+            owner: { select: { id: true, name: true, email: true, specialization: true } }
+          }
         }
       }
     });
@@ -427,7 +489,9 @@ export const listMyClasses = async (req: AuthRequest, res: Response) => {
         id: membership.class.id,
         name: membership.class.name,
         programCode: membership.class.programCode,
-        programTitle: membership.class.program?.title || null
+        programTitle: membership.class.program?.title || null,
+        trainerName: membership.class.owner?.name || null,
+        trainerEmail: membership.class.owner?.email || null
       }))
     });
   } catch (error) {

@@ -11,13 +11,16 @@ export async function ensureApplicantForPortalUser(userId: string) {
   const job = user.assessmentId
     ? await prisma.job.findFirst({ where: { code: user.assessmentId } })
     : null;
-  const existing = await prisma.applicant.findUnique({ where: { email: user.email } });
+  const existing = await prisma.applicant.findFirst({
+    where: { email: { equals: user.email, mode: 'insensitive' } }
+  });
 
   if (existing) {
     return prisma.applicant.update({
       where: { id: existing.id },
       data: {
         fullName: user.name,
+        email: user.email,
         phone: user.phone || existing.phone,
         education: user.education || existing.education,
         university: user.university || existing.university,

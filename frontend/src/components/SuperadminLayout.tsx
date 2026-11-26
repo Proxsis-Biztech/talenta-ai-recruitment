@@ -28,6 +28,7 @@ import {
   MessageSquare,
   Bot,
   Scale,
+  Layers,
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -36,6 +37,7 @@ import { Select } from './ui/Select';
 export type AdminMenuKey =
   | 'dashboard'
   | 'peserta'
+  | 'org-structure'
   | 'jobs'
   | 'materi'
   | 'bank-soal'
@@ -105,6 +107,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'PELAKSANAAN & EVALUASI',
     items: [
       { key: 'peserta', label: 'Peserta & Kandidat', icon: Users },
+      { key: 'org-structure', label: 'Departemen & Kelas', icon: Layers },
       { key: 'pipeline', label: 'Live Interview Asesor', icon: Video },
       { key: 'proctoring', label: 'Monitoring Proctoring', icon: ShieldAlert },
       { key: 'ranking', label: 'Hasil & Peringkat (LHA)', icon: BarChart3 },
