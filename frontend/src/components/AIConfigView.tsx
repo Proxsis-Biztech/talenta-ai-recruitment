@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { loadMasterScope, saveMasterRecord, deleteMasterRecord } from '../services/masterDataService';
+import { loadMasterScope, saveMasterRecord } from '../services/masterDataService';
 import Swal from 'sweetalert2';
 import { 
-  Cpu, Sliders, Volume2, ShieldCheck, Zap, Activity,
-  Save, RotateCcw, CheckCircle, Radio, Clock, AlertCircle, Check, X
+  Cpu, Volume2, ShieldCheck, Zap, Activity,
+  Save, CheckCircle, Radio, Clock, AlertCircle, Check, X
 } from 'lucide-react';
 import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
@@ -209,19 +209,6 @@ export default function AIConfigView() {
     }
   };
 
-  const handleReset = async () => {
-    setConfig(DEFAULT_CONFIG);
-    setSavedConfig(DEFAULT_CONFIG);
-    await deleteMasterRecord('ai-config', 'default').catch(() => undefined);
-    Swal.fire({
-      icon: 'info',
-      title: 'Reset ke Default',
-      text: 'Konfigurasi AI Engine dikembalikan ke parameter standar pabrik.',
-      timer: 1500,
-      showConfirmButton: false
-    });
-  };
-
   const voiceOptions = [
     { id: 'Kore', label: 'Kore (Default)', tone: 'Seimbang, Ramah & Alami', desc: 'Sangat cocok untuk wawancara eksplorasi talenta umum' },
     { id: 'Puck', label: 'Puck', tone: 'Empatik & Hangat', desc: 'Pendekatan suportif yang mereduksi ketegangan kandidat' },
@@ -411,118 +398,6 @@ export default function AIConfigView() {
           </div>
         </Card>
       </div>
-
-      {/* Composite Weights & Passing Threshold */}
-      <Card elevation="flat" className="p-5 border-slate-200 space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div>
-            <h3 className="text-sm font-heading font-bold text-ink tracking-tight flex items-center gap-2">
-              <Sliders className="w-4 h-4 text-primary-navy" />
-              3. Matriks Pembobotan Komposit Keputusan Rekrutmen
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5 font-sans">
-              Skor komposit dihitung otomatis oleh AI Recruitment Core berdasarkan bobot berikut.
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={handleReset}
-            leftIcon={<RotateCcw className="w-3 h-3" />}
-          >
-            Reset Default
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* CV ATS Weight */}
-          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 space-y-2">
-            <div className="flex justify-between items-center text-xs font-semibold text-[#475569]">
-              <span>Bobot ATS Resume (CV)</span>
-              <span className="font-mono font-semibold text-[#0F172A] text-base w-16 text-right tabular-nums whitespace-nowrap">{config.cvWeight}%</span>
-            </div>
-            <input
-              type="range"
-              min="10"
-              max="70"
-              value={config.cvWeight}
-              onChange={(e) => setConfig({ ...config, cvWeight: parseInt(e.target.value) })}
-              className="w-full accent-[#2563EB] cursor-pointer"
-            />
-            <p className="text-xs text-[#64748B]">
-              Evaluasi latar belakang pendidikan, kompetensi teknis, dan portofolio kerja.
-            </p>
-          </div>
-
-          {/* Voice Interview Weight */}
-          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 space-y-2">
-            <div className="flex justify-between items-center text-xs font-semibold text-[#475569]">
-              <span>Bobot Wawancara Suara AI</span>
-              <span className="font-mono font-semibold text-[#0F172A] text-base w-16 text-right tabular-nums whitespace-nowrap">{config.interviewWeight}%</span>
-            </div>
-            <input
-              type="range"
-              min="20"
-              max="80"
-              value={config.interviewWeight}
-              onChange={(e) => setConfig({ ...config, interviewWeight: parseInt(e.target.value) })}
-              className="w-full accent-[#2563EB] cursor-pointer"
-            />
-            <p className="text-xs text-[#64748B]">
-              Evaluasi artikulasi, ketajaman analisis, problem-solving, dan soft skill verbal.
-            </p>
-          </div>
-
-          {/* Proctoring Penalty Factor */}
-          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 space-y-2">
-            <div className="flex justify-between items-center text-xs font-semibold text-[#475569]">
-              <span>Faktor Penalti Integritas</span>
-              <span className="font-mono font-semibold text-[#DC2626] text-base w-16 text-right tabular-nums whitespace-nowrap">&minus;{config.integrityWeight}%</span>
-            </div>
-            <input
-              type="range"
-              min="5"
-              max="30"
-              value={config.integrityWeight}
-              onChange={(e) => setConfig({ ...config, integrityWeight: parseInt(e.target.value) })}
-              className="w-full accent-[#DC2626] cursor-pointer"
-            />
-            <p className="text-xs text-[#64748B]">
-              Pengurangan skor otomatis per insiden tab berpindah atau kehilangan fokus layar.
-            </p>
-          </div>
-        </div>
-
-        {/* Passing Threshold Slider & Total Composition */}
-        <div className="border-t border-[#E2E8F0] pt-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-[#0F172A]">
-                Passing Threshold Kelulusan (Rekomendasi Kerja)
-              </span>
-              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-mono font-semibold bg-[#F1F5F9] text-[#475569] tabular-nums">
-                Komposisi: {config.cvWeight} + {config.interviewWeight} &minus; {config.integrityWeight}
-              </span>
-            </div>
-            <div className="text-xs text-[#64748B]">
-              Kandidat dengan skor komposit di atas ambang ini berhak mendapatkan Surat Penawaran Kerja (Offer Letter).
-            </div>
-          </div>
-          <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
-            <input
-              type="range"
-              min="50"
-              max="90"
-              value={config.passingThreshold}
-              onChange={(e) => setConfig({ ...config, passingThreshold: parseInt(e.target.value) })}
-              className="w-48 accent-[#2563EB] cursor-pointer"
-            />
-            <span className="text-base font-semibold font-mono text-[#0F172A] w-16 text-right tabular-nums whitespace-nowrap">
-              {config.passingThreshold}/100
-            </span>
-          </div>
-        </div>
-      </Card>
 
       {/* 4. Kebijakan & Preset Pengawasan Proctoring AI (BRD Compliance) */}
       <Card elevation="flat" className="p-5 border-slate-200 space-y-5">
