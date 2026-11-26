@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { deductQuotaForExam } from '../services/billingQuotaService';
 import { getAiConfig } from '../services/aiConfigService';
+import { loadProgramCourseCodes, normalizeProgramCode } from '../services/programCourseService';
 import { type AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
@@ -212,13 +213,26 @@ const canAccessProgram = (
 };
 
 const loadProgram = async (programCode: string) => {
-  const code = programCode.trim().toUpperCase();
+  const code = normalizeProgramCode(programCode);
   const job = await prisma.job.findFirst({ where: { code } });
   if (!job) return null;
-  const questions = await prisma.programQuestion.findMany({
-    where: { programCode: code },
-    orderBy: { orderNo: 'asc' }
+
+  // A program may aggregate question banks from several course codes
+  // (e.g. psikotes + kompetensi). Load all of them, then renumber
+  // sequentially so answer keys stay unique across banks.
+  const courseCodes = await loadProgramCourseCodes(code);
+  const codeOrder = new Map(courseCodes.map((item, index) => [item, index]));
+  const rows = await prisma.programQuestion.findMany({
+    where: { programCode: { in: courseCodes } }
   });
+  const questions = rows
+    .sort((a, b) => {
+      const aOrder = codeOrder.get(normalizeProgramCode(a.programCode)) ?? courseCodes.length;
+      const bOrder = codeOrder.get(normalizeProgramCode(b.programCode)) ?? courseCodes.length;
+      return aOrder - bOrder || a.orderNo - b.orderNo;
+    })
+    .map((question, index) => ({ ...question, orderNo: index + 1 }));
+
   return { code, job, questions };
 };
 

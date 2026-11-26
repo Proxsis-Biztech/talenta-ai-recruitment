@@ -194,6 +194,7 @@ export default function PesertaAsesmenList() {
     title: string;
     durationMinutes?: number;
     passingScore?: number;
+    questionCount?: number;
     assessmentDate?: string | null;
     assessmentEndDate?: string | null;
   }>>([]);
@@ -569,7 +570,7 @@ export default function PesertaAsesmenList() {
             : 'Sesi Aktif • Siap Dimulai',
           badgeVariant: intDone ? 'teal' : catDone ? 'navy' : 'warning',
           duration: `${primaryServer?.durationMinutes || activeProg.durationMinutes} Menit`,
-          questions: `${activeProg.totalQuestions} Soal CAT`,
+          questions: `${typeof primaryServer?.questionCount === 'number' ? primaryServer.questionCount : activeProg.totalQuestions} Soal CAT`,
           passingScore: activeProg.passingScore,
           deadline: 'Hari ini, 23:59 WIB',
           progress: unifiedProgress,
@@ -606,7 +607,7 @@ export default function PesertaAsesmenList() {
               : 'Terdaftar • Siap Dimulai',
             badgeVariant: intDone ? 'teal' : catDone ? 'navy' : 'warning',
             duration: `${sp?.durationMinutes || catalogData?.durationMinutes || 90} Menit`,
-            questions: `${catalogData?.totalQuestions || 40} Soal CAT`,
+            questions: `${typeof sp?.questionCount === 'number' ? sp.questionCount : catalogData?.totalQuestions || 40} Soal CAT`,
             passingScore: catalogData?.passingScore || sp?.passingScore || 70,
             deadline: 'Periode Aktif 2026',
             progress: unifiedProgress,

@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import * as XLSX from 'xlsx';
 import { type AuthRequest } from '../middleware/auth';
 import { normalizeCompanyName, resolveAdminTenantId } from '../middleware/tenant';
+import { loadProgramCourseCodes, normalizeProgramCode } from '../services/programCourseService';
 
 const prisma = new PrismaClient();
 const CASE_DIR = path.join(__dirname, '../../uploads/case-files');
@@ -212,15 +213,33 @@ export const publishProgram = async (req: AuthRequest, res: Response) => {
         bankQuestions = [];
       }
     }
-    const programQuestions = bankQuestions.filter(
-      (question) => (question.programCode || programCode) === programCode
-    );
+    const courseCodes = await loadProgramCourseCodes(programCode);
+    const courseCodeSet = new Set(courseCodes);
+    const programQuestions = bankQuestions.filter((question) => {
+      const questionCode = normalizeProgramCode(question.programCode);
+      return !questionCode || questionCode === programCode || courseCodeSet.has(questionCode);
+    });
     if (programQuestions.length === 0) {
       return res.status(400).json({
         error: 'Bank soal masih kosong. Tambahkan soal asli sebelum mengaktifkan program asesmen.'
       });
     }
-    let questionCount = await replaceProgramQuestions(programCode, programQuestions);
+
+    // Store each question bank under its own course code so the exam can
+    // aggregate them without duplicating rows under the program code.
+    const questionsByCode = new Map<string, any[]>();
+    for (const question of programQuestions) {
+      const questionCode = normalizeProgramCode(question.programCode);
+      const targetCode = !questionCode || questionCode === programCode ? programCode : questionCode;
+      if (!courseCodeSet.has(targetCode)) continue;
+      const bucket = questionsByCode.get(targetCode) || [];
+      bucket.push(question);
+      questionsByCode.set(targetCode, bucket);
+    }
+    let questionCount = 0;
+    for (const [targetCode, questions] of questionsByCode) {
+      questionCount += await replaceProgramQuestions(targetCode, questions);
+    }
     if (questionCount === 0) {
       const templateQuestions = await prisma.programQuestion.findMany({
         where: { programCode: 'SE-402' },
