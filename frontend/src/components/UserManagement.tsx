@@ -49,10 +49,53 @@ import { AdminStatCard } from './admin/AdminStatCard';
 import {
   COMPANIES_CATALOG,
   getAllPrograms,
-  getProgramsByCompany,
   type AssessmentProgram
 } from '../services/assessmentCatalog';
+import { companyMatchesName } from '../services/companyDirectory';
 import type { PesertaUser, AsesorUser } from '../services/userRegistryService';
+
+const PROGRAM_LINKS_STORAGE_KEY = 'talenta_company_program_links_v1';
+const HIDDEN_CATALOG_STORAGE_KEY = 'talenta_hidden_catalog_programs_v1';
+
+const normalizeProgramLinksMap = (raw: unknown): Record<string, string[]> => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const normalized: Record<string, string[]> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (Array.isArray(value)) {
+      normalized[key] = Array.from(new Set(value.map((item) => String(item).trim().toUpperCase()).filter(Boolean)));
+    }
+  }
+  return normalized;
+};
+
+const resolveCompanyPrograms = (
+  companyId: string,
+  companies: Array<{ id: string; name: string }>,
+  programs: AssessmentProgram[],
+  programLinks: Record<string, string[]>,
+  hiddenCatalogCodes: string[]
+): AssessmentProgram[] => {
+  const company = companies.find((item) => item.id === companyId);
+  const linkedKeys = new Set((programLinks[companyId] || []).map((code) => code.toUpperCase()));
+  const hiddenSet = new Set(hiddenCatalogCodes.map((code) => code.toUpperCase()));
+  const matched: AssessmentProgram[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const prog of programs) {
+    const key = String(prog.id || '').trim().toUpperCase();
+    if (!key || seenKeys.has(key)) continue;
+    const isLinked = linkedKeys.has(key);
+    const matchesCompanyId = Boolean(prog.companyId && prog.companyId === companyId);
+    const matchesCompanyName = Boolean(
+      company?.name && prog.companyName && prog.companyName !== '-' && companyMatchesName(company.name, prog.companyName)
+    );
+    if (!isLinked && !matchesCompanyId && !matchesCompanyName) continue;
+    if (hiddenSet.has(key) && !isLinked) continue;
+    seenKeys.add(key);
+    matched.push(prog);
+  }
+  return matched;
+};
 
 interface Admin {
   id: string;
@@ -89,6 +132,23 @@ export default function UserManagement() {
   const [pesertaFormCompanyId, setPesertaFormCompanyId] = useState(COMPANIES_CATALOG[0].id);
   const [companyOptions, setCompanyOptions] = useState(COMPANIES_CATALOG);
   const [programOptions, setProgramOptions] = useState(getAllPrograms());
+  const [programLinks, setProgramLinks] = useState<Record<string, string[]>>(() => {
+    try {
+      const raw = localStorage.getItem(PROGRAM_LINKS_STORAGE_KEY);
+      return raw ? normalizeProgramLinksMap(JSON.parse(raw)) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [hiddenCatalogCodes, setHiddenCatalogCodes] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(HIDDEN_CATALOG_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.map((item) => String(item).toUpperCase()) : [];
+    } catch {
+      return [];
+    }
+  });
   const [pesertaFormAssessmentId, setPesertaFormAssessmentId] = useState('');
   const [pesertaFormAssessmentIds, setPesertaFormAssessmentIds] = useState<string[]>([]);
   const [pesertaFormGrade, setPesertaFormGrade] = useState<'Grade C (Junior)' | 'Grade B (Specialist / Mid)' | 'Grade A (Lead / Senior)'>('Grade B (Specialist / Mid)');
@@ -97,14 +157,31 @@ export default function UserManagement() {
 
   // Available programs for the selected company in Add Peserta modal
   const availableProgramsForModal = useMemo(() => {
-    const base = getProgramsByCompany(pesertaFormCompanyId);
-    const company = companyOptions.find((item) => item.id === pesertaFormCompanyId);
-    const extra = programOptions.filter(
-      (program) =>
-        program.companyName === company?.name && !base.some((item) => item.id === program.id)
+    const matched = resolveCompanyPrograms(
+      pesertaFormCompanyId,
+      companyOptions,
+      programOptions,
+      programLinks,
+      hiddenCatalogCodes
     );
-    return [...base, ...extra];
-  }, [pesertaFormCompanyId, companyOptions, programOptions]);
+    if (!editingPesertaId || pesertaFormAssessmentIds.length === 0) return matched;
+    const pool = [...matched];
+    for (const assignedId of pesertaFormAssessmentIds) {
+      if (!pool.some((p) => p.id.toUpperCase() === assignedId.toUpperCase())) {
+        const found = programOptions.find((p) => p.id.toUpperCase() === assignedId.toUpperCase());
+        if (found) pool.push(found);
+      }
+    }
+    return pool;
+  }, [
+    pesertaFormCompanyId,
+    companyOptions,
+    programOptions,
+    programLinks,
+    hiddenCatalogCodes,
+    editingPesertaId,
+    pesertaFormAssessmentIds
+  ]);
 
   // Set default assessment when company changes in modal (preserve valid existing selections on edit)
   useEffect(() => {
@@ -117,7 +194,7 @@ export default function UserManagement() {
         }
         const first = availableProgramsForModal[0];
         setPesertaFormAssessmentId(first.id);
-        setPesertaFormGrade(first.gradeLevel);
+        setPesertaFormGrade(first.gradeLevel || 'Grade B (Specialist / Mid)');
         return [first.id];
       });
     } else {
@@ -195,23 +272,23 @@ export default function UserManagement() {
   const [asesorFormError, setAsesorFormError] = useState('');
 
   const availableProgramsForAsesorModal = useMemo(() => {
-    const base = getProgramsByCompany(asesorFormCompanyId);
-    const company = companyOptions.find((item) => item.id === asesorFormCompanyId);
-    const extra = programOptions.filter(
-      (program) =>
-        program.companyName === company?.name && !base.some((item) => item.id === program.id)
+    const companyMatched = resolveCompanyPrograms(
+      asesorFormCompanyId,
+      companyOptions,
+      programOptions,
+      programLinks,
+      hiddenCatalogCodes
     );
-    const companyMatched = [...base, ...extra];
     const pool = companyMatched.length > 0 ? [...companyMatched] : [...programOptions];
     // Ensure all currently assigned programs remain visible for editing
     for (const assignedId of asesorFormPrograms) {
-      if (!pool.some((p) => p.id === assignedId)) {
-        const match = programOptions.find((p) => p.id === assignedId);
+      if (!pool.some((p) => p.id.toUpperCase() === assignedId.toUpperCase())) {
+        const match = programOptions.find((p) => p.id.toUpperCase() === assignedId.toUpperCase());
         if (match) pool.push(match);
       }
     }
     return pool;
-  }, [asesorFormCompanyId, companyOptions, programOptions, asesorFormPrograms]);
+  }, [asesorFormCompanyId, companyOptions, programOptions, programLinks, hiddenCatalogCodes, asesorFormPrograms]);
 
   const loadAsesor = useCallback(async () => {
     const parseProgramIds = (rawIds: unknown, fallbackId?: unknown): string[] => {
@@ -308,50 +385,78 @@ export default function UserManagement() {
       loadMasterScope<any>('company'),
       token
         ? axios.get('/api/admin/jobs', {
-            params: { limit: 100 },
+            params: { limit: 200 },
             headers: { Authorization: `Bearer ${token}` }
           })
         : Promise.resolve({ data: { data: [] } })
     ]).then(([companyResult, jobResult]) => {
       if (cancelled) return;
-      const mergedCompanies = [...COMPANIES_CATALOG];
+      let nextCompanies = [...COMPANIES_CATALOG];
       if (companyResult.status === 'fulfilled') {
-        const matrix = Array.isArray(companyResult.value)
-          ? companyResult.value
-          : companyResult.value?.matrix;
-        if (Array.isArray(matrix)) {
-          for (const item of matrix) {
-            if (item?.id && !mergedCompanies.some((company) => company.id === item.id)) {
-              mergedCompanies.push({
-                id: item.id,
-                name: item.name || item.id,
-                industry: item.industry || '-',
-                logoCode: item.logoCode || item.name?.slice(0, 3)?.toUpperCase() || 'PT',
-                location: item.location || '-'
-              } as any);
-            }
+        const scopeData = companyResult.value;
+        const matrix = Array.isArray(scopeData) ? scopeData : scopeData?.matrix;
+        if (Array.isArray(matrix) && matrix.length > 0) {
+          nextCompanies = matrix
+            .filter((item: any) => item?.id)
+            .map((item: any) => ({
+              id: item.id,
+              name: item.name || item.id,
+              industry: item.industry || '-',
+              logoCode: item.logoCode || item.name?.slice(0, 3)?.toUpperCase() || 'PT',
+              location: item.location || '-'
+            })) as any;
+        }
+        if (scopeData?.programLinks && typeof scopeData.programLinks === 'object') {
+          const normalizedLinks = normalizeProgramLinksMap(scopeData.programLinks);
+          setProgramLinks(normalizedLinks);
+          try {
+            localStorage.setItem(PROGRAM_LINKS_STORAGE_KEY, JSON.stringify(normalizedLinks));
+          } catch {
+            // ignore storage errors
+          }
+        }
+        if (Array.isArray(scopeData?.hiddenCatalogPrograms)) {
+          const normalizedHidden = scopeData.hiddenCatalogPrograms.map((s: unknown) => String(s).toUpperCase());
+          setHiddenCatalogCodes(normalizedHidden);
+          try {
+            localStorage.setItem(HIDDEN_CATALOG_STORAGE_KEY, JSON.stringify(normalizedHidden));
+          } catch {
+            // ignore storage errors
           }
         }
       }
-      setCompanyOptions(mergedCompanies);
+      setCompanyOptions(nextCompanies);
 
       const mergedPrograms = getAllPrograms();
       if (jobResult.status === 'fulfilled') {
         for (const job of jobResult.value.data?.data || []) {
-          if (!job.code) continue;
-          if (!mergedPrograms.some((program) => program.id === job.code)) {
+          const programId = String(job.code || job.id || '').trim();
+          if (!programId) continue;
+          const parentheticalPt = String(job.title || '').match(/\(([^)]+)\)\s*$/)?.[1] || '';
+          const jobCompanyName = job.companyName || job.tenant?.name || parentheticalPt || '-';
+          const jobCompanyId = job.tenant?.code || '';
+          const existingIdx = mergedPrograms.findIndex(
+            (program) => program.id.toUpperCase() === programId.toUpperCase()
+          );
+          if (existingIdx < 0) {
             mergedPrograms.push({
-              id: job.code,
+              id: programId,
               title: job.title,
-              companyName: job.title.includes('(')
-                ? job.title.split('(').slice(-1)[0].replace(')', '').trim()
-                : '-',
+              companyId: jobCompanyId,
+              companyName: jobCompanyName,
               category: 'Program Kustom',
+              gradeLevel: 'Grade B (Specialist / Mid)',
               description: job.description || '',
               durationMinutes: job.interviewDuration || 90,
               passingScore: job.interviewPassingScore || 70,
               totalQuestions: 0
             } as any);
+          } else if (jobCompanyName !== '-' && (!mergedPrograms[existingIdx].companyName || mergedPrograms[existingIdx].companyName === '-')) {
+            mergedPrograms[existingIdx] = {
+              ...mergedPrograms[existingIdx],
+              companyName: jobCompanyName,
+              ...(jobCompanyId ? { companyId: jobCompanyId } : {})
+            };
           }
         }
       }
@@ -394,7 +499,13 @@ export default function UserManagement() {
     setPesertaFormPhone('');
     const defaultCompanyId = companyOptions[0]?.id || COMPANIES_CATALOG[0].id;
     setPesertaFormCompanyId(defaultCompanyId);
-    const defaultPrograms = getProgramsByCompany(defaultCompanyId);
+    const defaultPrograms = resolveCompanyPrograms(
+      defaultCompanyId,
+      companyOptions,
+      programOptions,
+      programLinks,
+      hiddenCatalogCodes
+    );
     if (defaultPrograms.length > 0) {
       setPesertaFormAssessmentId(defaultPrograms[0].id);
       setPesertaFormAssessmentIds([defaultPrograms[0].id]);
@@ -637,7 +748,13 @@ export default function UserManagement() {
     const defaultCompanyId = companyOptions[0]?.id || COMPANIES_CATALOG[0].id;
     setAsesorFormCompanyId(defaultCompanyId);
     setAsesorFormStatus('Aktif');
-    const defaultProgs = getProgramsByCompany(defaultCompanyId);
+    const defaultProgs = resolveCompanyPrograms(
+      defaultCompanyId,
+      companyOptions,
+      programOptions,
+      programLinks,
+      hiddenCatalogCodes
+    );
     setAsesorFormPrograms(defaultProgs.length > 0 ? [defaultProgs[0].id] : []);
     setAsesorFormError('');
     setShowAddAsesorModal(true);
@@ -2006,7 +2123,13 @@ export default function UserManagement() {
                     const nextCompanyId = e.target.value;
                     setAsesorFormCompanyId(nextCompanyId);
                     if (!editingAsesorId) {
-                      const nextProgs = getProgramsByCompany(nextCompanyId);
+                      const nextProgs = resolveCompanyPrograms(
+                        nextCompanyId,
+                        companyOptions,
+                        programOptions,
+                        programLinks,
+                        hiddenCatalogCodes
+                      );
                       setAsesorFormPrograms(nextProgs.length > 0 ? [nextProgs[0].id] : []);
                     }
                   }}

@@ -103,6 +103,7 @@ export const getAdminJobs = async (req: AuthRequest, res: Response) => {
     const [jobs, total] = await Promise.all([
       prisma.job.findMany({
         where: whereClause,
+        include: { tenant: { select: { id: true, code: true, name: true } } },
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' }

@@ -475,7 +475,12 @@ export function AdminBankSoalEditor({
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [autoFocusCardId, setAutoFocusCardId] = useState<string | null>(null);
   const [questionSearch, setQuestionSearch] = useState('');
+  const [questionTypeFilter, setQuestionTypeFilter] = useState<'ALL' | BankQuestion['type']>('ALL');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  useEffect(() => {
+    setQuestionTypeFilter('ALL');
+  }, [selectedProgramCode, activeCategory]);
 
   // Success Notification banner
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -539,6 +544,7 @@ export function AdminBankSoalEditor({
     });
     setActiveCategory(targetCategory);
     setQuestionSearch('');
+    setQuestionTypeFilter((curr) => (curr !== 'ALL' && curr !== type ? 'ALL' : curr));
     setActiveCardId(newQ.id);
     setAutoFocusCardId(newQ.id);
     setHasUnsavedChanges(true);
@@ -804,16 +810,20 @@ export function AdminBankSoalEditor({
 
   const filtered = useMemo(() => {
     const byCat = programQuestionsForSelected.filter((q) => getQuestionCategory(q) === activeCategory);
+    const byType =
+      questionTypeFilter === 'ALL'
+        ? byCat
+        : byCat.filter((q) => q.type === questionTypeFilter);
     const qLower = questionSearch.trim().toLowerCase();
-    if (!qLower) return byCat;
-    return byCat.filter(
+    if (!qLower) return byType;
+    return byType.filter(
       (q) =>
         q.text.toLowerCase().includes(qLower) ||
         q.competency.toLowerCase().includes(qLower) ||
         q.id.toLowerCase().includes(qLower) ||
         q.type.toLowerCase().includes(qLower)
     );
-  }, [programQuestionsForSelected, activeCategory, questionSearch]);
+  }, [programQuestionsForSelected, activeCategory, questionTypeFilter, questionSearch]);
 
   const typeCounts = useMemo(
     () =>
@@ -1405,7 +1415,12 @@ export function AdminBankSoalEditor({
                       type="button"
                       variant="primary"
                       size="sm"
-                      onClick={() => handleCreateNew('Pilihan Ganda', activeCategory)}
+                      onClick={() =>
+                        handleCreateNew(
+                          questionTypeFilter !== 'ALL' ? questionTypeFilter : 'Pilihan Ganda',
+                          activeCategory
+                        )
+                      }
                       leftIcon={<Plus className="w-4 h-4" />}
                       className="h-9 px-3.5 rounded-lg text-xs font-semibold"
                     >
@@ -1451,8 +1466,8 @@ export function AdminBankSoalEditor({
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-1.5 flex-1 sm:flex-initial justify-end min-w-0">
-                    <div className="relative flex-1 sm:w-64 min-w-[160px]">
+                  <div className="flex flex-wrap items-center gap-1.5 flex-1 sm:flex-initial justify-end min-w-0">
+                    <div className="relative flex-1 sm:w-56 min-w-[150px]">
                       <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
@@ -1461,6 +1476,26 @@ export function AdminBankSoalEditor({
                         placeholder="Cari soal..."
                         className="w-full h-9 pl-8 pr-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#1E3A8A] text-xs outline-none"
                       />
+                    </div>
+
+                    <div className="w-44 sm:w-48 shrink-0">
+                      <Select
+                        value={questionTypeFilter}
+                        onChange={(e) => {
+                          setQuestionTypeFilter(e.target.value as 'ALL' | BankQuestion['type']);
+                          setActiveCardId(null);
+                        }}
+                        leftIcon={<Filter className="w-3.5 h-3.5" />}
+                        aria-label="Filter tipe soal"
+                        className="h-9 text-xs font-medium rounded-lg bg-slate-50"
+                      >
+                        <option value="ALL">Semua Tipe ({categoryCounts[activeCategory]})</option>
+                        {typeCounts.map((item) => (
+                          <option key={item.type} value={item.type}>
+                            {item.type} ({item.count})
+                          </option>
+                        ))}
+                      </Select>
                     </div>
 
                     <button
@@ -1588,22 +1623,42 @@ export function AdminBankSoalEditor({
               {filtered.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center space-y-3">
                   <p className="text-sm font-semibold text-slate-700">
-                    {questionSearch.trim()
-                      ? 'Tidak ada soal yang cocok dengan pencarian.'
+                    {questionSearch.trim() || questionTypeFilter !== 'ALL'
+                      ? `Tidak ada soal${questionTypeFilter !== 'ALL' ? ` bertipe ${questionTypeFilter}` : ''} yang cocok dengan filter.`
                       : `Belum ada soal pada kategori ${activeCategory === 'psikotes' ? 'Psikotes' : 'Uji Kompetensi'}.`}
                   </p>
                   <p className="text-xs text-slate-500">
-                    Mulai susun soal satu per satu dengan cepat seperti Google Forms, atau impor dari file Excel.
+                    {questionSearch.trim() || questionTypeFilter !== 'ALL'
+                      ? 'Ubah filter tipe soal atau kata kunci pencarian, atau buat soal baru untuk tipe ini.'
+                      : 'Mulai susun soal satu per satu dengan cepat seperti Google Forms, atau impor dari file Excel.'}
                   </p>
-                  <div className="pt-1">
+                  <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
+                    {(questionSearch.trim() || questionTypeFilter !== 'ALL') && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setQuestionSearch('');
+                          setQuestionTypeFilter('ALL');
+                        }}
+                      >
+                        Reset Filter
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="primary"
                       size="sm"
-                      onClick={() => handleCreateNew('Pilihan Ganda', activeCategory)}
+                      onClick={() =>
+                        handleCreateNew(
+                          questionTypeFilter !== 'ALL' ? questionTypeFilter : 'Pilihan Ganda',
+                          activeCategory
+                        )
+                      }
                       leftIcon={<Plus className="w-4 h-4" />}
                     >
-                      Buat Soal Pertama
+                      {questionTypeFilter !== 'ALL' ? `Buat Soal ${questionTypeFilter}` : 'Buat Soal Pertama'}
                     </Button>
                   </div>
                 </div>
@@ -1640,7 +1695,12 @@ export function AdminBankSoalEditor({
               {filtered.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => handleCreateNew('Pilihan Ganda', activeCategory)}
+                  onClick={() =>
+                    handleCreateNew(
+                      questionTypeFilter !== 'ALL' ? questionTypeFilter : 'Pilihan Ganda',
+                      activeCategory
+                    )
+                  }
                   className="w-full py-3.5 rounded-xl border-2 border-dashed border-slate-300 hover:border-[#1E3A8A] bg-white/70 hover:bg-white text-xs sm:text-sm font-semibold text-slate-600 hover:text-[#1E3A8A] flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
@@ -1653,7 +1713,12 @@ export function AdminBankSoalEditor({
             <aside className="hidden lg:flex flex-col gap-1.5 sticky top-24 bg-white rounded-xl border border-slate-200 shadow-sm p-1.5 shrink-0">
               <button
                 type="button"
-                onClick={() => handleCreateNew('Pilihan Ganda', activeCategory)}
+                onClick={() =>
+                  handleCreateNew(
+                    questionTypeFilter !== 'ALL' ? questionTypeFilter : 'Pilihan Ganda',
+                    activeCategory
+                  )
+                }
                 title="Tambah Soal Baru"
                 className="w-10 h-10 rounded-lg bg-[#1E3A8A] hover:bg-[#172554] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
               >
