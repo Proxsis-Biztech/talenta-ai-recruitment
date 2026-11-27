@@ -150,29 +150,55 @@ export const saveAiProviders = async (req: AuthRequest, res: Response) => {
   }
 };
 
+const buildModelsEndpoint = (baseUrl: string): string => {
+  const clean = baseUrl.replace(/\/+$/, '');
+  if (/\/models$/i.test(clean)) return clean;
+  if (/\/chat\/completions$/i.test(clean)) return clean.replace(/\/chat\/completions$/i, '/models');
+  return `${clean}/models`;
+};
+
+const extractModels = (payload: unknown): string[] => {
+  const json = payload as Record<string, unknown> | null;
+  const list = Array.isArray(json?.data)
+    ? (json?.data as unknown[])
+    : Array.isArray(json?.models)
+      ? (json?.models as unknown[])
+      : [];
+  return Array.from(
+    new Set(
+      list
+        .map((item) =>
+          typeof item === 'string'
+            ? item
+            : String((item as Record<string, unknown>)?.id ?? (item as Record<string, unknown>)?.name ?? '')
+        )
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
+};
+
 export const testAiProvider = async (req: AuthRequest, res: Response) => {
   try {
     const providerId = String(req.body.providerId || '').trim();
     const config = await readConfig();
     const providers = normalizeProviders(config);
     const provider = providers.find((item: any) => item.id === providerId);
-    if (!provider) {
-      return res.status(404).json({ error: 'Provider tidak ditemukan.' });
-    }
 
-    if (provider.builtin) {
+    if (provider?.builtin) {
       const hasKey = Boolean(process.env.GEMINI_API_KEY);
       return res.json({
         reachable: hasKey,
+        models: provider.models,
         message: hasKey
           ? 'Provider Gemini aktif menggunakan API key environment (hardcoded).'
           : 'GEMINI_API_KEY belum tersedia di environment.'
       });
     }
 
-    const baseUrl = String(req.body.baseUrl || provider.baseUrl || '').trim();
+    const baseUrl = String(req.body.baseUrl || provider?.baseUrl || '').trim();
     let apiKey = String(req.body.apiKey || '').trim();
-    if (isMasked(apiKey) || !apiKey) apiKey = provider.apiKey;
+    if (isMasked(apiKey) || !apiKey) apiKey = provider?.apiKey || '';
     if (!baseUrl) {
       return res.status(400).json({ error: 'Base URL provider wajib diisi.' });
     }
@@ -180,17 +206,29 @@ export const testAiProvider = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'API key provider wajib diisi.' });
     }
 
-    const endpoint = `${baseUrl.replace(/\/+$/, '')}/models`;
+    const endpoint = buildModelsEndpoint(baseUrl);
     const response = await fetch(endpoint, {
       headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(8000)
+      signal: AbortSignal.timeout(10000)
     });
 
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      return res.json({
+        reachable: false,
+        models: [],
+        message: `Provider menolak koneksi (HTTP ${response.status}). ${detail.slice(0, 160)}`.trim()
+      });
+    }
+
+    const payload = await response.json().catch(() => null);
+    const models = extractModels(payload);
     return res.json({
-      reachable: response.ok,
-      message: response.ok
-        ? `Provider merespons (HTTP ${response.status}).`
-        : `Provider menolak koneksi (HTTP ${response.status}). Periksa base URL dan API key.`
+      reachable: true,
+      models,
+      message: models.length > 0
+        ? `Koneksi berhasil, ${models.length} model ditemukan.`
+        : 'Koneksi berhasil, tetapi daftar model tidak terbaca dari endpoint /models.'
     });
   } catch (error) {
     return res.json({

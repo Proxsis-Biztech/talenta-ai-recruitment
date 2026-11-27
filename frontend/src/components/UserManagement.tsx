@@ -73,6 +73,7 @@ export default function UserManagement() {
   // ──────────────────────────────────────────────
   const [pesertaList, setPesertaList] = useState<PesertaUser[]>([]);
   const [importing, setImporting] = useState(false);
+  const [sendingActivationId, setSendingActivationId] = useState<string | null>(null);
   const importInputRef = React.useRef<HTMLInputElement>(null);
   const [pesertaSearch, setPesertaSearch] = useState('');
   const [pesertaCompanyFilter, setPesertaCompanyFilter] = useState('ALL');
@@ -480,18 +481,22 @@ export default function UserManagement() {
       setPesertaFormError('');
 
       const fallbackActivationUrl = createdResponse?.activationUrl;
+      const mailInfo = createdResponse?.mail as { delivered?: boolean; provider?: string; error?: string } | null | undefined;
+      const safeUser = String(pesertaFormUsername).replace(/[<>&"]/g, '');
+      const safeName = String(pesertaFormName).replace(/[<>&"]/g, '');
+      const safeMailErr = mailInfo?.error ? String(mailInfo.error).replace(/[<>&"]/g, '') : '';
       Swal.fire({
-        icon: 'success',
+        icon: !editingPesertaId && mailInfo?.error && fallbackActivationUrl ? 'warning' : 'success',
         title: editingPesertaId ? 'Data Peserta Diperbarui!' : 'Akun Peserta Diterbitkan!',
         html: editingPesertaId
-          ? `Data <b>${pesertaFormName}</b> berhasil diperbarui.`
+          ? `Data <b>${safeName}</b> berhasil diperbarui.`
           : fallbackActivationUrl
             ? `<div class="text-left text-xs space-y-2">
-                 <p>Akun <b>${pesertaFormUsername}</b> dibuat dengan aktivasi mandiri.</p>
-                 <p class="text-slate-500">Salin tautan aktivasi berikut untuk dibagikan kepada peserta:</p>
+                 <p>Akun <b>${safeUser}</b> dibuat dengan aktivasi mandiri.</p>
+                 ${safeMailErr ? `<p class="text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">Pengiriman email gagal (${safeMailErr}). Salin tautan manual di bawah:</p>` : '<p class="text-slate-500">Salin tautan aktivasi berikut untuk dibagikan kepada peserta:</p>'}
                  <input readonly value="${fallbackActivationUrl}" onclick="this.select()" class="w-full px-2.5 py-1.5 border rounded font-mono text-[11px] bg-slate-50" />
                </div>`
-            : `Akun <b>${pesertaFormUsername}</b> berhasil didaftarkan dan tautan aktivasi akun telah dikirim ke email peserta.`,
+            : `Akun <b>${safeUser}</b> berhasil didaftarkan dan tautan aktivasi akun telah dikirim ke email peserta${mailInfo?.provider ? ` (${mailInfo.provider.toUpperCase()})` : ''}.`,
         ...(fallbackActivationUrl ? { showConfirmButton: true, confirmButtonText: 'Tutup' } : { timer: 2800, showConfirmButton: false })
       });
     } catch (err: any) {
@@ -552,6 +557,7 @@ export default function UserManagement() {
   };
 
   const handleSendActivationLink = async (peserta: any) => {
+    setSendingActivationId(peserta.id);
     try {
       const token = localStorage.getItem('adminToken');
       const res = await axios.post(
@@ -560,16 +566,25 @@ export default function UserManagement() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const fallbackUrl = res.data?.activationUrl;
+      const mailInfo = res.data?.mail as { delivered?: boolean; provider?: string; error?: string } | undefined;
+      const targetEmail = String(peserta.email || peserta.username || '').replace(/[<>&"]/g, '');
+      const safeErr = mailInfo?.error ? String(mailInfo.error).replace(/[<>&"]/g, '') : '';
       Swal.fire({
-        icon: 'success',
-        title: 'Tautan Aktivasi Diproses',
+        icon: mailInfo?.error && fallbackUrl ? 'warning' : 'success',
+        title: mailInfo?.delivered ? 'Email Aktivasi Terkirim' : 'Tautan Aktivasi Diproses',
         html: fallbackUrl
           ? `<div class="text-left text-xs space-y-2">
-               <p>Tautan aktivasi baru diterbitkan untuk <b>${peserta.email || peserta.username}</b>.</p>
-               <p class="text-slate-500">Salin tautan aktivasi (berlaku 7 hari):</p>
+               <p>Tautan aktivasi baru diterbitkan untuk <b>${targetEmail}</b>.</p>
+               ${
+                 safeErr
+                   ? `<p class="text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">Email tidak terkirim via ${String(mailInfo?.provider || 'mail').toUpperCase()}: ${safeErr}</p>`
+                   : mailInfo?.provider === 'username_only'
+                     ? '<p class="text-slate-500">Akun ini tidak memiliki alamat email asli. Bagikan tautan aktivasi secara manual:</p>'
+                     : '<p class="text-slate-500">Provider email belum aktif (mode outbox). Salin tautan aktivasi (berlaku 7 hari):</p>'
+               }
                <input readonly value="${fallbackUrl}" onclick="this.select()" class="w-full px-2.5 py-1.5 border rounded font-mono text-[11px] bg-slate-50" />
              </div>`
-          : `Tautan aktivasi mandiri telah dikirim ke email <b>${peserta.email || peserta.username}</b> (berlaku 7 hari).`,
+          : `Tautan aktivasi mandiri telah dikirim ke email <b>${targetEmail}</b>${mailInfo?.provider ? ` via ${mailInfo.provider.toUpperCase()}` : ''} (berlaku 7 hari).`,
         ...(fallbackUrl ? { showConfirmButton: true, confirmButtonText: 'Tutup' } : { timer: 2800, showConfirmButton: false })
       });
     } catch (err: any) {
@@ -578,6 +593,8 @@ export default function UserManagement() {
         title: 'Gagal Mengirim Aktivasi',
         text: err?.response?.data?.error || 'Tidak dapat mengirim tautan aktivasi saat ini.'
       });
+    } finally {
+      setSendingActivationId(null);
     }
   };
 
@@ -1051,10 +1068,11 @@ export default function UserManagement() {
                   variant="secondary"
                   size="xs"
                   onClick={() => handleSendActivationLink(p)}
+                  disabled={sendingActivationId === p.id}
                   leftIcon={<Mail className="w-3 h-3" />}
                   title="Kirim Tautan Aktivasi ke Email"
                 >
-                  Aktivasi
+                  {sendingActivationId === p.id ? 'Mengirim...' : 'Aktivasi'}
                 </Button>
                 <Button
                   variant="secondary"

@@ -39,6 +39,7 @@ import {
 } from './controllers/AssessorScoreController';
 import { getProctoringReviews, upsertProctoringReview } from './controllers/ProctoringController';
 import { listAiProviders, saveAiProviders, testAiProvider } from './controllers/AiProviderController';
+import { getMailConfigHandler, saveMailConfigHandler, testMailConfigHandler } from './controllers/MailConfigController';
 import { getInterviewQuestions } from './controllers/InterviewController';
 import {
   listAssessorCandidates,
@@ -353,6 +354,9 @@ router.get('/admin/ai/ping', authenticateToken, requireSuperadmin, testAiLatency
 router.get('/admin/ai/providers', authenticateToken, requireSuperadmin, listAiProviders);
 router.put('/admin/ai/providers', authenticateToken, requireSuperadmin, saveAiProviders);
 router.post('/admin/ai/providers/test', authenticateToken, requireSuperadmin, testAiProvider);
+router.get('/admin/mail-config', authenticateToken, requireSuperadmin, getMailConfigHandler);
+router.put('/admin/mail-config', authenticateToken, requireSuperadmin, saveMailConfigHandler);
+router.post('/admin/mail-config/test', authenticateToken, requireSuperadmin, testMailConfigHandler);
 
 // Multi-Tenant Billing & Credit Management (BRD BR-BL-11, BR-BL-12, BR-MT-01)
 router.get('/admin/billing/overview', authenticateToken, getBillingOverview);

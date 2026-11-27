@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { type AuthRequest } from '../middleware/auth';
 import { resolveAdminTenantId } from '../middleware/tenant';
-import { sendInvitationEmail } from '../services/mailService';
+import { resolveAppBaseUrl, sendInvitationEmail } from '../services/mailService';
 
 const prisma = new PrismaClient();
 
@@ -362,7 +362,7 @@ export const addClassMembers = async (req: AuthRequest, res: Response) => {
 
     let invited = 0;
     if (req.body.notify !== false && group.program) {
-      const baseUrl = (process.env.APP_BASE_URL || process.env.FRONTEND_URL || (process.env.CORS_ORIGIN || '').split(',')[0] || 'http://localhost:5173').replace(/\/$/, '');
+      const baseUrl = await resolveAppBaseUrl();
       const details = await prisma.portalUser.findMany({
         where: { id: { in: users.map((user) => user.id) } },
         select: { email: true, name: true }

@@ -4,13 +4,62 @@ import { loadMasterScope, saveMasterRecord } from '../services/masterDataService
 import Swal from 'sweetalert2';
 import { 
   Cpu, Volume2, ShieldCheck, Zap, Activity,
-  Save, CheckCircle, Radio, Clock, AlertCircle, Check, X
+  Save, CheckCircle, Radio, Clock, AlertCircle, Check, X, Mail, Send
 } from 'lucide-react';
 import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
+
+export type MailProviderType = 'auto' | 'smtp' | 'resend' | 'webhook' | 'outbox';
+
+export interface MailConfigurationState {
+  provider: MailProviderType;
+  fromName: string;
+  fromEmail: string;
+  replyTo: string;
+  appBaseUrl: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUser: string;
+  smtpPass: string;
+  hasSmtpPass: boolean;
+  smtpPassMasked: string;
+  resendApiKey: string;
+  hasResendApiKey: boolean;
+  resendApiKeyMasked: string;
+  webhookUrl: string;
+}
+
+export interface MailEffectiveState {
+  activeProvider: 'smtp' | 'resend' | 'webhook' | 'outbox';
+  effectiveFrom: string;
+  effectiveAppBaseUrl: string;
+  envSmtpConfigured: boolean;
+  envResendConfigured: boolean;
+  envWebhookConfigured: boolean;
+}
+
+const DEFAULT_MAIL_CONFIG_STATE: MailConfigurationState = {
+  provider: 'auto',
+  fromName: 'Talenta+',
+  fromEmail: '',
+  replyTo: '',
+  appBaseUrl: '',
+  smtpHost: '',
+  smtpPort: 465,
+  smtpSecure: true,
+  smtpUser: '',
+  smtpPass: '',
+  hasSmtpPass: false,
+  smtpPassMasked: '',
+  resendApiKey: '',
+  hasResendApiKey: false,
+  resendApiKeyMasked: '',
+  webhookUrl: ''
+};
 
 export interface AiProviderRow {
   id: string;
@@ -82,6 +131,12 @@ export default function AIConfigView() {
   const [savedConfig, setSavedConfig] = useState<AIConfiguration>(DEFAULT_CONFIG);
   const [providers, setProviders] = useState<AiProviderRow[]>([]);
   const [savedProviders, setSavedProviders] = useState<AiProviderRow[]>([]);
+  const [mailConfig, setMailConfig] = useState<MailConfigurationState>(DEFAULT_MAIL_CONFIG_STATE);
+  const [savedMailConfig, setSavedMailConfig] = useState<MailConfigurationState>(DEFAULT_MAIL_CONFIG_STATE);
+  const [mailEffective, setMailEffective] = useState<MailEffectiveState | null>(null);
+  const [mailTestTo, setMailTestTo] = useState('');
+  const [mailTestLoading, setMailTestLoading] = useState(false);
+  const [mailTestResult, setMailTestResult] = useState<{ reachable: boolean; message: string } | null>(null);
   const [providerTests, setProviderTests] = useState<Record<string, { reachable: boolean; message: string }>>({});
   const [providerTesting, setProviderTesting] = useState<string | null>(null);
 
@@ -110,19 +165,39 @@ export default function AIConfigView() {
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) return;
+    const headers = { Authorization: `Bearer ${token}` };
     axios
-      .get('/api/admin/ai/providers', { headers: { Authorization: `Bearer ${token}` } })
+      .get('/api/admin/ai/providers', { headers })
       .then((res) => {
         const rows = (res.data?.data || []) as AiProviderRow[];
         setProviders(rows.map((row) => ({ ...row, apiKey: '' })));
         setSavedProviders(rows.map((row) => ({ ...row, apiKey: '' })));
       })
       .catch(() => undefined);
+    axios
+      .get('/api/admin/mail-config', { headers })
+      .then((res) => {
+        if (res.data?.config) {
+          const loaded: MailConfigurationState = {
+            ...DEFAULT_MAIL_CONFIG_STATE,
+            ...res.data.config,
+            smtpPass: '',
+            resendApiKey: ''
+          };
+          setMailConfig(loaded);
+          setSavedMailConfig(loaded);
+        }
+        if (res.data?.effective) {
+          setMailEffective(res.data.effective);
+        }
+      })
+      .catch(() => undefined);
   }, []);
 
   const hasUnsavedChanges =
     JSON.stringify(config) !== JSON.stringify(savedConfig) ||
-    JSON.stringify(providers) !== JSON.stringify(savedProviders);
+    JSON.stringify(providers) !== JSON.stringify(savedProviders) ||
+    JSON.stringify(mailConfig) !== JSON.stringify(savedMailConfig);
 
   const providerModelGroups = providers
     .filter((provider) => provider.builtin || (provider.baseUrl.trim() && (provider.hasApiKey || provider.apiKey.trim())))
@@ -259,6 +334,12 @@ export default function AIConfigView() {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      const discoveredModels = Array.isArray(res.data?.models)
+        ? res.data.models.map((model: unknown) => String(model)).filter(Boolean)
+        : [];
+      if (discoveredModels.length > 0) {
+        updateProvider(provider.id, { models: discoveredModels });
+      }
       setProviderTests((prev) => ({
         ...prev,
         [provider.id]: {
@@ -293,6 +374,37 @@ export default function AIConfigView() {
       }));
       setProviders(savedRows);
       setSavedProviders(savedRows);
+      const mailResponse = await axios.put(
+        '/api/admin/mail-config',
+        {
+          provider: mailConfig.provider,
+          fromName: mailConfig.fromName,
+          fromEmail: mailConfig.fromEmail,
+          replyTo: mailConfig.replyTo,
+          appBaseUrl: mailConfig.appBaseUrl,
+          smtpHost: mailConfig.smtpHost,
+          smtpPort: Number(mailConfig.smtpPort) || 465,
+          smtpSecure: mailConfig.smtpSecure,
+          smtpUser: mailConfig.smtpUser,
+          ...(mailConfig.smtpPass ? { smtpPass: mailConfig.smtpPass } : {}),
+          ...(mailConfig.resendApiKey ? { resendApiKey: mailConfig.resendApiKey } : {}),
+          webhookUrl: mailConfig.webhookUrl
+        },
+        { headers }
+      );
+      if (mailResponse.data?.config) {
+        const savedMail: MailConfigurationState = {
+          ...DEFAULT_MAIL_CONFIG_STATE,
+          ...mailResponse.data.config,
+          smtpPass: '',
+          resendApiKey: ''
+        };
+        setMailConfig(savedMail);
+        setSavedMailConfig(savedMail);
+      }
+      if (mailResponse.data?.effective) {
+        setMailEffective(mailResponse.data.effective);
+      }
       await Promise.all([
         axios.put(
           '/api/admin/faq-knowledge/mcp-config',
@@ -308,18 +420,69 @@ export default function AIConfigView() {
       Swal.fire({
         icon: 'success',
         title: 'Konfigurasi Tersimpan',
-        text: 'Parameter AI Engine berhasil diperbarui untuk seluruh proses seleksi.',
+        text: 'Parameter AI Engine & pengiriman email berhasil diperbarui.',
         timer: 2000,
         showConfirmButton: false
       });
-    } catch (err) {
+    } catch (err: any) {
+      const apiMsg = axios.isAxiosError(err) ? err.response?.data?.error : undefined;
       Swal.fire({
         icon: 'error',
         title: 'Gagal Menyimpan',
-        text: 'Tidak dapat menyimpan preferensi konfigurasi.'
+        text: apiMsg || 'Tidak dapat menyimpan preferensi konfigurasi.'
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const applyZohoPreset = (preset: 'zoho-global' | 'zoho-pro' | 'zeptomail') => {
+    setMailTestResult(null);
+    if (preset === 'zoho-global') {
+      setMailConfig((prev) => ({ ...prev, provider: 'smtp', smtpHost: 'smtp.zoho.com', smtpPort: 465, smtpSecure: true }));
+    } else if (preset === 'zoho-pro') {
+      setMailConfig((prev) => ({ ...prev, provider: 'smtp', smtpHost: 'smtppro.zoho.com', smtpPort: 465, smtpSecure: true }));
+    } else {
+      setMailConfig((prev) => ({ ...prev, provider: 'smtp', smtpHost: 'smtp.zeptomail.com', smtpPort: 587, smtpSecure: false }));
+    }
+  };
+
+  const handleTestMail = async () => {
+    setMailTestLoading(true);
+    setMailTestResult(null);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await axios.post(
+        '/api/admin/mail-config/test',
+        {
+          provider: mailConfig.provider,
+          fromName: mailConfig.fromName,
+          fromEmail: mailConfig.fromEmail,
+          replyTo: mailConfig.replyTo,
+          appBaseUrl: mailConfig.appBaseUrl,
+          smtpHost: mailConfig.smtpHost,
+          smtpPort: Number(mailConfig.smtpPort) || 465,
+          smtpSecure: mailConfig.smtpSecure,
+          smtpUser: mailConfig.smtpUser,
+          ...(mailConfig.smtpPass ? { smtpPass: mailConfig.smtpPass } : {}),
+          ...(mailConfig.resendApiKey ? { resendApiKey: mailConfig.resendApiKey } : {}),
+          webhookUrl: mailConfig.webhookUrl,
+          ...(mailTestTo.trim() ? { testTo: mailTestTo.trim() } : {})
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setMailTestResult({
+        reachable: Boolean(res.data?.reachable),
+        message: res.data?.message || 'Uji koneksi email selesai.'
+      });
+    } catch (err: any) {
+      const apiMsg = axios.isAxiosError(err) ? err.response?.data?.error : undefined;
+      setMailTestResult({
+        reachable: false,
+        message: apiMsg || 'Gagal menguji koneksi pengiriman email.'
+      });
+    } finally {
+      setMailTestLoading(false);
     }
   };
 
@@ -937,6 +1100,227 @@ export default function AIConfigView() {
           muncul sebagai pilihan model di bagian 1 setelah base URL dan API key tersimpan.
         </p>
       </Card>
+
+      {/* Email & SMTP (Zoho / Transactional Mail) Configuration */}
+      <Card className="p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-soft-blue text-primary-navy">
+              <Mail className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">
+                Pengiriman Email &amp; SMTP Perusahaan (Zoho / Transaksional)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Atur pengirim email aktivasi peserta, undangan asesmen, dan reset kata sandi ke inbox Gmail kandidat.
+              </p>
+            </div>
+          </div>
+          <Badge
+            variant={mailEffective?.activeProvider && mailEffective.activeProvider !== 'outbox' ? 'teal' : 'warning'}
+            format="soft"
+          >
+            {mailEffective?.activeProvider && mailEffective.activeProvider !== 'outbox'
+              ? `Aktif: ${mailEffective.activeProvider.toUpperCase()}`
+              : 'Mode Outbox Lokal'}
+          </Badge>
+        </div>
+
+        {/* Zoho Quick Presets */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-slate-600">Preset Cepat Zoho:</span>
+          <Button type="button" variant="outline" size="xs" onClick={() => applyZohoPreset('zoho-global')}>
+            Zoho Mail (smtp.zoho.com)
+          </Button>
+          <Button type="button" variant="outline" size="xs" onClick={() => applyZohoPreset('zoho-pro')}>
+            Zoho Custom Domain (smtppro.zoho.com)
+          </Button>
+          <Button type="button" variant="outline" size="xs" onClick={() => applyZohoPreset('zeptomail')}>
+            Zoho ZeptoMail (smtp.zeptomail.com)
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Select
+            label="Mode Pengiriman Email"
+            value={mailConfig.provider}
+            onChange={(e) => setMailConfig((prev) => ({ ...prev, provider: e.target.value as MailProviderType }))}
+          >
+            <option value="auto">Otomatis (Gunakan SMTP / Resend / Env)</option>
+            <option value="smtp">SMTP Perusahaan (Zoho Mail / Custom SMTP)</option>
+            <option value="resend">Resend HTTP API</option>
+            <option value="webhook">Webhook Relay (n8n / Make / Custom)</option>
+            <option value="outbox">Nonaktif (Simpan Outbox Lokal saja)</option>
+          </Select>
+
+          <Input
+            label="Base URL Aplikasi (untuk Tautan Aktivasi)"
+            value={mailConfig.appBaseUrl}
+            onChange={(e) => setMailConfig((prev) => ({ ...prev, appBaseUrl: e.target.value }))}
+            placeholder="https://talenta-recruitment.connect.proxsis.com"
+            hint={
+              mailEffective?.effectiveAppBaseUrl
+                ? `Efektif saat ini: ${mailEffective.effectiveAppBaseUrl}`
+                : undefined
+            }
+          />
+
+          <Input
+            label="Nama Pengirim (From Name)"
+            value={mailConfig.fromName}
+            onChange={(e) => setMailConfig((prev) => ({ ...prev, fromName: e.target.value }))}
+            placeholder="Talenta+ Recruitment"
+          />
+
+          <Input
+            label="Email Pengirim (Harus cocok dengan akun Zoho)"
+            type="email"
+            value={mailConfig.fromEmail}
+            onChange={(e) => setMailConfig((prev) => ({ ...prev, fromEmail: e.target.value }))}
+            placeholder="recruitment@perusahaan.com"
+          />
+
+          <Input
+            label="Reply-To (Opsional)"
+            type="email"
+            value={mailConfig.replyTo}
+            onChange={(e) => setMailConfig((prev) => ({ ...prev, replyTo: e.target.value }))}
+            placeholder="helpdesk@perusahaan.com"
+          />
+        </div>
+
+        {(mailConfig.provider === 'smtp' || mailConfig.provider === 'auto') && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold text-slate-900">Kredensial SMTP Zoho / Mail Server</span>
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={mailConfig.smtpSecure}
+                  onChange={(e) => setMailConfig((prev) => ({ ...prev, smtpSecure: e.target.checked }))}
+                  className="w-4 h-4 text-primary-navy rounded border-slate-300"
+                />
+                <span className="text-xs font-semibold text-slate-700">Gunakan SSL/TLS (Port 465)</span>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <Input
+                  label="SMTP Host"
+                  value={mailConfig.smtpHost}
+                  onChange={(e) => setMailConfig((prev) => ({ ...prev, smtpHost: e.target.value }))}
+                  placeholder="smtp.zoho.com atau smtppro.zoho.com"
+                />
+              </div>
+              <Input
+                label="SMTP Port"
+                type="number"
+                value={String(mailConfig.smtpPort)}
+                onChange={(e) => {
+                  const port = Number(e.target.value) || 465;
+                  setMailConfig((prev) => ({
+                    ...prev,
+                    smtpPort: port,
+                    smtpSecure: port === 465 ? true : port === 587 ? false : prev.smtpSecure
+                  }));
+                }}
+                placeholder="465"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="SMTP Username (Email Zoho)"
+                value={mailConfig.smtpUser}
+                onChange={(e) => setMailConfig((prev) => ({ ...prev, smtpUser: e.target.value }))}
+                placeholder="recruitment@perusahaan.com"
+              />
+              <Input
+                label={
+                  mailConfig.hasSmtpPass
+                    ? `SMTP App Password (Tersimpan: ${mailConfig.smtpPassMasked})`
+                    : 'SMTP Password / Zoho App-Specific Password'
+                }
+                type="password"
+                value={mailConfig.smtpPass}
+                onChange={(e) => setMailConfig((prev) => ({ ...prev, smtpPass: e.target.value }))}
+                placeholder={
+                  mailConfig.hasSmtpPass
+                    ? 'Kosongkan jika tidak ingin mengubah password'
+                    : 'Masukkan App-Specific Password Zoho'
+                }
+              />
+            </div>
+
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Tips Zoho ke Gmail: aktifkan akses SMTP di Zoho Mail, gunakan <b>App-Specific Password</b> jika 2FA aktif,
+              dan pastikan DNS domain pengirim memiliki record <b>SPF</b>, <b>DKIM</b>, dan <b>DMARC</b> yang valid.
+            </p>
+          </div>
+        )}
+
+        {mailConfig.provider === 'resend' && (
+          <Input
+            label={
+              mailConfig.hasResendApiKey
+                ? `Resend API Key (Tersimpan: ${mailConfig.resendApiKeyMasked})`
+                : 'Resend API Key'
+            }
+            type="password"
+            value={mailConfig.resendApiKey}
+            onChange={(e) => setMailConfig((prev) => ({ ...prev, resendApiKey: e.target.value }))}
+            placeholder={mailConfig.hasResendApiKey ? 'Kosongkan jika tidak ingin mengubah key' : 're_xxxxxxxxx'}
+          />
+        )}
+
+        {mailConfig.provider === 'webhook' && (
+          <Input
+            label="Mail Webhook URL"
+            value={mailConfig.webhookUrl}
+            onChange={(e) => setMailConfig((prev) => ({ ...prev, webhookUrl: e.target.value }))}
+            placeholder="https://n8n.perusahaan.com/webhook/send-email"
+          />
+        )}
+
+        {/* Test Connection & Send Test Email */}
+        <div className="pt-2 border-t border-slate-100 flex flex-col md:flex-row md:items-end justify-between gap-3">
+          <div className="flex-1 max-w-md">
+            <Input
+              label="Uji Kirim Email ke Alamat Gmail/Peserta (Opsional)"
+              type="email"
+              value={mailTestTo}
+              onChange={(e) => setMailTestTo(e.target.value)}
+              placeholder="nama@gmail.com (kosongkan untuk cek koneksi SMTP saja)"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => void handleTestMail()}
+            disabled={mailTestLoading}
+            className="h-10 whitespace-nowrap"
+          >
+            <Send className="w-4 h-4 mr-1.5" />
+            {mailTestLoading ? 'Menguji...' : mailTestTo.trim() ? 'Kirim Email Tes' : 'Uji Koneksi Email'}
+          </Button>
+        </div>
+
+        {mailTestResult && (
+          <div
+            className={`rounded-lg px-3.5 py-2.5 text-xs font-medium border ${
+              mailTestResult.reachable
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-700'
+            }`}
+          >
+            {mailTestResult.message}
+          </div>
+        )}
+      </Card>
+
       {/* Sticky Save Bar on Unsaved Changes */}
       {hasUnsavedChanges && (
         <div className="sticky bottom-4 z-30 bg-white border border-[#E2E8F0] rounded-xl px-5 py-3.5 shadow-lg flex flex-wrap items-center justify-between gap-3">
@@ -947,7 +1331,11 @@ export default function AIConfigView() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setConfig(savedConfig)}
+              onClick={() => {
+                setConfig(savedConfig);
+                setProviders(savedProviders);
+                setMailConfig(savedMailConfig);
+              }}
               className="h-10 px-4 rounded-lg border-[#E2E8F0] text-[#475569] min-w-fit whitespace-nowrap"
             >
               Buang

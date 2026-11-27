@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { type AuthRequest, getJwtSecret, portalTokenTtl } from '../middleware/auth';
 import { normalizeCompanyName, resolveAdminTenantId } from '../middleware/tenant';
 import { ensureApplicantForPortalUser } from '../services/portalApplicantSync';
-import { sendActivationEmail, sendCredentialsEmail, sendPasswordResetEmail } from '../services/mailService';
+import { resolveAppBaseUrl, sendActivationEmail, sendCredentialsEmail, sendPasswordResetEmail } from '../services/mailService';
 import { getLhaVersionMeta } from '../services/lhaGovernanceService';
 import {
   loadCourseLabelMap,
@@ -103,12 +103,6 @@ const RESET_TTL_MS = 30 * 60 * 1000;
 
 const hashToken = (token: string): string => crypto.createHash('sha256').update(token).digest('hex');
 
-const appBaseUrl = (): string => {
-  const explicit = process.env.APP_BASE_URL || process.env.FRONTEND_URL;
-  if (explicit) return explicit.replace(/\/$/, '');
-  const origin = (process.env.CORS_ORIGIN || '').split(',').map((item) => item.trim()).filter(Boolean)[0];
-  return (origin || 'http://localhost:5173').replace(/\/$/, '');
-};
 
 
 const normalizePhoneNumber = (value: unknown): string => String(value || '').replace(/[\s-]/g, '');
@@ -882,7 +876,7 @@ export const issueUserActivationToken = async (user: {
       expiresAt: new Date(Date.now() + ACTIVATION_TTL_MS)
     }
   });
-  const activationUrl = `${appBaseUrl()}/login?activate=${token}`;
+  const activationUrl = `${await resolveAppBaseUrl()}/login?activate=${token}`;
   const mail = isSyntheticLocalEmail(user.email)
     ? { delivered: false, provider: 'username_only' }
     : await sendActivationEmail(
@@ -1010,7 +1004,7 @@ export const createPortalUser = async (req: AuthRequest, res: Response) => {
         }
       } else if (!isSyntheticLocalEmail(user.email)) {
         mail = await sendCredentialsEmail(user.email, user.name, {
-          loginUrl: `${appBaseUrl()}/login`,
+          loginUrl: `${await resolveAppBaseUrl()}/login`,
           programTitle: user.assessmentTitle || user.assessmentId || undefined,
           username: user.username || undefined,
           temporaryPassword: password
@@ -1194,7 +1188,7 @@ export const forgotPassword = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    const resetUrl = `${appBaseUrl()}/login?reset=${token}`;
+    const resetUrl = `${await resolveAppBaseUrl()}/login?reset=${token}`;
     const mail = await sendPasswordResetEmail(user.email, user.name, token, resetUrl);
     const payload: Record<string, unknown> = { ...generic, mailDelivered: mail.delivered, mailProvider: mail.provider };
     if (process.env.NODE_ENV !== 'production' && !mail.delivered) {
@@ -1419,7 +1413,7 @@ export const sendPortalUserCredentials = async (req: AuthRequest, res: Response)
 
     const programTitle = existing.assessmentTitle || existing.assessmentId || undefined;
     const mail = await sendCredentialsEmail(existing.email, existing.name, {
-      loginUrl: `${appBaseUrl()}/login`,
+      loginUrl: `${await resolveAppBaseUrl()}/login`,
       programTitle: programTitle || undefined,
       username: existing.username || undefined
     });

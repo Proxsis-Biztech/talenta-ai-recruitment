@@ -1,5 +1,33 @@
 import fs from 'fs';
 import path from 'path';
+import nodemailer from 'nodemailer';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export type MailProvider = 'auto' | 'smtp' | 'resend' | 'webhook' | 'outbox';
+export type ActiveMailProvider = 'smtp' | 'resend' | 'webhook' | 'outbox';
+
+export interface MailRuntimeConfig {
+  provider: MailProvider;
+  fromName: string;
+  fromEmail: string;
+  replyTo: string;
+  appBaseUrl: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUser: string;
+  smtpPass: string;
+  resendApiKey: string;
+  webhookUrl: string;
+}
+
+export interface EffectiveMailConfig extends MailRuntimeConfig {
+  activeProvider: ActiveMailProvider;
+  formattedFrom: string;
+  effectiveAppBaseUrl: string;
+}
 
 export interface MailInput {
   to: string;
@@ -15,7 +43,201 @@ export interface MailResult {
   error?: string;
 }
 
+export interface MailTestResult {
+  reachable: boolean;
+  provider: ActiveMailProvider;
+  message: string;
+}
+
+export const DEFAULT_MAIL_CONFIG: MailRuntimeConfig = {
+  provider: 'auto',
+  fromName: 'Talenta+',
+  fromEmail: '',
+  replyTo: '',
+  appBaseUrl: '',
+  smtpHost: '',
+  smtpPort: 465,
+  smtpSecure: true,
+  smtpUser: '',
+  smtpPass: '',
+  resendApiKey: '',
+  webhookUrl: ''
+};
+
 const OUTBOX_DIR = path.join(__dirname, '../../uploads/mail-outbox');
+let cachedMailConfig: { value: MailRuntimeConfig; expiresAt: number } | null = null;
+
+/** Parses `"Display Name <email@domain>"` or `"email@domain"` into parts. */
+export const parseMailFrom = (raw?: string): { name: string; email: string } => {
+  const value = String(raw || '').trim();
+  if (!value) return { name: '', email: '' };
+  const match = value.match(/^(.*?)\s*<([^<>]+)>$/);
+  if (match) {
+    return {
+      name: match[1].replace(/^["']|["']$/g, '').trim(),
+      email: match[2].trim()
+    };
+  }
+  return { name: '', email: value };
+};
+
+export const formatMailFrom = (fromName: string, fromEmail: string): string => {
+  const cleanEmail = fromEmail.trim();
+  const cleanName = fromName.replace(/[\r\n"]/g, '').trim();
+  if (!cleanEmail) return cleanName ? `${cleanName} <no-reply@talenta.local>` : 'Talenta+ <no-reply@talenta.local>';
+  return cleanName ? `"${cleanName}" <${cleanEmail}>` : cleanEmail;
+};
+
+const normalizeAppUrl = (raw: string): string => raw.trim().replace(/\/+$/, '');
+
+const resolveEnvAppBaseUrl = (env: NodeJS.ProcessEnv): string => {
+  const explicit = env.APP_BASE_URL || env.FRONTEND_URL;
+  if (explicit) return normalizeAppUrl(explicit);
+  const firstOrigin = String(env.CORS_ORIGIN || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)[0];
+  return normalizeAppUrl(firstOrigin || 'http://localhost:5173');
+};
+
+const parsePort = (value: unknown, fallback: number): number => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535 ? parsed : fallback;
+};
+
+const parseBoolean = (value: unknown, fallback: boolean): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const lower = value.trim().toLowerCase();
+    if (lower === 'true' || lower === '1') return true;
+    if (lower === 'false' || lower === '0') return false;
+  }
+  return fallback;
+};
+
+export const normalizeStoredMailConfig = (raw: unknown): MailRuntimeConfig => {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const providerRaw = String(src.provider || 'auto').trim();
+  const provider: MailProvider =
+    providerRaw === 'smtp' ||
+    providerRaw === 'resend' ||
+    providerRaw === 'webhook' ||
+    providerRaw === 'outbox'
+      ? providerRaw
+      : 'auto';
+  const smtpPort = parsePort(src.smtpPort, DEFAULT_MAIL_CONFIG.smtpPort);
+  return {
+    provider,
+    fromName: String(src.fromName ?? DEFAULT_MAIL_CONFIG.fromName).trim(),
+    fromEmail: String(src.fromEmail ?? '').trim(),
+    replyTo: String(src.replyTo ?? '').trim(),
+    appBaseUrl: normalizeAppUrl(String(src.appBaseUrl ?? '')),
+    smtpHost: String(src.smtpHost ?? '').trim(),
+    smtpPort,
+    smtpSecure: parseBoolean(src.smtpSecure, smtpPort === 465),
+    smtpUser: String(src.smtpUser ?? '').trim(),
+    smtpPass: String(src.smtpPass ?? ''),
+    resendApiKey: String(src.resendApiKey ?? '').trim(),
+    webhookUrl: String(src.webhookUrl ?? '').trim()
+  };
+};
+
+/**
+ * Merges DB-stored mail settings with environment variable fallbacks
+ * and resolves which transport provider is active.
+ */
+export const resolveEffectiveMailConfig = (
+  stored: Partial<MailRuntimeConfig> = {},
+  env: NodeJS.ProcessEnv = process.env
+): EffectiveMailConfig => {
+  const envFrom = parseMailFrom(env.MAIL_FROM);
+  const envPort = parsePort(env.SMTP_PORT, 465);
+  const envSecure = parseBoolean(env.SMTP_SECURE, envPort === 465);
+
+  const smtpHost = String(stored.smtpHost ?? '').trim() || String(env.SMTP_HOST || '').trim();
+  const smtpPort = stored.smtpPort ? parsePort(stored.smtpPort, envPort) : envPort;
+  const smtpSecure =
+    typeof stored.smtpSecure === 'boolean'
+      ? stored.smtpSecure
+      : env.SMTP_SECURE !== undefined
+        ? envSecure
+        : smtpPort === 465;
+  const smtpUser = String(stored.smtpUser ?? '').trim() || String(env.SMTP_USER || '').trim();
+  const smtpPass = String(stored.smtpPass ?? '') || String(env.SMTP_PASS || '');
+  const resendApiKey = String(stored.resendApiKey ?? '').trim() || String(env.RESEND_API_KEY || '').trim();
+  const webhookUrl = String(stored.webhookUrl ?? '').trim() || String(env.MAIL_WEBHOOK_URL || '').trim();
+
+  const fromName = String(stored.fromName ?? '').trim() || envFrom.name || DEFAULT_MAIL_CONFIG.fromName;
+  const rawFromEmail = String(stored.fromEmail ?? '').trim() || envFrom.email;
+  const fromEmail = rawFromEmail || (smtpUser.includes('@') ? smtpUser : '');
+  const replyTo = String(stored.replyTo ?? '').trim() || String(env.MAIL_REPLY_TO || '').trim();
+  const appBaseUrl = normalizeAppUrl(String(stored.appBaseUrl ?? ''));
+  const effectiveAppBaseUrl = appBaseUrl || resolveEnvAppBaseUrl(env);
+
+  const provider: MailProvider = stored.provider || 'auto';
+  const smtpReady = Boolean(smtpHost && smtpUser && smtpPass);
+
+  let activeProvider: ActiveMailProvider = 'outbox';
+  if (provider === 'outbox') {
+    activeProvider = 'outbox';
+  } else if (provider === 'smtp') {
+    activeProvider = smtpReady ? 'smtp' : 'outbox';
+  } else if (provider === 'resend') {
+    activeProvider = resendApiKey ? 'resend' : 'outbox';
+  } else if (provider === 'webhook') {
+    activeProvider = webhookUrl ? 'webhook' : 'outbox';
+  } else {
+    if (smtpReady) activeProvider = 'smtp';
+    else if (resendApiKey) activeProvider = 'resend';
+    else if (webhookUrl) activeProvider = 'webhook';
+  }
+
+  return {
+    provider,
+    fromName,
+    fromEmail,
+    replyTo,
+    appBaseUrl,
+    smtpHost,
+    smtpPort,
+    smtpSecure,
+    smtpUser,
+    smtpPass,
+    resendApiKey,
+    webhookUrl,
+    activeProvider,
+    formattedFrom: formatMailFrom(fromName, fromEmail),
+    effectiveAppBaseUrl
+  };
+};
+
+export const getMailConfig = async (): Promise<MailRuntimeConfig> => {
+  if (cachedMailConfig && cachedMailConfig.expiresAt > Date.now()) {
+    return cachedMailConfig.value;
+  }
+  let value = DEFAULT_MAIL_CONFIG;
+  try {
+    const record = await prisma.masterRecord.findUnique({
+      where: { scope_key: { scope: 'mail-config', key: 'default' } }
+    });
+    if (record?.value) {
+      value = normalizeStoredMailConfig(JSON.parse(record.value));
+    }
+  } catch {
+    value = DEFAULT_MAIL_CONFIG;
+  }
+  cachedMailConfig = { value, expiresAt: Date.now() + 30_000 };
+  return value;
+};
+
+export const invalidateMailConfigCache = () => {
+  cachedMailConfig = null;
+};
+
+export const resolveAppBaseUrl = async (): Promise<string> => {
+  const stored = await getMailConfig();
+  return resolveEffectiveMailConfig(stored).effectiveAppBaseUrl;
+};
 
 const writeOutbox = (input: MailInput, provider: string, error?: string) => {
   try {
@@ -36,31 +258,69 @@ const writeOutbox = (input: MailInput, provider: string, error?: string) => {
 };
 
 export const isMailConfigured = (): boolean =>
-  Boolean(process.env.RESEND_API_KEY || process.env.MAIL_WEBHOOK_URL);
+  Boolean(
+    (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) ||
+      process.env.RESEND_API_KEY ||
+      process.env.MAIL_WEBHOOK_URL
+  );
 
-/**
- * Sends transactional mail through Resend (HTTP API) or a generic webhook.
- * When no provider is configured the message is written to uploads/mail-outbox
- * so local/staging environments can still exercise the flow.
- */
-export const sendMail = async (input: MailInput): Promise<MailResult> => {
-  const from = process.env.MAIL_FROM || 'Talenta+ <no-reply@talenta.local>';
+export const isMailConfiguredAsync = async (): Promise<boolean> => {
+  const stored = await getMailConfig();
+  return resolveEffectiveMailConfig(stored).activeProvider !== 'outbox';
+};
 
-  if (process.env.RESEND_API_KEY) {
+const createSmtpTransporter = (cfg: EffectiveMailConfig) =>
+  nodemailer.createTransport({
+    host: cfg.smtpHost,
+    port: cfg.smtpPort,
+    secure: cfg.smtpSecure,
+    auth: {
+      user: cfg.smtpUser,
+      pass: cfg.smtpPass
+    },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000
+  });
+
+const dispatchWithConfig = async (cfg: EffectiveMailConfig, input: MailInput): Promise<MailResult> => {
+  const replyTo = input.replyTo || cfg.replyTo || undefined;
+
+  if (cfg.activeProvider === 'smtp') {
+    try {
+      const transporter = createSmtpTransporter(cfg);
+      await transporter.sendMail({
+        from: cfg.formattedFrom,
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+        replyTo
+      });
+      return { delivered: true, provider: 'smtp' };
+    } catch (error: any) {
+      const detail = error?.message || 'SMTP send failed';
+      console.error('SMTP mail error:', detail);
+      writeOutbox(input, 'smtp', detail);
+      return { delivered: false, provider: 'smtp', error: detail };
+    }
+  }
+
+  if (cfg.activeProvider === 'resend') {
     try {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          Authorization: `Bearer ${cfg.resendApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from,
+          from: cfg.formattedFrom,
           to: [input.to],
           subject: input.subject,
           html: input.html,
           text: input.text,
-          reply_to: input.replyTo,
+          reply_to: replyTo,
         }),
       });
       if (!response.ok) {
@@ -77,12 +337,12 @@ export const sendMail = async (input: MailInput): Promise<MailResult> => {
     }
   }
 
-  if (process.env.MAIL_WEBHOOK_URL) {
+  if (cfg.activeProvider === 'webhook') {
     try {
-      const response = await fetch(process.env.MAIL_WEBHOOK_URL, {
+      const response = await fetch(cfg.webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from, ...input }),
+        body: JSON.stringify({ from: cfg.formattedFrom, replyTo, ...input }),
       });
       if (!response.ok) {
         writeOutbox(input, 'webhook', `${response.status}`);
@@ -98,6 +358,88 @@ export const sendMail = async (input: MailInput): Promise<MailResult> => {
   writeOutbox(input, 'outbox');
   console.log(`[mail:outbox] ${input.subject} -> ${input.to}`);
   return { delivered: false, provider: 'outbox' };
+};
+
+/**
+ * Sends transactional mail through SMTP (e.g. Zoho Mail / ZeptoMail), Resend, or a webhook.
+ * When no provider is configured the message is written to uploads/mail-outbox
+ * so local/staging environments can still exercise the flow.
+ */
+export const sendMail = async (input: MailInput): Promise<MailResult> => {
+  const stored = await getMailConfig();
+  const cfg = resolveEffectiveMailConfig(stored);
+  return dispatchWithConfig(cfg, input);
+};
+
+/**
+ * Verifies the configured mail transport and optionally sends a test message.
+ */
+export const testMailConnection = async (
+  override: Partial<MailRuntimeConfig> = {},
+  testTo?: string
+): Promise<MailTestResult> => {
+  const stored = await getMailConfig();
+  const merged: MailRuntimeConfig = { ...stored, ...override };
+  const cfg = resolveEffectiveMailConfig(merged);
+
+  if (cfg.activeProvider === 'outbox') {
+    const missingSmtp =
+      merged.provider === 'smtp'
+        ? 'Host, username, atau password SMTP belum lengkap.'
+        : 'Belum ada provider email aktif (SMTP / Resend / Webhook).';
+    return { reachable: false, provider: 'outbox', message: missingSmtp };
+  }
+
+  if (cfg.activeProvider === 'smtp') {
+    try {
+      const transporter = createSmtpTransporter(cfg);
+      await transporter.verify();
+      if (!testTo) {
+        return {
+          reachable: true,
+          provider: 'smtp',
+          message: `Koneksi SMTP ke ${cfg.smtpHost}:${cfg.smtpPort} berhasil diverifikasi.`
+        };
+      }
+    } catch (error: any) {
+      return {
+        reachable: false,
+        provider: 'smtp',
+        message: `Gagal terhubung ke SMTP ${cfg.smtpHost}:${cfg.smtpPort} — ${error?.message || 'Autentikasi/koneksi ditolak'}`
+      };
+    }
+  }
+
+  if (testTo) {
+    const result = await dispatchWithConfig(cfg, {
+      to: testTo,
+      subject: 'Tes Konfigurasi Email Talenta+',
+      html: layout(
+        'Tes Koneksi Email Berhasil',
+        `<p>Email ini dikirim untuk memverifikasi konfigurasi pengiriman email platform <strong>Talenta+</strong>.</p>
+         <p>Provider aktif: <strong>${cfg.activeProvider.toUpperCase()}</strong><br/>Pengirim: <code>${cfg.formattedFrom}</code></p>`
+      ),
+      text: `Tes konfigurasi email Talenta+ berhasil (${cfg.activeProvider}) dari ${cfg.formattedFrom}.`
+    });
+    if (!result.delivered) {
+      return {
+        reachable: false,
+        provider: cfg.activeProvider,
+        message: `Gagal mengirim email tes via ${cfg.activeProvider}: ${result.error || 'Unknown error'}`
+      };
+    }
+    return {
+      reachable: true,
+      provider: cfg.activeProvider,
+      message: `Email tes berhasil dikirim ke ${testTo} melalui ${cfg.activeProvider.toUpperCase()}.`
+    };
+  }
+
+  return {
+    reachable: true,
+    provider: cfg.activeProvider,
+    message: `Provider ${cfg.activeProvider.toUpperCase()} terkonfigurasi. Isi email tujuan tes untuk menguji pengiriman nyata.`
+  };
 };
 
 const layout = (title: string, body: string) => `
