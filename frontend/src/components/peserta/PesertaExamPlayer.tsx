@@ -379,13 +379,21 @@ export default function PesertaExamPlayer() {
     : currentIdx + 1;
   const currentSectionTotal = currentSection ? currentSection.indices.length : totalQuestions;
   const docPanelOpen =
-    docPanelState?.questionId === currentQ?.id
-      ? docPanelState.open
-      : Boolean(currentQ?.attachmentUrl);
+    docPanelState?.questionId === currentQ?.id ? docPanelState.open : false;
   const setDocPanelOpen = (open: boolean) => {
     if (!currentQ) return;
     setDocPanelState({ questionId: currentQ.id, open });
   };
+  const isPdfAttachment = Boolean(
+    currentQ?.attachmentUrl &&
+      (currentQ.attachmentMime === 'application/pdf' || /\.pdf(\?|$)/i.test(currentQ.attachmentUrl))
+  );
+  const fittedAttachmentUrl = useMemo(() => {
+    const raw = currentQ?.attachmentUrl;
+    if (!raw) return '';
+    if (!isPdfAttachment || raw.includes('#')) return raw;
+    return `${raw}#view=FitH&navpanes=0`;
+  }, [currentQ?.attachmentUrl, isPdfAttachment]);
 
   const answeredCount = useMemo(() => {
     return Array.from({ length: totalQuestions }).filter((_, i) => isQuestionAnswered(i + 1)).length;
@@ -1075,43 +1083,54 @@ export default function PesertaExamPlayer() {
 
       {/* Split-view document panel (BR-EX-08) */}
       {!isExamLocked && docPanelOpen && currentQ.attachmentUrl && (
-        <aside className="fixed inset-x-0 top-18 bottom-0 lg:left-auto lg:right-0 lg:w-[40vw] lg:max-w-2xl bg-white border-l border-slate-200 shadow-xl z-30 flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-            <div className="flex items-center gap-2 min-w-0">
-              <Paperclip className="w-4 h-4 text-primary-navy shrink-0" />
-              <span className="text-xs font-semibold text-slate-700 truncate">
-                {currentQ.attachmentName || 'Dokumen studi kasus'}
-              </span>
+        <aside className="fixed inset-x-0 top-18 bottom-0 lg:left-auto lg:right-0 lg:w-[44vw] lg:max-w-[720px] lg:min-w-[440px] bg-white border-l border-slate-200 shadow-2xl z-35 flex flex-col">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 bg-white">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-blue-50 text-primary-navy flex items-center justify-center shrink-0">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-slate-800 truncate">
+                  {currentQ.attachmentName || 'Dokumen Studi Kasus'}
+                </span>
+                <span className="block text-[11px] text-slate-400">
+                  {isPdfAttachment ? 'Dokumen PDF • Tampilan Fit Lebar' : 'Lampiran Soal'}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5 shrink-0">
               <a
                 href={currentQ.attachmentUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 title="Buka di tab baru"
               >
-                <ExternalLink className="w-4 h-4" />
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Tab Baru</span>
               </a>
               <button
                 type="button"
                 onClick={() => setDocPanelOpen(false)}
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
                 title="Tutup panel dokumen"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
+                <span>Tutup</span>
               </button>
             </div>
           </div>
-          <div className="flex-1 bg-slate-50">
-            {currentQ.attachmentMime === 'application/pdf' || /\.pdf(\?|$)/i.test(currentQ.attachmentUrl) ? (
-              <iframe
-                src={currentQ.attachmentUrl}
-                title={currentQ.attachmentName || 'Dokumen studi kasus'}
-                className="w-full h-full"
-              />
+          <div className="flex-1 bg-slate-100 p-2.5 sm:p-3 overflow-hidden">
+            {isPdfAttachment ? (
+              <div className="w-full h-full rounded-xl border border-slate-200/90 bg-white shadow-xs overflow-hidden">
+                <iframe
+                  src={fittedAttachmentUrl}
+                  title={currentQ.attachmentName || 'Dokumen studi kasus'}
+                  className="w-full h-full border-0 bg-white"
+                />
+              </div>
             ) : (
-              <div className="p-6 text-xs text-slate-600 space-y-3">
+              <div className="p-6 rounded-xl bg-white border border-slate-200 text-xs text-slate-600 space-y-3">
                 <p>Dokumen ini tidak dapat dipratinjau langsung di panel. Buka melalui tautan berikut:</p>
                 <a
                   href={currentQ.attachmentUrl}
@@ -1293,7 +1312,7 @@ export default function PesertaExamPlayer() {
         {/* ◄ SISI KIRI: LEMBAR PERTANYAAN (Scrollable, Spacious, Comfortable) ► */}
         <main
           className={`flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12 flex flex-col items-center transition-[padding] ${
-            docPanelOpen && currentQ.attachmentUrl ? 'lg:pr-[42vw]' : ''
+            docPanelOpen && currentQ.attachmentUrl ? 'lg:pr-[min(44vw,720px)]' : ''
           }`}
         >
           <div className="w-full max-w-3xl space-y-7">
