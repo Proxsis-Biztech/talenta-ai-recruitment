@@ -126,11 +126,12 @@ const replaceProgramQuestions = async (programCode: string, questions: any[]) =>
     data: questions.map((question, index) => {
       const mapped = mapQuestion(question, index, programCode);
       const previous = attachmentByOrder.get(mapped.orderNo);
+      const explicitlyCleared = question?.attachmentUrl === null;
       return {
         ...mapped,
-        attachmentUrl: mapped.attachmentUrl || previous?.attachmentUrl || null,
-        attachmentName: mapped.attachmentName || previous?.attachmentName || null,
-        attachmentMime: mapped.attachmentMime || previous?.attachmentMime || null
+        attachmentUrl: explicitlyCleared ? null : mapped.attachmentUrl || previous?.attachmentUrl || null,
+        attachmentName: explicitlyCleared ? null : mapped.attachmentName || previous?.attachmentName || null,
+        attachmentMime: explicitlyCleared ? null : mapped.attachmentMime || previous?.attachmentMime || null
       };
     })
   });

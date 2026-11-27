@@ -559,7 +559,11 @@ export const SuperadminLayout: React.FC<SuperadminLayoutProps> = ({
                       <div className="my-1 border-t border-slate-100" />
 
                       <button
-                        onClick={onLogout}
+                        onClick={(e) => {
+                          e.currentTarget.blur();
+                          setUserDropdownOpen(false);
+                          onLogout();
+                        }}
                         className="w-full px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 cursor-pointer"
                       >
                         <LogOut className="w-4 h-4 text-rose-500" />

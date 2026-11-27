@@ -151,6 +151,7 @@ export default function UserManagement() {
   });
   const [pesertaFormAssessmentId, setPesertaFormAssessmentId] = useState('');
   const [pesertaFormAssessmentIds, setPesertaFormAssessmentIds] = useState<string[]>([]);
+  const [editingInitialAssessmentIds, setEditingInitialAssessmentIds] = useState<string[]>([]);
   const [pesertaFormGrade, setPesertaFormGrade] = useState<'Grade C (Junior)' | 'Grade B (Specialist / Mid)' | 'Grade A (Lead / Senior)'>('Grade B (Specialist / Mid)');
   const [pesertaFormDate, setPesertaFormDate] = useState(new Date().toISOString().split('T')[0]);
   const [pesertaFormError, setPesertaFormError] = useState('');
@@ -164,9 +165,9 @@ export default function UserManagement() {
       programLinks,
       hiddenCatalogCodes
     );
-    if (!editingPesertaId || pesertaFormAssessmentIds.length === 0) return matched;
+    if (!editingPesertaId || editingInitialAssessmentIds.length === 0) return matched;
     const pool = [...matched];
-    for (const assignedId of pesertaFormAssessmentIds) {
+    for (const assignedId of editingInitialAssessmentIds) {
       if (!pool.some((p) => p.id.toUpperCase() === assignedId.toUpperCase())) {
         const found = programOptions.find((p) => p.id.toUpperCase() === assignedId.toUpperCase());
         if (found) pool.push(found);
@@ -180,28 +181,36 @@ export default function UserManagement() {
     programLinks,
     hiddenCatalogCodes,
     editingPesertaId,
-    pesertaFormAssessmentIds
+    editingInitialAssessmentIds
   ]);
 
   // Set default assessment when company changes in modal (preserve valid existing selections on edit)
   useEffect(() => {
-    if (availableProgramsForModal.length > 0) {
-      setPesertaFormAssessmentIds((prev) => {
-        const valid = prev.filter((id) => availableProgramsForModal.some((p) => p.id === id));
-        if (valid.length > 0) {
-          setPesertaFormAssessmentId(valid[0]);
-          return valid;
-        }
-        const first = availableProgramsForModal[0];
-        setPesertaFormAssessmentId(first.id);
-        setPesertaFormGrade(first.gradeLevel || 'Grade B (Specialist / Mid)');
-        return [first.id];
-      });
-    } else {
-      setPesertaFormAssessmentIds([]);
-      setPesertaFormAssessmentId('');
+    if (availableProgramsForModal.length === 0) {
+      setPesertaFormAssessmentIds((prev) => (prev.length === 0 ? prev : []));
+      return;
     }
+    const allowedIds = new Set(availableProgramsForModal.map((p) => p.id));
+    setPesertaFormAssessmentIds((prev) => {
+      const valid = prev.filter((id) => allowedIds.has(id));
+      if (valid.length > 0) {
+        return valid.length === prev.length ? prev : valid;
+      }
+      return [availableProgramsForModal[0].id];
+    });
   }, [availableProgramsForModal]);
+
+  useEffect(() => {
+    const primary = pesertaFormAssessmentIds[0] || '';
+    setPesertaFormAssessmentId((prev) => (prev === primary ? prev : primary));
+    if (pesertaFormAssessmentIds.length === 1 && !editingPesertaId) {
+      const matched = availableProgramsForModal.find((p) => p.id === primary);
+      const nextGrade = matched?.gradeLevel || 'Grade B (Specialist / Mid)';
+      if (matched?.gradeLevel) {
+        setPesertaFormGrade((prev) => (prev === nextGrade ? prev : nextGrade));
+      }
+    }
+  }, [pesertaFormAssessmentIds, availableProgramsForModal, editingPesertaId]);
 
   const loadPeserta = useCallback(async () => {
     try {
@@ -483,6 +492,7 @@ export default function UserManagement() {
         : peserta.assessmentId
         ? [peserta.assessmentId]
         : [];
+    setEditingInitialAssessmentIds(initialIds);
     setPesertaFormAssessmentIds(initialIds);
     setPesertaFormAssessmentId(initialIds[0] || peserta.assessmentId || '');
     setPesertaFormGrade(peserta.gradeLevel as any);
@@ -493,6 +503,7 @@ export default function UserManagement() {
 
   const handleOpenAddPeserta = () => {
     setEditingPesertaId(null);
+    setEditingInitialAssessmentIds([]);
     setPesertaFormName('');
     setPesertaFormUsername('');
     setPesertaFormPassword('');

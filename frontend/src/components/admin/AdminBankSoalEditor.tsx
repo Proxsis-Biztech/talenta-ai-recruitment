@@ -226,9 +226,10 @@ const INITIAL_QUESTIONS: BankQuestion[] = [
 
 const syncProgramQuestions = async (programCode: string, allQuestions: BankQuestion[]) => {
   const token = localStorage.getItem('adminToken');
-  if (!token) return;
+  const targetCode = String(programCode || '').trim().toUpperCase();
+  if (!token || !targetCode) return;
   const programQuestions = allQuestions.filter(
-    (question) => (question.programCode || programCode) === programCode
+    (question) => String(question.programCode || targetCode).trim().toUpperCase() === targetCode
   );
   const payload = programQuestions.map((question) => {
     const options = question.options || [];
@@ -254,13 +255,13 @@ const syncProgramQuestions = async (programCode: string, allQuestions: BankQuest
       matchingPairs: (question as any).matchingPairs || [],
       correctAnswer,
       points: 1,
-      attachmentUrl: question.attachmentUrl || null,
-      attachmentName: question.attachmentName || null,
-      attachmentMime: question.attachmentMime || null
+      attachmentUrl: question.attachmentUrl === null ? null : question.attachmentUrl || undefined,
+      attachmentName: question.attachmentName === null ? null : question.attachmentName || undefined,
+      attachmentMime: question.attachmentMime === null ? null : question.attachmentMime || undefined
     };
   });
   await axios.post(
-    `/api/admin/programs/${programCode}/questions/sync`,
+    `/api/admin/programs/${encodeURIComponent(targetCode)}/questions/sync`,
     { questions: payload },
     { headers: { Authorization: `Bearer ${token}` } }
   );
@@ -672,35 +673,39 @@ export function AdminBankSoalEditor({
   const handleInlineAttachmentUpload = useCallback(async (question: BankQuestion, file: File) => {
     const token = localStorage.getItem('adminToken');
     if (!token) return;
+    const targetCode = String(question.programCode || selectedProgramCode || '').trim().toUpperCase();
     const programQuestions = questions.filter(
-      (item) => (item.programCode || programs[0]?.id || 'SE-402') === selectedProgramCode
+      (item) => String(item.programCode || targetCode).trim().toUpperCase() === targetCode
     );
     const orderNo = programQuestions.findIndex((item) => item.id === question.id) + 1;
     if (orderNo <= 0) return;
-    // Ensure question row exists on backend before attaching file
-    await syncProgramQuestions(selectedProgramCode, questions).catch(() => undefined);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('programCode', selectedProgramCode);
+    formData.append('programCode', targetCode);
     formData.append('orderNo', String(orderNo));
     try {
+      // Ensure question row exists on backend before attaching file
+      await syncProgramQuestions(targetCode, questions);
       const response = await axios.post('/api/admin/questions/attachment', formData, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
       });
       const stored = response.data?.data;
       if (!stored) return;
-      commitQuestions(
-        questions.map((item) =>
-          item.id === question.id
-            ? {
-                ...item,
-                attachmentUrl: stored.url,
-                attachmentName: stored.name,
-                attachmentMime: stored.mime
-              }
-            : item
-        )
+      const next = questions.map((item) =>
+        item.id === question.id
+          ? {
+              ...item,
+              attachmentUrl: stored.url,
+              attachmentName: stored.name,
+              attachmentMime: stored.mime
+            }
+          : item
       );
+      setQuestions(next);
+      setHasUnsavedChanges(false);
+      await saveMasterRecord('bank-soal', 'questions', next);
+      await syncProgramQuestions(targetCode, next);
+      showToast('Lampiran soal berhasil diunggah dan disinkronkan ke ujian peserta.');
     } catch (error) {
       showToast(
         axios.isAxiosError(error)
@@ -708,7 +713,7 @@ export function AdminBankSoalEditor({
           : 'Gagal mengunggah lampiran soal.'
       );
     }
-  }, [questions, programs, selectedProgramCode, commitQuestions]);
+  }, [questions, selectedProgramCode]);
 
   // Fact Sheet handlers
   const handleSaveFactSheet = () => {
@@ -1142,9 +1147,9 @@ export function AdminBankSoalEditor({
   const handleQuestionAttachmentUpload = async (file: File) => {
     const token = localStorage.getItem('adminToken');
     if (!token) return;
-    const programCode = activeQuestion.programCode || selectedProgramCode;
+    const programCode = String(activeQuestion.programCode || selectedProgramCode || '').trim().toUpperCase();
     const programQuestions = questions.filter(
-      (question) => (question.programCode || programs[0]?.id || 'SE-402') === programCode
+      (question) => String(question.programCode || programCode).trim().toUpperCase() === programCode
     );
     const orderNo = programQuestions.findIndex((question) => question.id === activeQuestion.id) + 1;
     if (orderNo <= 0) {
@@ -1156,6 +1161,7 @@ export function AdminBankSoalEditor({
     formData.append('programCode', programCode);
     formData.append('orderNo', String(orderNo));
     try {
+      await syncProgramQuestions(programCode, questions);
       const response = await axios.post('/api/admin/questions/attachment', formData, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
       });
@@ -1167,8 +1173,16 @@ export function AdminBankSoalEditor({
           attachmentName: stored.name,
           attachmentMime: stored.mime
         }));
+        const next = questions.map((item) =>
+          item.id === activeQuestion.id
+            ? { ...item, attachmentUrl: stored.url, attachmentName: stored.name, attachmentMime: stored.mime }
+            : item
+        );
+        setQuestions(next);
+        await saveMasterRecord('bank-soal', 'questions', next);
+        await syncProgramQuestions(programCode, next);
       }
-      showToast('Lampiran soal terunggah.');
+      showToast('Lampiran soal terunggah dan disinkronkan.');
     } catch (error) {
       showToast(
         axios.isAxiosError(error)

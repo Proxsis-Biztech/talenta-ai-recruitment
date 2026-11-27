@@ -495,14 +495,16 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
       await saveMasterRecord('job-materi', jobId, combinedMateri).catch(() => undefined);
     }
 
-    // Sync questions from selected courses into program's CAT bank if program has a Job code
+    // Ensure each linked course has its own CAT question bank synced (including attachments)
+    // without duplicating course questions under the parent program code.
     const token = localStorage.getItem('adminToken');
     if (token && normalizedCodes.length > 0) {
-      const combinedQuestions = bankSoalQuestions.filter((q) =>
-        normalizedCodes.includes(String(q.programCode || '').toUpperCase())
-      );
-      if (combinedQuestions.length > 0) {
-        const payload = combinedQuestions.map((question) => {
+      for (const courseCode of normalizedCodes) {
+        const courseQuestions = bankSoalQuestions.filter(
+          (q) => String(q.programCode || '').trim().toUpperCase() === courseCode
+        );
+        if (courseQuestions.length === 0) continue;
+        const payload = courseQuestions.map((question) => {
           const options = question.options || [];
           let correctAnswer: unknown = null;
           if (question.type === 'Pilihan Ganda') {
@@ -525,12 +527,15 @@ export default function JobManagement({ onOpenMateriAndSoal }: JobManagementProp
             options,
             matchingPairs: question.matchingPairs || [],
             correctAnswer,
-            points: 1
+            points: 1,
+            attachmentUrl: question.attachmentUrl === null ? null : question.attachmentUrl || undefined,
+            attachmentName: question.attachmentName === null ? null : question.attachmentName || undefined,
+            attachmentMime: question.attachmentMime === null ? null : question.attachmentMime || undefined
           };
         });
         await axios
           .post(
-            `/api/admin/programs/${encodeURIComponent(key)}/questions/sync`,
+            `/api/admin/programs/${encodeURIComponent(courseCode)}/questions/sync`,
             { questions: payload },
             { headers: { Authorization: `Bearer ${token}` } }
           )

@@ -226,6 +226,88 @@ const canAccessProgram = (
   return false;
 };
 
+const resolveQuestionAttachments = async <
+  T extends {
+    programCode: string;
+    orderNo: number;
+    text: string;
+    attachmentUrl: string | null;
+    attachmentName: string | null;
+    attachmentMime: string | null;
+  }
+>(
+  rows: T[],
+  courseCodes: string[]
+): Promise<T[]> => {
+  if (!rows.some((row) => !row.attachmentUrl)) return rows;
+
+  const byProgramText = new Map<string, { url: string; name: string | null; mime: string | null }>();
+  const byText = new Map<string, { url: string; name: string | null; mime: string | null }>();
+  const courseCodeSet = new Set(courseCodes.map(normalizeProgramCode));
+
+  const recordAttachment = (programCode: string, text: string, url: string, name: string | null, mime: string | null) => {
+    const cleanText = String(text || '').trim();
+    if (!cleanText || !url) return;
+    const entry = { url, name, mime };
+    const normCode = normalizeProgramCode(programCode);
+    if (normCode) byProgramText.set(`${normCode}::${cleanText}`, entry);
+    if (courseCodeSet.has(normCode) || !byText.has(cleanText)) {
+      byText.set(cleanText, entry);
+    }
+  };
+
+  try {
+    const bankRecord = await prisma.masterRecord.findUnique({
+      where: { scope_key: { scope: 'bank-soal', key: 'questions' } }
+    });
+    if (bankRecord?.value) {
+      const parsed = JSON.parse(bankRecord.value);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item?.attachmentUrl) {
+            recordAttachment(
+              String(item.programCode || ''),
+              String(item.text || ''),
+              String(item.attachmentUrl),
+              item.attachmentName ? String(item.attachmentName) : null,
+              item.attachmentMime ? String(item.attachmentMime) : null
+            );
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore malformed bank-soal master record
+  }
+
+  const attachedRows = await prisma.programQuestion.findMany({
+    where: { attachmentUrl: { not: null } },
+    select: { programCode: true, text: true, attachmentUrl: true, attachmentName: true, attachmentMime: true }
+  });
+  for (const row of attachedRows) {
+    if (row.attachmentUrl) {
+      recordAttachment(row.programCode, row.text, row.attachmentUrl, row.attachmentName, row.attachmentMime);
+    }
+  }
+
+  return rows.map((row) => {
+    if (row.attachmentUrl) return row;
+    const cleanText = String(row.text || '').trim();
+    const normCode = normalizeProgramCode(row.programCode);
+    const match =
+      byProgramText.get(`${normCode}::${cleanText}`) ||
+      courseCodes.map((c) => byProgramText.get(`${normalizeProgramCode(c)}::${cleanText}`)).find(Boolean) ||
+      byText.get(cleanText);
+    if (!match) return row;
+    return {
+      ...row,
+      attachmentUrl: match.url,
+      attachmentName: match.name,
+      attachmentMime: match.mime
+    };
+  });
+};
+
 const loadProgram = async (programCode: string) => {
   const code = normalizeProgramCode(programCode);
   const job = await prisma.job.findFirst({ where: { code } });
@@ -237,9 +319,10 @@ const loadProgram = async (programCode: string) => {
   const courseCodes = await loadProgramCourseCodes(code);
   const codeOrder = new Map(courseCodes.map((item, index) => [item, index]));
   const courseLabels = await loadCourseLabelMap();
-  const rows = await prisma.programQuestion.findMany({
+  const rawRows = await prisma.programQuestion.findMany({
     where: { programCode: { in: courseCodes } }
   });
+  const rows = await resolveQuestionAttachments(rawRows, courseCodes);
   const questions = rows
     .sort((a, b) => {
       const aOrder = codeOrder.get(normalizeProgramCode(a.programCode)) ?? courseCodes.length;

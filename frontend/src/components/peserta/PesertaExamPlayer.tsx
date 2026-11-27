@@ -1075,7 +1075,7 @@ export default function PesertaExamPlayer() {
 
       {/* Split-view document panel (BR-EX-08) */}
       {!isExamLocked && docPanelOpen && currentQ.attachmentUrl && (
-        <aside className="hidden lg:flex fixed right-0 top-18 bottom-0 w-[40vw] max-w-2xl bg-white border-l border-slate-200 shadow-xl z-30 flex-col">
+        <aside className="fixed inset-x-0 top-18 bottom-0 lg:left-auto lg:right-0 lg:w-[40vw] lg:max-w-2xl bg-white border-l border-slate-200 shadow-xl z-30 flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
             <div className="flex items-center gap-2 min-w-0">
               <Paperclip className="w-4 h-4 text-primary-navy shrink-0" />
@@ -1104,7 +1104,7 @@ export default function PesertaExamPlayer() {
             </div>
           </div>
           <div className="flex-1 bg-slate-50">
-            {currentQ.attachmentMime === 'application/pdf' ? (
+            {currentQ.attachmentMime === 'application/pdf' || /\.pdf(\?|$)/i.test(currentQ.attachmentUrl) ? (
               <iframe
                 src={currentQ.attachmentUrl}
                 title={currentQ.attachmentName || 'Dokumen studi kasus'}
